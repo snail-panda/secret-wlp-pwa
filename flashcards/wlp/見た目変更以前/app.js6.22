@@ -1382,37 +1382,28 @@ function ttsPrefs() {
 
 let voices = [];
 
-function refreshVoices() {
+function loadVoices() {
 
   voices =
     speechSynthesis.getVoices();
 
-  updateAllVoiceButtons();
+  if (voices.length) {
 
-}
+    updateAllVoiceButtons();
 
-function loadVoices() {
-
-  // Refresh immediately, but keep listening because some browsers
-  // populate or change the available voice list after page load.
-  refreshVoices();
-
-  if (
-    typeof speechSynthesis.addEventListener ===
-    "function"
-  ) {
-
-    speechSynthesis.addEventListener(
-      "voiceschanged",
-      refreshVoices
-    );
-
-  } else {
-
-    speechSynthesis.onvoiceschanged =
-      refreshVoices;
+    return;
 
   }
+
+  speechSynthesis.onvoiceschanged =
+    () => {
+
+      voices =
+        speechSynthesis.getVoices();
+
+      updateAllVoiceButtons();
+
+    };
 
 }
 
