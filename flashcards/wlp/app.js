@@ -1691,7 +1691,7 @@ let ttsGapTimer = null;
 
 function resetTtsButton() {
   if (activeTtsButton) {
-    activeTtsButton.textContent = activeTtsButton.dataset.idleLabel || activeTtsButton.textContent;
+    activeTtsButton.innerHTML = activeTtsButton.dataset.idleHtml || activeTtsButton.innerHTML;
     activeTtsButton = null;
   }
 }
@@ -1761,7 +1761,7 @@ function toggleTtsButton(button, chunks, opts = {}) {
   }
 
   stopTtsPlayback();
-  button.dataset.idleLabel = button.textContent;
+  button.dataset.idleHtml = button.innerHTML;
   activeTtsButton = button;
   button.textContent = "■ Stop";
 
@@ -1973,8 +1973,8 @@ function stopRecordingPlayback(panel) {
   if (panel.__wlpRecordingAudioUrl) {
     URL.revokeObjectURL(panel.__wlpRecordingAudioUrl);
   }
-  if (button && button.dataset.idleLabel) {
-    button.textContent = button.dataset.idleLabel;
+  if (button && button.dataset.idleHtml) {
+    button.innerHTML = button.dataset.idleHtml;
   }
   panel.__wlpRecordingAudio = null;
   panel.__wlpRecordingAudioUrl = null;
@@ -1995,7 +1995,7 @@ function toggleRecordingPlayback(panel, button, blob) {
   panel.__wlpRecordingAudio = audio;
   panel.__wlpRecordingAudioUrl = url;
   panel.__wlpRecordingPlayButton = button;
-  button.dataset.idleLabel = button.dataset.idleLabel || button.textContent;
+  button.dataset.idleHtml = button.dataset.idleHtml || button.innerHTML;
   button.textContent = "■ Stop";
 
   const finish = () => stopRecordingPlayback(panel);

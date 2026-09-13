@@ -1581,22 +1581,43 @@ function cycleVoice() {
 
 }
 
-function voiceDisplayInfo(name) {
-  const v = findVoiceByName(name);
-  if (!v) return name ? name : "Default voice";
-  const locale = String(v.lang || "").replace("_", "-");
-  return locale ? `${v.name} · ${locale}` : v.name;
+function voiceIconFor(name) {
+
+  if (!name) {
+    return "🎙";
+  }
+
+  const fem =
+    /(Samantha|Karen|Victoria|Zira|Aria|Jenny|Female)/i;
+
+  const male =
+    /(Daniel|Alex|Oliver|David|Guy|Male)/i;
+
+  if (fem.test(name)) {
+    return "♀";
+  }
+
+  if (male.test(name)) {
+    return "♂";
+  }
+
+  return "🎙";
+
 }
 
 function updateVoiceButton(btn) {
-  const cur = getCurrentVoiceName();
-  btn.textContent = "‹ Voice ›";
-  btn.title = cur
-    ? `Voice: ${voiceDisplayInfo(cur)} (click to switch)`
-    : "Default voice (click to switch)";
 
-  const detail = btn.closest(".voice-control")?.querySelector(".voice-detail");
-  if (detail) detail.textContent = voiceDisplayInfo(cur);
+  const cur =
+    getCurrentVoiceName();
+
+  btn.textContent =
+    voiceIconFor(cur);
+
+  btn.title =
+    cur
+      ? `Voice: ${cur} (click to switch)`
+      : "Default voice (click to switch)";
+
 }
 
 function updateAllVoiceButtons() {
@@ -1685,93 +1706,76 @@ function splitSentences(text) {
 
 }
 
-let activeTtsButton = null;
-let ttsRunToken = 0;
-let ttsGapTimer = null;
-
-function resetTtsButton() {
-  if (activeTtsButton) {
-    activeTtsButton.textContent = activeTtsButton.dataset.idleLabel || activeTtsButton.textContent;
-    activeTtsButton = null;
-  }
-}
-
-function stopTtsPlayback() {
-  ttsRunToken += 1;
-  if (ttsGapTimer) {
-    clearTimeout(ttsGapTimer);
-    ttsGapTimer = null;
-  }
-  speechSynthesis.cancel();
-  resetTtsButton();
-}
-
 function speakSequence(
   chunks,
   opts = {}
 ) {
-  const cleanChunks = chunks.map(x => String(x || "").trim()).filter(Boolean);
-  if (!cleanChunks.length) {
-    if (opts.onDone) opts.onDone();
-    return;
-  }
 
-  const pref = ttsPrefs();
-  const gap = opts.gapMs ?? pref.gapMs;
-  const voiceName = opts.voiceName || getCurrentVoiceName();
-  const token = ++ttsRunToken;
+  const pref =
+    ttsPrefs();
 
-  function finish() {
-    if (token !== ttsRunToken) return;
-    ttsGapTimer = null;
-    if (opts.onDone) opts.onDone();
-  }
+  const gap =
+    opts.gapMs ??
+    pref.gapMs;
+
+  const voiceName =
+    opts.voiceName ||
+    getCurrentVoiceName();
 
   function speakOne(i) {
-    if (token !== ttsRunToken) return;
-    if (i >= cleanChunks.length) {
-      finish();
+
+    if (
+      i >= chunks.length
+    ) {
       return;
     }
 
-    const u = new SpeechSynthesisUtterance(cleanChunks[i]);
-    u.lang = pref.lang;
-    u.rate = pref.rate;
-    u.pitch = pref.pitch;
-    const v = findVoiceByName(voiceName);
-    if (v) u.voice = v;
+    const u =
+      new SpeechSynthesisUtterance(
+        chunks[i]
+      );
 
-    u.onend = () => {
-      if (token !== ttsRunToken) return;
-      ttsGapTimer = setTimeout(() => speakOne(i + 1), gap);
-    };
-    u.onerror = finish;
-    speechSynthesis.speak(u);
-  }
+    u.lang =
+      pref.lang;
 
-  speakOne(0);
-}
+    u.rate =
+      pref.rate;
 
-function toggleTtsButton(button, chunks, opts = {}) {
-  if (!button) return;
+    u.pitch =
+      pref.pitch;
 
-  if (activeTtsButton === button) {
-    stopTtsPlayback();
-    return;
-  }
+    const v =
+      findVoiceByName(
+        voiceName
+      );
 
-  stopTtsPlayback();
-  button.dataset.idleLabel = button.textContent;
-  activeTtsButton = button;
-  button.textContent = "■ Stop";
-
-  speakSequence(chunks, {
-    ...opts,
-    onDone: () => {
-      if (activeTtsButton === button) resetTtsButton();
-      if (opts.onDone) opts.onDone();
+    if (v) {
+      u.voice = v;
     }
-  });
+
+    u.onend =
+      () => {
+
+        setTimeout(
+          () =>
+            speakOne(
+              i + 1
+            ),
+          gap
+        );
+
+      };
+
+    speechSynthesis.speak(
+      u
+    );
+
+  }
+
+  if (chunks.length) {
+    speakOne(0);
+  }
+
 }
 
 function speakExamples(row) {
@@ -1903,218 +1907,6 @@ function speakBackAll(row) {
 
 }
 
-
-// =============================================================
-// RECORDING PRACTICE — local saved takes (IndexedDB)
-// =============================================================
-const WLP_RECORDING_DB = "wlp-recordings-v1";
-const WLP_RECORDING_STORE = "takes";
-let activeRecorder = null;
-
-function openRecordingDb() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(WLP_RECORDING_DB, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(WLP_RECORDING_STORE)) {
-        db.createObjectStore(WLP_RECORDING_STORE, { keyPath: "key" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function recordingDbGet(key) {
-  const db = await openRecordingDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(WLP_RECORDING_STORE, "readonly");
-    const req = tx.objectStore(WLP_RECORDING_STORE).get(key);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-  });
-}
-
-async function recordingDbPut(record) {
-  const db = await openRecordingDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(WLP_RECORDING_STORE, "readwrite");
-    tx.objectStore(WLP_RECORDING_STORE).put(record);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
-  });
-}
-
-async function recordingDbDelete(key) {
-  const db = await openRecordingDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(WLP_RECORDING_STORE, "readwrite");
-    tx.objectStore(WLP_RECORDING_STORE).delete(key);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
-  });
-}
-
-function recordingCardId(row) {
-  const wid = String(row.WordID || "").trim();
-  if (wid) return `wid:${wid}`;
-  const localId = String(row.__localId || "").trim();
-  return localId ? `draft:${localId}` : "";
-}
-
-function stopRecordingPlayback(panel) {
-  const audio = panel.__wlpRecordingAudio;
-  const button = panel.__wlpRecordingPlayButton;
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
-  }
-  if (panel.__wlpRecordingAudioUrl) {
-    URL.revokeObjectURL(panel.__wlpRecordingAudioUrl);
-  }
-  if (button && button.dataset.idleLabel) {
-    button.textContent = button.dataset.idleLabel;
-  }
-  panel.__wlpRecordingAudio = null;
-  panel.__wlpRecordingAudioUrl = null;
-  panel.__wlpRecordingPlayButton = null;
-}
-
-function toggleRecordingPlayback(panel, button, blob) {
-  if (!blob) return;
-
-  if (panel.__wlpRecordingAudio) {
-    const sameButton = panel.__wlpRecordingPlayButton === button;
-    stopRecordingPlayback(panel);
-    if (sameButton) return;
-  }
-
-  const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
-  panel.__wlpRecordingAudio = audio;
-  panel.__wlpRecordingAudioUrl = url;
-  panel.__wlpRecordingPlayButton = button;
-  button.dataset.idleLabel = button.dataset.idleLabel || button.textContent;
-  button.textContent = "■ Stop";
-
-  const finish = () => stopRecordingPlayback(panel);
-  audio.addEventListener("ended", finish, { once: true });
-  audio.addEventListener("error", finish, { once: true });
-  audio.play().catch(err => {
-    finish();
-    console.warn("Recording playback failed:", err);
-  });
-}
-
-function bindRecordingPractice(root, row) {
-  if (!("MediaRecorder" in window) || !navigator.mediaDevices?.getUserMedia || !("indexedDB" in window)) {
-    root.querySelectorAll(".record-practice").forEach(el => {
-      el.innerHTML = '<span class="record-status">Recording is not supported in this browser.</span>';
-    });
-    return;
-  }
-
-  const cardId = recordingCardId(row);
-  if (!cardId) return;
-
-  root.querySelectorAll(".record-practice").forEach(panel => {
-    const kind = panel.dataset.recordKind;
-    const key = `${cardId}:${kind}`;
-    const recordBtn = panel.querySelector(".btn-record");
-    const stopBtn = panel.querySelector(".btn-record-stop");
-    const mineBtn = panel.querySelector(".btn-record-mine");
-    const saveBtn = panel.querySelector(".btn-record-save");
-    const savedBtn = panel.querySelector(".btn-record-saved");
-    const deleteBtn = panel.querySelector(".btn-record-delete");
-    const status = panel.querySelector(".record-status");
-    let currentBlob = null;
-    let savedRecord = null;
-
-    const refreshSaved = async () => {
-      try {
-        savedRecord = await recordingDbGet(key);
-        savedBtn.hidden = !savedRecord?.blob;
-        deleteBtn.hidden = !savedRecord?.blob;
-      } catch (e) {
-        console.warn("Could not read saved take:", e);
-      }
-    };
-    refreshSaved();
-
-    recordBtn.addEventListener("click", async () => {
-      if (activeRecorder) {
-        status.textContent = "Finish the current recording first.";
-        return;
-      }
-      stopRecordingPlayback(panel);
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        const chunks = [];
-        activeRecorder = recorder;
-        recorder.addEventListener("dataavailable", e => { if (e.data.size) chunks.push(e.data); });
-        recorder.addEventListener("stop", () => {
-          currentBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-          stream.getTracks().forEach(track => track.stop());
-          activeRecorder = null;
-          recordBtn.hidden = false;
-          stopBtn.hidden = true;
-          mineBtn.hidden = false;
-          saveBtn.hidden = false;
-          status.textContent = "Take ready.";
-        }, { once: true });
-        recorder.start();
-        recordBtn.hidden = true;
-        stopBtn.hidden = false;
-        mineBtn.hidden = true;
-        saveBtn.hidden = true;
-        status.textContent = "Recording…";
-      } catch (e) {
-        activeRecorder = null;
-        status.textContent = "Microphone access was not available.";
-        console.warn("Recording failed:", e);
-      }
-    });
-
-    stopBtn.addEventListener("click", () => {
-      if (activeRecorder?.state === "recording") activeRecorder.stop();
-    });
-    mineBtn.addEventListener("click", () => toggleRecordingPlayback(panel, mineBtn, currentBlob));
-    savedBtn.addEventListener("click", () => toggleRecordingPlayback(panel, savedBtn, savedRecord?.blob));
-
-    saveBtn.addEventListener("click", async () => {
-      if (!currentBlob) return;
-      if (savedRecord?.blob && !confirm("Replace the saved take for this item?")) return;
-      try {
-        const record = { key, cardId, kind, blob: currentBlob, savedAt: new Date().toISOString() };
-        await recordingDbPut(record);
-        savedRecord = record;
-        savedBtn.hidden = false;
-        deleteBtn.hidden = false;
-        status.textContent = "Saved on this device.";
-      } catch (e) {
-        status.textContent = "Could not save this take.";
-        console.error("Saving take failed:", e);
-      }
-    });
-
-    deleteBtn.addEventListener("click", async () => {
-      if (!savedRecord?.blob || !confirm("Delete the saved take for this item?")) return;
-      stopRecordingPlayback(panel);
-      try {
-        await recordingDbDelete(key);
-        savedRecord = null;
-        savedBtn.hidden = true;
-        deleteBtn.hidden = true;
-        status.textContent = "Saved take deleted.";
-      } catch (e) {
-        status.textContent = "Could not delete the saved take.";
-      }
-    });
-  });
-}
-
 // =============================================================
 // CARD EVENTS
 // =============================================================
@@ -2124,8 +1916,6 @@ function bindCardBehavior(
   stateKey,
   row
 ) {
-
-  bindRecordingPractice(root, row);
 
   root
     .querySelectorAll(
@@ -2184,51 +1974,89 @@ function bindCardBehavior(
       shuffle
     );
 
-  const speakBtn = root.querySelector(".btn-speak");
-  const exBtn = root.querySelector(".btn-tts-ex");
-  const defBtn = root.querySelector(".btn-tts-def");
-  const allBtn = root.querySelector(".btn-tts-all");
+  root
+    .querySelector(
+      ".btn-speak"
+    )
+    .addEventListener(
+      "click",
+      () => {
 
-  if (speakBtn) {
-    speakBtn.addEventListener("click", () => {
-      const text = cardMode === "definition"
-        ? (row["Definition"] || "").trim()
-        : (row["Word"] || "").trim();
-      if (text) {
-        toggleTtsButton(speakBtn, [text], { voiceName: getCurrentVoiceName() });
+        const text =
+          cardMode ===
+          "definition"
+            ? (
+                row[
+                  "Definition"
+                ] || ""
+              ).trim()
+            : (
+                row["Word"] ||
+                ""
+              ).trim();
+
+        if (text) {
+
+          speechSynthesis.speak(
+            new SpeechSynthesisUtterance(
+              text
+            )
+          );
+
+        }
+
       }
-    });
-  }
+    );
+
+  const exBtn =
+    root.querySelector(
+      ".btn-tts-ex"
+    );
+
+  const defBtn =
+    root.querySelector(
+      ".btn-tts-def"
+    );
+
+  const allBtn =
+    root.querySelector(
+      ".btn-tts-all"
+    );
 
   if (exBtn) {
-    exBtn.addEventListener("click", () => {
-      const chunks = splitSentences(row["Example Sentence"] || "");
-      if (chunks.length) toggleTtsButton(exBtn, chunks, { voiceName: getCurrentVoiceName() });
-    });
+
+    exBtn.addEventListener(
+      "click",
+      () =>
+        speakExamples(
+          row
+        )
+    );
+
   }
 
   if (defBtn) {
-    defBtn.addEventListener("click", () => {
-      const def = (row["Definition"] || "").replace(/\s+/g, " ").trim();
-      if (def) toggleTtsButton(defBtn, [def], { voiceName: getCurrentVoiceName() });
-    });
+
+    defBtn.addEventListener(
+      "click",
+      () =>
+        speakDefinition(
+          row
+        )
+    );
+
   }
 
   if (allBtn) {
-    allBtn.addEventListener("click", () => {
-      const chunks = [];
-      const def = (row["Definition"] || "").trim();
-      if (def) chunks.push(def);
-      chunks.push(...splitSentences(row["Example Sentence"] || ""));
-      const list = pickSynonyms(row);
-      if (list.length) {
-        const copy = [...list];
-        const last = copy.pop();
-        const spoken = copy.length ? `${copy.join(", ")}, and ${last}` : last;
-        chunks.push(`Synonyms: ${spoken}.`);
-      }
-      if (chunks.length) toggleTtsButton(allBtn, chunks, { voiceName: getCurrentVoiceName() });
-    });
+
+    allBtn.addEventListener(
+      "click",
+      () =>
+        speakBackAll(
+          row
+        )
+    );
+
   }
 
   const voiceBtn =

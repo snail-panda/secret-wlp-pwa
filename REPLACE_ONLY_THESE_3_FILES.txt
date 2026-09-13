@@ -1,12 +1,8 @@
-WLP PWA Garden Card UI v6.1 — MINIMAL UPDATE
+WLP PWA Garden Card UI v6.2 — Inline SVG Play
 
-Replace ONLY these 3 files inside your existing local Secret WLP PWA repository:
-
+Replace ONLY these 3 files in the existing Secret WLP PWA local repo:
 1) flashcards/wlp/app.js
 2) flashcards/wlp/batch.html
 3) service-worker.js
 
-DO NOT replace the whole WLP_Stage6A1_PWA_Foundation folder.
-DO NOT delete or replace your TSV, Excel, assets, icons, manifest, index, or other files.
-
-Copy these three files into the matching locations in your existing PWA repo, allow overwrite for these files only, then review the changes in GitHub Desktop before committing/pushing.
+Do NOT replace the Foundation folder. Do NOT touch Master TSV, Excel, icons, manifest, assets, or other files.

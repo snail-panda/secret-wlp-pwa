@@ -3,12 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>Jin-chan's Flashcards — Batch</title>
-  <meta name="theme-color" content="#f6f1e6">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="WLP Garden">
-  <link rel="manifest" href="../../manifest.webmanifest">
-  <link rel="apple-touch-icon" href="../../pwa-icons/apple-touch-icon.png">
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=Cinzel:wght@400;500;600&display=swap" rel="stylesheet">
   <!--link rel="stylesheet" href="../../style.css" /-->
   <link rel="stylesheet" href="./flashcards.css" />
@@ -272,8 +266,10 @@
       width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.65;
       stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto;
     }
-    .btn-record, .btn-shuffle { display: inline-flex; align-items: center; justify-content: center; gap: .42em; }
+    .btn-record, .btn-shuffle, .btn-speak, .btn-tts-def, .btn-tts-ex, .btn-tts-all, .btn-record-mine, .btn-record-saved { display: inline-flex; align-items: center; justify-content: center; gap: .42em; }
     .btn-speak, .btn-tts-def, .btn-tts-ex, .btn-tts-all { white-space: nowrap; }
+    .play-icon { stroke: none; fill: currentColor; width: .82em; height: .82em; }
+    .play-icon .play-fill { fill: currentColor; stroke: none; }
     .voice-control { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
     .voice-detail {
       font-family: "EB Garamond", Georgia, serif; font-size: .82rem; color: #6d735f;
@@ -309,14 +305,14 @@
         <p class="ipa"></p>
         <p class="pos"></p>
         <div class="practice-inline">
-          <button class="btn-speak">▶ Listen</button>
+          <button class="btn-speak"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>Listen</span></button>
           <button class="btn-flip">Flip</button>
           <div class="record-practice" data-record-kind="word">
             <button type="button" class="btn-record" title="Record your pronunciation"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
             <button type="button" class="btn-record-stop" hidden>■ Stop</button>
-            <button type="button" class="btn-record-mine" hidden>▶ My Take</button>
+            <button type="button" class="btn-record-mine" hidden><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>My Take</span></button>
             <button type="button" class="btn-record-save" hidden>♡ Save</button>
-            <button type="button" class="btn-record-saved" hidden>▶ Saved Take</button>
+            <button type="button" class="btn-record-saved" hidden><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>Saved Take</span></button>
             <button type="button" class="btn-record-delete" hidden title="Delete saved take">Delete</button>
             <span class="record-status"></span>
           </div>
@@ -341,18 +337,18 @@
         <div class="spacer"></div>
 		<!-- TTS Buttons -->
 <div class="tts-buttons" style="text-align:center; margin: 8px 0;">
-  <button class="btn-tts-def">▶ Definition</button>
-  <button class="btn-tts-ex">▶ Example(s)</button>
+  <button class="btn-tts-def"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>Definition</span></button>
+  <button class="btn-tts-ex"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>Example(s)</span></button>
   <span class="record-practice" data-record-kind="example">
     <button type="button" class="btn-record" title="Record the example sentence"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
     <button type="button" class="btn-record-stop" hidden>■ Stop</button>
-    <button type="button" class="btn-record-mine" hidden>▶ My Take</button>
+    <button type="button" class="btn-record-mine" hidden><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>My Take</span></button>
     <button type="button" class="btn-record-save" hidden>♡ Save</button>
-    <button type="button" class="btn-record-saved" hidden>▶ Saved Take</button>
+    <button type="button" class="btn-record-saved" hidden><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>Saved Take</span></button>
     <button type="button" class="btn-record-delete" hidden title="Delete saved take">Delete</button>
     <span class="record-status"></span>
   </span>
-  <button class="btn-tts-all">▶ Read All</button>
+  <button class="btn-tts-all"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M8 5.5 18 12 8 18.5Z"></path></svg><span>Read All</span></button>
    <!-- ★ 追加：声を切り替える1ボタン -->
   <span class="voice-control"><button class="btn-voice" title="Switch Voice">‹ Voice ›</button><span class="voice-detail" aria-live="polite"></span></span>
 </div>
@@ -487,6 +483,5 @@
   </div>
 
   <script type="module" src="./app.js?v=20260913-garden-v5"></script>
-<script src="../../pwa-register.js?v=20260913-garden-v61"></script>
 </body>
 </html>
