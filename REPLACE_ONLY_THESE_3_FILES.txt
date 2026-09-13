@@ -1,8 +1,6 @@
-WLP PWA Garden Card UI v6.2 — Inline SVG Play
+Replace ONLY these 3 files in the existing Secret WLP PWA repo:
+1. flashcards/wlp/app.js
+2. flashcards/wlp/batch.html
+3. service-worker.js
 
-Replace ONLY these 3 files in the existing Secret WLP PWA local repo:
-1) flashcards/wlp/app.js
-2) flashcards/wlp/batch.html
-3) service-worker.js
-
-Do NOT replace the Foundation folder. Do NOT touch Master TSV, Excel, icons, manifest, assets, or other files.
+Do NOT replace the Foundation folder. Do NOT touch TSV, Excel, icons, manifest, or other files.
