@@ -1,6 +1,4 @@
-WLP PWA Garden Card UI v6.2.2
-Replace ONLY these 3 files in your existing Secret WLP PWA repo:
-
+Replace ONLY these 3 files in the existing Secret WLP PWA repo:
 1. flashcards/wlp/app.js
 2. flashcards/wlp/batch.html
 3. service-worker.js
