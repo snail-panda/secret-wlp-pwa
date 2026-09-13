@@ -1,0 +1,383 @@
+
+/* ========== GLOBAL STYLES ========== */
+body {
+  font-family: 'EB Garamond', serif;
+  background-color: #f8f3e8;
+  color: #2e2a1e;
+  padding: 1em 2em;
+  text-align: center;
+  margin: 0;
+}
+
+/* ========== NAVIGATION BAR ========== */
+.top-nav {
+  position: sticky;
+  top: 0;
+  background-color: #f8f3e8;
+  padding: 0.5em 0;
+  display: flex;
+  justify-content: center;
+  gap: 3em;
+  border-bottom: 1px solid #ccc;
+  z-index: 999;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.top-nav a {
+  font-family: 'Cinzel', serif;
+  font-weight: normal;
+  text-decoration: none;
+  color: #3a3a2f;
+  font-size: 0.9em;
+  display: inline; /* instead of block or inline-block */
+  border-bottom: none;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: color 0.3s ease;
+}
+
+.top-nav a.active {
+  display: inline;
+  color: #4c6939;
+  border-bottom: 1.5px solid #4c6939;
+}
+
+.tab-content {
+  display: none;
+  margin-top: 2em;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+nav a:hover {
+  color: #2f2f1e;
+  text-decoration: none;
+}
+
+/* ========== PAGE HEADER ========== */
+h1 {
+  font-family: 'Great Vibes', serif;
+  font-weight: bold;
+  font-size: 4.2em;
+  margin-bottom: 0.1em;
+  letter-spacing: 0.5px;
+  word-spacing: 0.3em;
+  font-feature-settings: "kern" 0;
+  -webkit-font-feature-settings: "kern" 0;
+  text-shadow: 0.5px 0.5px 1px rgba(0, 0, 0, 0.25);
+}
+
+h2 {
+  font-family: 'Cinzel', serif;
+  font-weight: bold;
+  font-size: 1.15rem;
+  color: #3a3a2f;
+  letter-spacing: 0.07em;
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+  text-shadow: 0.3px 0.3px 0.8px rgba(0, 0, 0, 0.25);
+}
+
+/* ========== CARD LAYOUT ========== */
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr)); /* ←常に3列 */
+  gap: 0.5em;
+  justify-items: center;
+  max-width: 1024px;
+  margin: auto;
+}
+
+/* 自動生成コンテナは“器”として消す（子の <details> を兄弟と同じレベルに見せる）*/
+#auto-decks {
+  display: contents; /* 神。ラッパーをレイアウト上消して中身だけ並べる */
+}
+
+.grid-container details {
+  text-align: center;
+  width: 100%;
+  max-width: 300px;
+}
+
+summary {
+  font-family: 'Cinzel', serif;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  text-align: center;
+  color: #4c6939;
+  margin-bottom: 0.6rem;
+  outline: none;
+}
+
+summary:hover {
+  color: #2e4a1f;
+}
+
+.main-group {
+  font-size: 1.05rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.subgroup {
+  padding-left: 1em;
+}
+
+.deck-links {
+  list-style: none;
+  padding-left: 0; /* Remove the left indent it was 1.5em*/
+}
+
+.deck-links li {
+  margin: 0.8rem 0; /* 0 auto;*/
+  text-align: center; /* left*/
+  /*width: fit-content;
+  padding-left: 0; */
+  
+}
+
+/* ========== LINKS ========== */
+a {
+  font-family: 'Cinzel', serif;
+  color: #3d5b36;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+a:hover {
+  text-decoration: underline;
+  color: #2f2f1e;
+}
+
+/* ========== NOTES ========== */
+.note {
+  margin-top: 2em;
+  font-size: 0.95rem;
+  color: #888;
+}
+
+/* ==========BACK LINKS ============*/
+
+.back-links {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2em;
+  margin-top: 2em;
+  list-style: none; /* remove bullet */
+  padding: 0;
+}
+
+.back-links a {
+  font-family: 'EB Garamond', sans-serif !important;
+  font-size: 0.75rem;
+  color: #6d666d;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  opacity: 0.9;
+  color: #4c6939;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.back-links a:hover {
+  color: #77909c;
+  text-decoration: underline;
+}
+
+
+/* ========== CUSTOM ICONS ========== */
+.skull-crossbones-icon {
+  width: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+  position: relative;
+  top: -0.5px; /* no adjustment*/
+  transition: opacity 0.3s ease;
+}
+
+.skull-icon {
+  width: 16px;
+  vertical-align: middle;
+  margin-right: 6px;
+  position: relative;
+  top: -1.2px; /* this nudges only the skull down */
+  transition: opacity 0.3s ease;
+}
+
+.deck-links li a {
+  position: relative;
+  padding-left: 24px;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.deck-links li a:hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 65%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background-image: url("assets/crossbones.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+/* ========== MEDIA QUERIES ========== */
+
+/* Up to 1024px */
+@media screen and (max-width: 1024px) {
+  .grid-container {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+/* Up to 800px */
+@media screen and (max-width: 800px) {
+  h1 {
+    font-size: 3rem;
+  }
+
+  h2 {
+    font-size: 0.98rem;
+  }
+  
+  summary {
+    font-size: 0.9rem
+  }
+
+  .main-group {
+  font-size: 0.95rem;
+  }
+
+  .grid-container {
+    gap: 0.3em;
+  }
+
+  .top-nav {
+    flex-wrap: wrap;
+    gap: 2em;
+    padding: 0.5em 0;
+  }
+
+
+  .top-nav a {
+    font-size: 0.87rem;
+    gap: 1.5em;
+  }
+
+  a {
+    font-size: 0.85rem;
+  }
+
+.deck-links li a {
+    font-size: 0.9rem;
+  }
+
+.deck-links li a:hover::before {
+    width: 16px;
+    height: 16px;
+  }
+
+}
+
+/* For screens 600px and below */
+@media screen and (max-width: 600px) {
+  body {
+    padding: 1em;
+  }
+
+  h1 {
+    font-size: 3rem;
+    letter-spacing: 0.4px;
+    word-spacing: 0.2em;
+  }
+
+  h2 {
+    font-size: 0.9rem;
+  }
+
+  grid-container {
+    gap: 0.2em;
+  }
+
+  .top-nav {
+    flex-wrap: wraap;
+    gap: 1.8em;
+    padding: 0.5em 0;
+  }
+
+  .top-nav a {
+    font-size: 0.85rem;
+  }
+
+  summary {
+    font-size: 0.85rem;
+  }
+
+  .main-group {
+  font-size: 0.87rem;
+  }
+
+  a {
+    font-size: 0.85rem;
+  }
+
+ .deck-links li a {
+    font-size: 0.8rem;
+  }
+  .deck-links li a:hover::before {
+    width: 16px;
+    height: 16px;
+  }
+
+}
+
+/* For very small screens (480px and below) */
+@media screen and (max-width: 480px) {
+  h1 {
+    font-size: 2.4rem;
+    word-spacing: 0.15em;
+    letter-spacing: 0.2px;
+  }
+
+  h2 {
+    font-size: 0.8rem;
+  }
+
+  .main-group {
+  font-size: 0.77rem;
+  }
+
+  summary {
+    font-size: 0.75rem;
+  }
+  
+  .top-nav {
+    gap: 1.3rem;
+    padding: 0.4em 0;
+  }
+  
+  .top-nav a {
+    font-size: 0.7rem;
+  }
+
+  .deck-links li a {
+    font-size: 0.73rem;
+    padding-left: 26px;
+  }
+
+  .deck-links li a:hover::before {
+    width: 16px;
+    height: 16px;
+  }
+}
+

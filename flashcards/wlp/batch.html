@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jin-chan's Flashcards — Batch</title>
+  <link href="https://fonts.googleapis.com/css2?family=system+ui&family=Segoe+UI&family=Abel&family=Cinzel&family=Source+Serif+4+Light&display=swap" rel="stylesheet">
+  <!--link rel="stylesheet" href="../../style.css" /-->
+  <link rel="stylesheet" href="./flashcards.css" />
+  <style>
+    .mode-controls {
+      text-align: center;
+      margin: 8px 0 12px;
+      opacity: 0.82;
+    }
+    .mode-controls .mode-btn {
+      margin: 0 2px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      font-weight: 400;
+      line-height: 1.2;
+      border: 1px solid rgba(127, 127, 127, 0.35);
+      border-radius: 999px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      opacity: 0.62;
+      box-shadow: none;
+    }
+    .mode-controls .mode-btn.active {
+      font-weight: 400;
+      outline: none;
+      opacity: 0.95;
+      background: rgba(127, 127, 127, 0.12);
+      border-color: rgba(127, 127, 127, 0.5);
+    }
+    .flashcard.definition-first .front .word {
+      font-size: 1.25rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .back-answer {
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .back-answer .back-word {
+      margin-bottom: 4px;
+    }
+    .back-answer .back-ipa,
+    .back-answer .back-pos {
+      margin: 3px 0;
+    }
+
+    .local-edit-actions {
+      text-align: center;
+      margin: 8px 0;
+    }
+    .local-edit-actions button {
+      margin: 2px;
+    }
+    .local-edit-modal[hidden] { display: none !important; }
+    .local-edit-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      box-sizing: border-box;
+    }
+    .local-edit-panel {
+      width: min(760px, 96vw);
+      max-height: 90vh;
+      overflow: auto;
+      background: #fffdf7;
+      color: #2f2a21;
+      border-radius: 14px;
+      padding: 20px;
+      box-sizing: border-box;
+      box-shadow: 0 14px 44px rgba(0,0,0,0.22);
+      text-align: left;
+    }
+    .local-edit-panel h2 { margin-top: 0; text-align: center; }
+    .local-edit-panel label { display: block; margin: 10px 0; }
+    .local-edit-panel input,
+    .local-edit-panel textarea {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 4px;
+      padding: 8px 9px;
+      font: inherit;
+    }
+    .local-edit-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .local-edit-form-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .local-edit-help {
+      text-align: center;
+      opacity: .72;
+      font-size: .9rem;
+      margin: 0 0 12px;
+    }
+    body.local-edit-open { overflow: hidden; }
+    @media (max-width: 620px) {
+      .local-edit-two-col { grid-template-columns: 1fr; gap: 0; }
+      .local-edit-panel { padding: 15px; }
+    }
+  </style>
+
+  <!-- Stage 6A.1 PWA foundation -->
+  <meta name="theme-color" content="#2f3a2d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WLP Garden">
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="apple-touch-icon" href="../../pwa-icons/apple-touch-icon.png">
+</head>
+<body>
+  <!-- カード1枚分のテンプレ（HTMLで見える形で置くのが一番わかりやすい） -->
+  <template id="card-tpl">
+    <div class="flashcard">
+      <div class="front">
+        <h2 class="word"></h2>
+        <p class="ipa"></p>
+        <p class="pos"></p>
+        <button class="btn-speak">🔊</button>
+        <button class="btn-flip">Flip</button>
+        <div class="nav-buttons">
+          <button class="btn-prev">⏮️ Prev</button>
+          <button class="btn-next">⏭️ Next</button>
+        </div>
+		<span class="card-tag"></span>
+      </div>
+      <div class="back">
+        <div class="back-answer" hidden>
+          <h2 class="back-word"></h2>
+          <p class="back-ipa"></p>
+          <p class="back-pos"></p>
+        </div>
+        <pre class="def"></pre>
+        <pre class="ex"></pre>
+        <pre class="syn"></pre>
+        <pre class="note"></pre>
+        <a class="external-link" target="_blank">🔍 External Reference</a>
+        <div class="spacer"></div>
+		<!-- TTS Buttons -->
+<div class="tts-buttons" style="text-align:center; margin: 8px 0;">
+  <button class="btn-tts-def">🔊 Definition</button>
+  <button class="btn-tts-ex">🔊 Example(s)</button>
+  <button class="btn-tts-all">🔊 Read All</button>
+   <!-- ★ 追加：声を切り替える1ボタン -->
+  <button class="btn-voice" title="Switch Voice">🎙</button>
+</div>
+        <div class="local-edit-actions">
+          <button type="button" class="btn-edit-local">✏️ Edit Card</button>
+          <button type="button" class="btn-revert-local" hidden>↩ Revert</button>
+        </div>
+        <button class="btn-flip-back">🔄 Flip Back</button>
+        <button class="btn-studied">✅ Studied</button>
+        <button class="btn-review">🔁 Review</button>
+        <button class="btn-shuffle">🔀 Shuffle</button>
+        <div class="nav-buttons">
+          <button class="btn-prev">⏮️ Prev</button>
+          <button class="btn-next">⏭️ Next</button>
+        </div>
+        <span class="card-tag"></span>
+      </div>
+    </div>
+  </template>
+
+  <div class="mode-controls" aria-label="Flashcard display mode">
+    <button class="mode-btn" data-mode="word" type="button">Word First</button>
+    <button class="mode-btn" data-mode="definition" type="button">Definition First</button>
+  </div>
+
+  <!-- 差し込み先 -->
+  <div id="cards"></div>
+
+  <div style="text-align:center; margin-top:2em; line-height:2;">
+ <div id="review-back-link" style="display:none;">
+  ↩ <a href="../../index.html#review">Back to Review Decks</a>
+</div>
+
+  <div id="progress-back-link" style="display:none;">
+  ↩ <a href="../../index.html#progress">Back to Progress</a>
+</div>
+
+  <div id="drafts-back-link" style="display:none;">
+  ↩ <a href="../../index.html#drafts">Back to Drafts</a>
+</div>
+
+  <div
+  id="deck-nav-links"
+  style="
+    display:grid;
+    grid-template-columns:150px 150px 150px;
+    justify-content:center;
+    align-items:center;
+    column-gap:48px;
+    margin:1.5em auto 0;
+    line-height:1.4;
+  "
+>
+  <div style="text-align:right;">
+    <a
+      id="prev-deck-link"
+      href="#"
+      style="display:none;"
+    >
+      ← Previous Deck
+    </a>
+  </div>
+
+  <div style="text-align:center;">
+    🏠 <a href="../../index.html">Back to Home</a>
+  </div>
+
+  <div style="text-align:left;">
+    <a
+      id="next-deck-link"
+      href="#"
+      style="display:none;"
+    >
+      Next Deck →
+    </a>
+  </div>
+</div>
+
+
+  <div id="local-edit-modal" class="local-edit-modal" hidden>
+    <div class="local-edit-panel" role="dialog" aria-modal="true" aria-labelledby="local-edit-title">
+      <h2 id="local-edit-title">Edit Local Override</h2>
+      <p class="local-edit-help">
+        Saves only in this browser. Batch #, Guidance #, and permanent WordID are never changed.
+      </p>
+      <form id="local-edit-form">
+        <label>Word<input name="Word" type="text" required></label>
+        <div class="local-edit-two-col">
+          <label>IPA<input name="IPA" type="text"></label>
+          <label>Part of Speech<input name="Part of Speech" type="text" list="wlp-pos-options" autocomplete="off" placeholder="Choose or type…"></label>
+        </div>
+        <label>Definition<textarea name="Definition" rows="4"></textarea></label>
+        <label>Synonym(s)<textarea name="Synonym(s)" rows="3"></textarea></label>
+        <label>Example Sentence<textarea name="Example Sentence" rows="4"></textarea></label>
+        <label>Note(s)<textarea name="Note(s)" rows="4"></textarea></label>
+        <div class="local-edit-two-col">
+          <label>Category<input name="Category" type="text"></label>
+          <label>Source<input name="Source" type="text"></label>
+        </div>
+        <div class="local-edit-form-actions">
+          <button type="submit">Save Local Override</button>
+          <button type="button" id="local-edit-cancel">Cancel</button>
+        </div>
+      </form>
+      <datalist id="wlp-pos-options">
+        <option value="noun"></option>
+        <option value="verb"></option>
+        <option value="adjective"></option>
+        <option value="adverb"></option>
+        <option value="pronoun"></option>
+        <option value="preposition"></option>
+        <option value="conjunction"></option>
+        <option value="interjection"></option>
+        <option value="determiner"></option>
+        <option value="proper noun"></option>
+        <option value="noun phrase"></option>
+        <option value="verb phrase"></option>
+        <option value="adjective phrase"></option>
+        <option value="adverbial phrase"></option>
+        <option value="phrasal verb"></option>
+        <option value="idiom"></option>
+        <option value="phrase"></option>
+        <option value="expression"></option>
+        <option value="collocation"></option>
+        <option value="verb construction"></option>
+        <option value="verb pattern"></option>
+        <option value="slang"></option>
+      </datalist>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js?v=20260912-stage5e1"></script>
+<script src="../../pwa-register.js?v=20260912-stage6a1"></script>
+</body>
+</html>

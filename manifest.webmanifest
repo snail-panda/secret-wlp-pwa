@@ -1,0 +1,14 @@
+{
+  "name": "The Secret Wordlist Garden — WLP",
+  "short_name": "WLP Garden",
+  "description": "Jin's personal Word Loom Project flashcard garden.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f5ec",
+  "theme_color": "#2f3a2d",
+  "icons": [
+    {"src":"./pwa-icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./pwa-icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
