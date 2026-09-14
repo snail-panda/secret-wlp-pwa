@@ -1584,3 +1584,31 @@ body {
     height: 1.12em;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Deck Navigation Font Hierarchy v2.5
+   Separate app navigation from card-learning controls.
+   ========================================================= */
+
+#deck-nav-links .deck-step-link {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+  font-weight: 500;
+  letter-spacing: .01em;
+  font-size: .91rem;
+  line-height: 1;
+}
+
+@media (max-width: 560px) {
+  #deck-nav-links .deck-step-link {
+    font-size: .92rem;
+    font-weight: 500;
+    letter-spacing: .005em;
+  }
+}
+
+@media (max-width: 390px) {
+  #deck-nav-links .deck-step-link {
+    font-size: .88rem;
+  }
+}

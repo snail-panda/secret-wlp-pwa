@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-garden-color-polish-v2-4-v6237';
+const CACHE_NAME = 'wlp-stage6-deck-nav-font-v2-5-v6238';
 const CORE = [
   './',
   './index.html',
