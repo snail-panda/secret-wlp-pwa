@@ -1982,3 +1982,27 @@ body {
     transform: translateY(-0.22em) !important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — My Take cleanup v3.4
+   Temporary recording controls only; Saved Take remains persistent.
+   ========================================================= */
+.flashcard .record-practice .btn-record-retake {
+  background: #eef4f2;
+  border-color: #d4e1dc;
+  color: #416653;
+}
+.flashcard .record-practice .btn-record-clear {
+  background: #f7f3ee;
+  border-color: #e4dbd1;
+  color: #705f55;
+}
+
+@media (max-width: 560px) {
+  .flashcard .record-practice .btn-record-retake,
+  .flashcard .record-practice .btn-record-clear {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}

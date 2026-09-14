@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-deck-chevron-micro-v3-3-v6246';
+const CACHE_NAME = 'wlp-stage6-my-take-cleanup-v3-4-v6247';
 const CORE = [
   './',
   './index.html',

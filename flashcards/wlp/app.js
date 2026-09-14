@@ -2025,6 +2025,8 @@ function bindRecordingPractice(root, row) {
     const stopBtn = panel.querySelector(".btn-record-stop");
     const mineBtn = panel.querySelector(".btn-record-mine");
     const saveBtn = panel.querySelector(".btn-record-save");
+    const retakeBtn = panel.querySelector(".btn-record-retake");
+    const clearBtn = panel.querySelector(".btn-record-clear");
     const savedBtn = panel.querySelector(".btn-record-saved");
     const deleteBtn = panel.querySelector(".btn-record-delete");
     const status = panel.querySelector(".record-status");
@@ -2042,12 +2044,21 @@ function bindRecordingPractice(root, row) {
     };
     refreshSaved();
 
-    recordBtn.addEventListener("click", async () => {
+    const setCurrentTakeControls = hasTake => {
+      recordBtn.hidden = hasTake;
+      mineBtn.hidden = !hasTake;
+      saveBtn.hidden = !hasTake;
+      retakeBtn.hidden = !hasTake;
+      clearBtn.hidden = !hasTake;
+    };
+
+    const startRecording = async () => {
       if (activeRecorder) {
         status.textContent = "Finish the current recording first.";
         return;
       }
       stopRecordingPlayback(panel);
+      const hadCurrentTake = !!currentBlob;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(stream);
@@ -2058,10 +2069,8 @@ function bindRecordingPractice(root, row) {
           currentBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
           stream.getTracks().forEach(track => track.stop());
           activeRecorder = null;
-          recordBtn.hidden = false;
           stopBtn.hidden = true;
-          mineBtn.hidden = false;
-          saveBtn.hidden = false;
+          setCurrentTakeControls(true);
           status.textContent = "Take ready.";
         }, { once: true });
         recorder.start();
@@ -2069,16 +2078,31 @@ function bindRecordingPractice(root, row) {
         stopBtn.hidden = false;
         mineBtn.hidden = true;
         saveBtn.hidden = true;
+        retakeBtn.hidden = true;
+        clearBtn.hidden = true;
         status.textContent = "Recording…";
       } catch (e) {
         activeRecorder = null;
+        stopBtn.hidden = true;
+        setCurrentTakeControls(hadCurrentTake);
         status.textContent = "Microphone access was not available.";
         console.warn("Recording failed:", e);
       }
-    });
+    };
+
+    recordBtn.addEventListener("click", startRecording);
+    retakeBtn.addEventListener("click", startRecording);
 
     stopBtn.addEventListener("click", () => {
       if (activeRecorder?.state === "recording") activeRecorder.stop();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      if (!currentBlob) return;
+      stopRecordingPlayback(panel);
+      currentBlob = null;
+      setCurrentTakeControls(false);
+      status.textContent = savedRecord?.blob ? "Current take cleared. Saved take kept." : "Current take cleared.";
     });
     mineBtn.addEventListener("click", () => toggleRecordingPlayback(panel, mineBtn, currentBlob));
     savedBtn.addEventListener("click", () => toggleRecordingPlayback(panel, savedBtn, savedRecord?.blob));
