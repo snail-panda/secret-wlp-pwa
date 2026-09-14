@@ -2067,3 +2067,16 @@ body {
     font-size: .63rem;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — My Take clear visibility fix v3.6
+   Keep the Clear group mounted; toggle Clear/note directly.
+   ========================================================= */
+.flashcard .record-practice .record-clear-group {
+  display: inline-flex !important;
+}
+.flashcard .record-practice .btn-record-clear[hidden],
+.flashcard .record-practice .record-clear-note[hidden] {
+  display: none !important;
+}

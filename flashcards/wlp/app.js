@@ -2027,7 +2027,6 @@ function bindRecordingPractice(root, row) {
     const saveBtn = panel.querySelector(".btn-record-save");
     const retakeBtn = panel.querySelector(".btn-record-retake");
     const clearBtn = panel.querySelector(".btn-record-clear");
-    const clearGroup = panel.querySelector(".record-clear-group");
     const clearNote = panel.querySelector(".record-clear-note");
     const savedBtn = panel.querySelector(".btn-record-saved");
     const deleteBtn = panel.querySelector(".btn-record-delete");
@@ -2040,7 +2039,7 @@ function bindRecordingPractice(root, row) {
         savedRecord = await recordingDbGet(key);
         savedBtn.hidden = !savedRecord?.blob;
         deleteBtn.hidden = !savedRecord?.blob;
-        if (clearNote) clearNote.hidden = !(currentBlob && savedRecord?.blob);
+        if (clearNote) clearNote.hidden = !currentBlob;
       } catch (e) {
         console.warn("Could not read saved take:", e);
       }
@@ -2052,9 +2051,8 @@ function bindRecordingPractice(root, row) {
       mineBtn.hidden = !hasTake;
       saveBtn.hidden = !hasTake;
       retakeBtn.hidden = !hasTake;
-      if (clearGroup) clearGroup.hidden = !hasTake;
-      else clearBtn.hidden = !hasTake;
-      if (clearNote) clearNote.hidden = !(hasTake && savedRecord?.blob);
+      clearBtn.hidden = !hasTake;
+      if (clearNote) clearNote.hidden = !hasTake;
     };
 
     const startRecording = async () => {
@@ -2085,6 +2083,7 @@ function bindRecordingPractice(root, row) {
         saveBtn.hidden = true;
         retakeBtn.hidden = true;
         clearBtn.hidden = true;
+        if (clearNote) clearNote.hidden = true;
         status.textContent = "Recording…";
       } catch (e) {
         activeRecorder = null;
@@ -2121,7 +2120,7 @@ function bindRecordingPractice(root, row) {
         savedRecord = record;
         savedBtn.hidden = false;
         deleteBtn.hidden = false;
-        if (clearNote) clearNote.hidden = false;
+        if (clearNote) clearNote.hidden = !currentBlob;
         status.textContent = "Saved on this device.";
       } catch (e) {
         status.textContent = "Could not save this take.";
