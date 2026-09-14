@@ -1708,3 +1708,111 @@ body {
     font-size: .78rem;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Navigation Air v2.9
+   Stronger, explicit spacing between navigation marks and labels.
+   ========================================================= */
+
+/* Header navigation */
+.study-home-pill {
+  display: inline-flex;
+  align-items: center;
+  column-gap: 12px !important;
+  font-size: .88rem;
+  font-weight: 400;
+  padding-left: 13px;
+  padding-right: 16px;
+}
+.study-home-pill .home-nav-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: 1.28em;
+  line-height: 1;
+}
+
+/* Bottom deck navigation */
+#deck-nav-links .deck-step-link {
+  display: inline-flex !important;
+  box-sizing: border-box;
+  width: 176px !important;
+  min-width: 176px !important;
+  min-height: 52px;
+  padding: 7px 17px !important;
+  align-items: center;
+  font-size: .80rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* Do not depend on flex gap: use explicit margins on the chevron. */
+#prev-deck-link {
+  justify-content: flex-start !important;
+}
+#next-deck-link {
+  justify-content: flex-end !important;
+}
+
+#prev-deck-link .deck-nav-mark {
+  margin-right: 22px !important;
+}
+#next-deck-link .deck-nav-mark {
+  margin-left: 22px !important;
+}
+
+#deck-nav-links .deck-step-link .deck-nav-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: 1.42em;
+  font-weight: 400;
+  line-height: 1;
+  transform: none !important;
+}
+
+@media (max-width: 560px) {
+  .study-home-pill {
+    min-height: 38px;
+    font-size: .82rem;
+    column-gap: 12px !important;
+    padding-left: 12px;
+    padding-right: 15px;
+  }
+
+  #deck-nav-links .deck-step-link {
+    width: 172px !important;
+    min-width: 172px !important;
+    min-height: 52px;
+    padding: 7px 16px !important;
+    font-size: .78rem;
+  }
+
+  #prev-deck-link .deck-nav-mark {
+    margin-right: 22px !important;
+  }
+  #next-deck-link .deck-nav-mark {
+    margin-left: 22px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .study-home-pill {
+    font-size: .79rem;
+    column-gap: 11px !important;
+  }
+
+  #deck-nav-links .deck-step-link {
+    width: 164px !important;
+    min-width: 164px !important;
+    min-height: 50px;
+    padding: 6px 14px !important;
+    font-size: .76rem;
+  }
+
+  #prev-deck-link .deck-nav-mark {
+    margin-right: 20px !important;
+  }
+  #next-deck-link .deck-nav-mark {
+    margin-left: 20px !important;
+  }
+}
