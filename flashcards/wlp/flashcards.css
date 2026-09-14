@@ -1816,3 +1816,38 @@ body {
     margin-left: 20px !important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Deck Navigation Tighten v3.0
+   Keep Back to Home exactly as v2.9.
+   Bring deck chevrons closer to the labels without crowding them.
+   ========================================================= */
+
+#prev-deck-link .deck-nav-mark {
+  margin-right: 12px !important;
+}
+
+#next-deck-link .deck-nav-mark {
+  margin-left: 12px !important;
+}
+
+@media (max-width: 560px) {
+  #prev-deck-link .deck-nav-mark {
+    margin-right: 12px !important;
+  }
+
+  #next-deck-link .deck-nav-mark {
+    margin-left: 12px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #prev-deck-link .deck-nav-mark {
+    margin-right: 11px !important;
+  }
+
+  #next-deck-link .deck-nav-mark {
+    margin-left: 11px !important;
+  }
+}
