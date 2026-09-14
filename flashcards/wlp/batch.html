@@ -298,6 +298,19 @@
   </style>
 </head>
 <body>
+  <header class="study-shell-header">
+    <a class="study-home-pill" href="../../index.html">‹ Back to Home</a>
+    <div class="study-brand" aria-label="WLP — The Secret Wordlist Garden">
+      <div class="study-brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 16c5.5.2 10-3.2 13-9-5.8-.3-10.1 2.3-11.8 7.1C5.5 16.2 5.2 18.3 5 21"></path><path d="M8 15c2.3-.5 4.4-1.7 6.3-3.7"></path></svg>
+      </div>
+      <div>
+        <div class="study-brand-title">WLP</div>
+        <div class="study-brand-subtitle">The Secret Wordlist Garden</div>
+      </div>
+    </div>
+    <div class="study-header-spacer" aria-hidden="true"></div>
+  </header>
   <!-- カード1枚分のテンプレ（HTMLで見える形で置くのが一番わかりやすい） -->
   <template id="card-tpl">
     <div class="flashcard">
@@ -307,7 +320,7 @@
         <p class="pos"></p>
         <div class="practice-inline">
           <button class="btn-speak"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Listen</span></button>
-          <button class="btn-flip">Flip</button>
+          <button class="btn-flip">Show Answer</button>
           <div class="record-practice" data-record-kind="word">
             <button type="button" class="btn-record" title="Record your pronunciation"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
             <button type="button" class="btn-record-stop" hidden>■ Stop</button>
@@ -319,8 +332,8 @@
           </div>
         </div>
         <div class="nav-buttons">
-          <button class="btn-prev">≪ Previous</button>
-          <button class="btn-next">Next ≫</button>
+          <button class="btn-prev" aria-label="Previous card" title="Previous card">‹</button>
+          <button class="btn-next" aria-label="Next card" title="Next card">›</button>
         </div>
 		<span class="card-tag"></span>
       </div>
@@ -362,8 +375,8 @@
         <button class="btn-review">Review</button>
         <button class="btn-shuffle"><svg class="ui-icon shuffle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4.5 0 5.5 10 10 10h3"></path><path d="m17 14 3 3-3 3"></path><path d="M4 17h3c1.7 0 2.9-1.4 4-3.2"></path><path d="M14 8.2C15 7.5 16 7 17 7h3"></path><path d="m17 4 3 3-3 3"></path></svg><span>Shuffle</span></button>
         <div class="nav-buttons">
-          <button class="btn-prev">≪ Previous</button>
-          <button class="btn-next">Next ≫</button>
+          <button class="btn-prev" aria-label="Previous card" title="Previous card">‹</button>
+          <button class="btn-next" aria-label="Next card" title="Next card">›</button>
         </div>
         <span class="card-tag"></span>
       </div>
@@ -415,7 +428,7 @@
   </div>
 
   <div style="text-align:center;">
-    <a class="deck-home-link" href="../../index.html">Back to Home</a>
+    <a class="deck-home-link deck-home-duplicate" href="../../index.html">Back to Home</a>
   </div>
 
   <div style="text-align:left;">
