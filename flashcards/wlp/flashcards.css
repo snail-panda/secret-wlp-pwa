@@ -1308,3 +1308,177 @@ body {
     font-size: 1rem;
   }
 }
+
+/* =========================================================
+   WLP Stage 6 — iPhone Density Balance v2.3
+   Preserve the app-scale gain from v2.1/v2.2, but restore
+   one-screen front usability and a clearer back hierarchy.
+   Desktop remains unchanged.
+   ========================================================= */
+@media (max-width: 560px) {
+  /* Header: present, but no longer competing with the study card. */
+  .study-shell-header {
+    margin-top: 10px;
+    margin-bottom: 12px;
+    gap: 7px;
+  }
+  .study-home-pill {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: .92rem;
+  }
+  .study-brand { gap: 7px; }
+  .study-brand-mark { width: 27px; height: 27px; }
+  .study-brand-title { font-size: 1.42rem; line-height: .95; }
+  .study-brand-subtitle { margin-top: 3px; font-size: .76rem; }
+
+  .mode-controls {
+    margin: 5px auto 15px !important;
+    padding: 4px !important;
+  }
+  .mode-controls .mode-btn {
+    min-height: 42px !important;
+    padding: 7px 17px !important;
+    font-size: 1.02rem !important;
+  }
+
+  /* Card stays nearly edge-to-edge, but loses unused vertical bulk. */
+  .flashcard {
+    min-height: 0;
+    padding: 30px 20px 22px;
+    border-radius: 28px;
+  }
+  .flashcard .front,
+  .flashcard .back { padding-top: 34px; }
+  .flashcard .card-tag {
+    padding: 6px 10px;
+    font-size: .86rem;
+  }
+
+  /* FRONT: designed to finish on one phone screen in normal cases. */
+  .flashcard .front {
+    min-height: 390px;
+    justify-content: flex-start;
+  }
+  .flashcard .front h2,
+  .flashcard .front .word {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 42px;
+    margin-bottom: 9px;
+    font-size: clamp(2.65rem, 12.5vw, 4rem);
+    line-height: 1.02;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .flashcard .front .ipa {
+    margin: 0;
+    font-size: 1.28rem;
+    line-height: 1.25;
+  }
+  .flashcard .front p.pos {
+    margin-top: 7px;
+    margin-bottom: 24px;
+    font-size: 1.04rem;
+  }
+  .flashcard .front button {
+    min-height: 42px;
+    padding: 6px 12px;
+    font-size: .98rem;
+  }
+  .front .btn-flip { min-width: 136px; }
+  .flashcard .front .practice-inline {
+    gap: 8px !important;
+    row-gap: 8px !important;
+  }
+  .flashcard .front .nav-buttons {
+    margin-top: 24px !important;
+  }
+
+  /* BACK: Definition leads; supporting fields become progressively quieter. */
+  .flashcard .back .def {
+    margin-top: 12px;
+    font-size: 1.22rem;
+    line-height: 1.42;
+  }
+  .flashcard .back .ex {
+    margin-top: 16px;
+    font-size: 1.10rem;
+    line-height: 1.42;
+  }
+  .flashcard .back .syn,
+  .flashcard .back .note {
+    margin-top: 14px;
+    font-size: 1.02rem;
+    line-height: 1.40;
+  }
+  .flashcard .back .external-link {
+    margin-top: 18px;
+    margin-bottom: 12px;
+    font-size: .98rem;
+  }
+
+  /* Back controls: compact app controls, not large web-form buttons. */
+  .flashcard .back button,
+  .flashcard .back .voice-control {
+    min-height: 40px;
+    padding: 5px 10px;
+    font-size: .93rem;
+  }
+  .flashcard .back .tts-buttons,
+  .flashcard .back .local-edit-actions,
+  .flashcard .back .practice-inline {
+    gap: 7px !important;
+    row-gap: 7px !important;
+  }
+  .flashcard .back .btn-studied,
+  .flashcard .back .btn-review,
+  .flashcard .back .btn-shuffle,
+  .flashcard .back .btn-flip-back,
+  .flashcard .back .btn-edit-local,
+  .flashcard .back .btn-revert-local,
+  .flashcard .back .btn-voice {
+    min-height: 38px !important;
+    padding: 5px 9px !important;
+    font-size: .90rem !important;
+  }
+  .flashcard .back .voice-detail { font-size: .80rem; }
+  .flashcard .back .nav-buttons { margin-top: 22px !important; }
+
+  .nav-buttons .btn-prev,
+  .nav-buttons .btn-next {
+    width: 46px;
+    min-width: 46px !important;
+    height: 46px;
+    min-height: 46px !important;
+    font-size: 1.6rem !important;
+  }
+
+  #deck-nav-links { margin-top: 18px !important; }
+  #deck-nav-links .deck-step-link {
+    min-height: 42px;
+    padding: 5px 14px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .study-home-pill { min-height: 38px; padding: 0 10px; font-size: .88rem; }
+  .study-brand-mark { width: 24px; height: 24px; }
+  .study-brand-title { font-size: 1.30rem; }
+  .study-brand-subtitle { font-size: .70rem; }
+  .mode-controls .mode-btn {
+    min-height: 40px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    font-size: .97rem !important;
+  }
+  .flashcard { padding-left: 17px; padding-right: 17px; }
+  .flashcard .front { min-height: 375px; }
+  .flashcard .front h2,
+  .flashcard .front .word { font-size: clamp(2.4rem, 12.8vw, 3.55rem); }
+  .flashcard .back .def { font-size: 1.16rem; }
+  .flashcard .back .ex { font-size: 1.05rem; }
+  .flashcard .back .syn,
+  .flashcard .back .note { font-size: .98rem; }
+}

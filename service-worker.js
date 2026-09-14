@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-controls-tightening-v2-2-v6235';
+const CACHE_NAME = 'wlp-stage6-density-balance-v2-3-v6236';
 const CORE = [
   './',
   './index.html',
