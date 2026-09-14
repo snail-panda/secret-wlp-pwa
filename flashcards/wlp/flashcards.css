@@ -628,3 +628,259 @@ body {
     padding-right: 18px;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — iPhone App Scale Pass
+   Goal: keep desktop balance, make iPhone feel like an app.
+   ========================================================= */
+
+@media (max-width: 560px) {
+  :root {
+    --wlp-app-gutter: 10px;
+  }
+
+  body {
+    padding-left: 0;
+    padding-right: 0;
+    padding-bottom: 30px;
+    overflow-x: hidden;
+  }
+
+  /* One shared app-width rail for header/card/deck nav. */
+  .study-shell-header,
+  #cards,
+  #deck-nav-links {
+    width: calc(100vw - (var(--wlp-app-gutter) * 2));
+    max-width: none;
+  }
+
+  .study-shell-header {
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    margin: 12px auto 16px;
+  }
+
+  .study-home-pill {
+    justify-self: start;
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 1rem;
+  }
+
+  .study-brand {
+    justify-self: center;
+    gap: 8px;
+  }
+
+  .study-brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .study-brand-title {
+    font-size: 1.42rem;
+    line-height: 1;
+    letter-spacing: .12em;
+  }
+
+  .study-brand-subtitle {
+    margin-top: 4px;
+    font-size: .78rem;
+    line-height: 1.05;
+  }
+
+  .mode-controls {
+    margin: 8px auto 20px !important;
+    padding: 4px !important;
+    border-radius: 999px !important;
+  }
+
+  .mode-controls .mode-btn {
+    min-height: 44px !important;
+    padding: 7px 18px !important;
+    font-size: 1.08rem !important;
+  }
+
+  .flashcard {
+    width: 100%;
+    max-width: none;
+    min-height: 430px;
+    margin: 0 auto;
+    padding: 34px 24px 28px;
+    border-radius: 28px;
+  }
+
+  .flashcard .front,
+  .flashcard .back {
+    padding-top: 38px;
+  }
+
+  .flashcard .card-tag {
+    top: 0;
+    right: 0;
+    padding: 6px 10px;
+    font-size: .9rem;
+  }
+
+  /* FRONT: large recall target, not a shrunken desktop card. */
+  .flashcard .front h2,
+  .flashcard .front .word {
+    margin-top: 34px;
+    margin-bottom: 12px;
+    font-size: clamp(3.25rem, 14vw, 4.5rem);
+    line-height: .98;
+  }
+
+  .flashcard .front .ipa {
+    font-size: 1.35rem;
+    line-height: 1.25;
+  }
+
+  .flashcard .front p.pos {
+    margin-top: 8px;
+    margin-bottom: 30px;
+    font-size: 1.12rem;
+    letter-spacing: .11em;
+  }
+
+  .flashcard .front .practice-inline {
+    gap: 10px !important;
+    row-gap: 12px !important;
+  }
+
+  .flashcard .front button {
+    min-height: 48px;
+    padding: 8px 16px;
+    font-size: 1.08rem;
+  }
+
+  .front .btn-flip {
+    min-width: 156px;
+  }
+
+  /* BACK: readable app page; allow vertical growth instead of shrinking. */
+  .flashcard .back .def,
+  .flashcard .back .ex,
+  .flashcard .back .syn,
+  .flashcard .back .note {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    font-size: 1.17rem;
+    line-height: 1.42;
+  }
+
+  .flashcard .back .def {
+    margin-top: 14px;
+  }
+
+  .flashcard .back .ex,
+  .flashcard .back .syn,
+  .flashcard .back .note {
+    margin-top: 16px;
+  }
+
+  .flashcard .back button,
+  .flashcard .back .external-link,
+  .flashcard .back .voice-control {
+    font-size: 1.02rem;
+  }
+
+  .flashcard .back button {
+    min-height: 46px;
+    padding: 8px 14px;
+  }
+
+  .flashcard .back .tts-buttons,
+  .flashcard .back .local-edit-actions {
+    gap: 10px !important;
+    row-gap: 10px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .external-link {
+    margin-top: 20px;
+    margin-bottom: 14px;
+  }
+
+  /* Card navigation remains large enough for thumbs. */
+  .nav-buttons {
+    margin-top: 26px !important;
+  }
+
+  .nav-buttons .btn-prev,
+  .nav-buttons .btn-next {
+    width: 52px;
+    min-width: 52px !important;
+    height: 52px;
+    min-height: 52px !important;
+    font-size: 1.9rem !important;
+  }
+
+  #deck-nav-links {
+    margin: 24px auto 0 !important;
+    padding: 0 !important;
+    column-gap: 12px !important;
+  }
+
+  #deck-nav-links .deck-step-link {
+    min-height: 46px;
+    padding: 0 16px;
+    font-size: 1.08rem;
+  }
+}
+
+/* Extra-small iPhones: preserve app scale, only tighten gutters slightly. */
+@media (max-width: 390px) {
+  :root {
+    --wlp-app-gutter: 8px;
+  }
+
+  .study-shell-header {
+    gap: 6px;
+  }
+
+  .study-home-pill {
+    min-height: 42px;
+    padding: 0 11px;
+    font-size: .94rem;
+  }
+
+  .study-brand-mark {
+    width: 25px;
+    height: 25px;
+  }
+
+  .study-brand-title {
+    font-size: 1.28rem;
+  }
+
+  .study-brand-subtitle {
+    display: block;
+    font-size: .7rem;
+  }
+
+  .mode-controls .mode-btn {
+    padding-left: 15px !important;
+    padding-right: 15px !important;
+    font-size: 1.02rem !important;
+  }
+
+  .flashcard {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .flashcard .front h2,
+  .flashcard .front .word {
+    font-size: clamp(3rem, 14.5vw, 4.1rem);
+  }
+
+  .flashcard .back .def,
+  .flashcard .back .ex,
+  .flashcard .back .syn,
+  .flashcard .back .note {
+    font-size: 1.12rem;
+  }
+}

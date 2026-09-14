@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-ui-inc1-1-v6231';
+const CACHE_NAME = 'wlp-stage6-iphone-app-scale-v6232';
 const CORE = [
   './',
   './index.html',
