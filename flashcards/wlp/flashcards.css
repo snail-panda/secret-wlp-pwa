@@ -1851,3 +1851,59 @@ body {
     margin-left: 11px !important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Navigation Alignment v3.1
+   Fix the actual issue:
+   - keep each deck label + chevron as one centered group
+   - use a modest fixed gap instead of pushing the chevron outward
+   - optically raise chevrons so they align with the text
+   ========================================================= */
+
+/* Back to Home: preserve current size/spacing, correct only vertical alignment. */
+.study-home-pill .home-nav-mark {
+  transform: translateY(-0.07em);
+}
+
+/* Previous / Next Deck: center mark + label together as a single unit. */
+#deck-nav-links .deck-step-link,
+#prev-deck-link,
+#next-deck-link {
+  justify-content: center !important;
+  gap: 9px !important;
+  column-gap: 9px !important;
+}
+
+/* Remove all earlier margin-based spacing rules. */
+#prev-deck-link .deck-nav-mark,
+#next-deck-link .deck-nav-mark {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  transform: translateY(-0.07em) !important;
+  line-height: 1;
+}
+
+@media (max-width: 560px) {
+  #deck-nav-links .deck-step-link,
+  #prev-deck-link,
+  #next-deck-link {
+    gap: 9px !important;
+    column-gap: 9px !important;
+  }
+
+  .study-home-pill .home-nav-mark,
+  #prev-deck-link .deck-nav-mark,
+  #next-deck-link .deck-nav-mark {
+    transform: translateY(-0.07em) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #deck-nav-links .deck-step-link,
+  #prev-deck-link,
+  #next-deck-link {
+    gap: 8px !important;
+    column-gap: 8px !important;
+  }
+}
