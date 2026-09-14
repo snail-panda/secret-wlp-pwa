@@ -2080,3 +2080,39 @@ body {
 .flashcard .record-practice .record-clear-note[hidden] {
   display: none !important;
 }
+
+
+/* =========================================================
+   WLP Stage 6 — My Take layout/state fix v3.7
+   Clear is hidden until a temporary take exists.
+   The safety note is anchored to Clear without affecting row layout.
+   ========================================================= */
+.flashcard .record-practice .record-clear-group {
+  position: relative;
+  display: inline-flex !important;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.flashcard .record-practice .record-clear-note {
+  position: absolute;
+  top: calc(100% + 3px);
+  right: 2px;
+  width: max-content;
+  max-width: 168px;
+  padding: 0;
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 560px) {
+  .flashcard .record-practice .record-clear-note {
+    right: 1px;
+    max-width: 154px;
+    white-space: nowrap;
+  }
+}
