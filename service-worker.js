@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-navigation-alignment-v3-1-v6244';
+const CACHE_NAME = 'wlp-stage6-deck-chevron-vertical-v3-2-v6245';
 const CORE = [
   './',
   './index.html',

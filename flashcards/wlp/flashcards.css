@@ -1907,3 +1907,29 @@ body {
     column-gap: 8px !important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Deck Chevron Vertical Alignment v3.2
+   Back to Home intentionally untouched.
+   Raise only Previous/Next Deck chevrons for optical alignment.
+   ========================================================= */
+
+#prev-deck-link .deck-nav-mark,
+#next-deck-link .deck-nav-mark {
+  transform: translateY(-0.16em) !important;
+}
+
+@media (max-width: 560px) {
+  #prev-deck-link .deck-nav-mark,
+  #next-deck-link .deck-nav-mark {
+    transform: translateY(-0.16em) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #prev-deck-link .deck-nav-mark,
+  #next-deck-link .deck-nav-mark {
+    transform: translateY(-0.15em) !important;
+  }
+}
