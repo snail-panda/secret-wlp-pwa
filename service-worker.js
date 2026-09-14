@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-iphone-layout-v2-1-v6234';
+const CACHE_NAME = 'wlp-stage6-controls-tightening-v2-2-v6235';
 const CORE = [
   './',
   './index.html',

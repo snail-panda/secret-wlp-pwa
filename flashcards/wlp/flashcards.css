@@ -1202,3 +1202,109 @@ body {
     line-height: 1.48;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — iPhone Controls Tightening v2.2
+   Keep the strong mobile scale; reduce control bulk.
+   ========================================================= */
+
+@media (max-width: 560px) {
+  .flashcard .front button {
+    min-height: 46px;
+    padding: 7px 14px;
+    font-size: 1.02rem;
+  }
+
+  .front .btn-flip {
+    min-width: 148px;
+  }
+
+  .flashcard .front .practice-inline {
+    gap: 9px !important;
+    row-gap: 10px !important;
+  }
+
+  .flashcard .back button,
+  .flashcard .back .voice-control {
+    min-height: 44px;
+    padding: 7px 12px;
+    font-size: 1rem;
+  }
+
+  .flashcard .back .tts-buttons,
+  .flashcard .back .local-edit-actions,
+  .flashcard .back .practice-inline {
+    gap: 9px !important;
+    row-gap: 9px !important;
+  }
+
+  .flashcard .back .btn-studied,
+  .flashcard .back .btn-review,
+  .flashcard .back .btn-shuffle,
+  .flashcard .back .btn-flip-back,
+  .flashcard .back .btn-edit-local,
+  .flashcard .back .btn-revert-local {
+    min-height: 42px;
+    padding: 6px 11px;
+    font-size: .96rem;
+  }
+
+  .flashcard .back .btn-voice {
+    min-height: 42px !important;
+    padding: 6px 11px !important;
+    font-size: .96rem !important;
+  }
+
+  .flashcard .back .voice-detail {
+    font-size: .86rem;
+  }
+
+  .nav-buttons .btn-prev,
+  .nav-buttons .btn-next {
+    width: 50px;
+    min-width: 50px !important;
+    height: 50px;
+    min-height: 50px !important;
+    font-size: 1.75rem !important;
+  }
+
+  #deck-nav-links .deck-step-link {
+    min-height: 46px;
+    padding: 6px 16px;
+    font-size: 1.06rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .flashcard .front button {
+    min-height: 44px;
+    padding: 6px 12px;
+    font-size: .98rem;
+  }
+
+  .front .btn-flip {
+    min-width: 142px;
+  }
+
+  .flashcard .back button,
+  .flashcard .back .voice-control {
+    min-height: 42px;
+    padding: 6px 10px;
+    font-size: .96rem;
+  }
+
+  .nav-buttons .btn-prev,
+  .nav-buttons .btn-next {
+    width: 48px;
+    min-width: 48px !important;
+    height: 48px;
+    min-height: 48px !important;
+  }
+
+  #deck-nav-links .deck-step-link {
+    min-height: 44px;
+    padding: 5px 14px;
+    font-size: 1rem;
+  }
+}
