@@ -1482,3 +1482,105 @@ body {
   .flashcard .back .syn,
   .flashcard .back .note { font-size: .98rem; }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Garden Color Polish v2.4
+   Subtle visual accents inspired by the v6.2 mock.
+   No behavior changes.
+   ========================================================= */
+
+/* Card tag: make deck id and position easier to parse. */
+.flashcard .card-tag {
+  word-spacing: .58em;
+  letter-spacing: .01em;
+}
+
+/* External Reference: still quiet, but no longer disappears. */
+.flashcard .external-link {
+  font-weight: 600;
+  color: #356748;
+}
+.flashcard .external-link .search-icon {
+  width: 1.08em;
+  height: 1.08em;
+  stroke-width: 1.72;
+}
+
+/* A little more personality on the brand leaf. */
+.study-brand-mark svg {
+  stroke-width: 1.55;
+}
+
+/* Back-side action palette: muted garden pastels, not candy colors. */
+.flashcard .back .btn-tts-def {
+  background: #edf4f7;
+  border-color: #d2e0e5;
+}
+.flashcard .back .btn-tts-ex {
+  background: #edf5ee;
+  border-color: #d1dfd2;
+}
+.flashcard .back .record-practice .btn-record {
+  background: #f7e8eb;
+  border-color: #ead0d6;
+  color: #6f5059;
+}
+.flashcard .back .btn-tts-all {
+  background: #f1edf7;
+  border-color: #ddd4e9;
+}
+.flashcard .back .btn-voice {
+  background: #edf3f4 !important;
+  border-color: #d3e0e1 !important;
+}
+.flashcard .back .btn-edit-local,
+.flashcard .back .btn-revert-local {
+  background: #faf3e4;
+  border-color: #e9dcc0;
+}
+.flashcard .back .btn-studied {
+  background: #edf5ea;
+  border-color: #d0dfcb;
+}
+.flashcard .back .btn-review {
+  background: #f8f0e7;
+  border-color: #e8dac8;
+}
+.flashcard .back .btn-shuffle {
+  background: #f2f2eb;
+  border-color: #dcddd0;
+}
+.flashcard .back .btn-flip-back {
+  background: #f7f5ef;
+  border-color: #dedbd0;
+}
+
+/* Deck navigation gets a faint mint surface like the visual mock. */
+#deck-nav-links .deck-step-link {
+  background: #eef6ed;
+  border-color: #cfdfcf;
+}
+
+/* Preserve calm hierarchy on hover-capable devices. */
+@media (hover: hover) {
+  .flashcard .back .btn-tts-def:hover,
+  .flashcard .back .btn-tts-ex:hover,
+  .flashcard .back .btn-tts-all:hover,
+  .flashcard .back .btn-voice:hover,
+  .flashcard .back .record-practice .btn-record:hover,
+  #deck-nav-links .deck-step-link:hover {
+    filter: brightness(.985);
+  }
+}
+
+@media (max-width: 560px) {
+  .flashcard .external-link {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .flashcard .external-link .search-icon {
+    width: 1.12em;
+    height: 1.12em;
+  }
+}
