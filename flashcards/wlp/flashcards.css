@@ -1933,3 +1933,52 @@ body {
     transform: translateY(-0.15em) !important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — Deck Chevron Micro Tuning v3.3
+   Back to Home intentionally untouched.
+   Previous/Next Deck only:
+   - +2px breathing room between chevron and label
+   - raise chevrons slightly more for optical centering
+   ========================================================= */
+
+#deck-nav-links .deck-step-link,
+#prev-deck-link,
+#next-deck-link {
+  gap: 11px !important;
+  column-gap: 11px !important;
+}
+
+#prev-deck-link .deck-nav-mark,
+#next-deck-link .deck-nav-mark {
+  transform: translateY(-0.23em) !important;
+}
+
+@media (max-width: 560px) {
+  #deck-nav-links .deck-step-link,
+  #prev-deck-link,
+  #next-deck-link {
+    gap: 11px !important;
+    column-gap: 11px !important;
+  }
+
+  #prev-deck-link .deck-nav-mark,
+  #next-deck-link .deck-nav-mark {
+    transform: translateY(-0.23em) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  #deck-nav-links .deck-step-link,
+  #prev-deck-link,
+  #next-deck-link {
+    gap: 10px !important;
+    column-gap: 10px !important;
+  }
+
+  #prev-deck-link .deck-nav-mark,
+  #next-deck-link .deck-nav-mark {
+    transform: translateY(-0.22em) !important;
+  }
+}
