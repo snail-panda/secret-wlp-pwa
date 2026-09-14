@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-my-take-cleanup-v3-4-v6247';
+const CACHE_NAME = 'wlp-stage6-my-take-state-polish-v3-5-v6248';
 const CORE = [
   './',
   './index.html',

@@ -2006,3 +2006,64 @@ body {
     padding-right: 10px;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 — My Take state polish v3.5
+   Record becomes Retake once a temporary take exists.
+   Clear never touches the persistent Saved Take.
+   ========================================================= */
+.flashcard .record-practice [hidden] {
+  display: none !important;
+}
+
+.flashcard .record-practice .btn-record-retake,
+.flashcard .record-practice .btn-record-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4em;
+}
+
+.flashcard .record-practice .btn-record-retake {
+  background: #eaf2f7;
+  border-color: #cfdee8;
+  color: #426578;
+}
+
+.flashcard .record-practice .retake-icon,
+.flashcard .record-practice .clear-icon {
+  width: 1em;
+  height: 1em;
+}
+
+.flashcard .record-practice .retake-icon {
+  stroke-width: 1.7;
+}
+
+.flashcard .record-practice .record-clear-group {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  margin: 0;
+}
+
+.flashcard .record-practice .record-clear-note {
+  max-width: 132px;
+  padding-right: 2px;
+  font-family: "EB Garamond", Georgia, serif;
+  font-size: .66rem;
+  line-height: 1.05;
+  color: #7a756d;
+  text-align: right;
+  white-space: normal;
+}
+
+@media (max-width: 560px) {
+  .flashcard .record-practice .record-clear-note {
+    max-width: 118px;
+    font-size: .63rem;
+  }
+}

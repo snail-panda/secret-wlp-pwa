@@ -2027,6 +2027,8 @@ function bindRecordingPractice(root, row) {
     const saveBtn = panel.querySelector(".btn-record-save");
     const retakeBtn = panel.querySelector(".btn-record-retake");
     const clearBtn = panel.querySelector(".btn-record-clear");
+    const clearGroup = panel.querySelector(".record-clear-group");
+    const clearNote = panel.querySelector(".record-clear-note");
     const savedBtn = panel.querySelector(".btn-record-saved");
     const deleteBtn = panel.querySelector(".btn-record-delete");
     const status = panel.querySelector(".record-status");
@@ -2038,6 +2040,7 @@ function bindRecordingPractice(root, row) {
         savedRecord = await recordingDbGet(key);
         savedBtn.hidden = !savedRecord?.blob;
         deleteBtn.hidden = !savedRecord?.blob;
+        if (clearNote) clearNote.hidden = !(currentBlob && savedRecord?.blob);
       } catch (e) {
         console.warn("Could not read saved take:", e);
       }
@@ -2049,7 +2052,9 @@ function bindRecordingPractice(root, row) {
       mineBtn.hidden = !hasTake;
       saveBtn.hidden = !hasTake;
       retakeBtn.hidden = !hasTake;
-      clearBtn.hidden = !hasTake;
+      if (clearGroup) clearGroup.hidden = !hasTake;
+      else clearBtn.hidden = !hasTake;
+      if (clearNote) clearNote.hidden = !(hasTake && savedRecord?.blob);
     };
 
     const startRecording = async () => {
@@ -2071,7 +2076,7 @@ function bindRecordingPractice(root, row) {
           activeRecorder = null;
           stopBtn.hidden = true;
           setCurrentTakeControls(true);
-          status.textContent = "Take ready.";
+          status.textContent = "";
         }, { once: true });
         recorder.start();
         recordBtn.hidden = true;
@@ -2102,7 +2107,7 @@ function bindRecordingPractice(root, row) {
       stopRecordingPlayback(panel);
       currentBlob = null;
       setCurrentTakeControls(false);
-      status.textContent = savedRecord?.blob ? "Current take cleared. Saved take kept." : "Current take cleared.";
+      status.textContent = "";
     });
     mineBtn.addEventListener("click", () => toggleRecordingPlayback(panel, mineBtn, currentBlob));
     savedBtn.addEventListener("click", () => toggleRecordingPlayback(panel, savedBtn, savedRecord?.blob));
@@ -2116,6 +2121,7 @@ function bindRecordingPractice(root, row) {
         savedRecord = record;
         savedBtn.hidden = false;
         deleteBtn.hidden = false;
+        if (clearNote) clearNote.hidden = false;
         status.textContent = "Saved on this device.";
       } catch (e) {
         status.textContent = "Could not save this take.";
@@ -2131,6 +2137,7 @@ function bindRecordingPractice(root, row) {
         savedRecord = null;
         savedBtn.hidden = true;
         deleteBtn.hidden = true;
+        if (clearNote) clearNote.hidden = true;
         status.textContent = "Saved take deleted.";
       } catch (e) {
         status.textContent = "Could not delete the saved take.";
