@@ -442,3 +442,189 @@ body {
     display: none;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 6 Study UI — Increment 1.1
+   iPhone scale + card-tag collision fix
+   ========================================================= */
+
+.flashcard .front,
+.flashcard .back {
+  padding-top: 30px;
+}
+
+.flashcard .card-tag {
+  top: 0;
+  right: 0;
+  z-index: 2;
+}
+
+.flashcard .back .study-back-first,
+.flashcard .back .def {
+  margin-top: 18px;
+}
+
+/* Give the whole Study surface a little more presence. */
+.study-shell-header {
+  width: min(100%, 860px);
+}
+
+.flashcard {
+  width: min(100%, 760px);
+  max-width: 760px;
+}
+
+#deck-nav-links {
+  width: min(100%, 760px);
+}
+
+@media (max-width: 560px) {
+  body {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .study-shell-header {
+    width: 96%;
+    grid-template-columns: 112px 1fr 112px;
+    margin-bottom: 14px;
+  }
+
+  .study-home-pill {
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: .94rem;
+  }
+
+  .study-brand-mark {
+    width: 22px;
+    height: 22px;
+  }
+
+  .study-brand-title {
+    font-size: 1.18rem;
+  }
+
+  .study-brand-subtitle {
+    font-size: .67rem;
+  }
+
+  .mode-controls {
+    margin-top: 6px !important;
+    margin-bottom: 17px !important;
+    padding: 4px !important;
+  }
+
+  .mode-controls .mode-btn {
+    min-height: 38px !important;
+    padding: 6px 14px !important;
+    font-size: .98rem !important;
+  }
+
+  #cards {
+    width: 100%;
+  }
+
+  .flashcard {
+    width: 94vw;
+    max-width: none;
+    min-height: 340px;
+    padding: 30px 22px 22px;
+    border-radius: 26px;
+  }
+
+  .flashcard .front,
+  .flashcard .back {
+    padding-top: 34px;
+  }
+
+  .flashcard h2,
+  .flashcard .word,
+  .flashcard .back-word {
+    margin-top: 8px;
+    font-size: clamp(2.65rem, 10.2vw, 3.55rem);
+    line-height: 1.02;
+  }
+
+  .flashcard .ipa {
+    font-size: 1.17rem;
+  }
+
+  .flashcard p.pos {
+    font-size: 1rem;
+    margin-bottom: 20px;
+  }
+
+  .flashcard .card-tag {
+    top: 0;
+    right: 0;
+    padding: 5px 9px;
+    font-size: .82rem;
+  }
+
+  .flashcard .back .study-back-first,
+  .flashcard .back .def {
+    margin-top: 10px;
+    padding-top: 0;
+  }
+
+  .flashcard .def,
+  .flashcard .ex,
+  .flashcard .syn,
+  .flashcard .note {
+    font-size: 1.02rem;
+    line-height: 1.28;
+  }
+
+  .flashcard button {
+    min-height: 42px;
+    font-size: .98rem;
+  }
+
+  .front .btn-flip {
+    min-width: 146px;
+  }
+
+  .nav-buttons .btn-prev,
+  .nav-buttons .btn-next {
+    width: 48px;
+    min-width: 48px !important;
+    height: 48px;
+    min-height: 48px !important;
+    font-size: 1.72rem !important;
+  }
+
+  #deck-nav-links {
+    width: 94vw;
+    margin-top: 24px !important;
+  }
+
+  #deck-nav-links .deck-step-link {
+    min-height: 42px;
+    padding: 0 13px;
+    font-size: .98rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .study-shell-header {
+    width: 96%;
+    grid-template-columns: 100px 1fr 100px;
+  }
+
+  .study-brand-title {
+    font-size: 1.12rem;
+  }
+
+  .study-brand-subtitle {
+    display: block;
+    font-size: .61rem;
+  }
+
+  .flashcard {
+    width: 95vw;
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
