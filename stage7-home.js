@@ -19,6 +19,7 @@
   const drawerRoleAction = document.getElementById('drawer-role-action');
   const drawerSettings = document.getElementById('drawer-settings');
   const drawerAdminOnly = Array.from(document.querySelectorAll('.drawer-admin-only'));
+  const homeEditorCard = document.getElementById('home-editor-card');
   const adminGate = document.getElementById('admin-gate');
   const adminForm = document.getElementById('admin-form');
   const adminPassword = document.getElementById('admin-password');
@@ -83,6 +84,7 @@
     const drawerLabel = drawerRoleAction?.querySelector('.drawer-role-label');
     if (drawerLabel) drawerLabel.textContent = admin ? 'Switch to Guest' : 'Admin Login';
     drawerAdminOnly.forEach(item => { item.hidden = !admin; });
+    if (homeEditorCard) homeEditorCard.hidden = !admin;
   };
 
   const closeRoleMenu = () => {
