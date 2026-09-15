@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-admin-editor-home-v2-0';
+const CACHE_NAME = 'wlp-stage7-study-shell-v2-1';
 const CORE = [
   './',
   './index.html',
@@ -20,6 +20,8 @@ const CORE = [
   './assets/stage7-secret-garden-hero-v16.webp',
   './flashcards/wlp/batch.html',
   './flashcards/wlp/flashcards.css',
+  './flashcards/wlp/study-stage7.css',
+  './flashcards/wlp/study-stage7.js',
   './flashcards/wlp/app.js',
   './flashcards/wlp/index-autogen.js',
   './flashcards/wlp/wlp-flashcard-master.tsv'

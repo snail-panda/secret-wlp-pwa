@@ -1,0 +1,359 @@
+/* =========================================================
+   WLP Stage 7 — Study shell v2.1
+   Visual layer only. Existing Study/recording/TTS/progress logic
+   continues to live in app.js and flashcards.css.
+   ========================================================= */
+:root{
+  --s7-garden:#eef6ee;
+  --s7-paper:#fffdfa;
+  --s7-ink:#173d31;
+  --s7-muted:#71827a;
+  --s7-line:#dbe6dd;
+  --s7-mint:#e4f0e6;
+  --s7-shadow:0 12px 34px rgba(40,75,57,.08);
+  --s7-serif:"EB Garamond",Georgia,serif;
+  --s7-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html{background:var(--s7-garden)!important}
+body.stage7-study-body{
+  margin:0!important;
+  padding:0!important;
+  min-height:100vh;
+  text-align:center;
+  color:var(--s7-ink);
+  background:var(--s7-garden)!important;
+  font-family:var(--s7-sans);
+}
+.study-app-shell{
+  width:min(100%,760px);
+  min-height:100vh;
+  margin:0 auto;
+  background:linear-gradient(180deg,#f9fbf8 0%,#eef6ee 78%,#edf4eb 100%);
+  box-shadow:0 0 45px rgba(40,70,55,.07);
+}
+
+/* ---------- shared Stage 7 app header ---------- */
+.study-app-shell .app-header{
+  height:68px;
+  padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  display:grid;
+  grid-template-columns:58px 1fr 70px;
+  align-items:center;
+  border-bottom:1px solid rgba(117,132,125,.18);
+  background:rgba(249,252,248,.94);
+  position:sticky;
+  top:0;
+  z-index:40;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.study-app-shell .brand{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  color:var(--s7-ink);
+  text-decoration:none;
+  font-family:var(--s7-serif);
+}
+.study-app-shell .brand-sprout{
+  width:27px;height:27px;flex:none;
+  fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round;
+}
+.study-app-shell .brand span{display:grid;text-align:left;line-height:1}
+.study-app-shell .brand strong{
+  font-family:var(--s7-serif);
+  font-size:1.42rem;
+  font-weight:700;
+  line-height:.95;
+  letter-spacing:.11em;
+}
+.study-app-shell .brand small{
+  display:block;
+  margin-top:3px;
+  color:#6b8771;
+  font-family:var(--s7-serif);
+  font-size:.76rem;
+  font-weight:400;
+  line-height:1;
+  white-space:nowrap;
+  letter-spacing:.025em;
+}
+.study-app-shell .icon-button{
+  width:42px;height:42px;border:0;border-radius:14px;background:transparent;
+  display:grid;place-items:center;color:var(--s7-ink);cursor:pointer;text-decoration:none;
+}
+.study-app-shell .icon-button:active{background:#e8f0e9}
+.study-app-shell .icon-button svg{
+  width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+.study-app-shell .role-pill{
+  justify-self:end;min-width:62px;height:34px;padding:0 10px;
+  border:1px solid rgba(109,145,122,.18);border-radius:999px;
+  background:rgba(255,255,255,.78);color:#315c49;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:var(--s7-sans);font-size:12px;font-weight:600;cursor:pointer;box-shadow:none;
+}
+.study-app-shell .role-pill.is-admin{background:#e3f0e7;border-color:#c9dece}
+.study-app-shell .role-dot{width:6px;height:6px;border-radius:50%;background:#8fa79a}
+.study-app-shell .role-pill.is-admin .role-dot{background:#3e7a5b}
+
+/* ---------- study page framing ---------- */
+.study-main{padding:12px 12px calc(34px + env(safe-area-inset-bottom))}
+.study-context{
+  width:min(100%,680px);
+  margin:0 auto 7px;
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:8px;
+  min-height:32px;
+}
+.study-back-decks{
+  justify-self:start;
+  display:inline-flex;align-items:center;gap:5px;
+  color:#4d725e;text-decoration:none;
+  font-family:var(--s7-serif);font-size:.92rem;
+}
+.study-back-decks svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.study-deck-title{
+  color:#557264;
+  font-family:var(--s7-serif);
+  font-size:.86rem;
+  font-weight:600;
+  letter-spacing:.035em;
+}
+.study-context-spacer{min-width:58px}
+
+/* Existing Word First / Definition First control becomes the Study sub-toolbar. */
+.stage7-study-body .mode-controls{
+  margin:2px auto 12px!important;
+  background:rgba(255,255,255,.62)!important;
+  border-color:rgba(72,104,68,.14)!important;
+}
+
+/* ---------- card surface: preserve structure, tune Stage 7 hierarchy ---------- */
+.stage7-study-body #cards{width:100%;padding:0;margin:0 auto}
+.stage7-study-body .flashcard{
+  width:min(100%,680px)!important;
+  max-width:680px!important;
+  border:1px solid rgba(88,118,91,.14)!important;
+  border-radius:23px!important;
+  background:rgba(255,255,252,.93)!important;
+  box-shadow:0 12px 30px rgba(44,72,53,.075),0 2px 7px rgba(44,72,53,.035)!important;
+}
+.stage7-study-body .flashcard .front,
+.stage7-study-body .flashcard .back{padding-top:32px}
+.stage7-study-body .flashcard .card-tag{
+  top:0!important;right:0!important;bottom:auto!important;
+  background:#eef4ee!important;color:#66776c!important;
+  border:1px solid rgba(95,124,99,.08);
+  font-size:.72rem!important;
+}
+.stage7-study-body .flashcard .word,
+.stage7-study-body .flashcard .back-word{
+  color:#224839!important;
+  font-family:var(--s7-serif)!important;
+}
+.stage7-study-body .flashcard .ipa{color:#6f7d75!important}
+.stage7-study-body .flashcard p.pos{color:#7d8982!important}
+
+/* Primary front action stands out; Listen/Record remain quieter. */
+.stage7-study-body .flashcard .front .btn-flip{
+  background:#e2efe5!important;
+  border-color:#cadfce!important;
+  color:#214f3c!important;
+  font-weight:600!important;
+}
+.stage7-study-body .flashcard .front .btn-speak,
+.stage7-study-body .flashcard .front .btn-record{
+  background:#f6f8f4!important;
+  border-color:#dce5dd!important;
+  color:#466755!important;
+}
+
+/* Answer content reads like one clean card rather than a tool panel. */
+.stage7-study-body .flashcard .back pre{
+  border-color:rgba(82,111,86,.10)!important;
+}
+.stage7-study-body .flashcard .back .def strong,
+.stage7-study-body .flashcard .back .ex strong,
+.stage7-study-body .flashcard .back .syn strong,
+.stage7-study-body .flashcard .back .note strong{color:#6d7d72!important}
+.stage7-study-body .flashcard .external-link{color:#3a694b!important}
+
+/* Learning decision buttons are the strongest controls on the answer side. */
+.stage7-study-body .flashcard .back .btn-studied,
+.stage7-study-body .flashcard .back .btn-review{
+  min-width:112px!important;
+  min-height:42px!important;
+  font-weight:600!important;
+}
+.stage7-study-body .flashcard .back .btn-studied{
+  background:#e3f0e2!important;border-color:#cadec8!important;color:#2d5e3d!important;
+}
+.stage7-study-body .flashcard .back .btn-review{
+  background:#f4ece4!important;border-color:#e5d7c8!important;color:#745f4b!important;
+}
+.stage7-study-body .flashcard .back .btn-flip-back,
+.stage7-study-body .flashcard .back .btn-shuffle,
+.stage7-study-body .flashcard .back .btn-edit-local,
+.stage7-study-body .flashcard .back .btn-revert-local{
+  background:transparent!important;
+  border-color:rgba(91,115,93,.18)!important;
+  color:#5c6e62!important;
+}
+
+/* Card-to-card navigation stays easy to hit but visually recedes. */
+.stage7-study-body .flashcard .nav-buttons{margin-top:18px!important}
+.stage7-study-body .flashcard .nav-buttons .btn-prev,
+.stage7-study-body .flashcard .nav-buttons .btn-next{
+  background:#edf4ee!important;
+  border-color:#d7e3d9!important;
+  color:#345d48!important;
+  box-shadow:none!important;
+}
+
+/* ---------- links beneath the card ---------- */
+.study-footer-nav{margin-top:14px;line-height:1.5}
+.stage7-study-body #review-back-link,
+.stage7-study-body #progress-back-link,
+.stage7-study-body #drafts-back-link{margin:9px 0;font-family:var(--s7-serif)}
+.stage7-study-body #deck-nav-links{
+  width:min(100%,680px)!important;
+  margin:15px auto 0!important;
+  grid-template-columns:1fr auto 1fr!important;
+  column-gap:10px!important;
+  padding:0!important;
+}
+.stage7-study-body #deck-nav-links .deck-step-link{
+  min-height:39px!important;
+  padding:5px 8px!important;
+  background:transparent!important;
+  border-color:transparent!important;
+  font-size:.92rem!important;
+}
+.stage7-study-body #deck-nav-links .deck-home-link{
+  padding:7px 12px!important;
+  border-color:#d4e2d6!important;
+  background:rgba(255,255,255,.65)!important;
+  font-size:.91rem!important;
+}
+
+/* ---------- drawer / role menu / admin gate ---------- */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(19,38,29,.25);z-index:69}
+.drawer-backdrop[hidden]{display:none}
+.app-drawer{
+  position:fixed;left:0;top:0;bottom:0;z-index:70;
+  width:min(78vw,310px);
+  padding:calc(13px + env(safe-area-inset-top)) 15px 20px;
+  background:#fffdf8;
+  box-shadow:12px 0 35px rgba(24,50,37,.15);
+  transform:translateX(-105%);transition:transform .22s ease;
+  text-align:left;
+}
+.app-drawer.open{transform:translateX(0)}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 13px;border-bottom:1px solid var(--s7-line)}
+.drawer-brand{min-width:0;display:flex;align-items:center;gap:7px;color:var(--s7-ink);text-decoration:none;font-family:var(--s7-serif)}
+.drawer-brand-sprout{width:24px;height:24px;flex:none;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round}
+.drawer-brand span{display:grid;line-height:1;text-align:left}
+.drawer-brand strong{font-size:1.32rem;font-weight:700;line-height:.95;letter-spacing:.11em}
+.drawer-brand small{margin-top:3px;color:#6b8771;font-size:.68rem;font-weight:400;letter-spacing:.025em;white-space:nowrap}
+.drawer-nav{display:grid;margin-top:10px}
+.app-drawer .drawer-item{
+  display:grid;grid-template-columns:26px 1fr;align-items:center;gap:10px;
+  width:100%;margin:2px 0;padding:9px 10px!important;
+  border:0!important;border-radius:11px;background:transparent;color:var(--s7-ink);
+  text-decoration:none;text-align:left;font-family:var(--s7-serif);font-size:16px;cursor:pointer;
+}
+.app-drawer .drawer-item[hidden]{display:none!important}
+.app-drawer .drawer-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.app-drawer .drawer-item.is-current{background:#edf3e9}
+.app-drawer nav hr{width:100%;margin:8px 0;border:0;border-top:1px solid #dfe8e0}
+.drawer-motto{margin:15px 0 0;color:#6e8d79;font-family:var(--s7-serif);font-size:12px;font-style:italic;line-height:1.45;text-align:center}
+
+.role-menu{
+  position:fixed;z-index:80;right:max(14px,calc((100vw - 760px)/2 + 14px));top:calc(61px + env(safe-area-inset-top));
+  width:220px;padding:13px;background:#fffefb;border:1px solid #dce7df;border-radius:16px;
+  box-shadow:0 14px 36px rgba(24,50,37,.16);text-align:left;
+}
+.role-menu[hidden]{display:none}
+.role-menu strong,.role-menu small{display:block}
+.role-menu strong{font-family:var(--s7-serif);font-size:16px;font-weight:600}
+.role-menu small{margin-top:3px;color:#78877f;font-family:var(--s7-sans);font-size:11px;line-height:1.4}
+.role-menu button{width:100%;margin-top:11px;padding:10px 12px;border:0;border-radius:11px;background:#e6f0e8;color:#244f3c;font-family:var(--s7-serif);font-size:14px;cursor:pointer}
+.admin-gate{position:fixed;inset:0;z-index:90;background:rgba(22,43,33,.34);display:grid;place-items:center;padding:22px;text-align:left}
+.admin-gate[hidden]{display:none}
+.admin-card{position:relative;width:min(100%,390px);padding:25px 22px 21px;background:#fffdfa;border:1px solid #d9e4db;border-radius:22px;box-shadow:0 20px 55px rgba(20,45,33,.22)}
+.admin-card h2{margin:5px 0 7px;font-family:var(--s7-serif);font-weight:500;font-size:27px}
+.admin-card>p{margin:0 0 17px;color:#667a70;font-family:var(--s7-serif);font-size:13px;line-height:1.45}
+.admin-card label{display:grid;gap:6px;color:#586d62;font-family:var(--s7-sans);font-size:12px}
+.admin-password-wrap{position:relative;display:block}
+.admin-password-wrap input{width:100%;padding:12px 46px 12px 13px;border:1px solid #ccdcd1;border-radius:12px;background:#fff;color:var(--s7-ink);font:inherit;outline:none}
+.admin-password-wrap input:focus{border-color:#7da38b;box-shadow:0 0 0 3px rgba(125,163,139,.13)}
+.admin-password-toggle{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;border-radius:50%;background:transparent;color:#6d8076;display:grid;place-items:center;cursor:pointer}
+.admin-password-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.admin-password-toggle .eye-closed{display:none}.admin-password-toggle[aria-pressed="true"] .eye-open{display:none}.admin-password-toggle[aria-pressed="true"] .eye-closed{display:block}
+.admin-card .remember-admin{display:flex;align-items:center;gap:8px;margin-top:12px}
+.admin-card .remember-admin input{margin:0}
+.admin-close{position:absolute;right:13px;top:11px;border:0;background:transparent;color:#71847a;font:26px/1 var(--s7-serif);cursor:pointer}
+.admin-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.admin-actions button{padding:9px 14px;border:1px solid #d4e0d7;border-radius:999px;background:#f8faf7;color:#315a48;font-family:var(--s7-serif);cursor:pointer}
+.admin-actions button[type=submit]{background:#dfeee3;border-color:#c9dece}
+.admin-error{margin:10px 0 0!important;color:#9b4d48!important;font-family:var(--s7-sans)!important;font-size:11px!important}
+.study-toast{position:fixed;z-index:100;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100vw - 34px);padding:11px 16px;border-radius:999px;background:#173d31;color:#fff;font-family:var(--s7-sans);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.16)}
+.study-toast[hidden]{display:none}
+
+@media(max-width:560px){
+  .study-main{padding:10px 10px calc(28px + env(safe-area-inset-bottom))}
+  .study-context{margin-bottom:5px}
+  .stage7-study-body .flashcard{padding-left:16px!important;padding-right:16px!important;border-radius:21px!important}
+  .stage7-study-body .flashcard .front{min-height:340px!important}
+  .stage7-study-body .flashcard .front h2,
+  .stage7-study-body .flashcard .front .word{font-size:clamp(2.15rem,11.6vw,3.2rem)!important}
+  .stage7-study-body #deck-nav-links .deck-step-link span:not(.deck-nav-mark){display:none}
+  .stage7-study-body #deck-nav-links .deck-step-link{min-width:44px!important;font-size:1.35rem!important}
+}
+@media(max-width:390px){
+  .study-app-shell .app-header{padding-left:10px;padding-right:10px;grid-template-columns:52px 1fr 64px}
+  .study-app-shell .brand{gap:5px}
+  .study-app-shell .brand-sprout{width:23px;height:23px}
+  .study-app-shell .brand strong{font-size:1.28rem}
+  .study-app-shell .brand small{font-size:.66rem}
+  .study-app-shell .role-pill{min-width:58px;padding:0 8px}
+  .study-back-decks span{display:none}
+  .study-back-decks{width:34px;height:34px;justify-content:center;border-radius:50%;background:rgba(255,255,255,.58)}
+  .study-back-decks svg{width:18px;height:18px}
+  .study-context-spacer{min-width:34px}
+  .study-deck-title{font-size:.82rem}
+  .app-drawer{width:min(78vw,304px)}
+  .drawer-brand strong{font-size:1.24rem}
+  .drawer-brand small{font-size:.64rem}
+}
+@media(min-width:700px){
+  .study-app-shell{margin-top:18px;margin-bottom:18px;min-height:calc(100vh - 36px);border-radius:28px;overflow:hidden}
+  .study-app-shell .app-header{top:18px}
+  .study-main{padding:18px 28px 44px}
+}
+
+/* Neutralize legacy generic button spacing on Stage 7 shell controls. */
+.study-app-shell .icon-button,
+.study-app-shell .role-pill,
+.app-drawer .icon-button,
+.app-drawer .drawer-item,
+.role-menu button,
+.admin-gate button{
+  margin:0;
+  box-shadow:none;
+}
+.app-drawer .icon-button{
+  width:40px;height:40px;padding:0;border:0;border-radius:13px;background:transparent;
+  display:grid;place-items:center;color:var(--s7-ink);cursor:pointer;
+}
+.app-drawer .icon-button svg{
+  width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+.admin-password-toggle{padding:0!important}
+.admin-close{margin:0!important;padding:0!important}
