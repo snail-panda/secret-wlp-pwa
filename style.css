@@ -8,3 +8,27 @@
 .secret-garden-art{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.19}.secret-garden-art svg{width:100%;height:100%}.secret-garden-art path,.secret-garden-art circle{fill:none;stroke:#648870;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round}.secret-garden-art .garden-leaf{fill:#b8ceb8;stroke:none}.secret-garden-art .robin path:first-child{fill:#adc6b0;stroke:#648870}.secret-garden-art .robin path:nth-child(2){fill:#d5b79b;stroke:#8a826f}.secret-garden-art .robin circle{fill:#52675d;stroke:none}.garden-panel{background:linear-gradient(145deg,rgba(250,252,247,.98) 0%,rgba(235,245,235,.96) 100%)}
 .admin-gate{position:fixed;inset:0;z-index:90;background:rgba(22,43,33,.34);display:grid;place-items:center;padding:22px}.admin-gate[hidden]{display:none}.admin-card{position:relative;width:min(100%,390px);background:#fffdfa;border:1px solid #d9e4db;border-radius:22px;padding:25px 22px 21px;box-shadow:0 20px 55px rgba(20,45,33,.22)}.admin-card h2{font-family:var(--serif);font-weight:500;font-size:27px;margin:5px 0 7px}.admin-card>p{font-family:var(--serif);font-size:13px;line-height:1.45;color:#667a70;margin:0 0 17px}.admin-card label{display:grid;gap:6px;font-size:12px;color:#586d62}.admin-card input[type=password]{width:100%;border:1px solid #ccdcd1;border-radius:12px;background:#fff;padding:12px 13px;font:inherit;color:var(--ink);outline:none}.admin-card input[type=password]:focus{border-color:#7da38b;box-shadow:0 0 0 3px rgba(125,163,139,.13)}.admin-card .remember-admin{display:flex;align-items:center;gap:8px;margin-top:12px}.admin-card .remember-admin input{margin:0}.admin-close{position:absolute;right:13px;top:11px;border:0;background:transparent;font:26px/1 var(--serif);color:#71847a;cursor:pointer}.admin-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.admin-actions button{border:1px solid #d4e0d7;border-radius:999px;background:#f8faf7;color:#315a48;padding:9px 14px;font-family:var(--serif);cursor:pointer}.admin-actions button[type=submit]{background:#dfeee3;border-color:#c9dece}.admin-error{color:#9b4d48!important;margin:10px 0 0!important;font-family:var(--sans)!important;font-size:11px!important}
 @media(max-width:390px){.app-header{padding-left:10px;padding-right:10px;grid-template-columns:52px 1fr 64px}.brand{gap:5px}.brand-sprout{width:20px;height:20px}.brand strong{font-size:1.18rem}.brand small{font-size:.66rem}.role-pill{min-width:58px;padding:0 8px}}
+
+/* Stage 7 v1.3 — approved Secret Garden visual + icon menu */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.garden-panel{padding:0 0 24px;background:linear-gradient(180deg,#f8fbf6,#edf5eb);overflow:hidden}
+.hero-visual{width:100%;aspect-ratio:611/412;background:url('./assets/stage7-secret-garden-hero.webp') center/cover no-repeat;border-bottom:1px solid rgba(220,232,220,.65)}
+.search-launch{margin-top:18px;width:calc(100% - 34px);max-width:560px;padding:15px 18px}
+.search-example{margin-top:10px;padding:0 18px}
+.secret-garden-art,.hero .eyebrow,.hero h1{display:none!important}
+.brand strong{font-family:Georgia,'Times New Roman',serif;font-size:1.42rem;font-weight:600;letter-spacing:.075em}
+.brand small{font-family:Georgia,'Times New Roman',serif;font-size:.72rem;color:#415f51;letter-spacing:0}
+.brand-sprout{width:25px;height:25px}
+.role-pill{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;font-weight:600;border:1px solid rgba(109,145,122,.13);box-shadow:none}
+.app-drawer{width:min(88vw,360px);background:#fffdf8;padding:calc(15px + env(safe-area-inset-top)) 18px 24px}
+.drawer-head{font-size:25px;padding:3px 4px 15px}
+.drawer-nav{display:grid!important;margin-top:10px!important}
+.app-drawer .drawer-item{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:12px;text-decoration:none;border:0!important;border-radius:11px;padding:11px 12px!important;margin:2px 0;background:transparent;color:var(--ink);font-family:Georgia,'Times New Roman',serif;font-size:17px;text-align:left;width:100%;cursor:pointer}
+.app-drawer .drawer-item svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.app-drawer .drawer-item.is-current{background:#edf3e9}
+.app-drawer .drawer-item:active{background:#eef4ec}
+.app-drawer nav hr{margin:10px 0;border-top:1px solid #dfe8e0}
+.drawer-motto{font-family:Georgia,'Times New Roman',serif;font-style:italic;text-align:center;color:#6e8d79;font-size:13px;line-height:1.45;margin:20px 0 0}
+.drawer-section-label,.drawer-note{display:none!important}
+.drawer-action span{pointer-events:none}
+@media(max-width:390px){.hero-visual{aspect-ratio:611/425}.search-launch{width:calc(100% - 26px)}.brand strong{font-size:1.28rem}.brand small{font-size:.66rem}}

@@ -49,6 +49,13 @@
     showToast('Settings will move into the Stage 7 app shell.');
   });
 
+  document.querySelectorAll('.drawer-placeholder').forEach(button => {
+    button.addEventListener('click', () => {
+      setDrawer(false);
+      showToast(button.dataset.placeholder || 'Coming soon.');
+    });
+  });
+
   const getRole = () => (
     localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' ||
     sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin'
@@ -78,7 +85,8 @@
       ? 'Editing and import/export tools are unlocked.'
       : 'Study normally without editing tools.';
     roleMenuAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
-    drawerRoleAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
+    const drawerRoleLabel = drawerRoleAction?.querySelector('.drawer-role-label');
+    if (drawerRoleLabel) drawerRoleLabel.textContent = admin ? 'Log in as Guest' : 'Admin Login';
   };
 
   const closeRoleMenu = () => {
