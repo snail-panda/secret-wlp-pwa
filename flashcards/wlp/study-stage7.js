@@ -257,8 +257,58 @@
       const visibleButtons = Array.from(practice.querySelectorAll('button'))
         .filter(button => !button.hidden);
       row.classList.toggle('is-record-expanded', visibleButtons.length > 1);
+
+      const caption = row.querySelector('.study-record-caption');
+      const recordBtn = practice.querySelector('.btn-record');
+      const takeStateSelectors = [
+        '.btn-record-stop',
+        '.btn-record-mine',
+        '.btn-record-save',
+        '.btn-record-retake',
+        '.btn-record-clear'
+      ];
+      const takeStateActive = takeStateSelectors.some(selector => {
+        const el = practice.querySelector(selector);
+        return el && !el.hidden;
+      });
+      const shouldHideCaption = !recordBtn || recordBtn.hidden || takeStateActive;
+      if (caption && caption.hidden !== shouldHideCaption) {
+        caption.hidden = shouldHideCaption;
+      }
     });
   };
+
+  const frontControl = document.getElementById('study-front-control');
+  const shuffleControl = document.getElementById('study-shuffle-control');
+
+  const activeStudyCard = () =>
+    document.querySelector('.flashcard.active') || document.querySelector('.flashcard');
+
+  const syncStudyModeToolbar = () => {
+    const root = activeStudyCard();
+    const back = root?.querySelector('.back');
+    const backVisible = Boolean(back && getComputedStyle(back).display !== 'none');
+    if (frontControl) {
+      frontControl.classList.toggle('is-visible', backVisible);
+      frontControl.disabled = !backVisible;
+      frontControl.setAttribute('aria-hidden', backVisible ? 'false' : 'true');
+    }
+    if (shuffleControl) {
+      shuffleControl.disabled = !root;
+    }
+  };
+
+  frontControl?.addEventListener('click', () => {
+    const source = activeStudyCard()?.querySelector('.study-front-source, .btn-flip-back');
+    source?.click();
+    queueMicrotask(queueStage7UiSync);
+  });
+
+  shuffleControl?.addEventListener('click', () => {
+    const source = activeStudyCard()?.querySelector('.study-shuffle-source, .btn-shuffle');
+    source?.click();
+    queueMicrotask(queueStage7UiSync);
+  });
 
   let uiSyncQueued = false;
   const queueStage7UiSync = () => {
@@ -269,6 +319,7 @@
       syncStage7VoiceControls();
       syncFrontProgressProxies();
       syncRecordingLayout();
+      syncStudyModeToolbar();
     });
   };
 
@@ -293,7 +344,7 @@
     subtree:true,
     characterData:true,
     attributes:true,
-    attributeFilter:['hidden','disabled']
+    attributeFilter:['hidden','disabled','style','class']
   });
   queueStage7UiSync();
 

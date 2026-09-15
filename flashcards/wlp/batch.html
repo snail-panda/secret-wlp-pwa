@@ -416,19 +416,25 @@
           <button type="button" class="btn-edit-local">Edit Card</button>
           <button type="button" class="btn-revert-local" hidden>Revert</button>
         </div>
-        <div class="study-back-return">
-          <button class="btn-flip-back">Back to Word</button>
-        </div>
-        <div class="study-secondary-actions">
-          <button class="btn-shuffle"><svg class="ui-icon shuffle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4.5 0 5.5 10 10 10h3"></path><path d="m17 14 3 3-3 3"></path><path d="M4 17h3c1.7 0 2.9-1.4 4-3.2"></path><path d="M14 8.2C15 7.5 16 7 17 7h3"></path><path d="m17 4 3 3-3 3"></path></svg><span>Shuffle</span></button>
-        </div>
+        <!-- Keep source controls inside each card so the proven app.js behavior
+             remains untouched. Stage 7 exposes lightweight proxies above. -->
+        <button class="btn-flip-back study-front-source" type="button" hidden tabindex="-1" aria-hidden="true">Front</button>
+        <button class="btn-shuffle study-shuffle-source" type="button" hidden tabindex="-1" aria-hidden="true">Shuffle</button>
       </div>
     </div>
   </template>
 
-  <div class="mode-controls" aria-label="Flashcard display mode">
-    <button class="mode-btn" data-mode="word" type="button">Word First</button>
-    <button class="mode-btn" data-mode="definition" type="button">Definition First</button>
+  <div class="study-mode-toolbar" aria-label="Study display controls">
+    <button id="study-front-control" class="study-mode-utility study-front-control" type="button" aria-label="Return to the front of this card" aria-hidden="true" disabled>
+      <span aria-hidden="true">‹</span><span>Front</span>
+    </button>
+    <div class="mode-controls" aria-label="Flashcard display mode">
+      <button class="mode-btn" data-mode="word" type="button">Word First</button>
+      <button class="mode-btn" data-mode="definition" type="button">Definition First</button>
+    </div>
+    <button id="study-shuffle-control" class="study-mode-utility study-shuffle-control" type="button" aria-label="Jump to a random card in this deck">
+      <svg class="ui-icon shuffle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4.5 0 5.5 10 10 10h3"></path><path d="m17 14 3 3-3 3"></path><path d="M4 17h3c1.7 0 2.9-1.4 4-3.2"></path><path d="M14 8.2C15 7.5 16 7 17 7h3"></path><path d="m17 4 3 3-3 3"></path></svg><span>Shuffle</span>
+    </button>
   </div>
 
   <!-- 差し込み先 -->
@@ -597,6 +603,6 @@
   <div class="study-toast" id="study-toast" hidden></div>
 
   <script type="module" src="./app.js?v=20260913-garden-v621"></script>
-  <script src="./study-stage7.js?v=20260915-s7-v26"></script>
+  <script src="./study-stage7.js?v=20260915-s7-v27"></script>
 </body>
 </html>

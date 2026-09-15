@@ -127,12 +127,58 @@ body.stage7-study-body{
 }
 .study-context-spacer{min-width:58px}
 
-/* Existing Word First / Definition First control becomes the Study sub-toolbar. */
+/* Word First / Definition First stays centered; lightweight utilities live
+   on either side without competing with the main display-mode control. */
+.stage7-study-body .study-mode-toolbar{
+  width:min(100%,680px);
+  margin:2px auto 12px;
+  display:grid;
+  grid-template-columns:minmax(64px,1fr) auto minmax(64px,1fr);
+  align-items:center;
+  gap:6px;
+}
 .stage7-study-body .mode-controls{
-  margin:2px auto 12px!important;
+  margin:0!important;
   background:rgba(255,255,255,.62)!important;
   border-color:rgba(72,104,68,.14)!important;
 }
+.stage7-study-body .study-mode-utility{
+  min-height:38px;
+  margin:0!important;
+  padding:5px 6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  box-shadow:none;
+  color:#557264;
+  font-family:var(--s7-serif);
+  font-size:.82rem;
+  font-weight:500;
+  white-space:nowrap;
+}
+.stage7-study-body .study-mode-utility .ui-icon{
+  width:15px;
+  height:15px;
+}
+.stage7-study-body .study-front-control{
+  justify-self:start;
+  visibility:hidden;
+  pointer-events:none;
+}
+.stage7-study-body .study-front-control.is-visible{
+  visibility:visible;
+  pointer-events:auto;
+}
+.stage7-study-body .study-shuffle-control{justify-self:end}
+.stage7-study-body .study-mode-utility:active{background:rgba(221,234,222,.52)}
+.stage7-study-body .study-mode-utility:disabled{opacity:.36}
+.stage7-study-body .study-front-source,
+.stage7-study-body .study-shuffle-source{display:none!important}
+
 
 /* ---------- card surface: preserve structure, tune Stage 7 hierarchy ---------- */
 .stage7-study-body #cards{width:100%;padding:0;margin:0 auto}
@@ -999,6 +1045,14 @@ body.stage7-study-body{
   }
 }
 
+
+/* v2.7: the helper belongs only to the initial Record state. */
+.stage7-study-body .study-record-caption[hidden]{display:none!important}
+
+/* Back/Shuffle moved to the upper Study toolbar. */
+.stage7-study-body .study-back-return,
+.stage7-study-body .study-secondary-actions{display:none!important}
+
 /* =========================================================
    WLP Stage 7 — Study learning/practice refinement v2.6
    Recording is no longer boxed off. Studied / Record / Review
@@ -1215,4 +1269,29 @@ body.stage7-study-body{
   .stage7-study-body .study-record-center .record-practice .btn-record{
     min-width:102px!important;
   }
+}
+
+
+/* =========================================================
+   WLP Stage 7 — Study utility refinement v2.7
+   ========================================================= */
+@media(max-width:560px){
+  .stage7-study-body .study-mode-toolbar{
+    grid-template-columns:minmax(58px,1fr) auto minmax(58px,1fr);
+    gap:3px;
+  }
+  .stage7-study-body .study-mode-utility{
+    min-height:36px;
+    padding-left:3px;
+    padding-right:3px;
+    font-size:.76rem;
+  }
+  .stage7-study-body .study-mode-utility .ui-icon{width:14px;height:14px}
+}
+@media(max-width:390px){
+  .stage7-study-body .study-mode-toolbar{
+    grid-template-columns:54px auto 54px;
+  }
+  .stage7-study-body .study-mode-utility{font-size:.72rem}
+  .stage7-study-body .study-shuffle-control{gap:2px}
 }
