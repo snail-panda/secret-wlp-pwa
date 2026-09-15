@@ -1553,3 +1553,31 @@ body.stage7-study-body{
 @media (max-width:390px){
   .stage7-study-body .study-header-actions{gap:3px;}
 }
+
+
+/* Study Options entry — active card context v3.0.5 */
+.stage7-study-body .study-context-options{
+  justify-self:end;
+  width:34px;
+  height:34px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:rgba(255,255,255,.58);
+  color:#557264;
+  display:grid;
+  place-items:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage7-study-body .study-context-options svg{
+  width:19px;
+  height:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.65;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .study-context-options:active{
+  background:#e8f0e9;
+}

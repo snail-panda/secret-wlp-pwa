@@ -78,3 +78,41 @@
   .range-card{min-height:72px;padding:11px}
   .range-card strong{font-size:1.06rem}
 }
+
+
+/* Study Options entry — Choose a Deck v3.0.5 */
+.deck-intro-copy{
+  flex:1 1 auto;
+  min-width:0;
+}
+.deck-title-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.study-options-button{
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  color:#557264;
+  display:grid;
+  place-items:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.study-options-button svg{
+  width:19px;
+  height:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.65;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.study-options-button:active{
+  background:#e8f0e9;
+}

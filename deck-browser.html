@@ -94,9 +94,16 @@
 
     <main class="deck-content">
       <section class="deck-intro">
-        <div>
+        <div class="deck-intro-copy">
           <span class="section-kicker">Study</span>
-          <h1>Choose a Deck</h1>
+          <div class="deck-title-row">
+            <h1>Choose a Deck</h1>
+            <button class="study-options-button" type="button" aria-label="Study Options" title="Study Options" data-study-options-launch>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/>
+            </svg>
+            </button>
+          </div>
           <p>Jump straight in, return to a recent deck, or browse the garden by range.</p>
         </div>
         <span class="deck-count" id="deck-count">Loading…</span>
