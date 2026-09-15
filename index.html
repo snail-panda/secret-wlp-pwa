@@ -10,6 +10,9 @@
   <meta name="apple-mobile-web-app-title" content="WLP Garden">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body class="app-body">
@@ -29,8 +32,13 @@
 
     <main class="home-main">
       <section class="hero garden-panel">
-        <div class="hero-visual" role="img" aria-label="A robin carrying a key flies beside an open garden gate in sunlight."></div>
-        <p class="sr-only">The secret garden is always open now. Now the whole word is a garden.</p>
+        <div class="hero-scene">
+          <div class="hero-visual" role="img" aria-label="A robin carrying a key flies beside an open garden gate in sunlight."></div>
+          <div class="hero-copy">
+            <p class="hero-eyebrow">The secret garden is always open now.</p>
+            <h1>Now the whole <em>word</em><br>is a garden.</h1>
+          </div>
+        </div>
         <button class="search-launch" id="search-launch" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
           <span>Search words, meanings, or examples…</span>
@@ -129,6 +137,6 @@
 
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js"></script>
-  <script src="./pwa-register.js?v=20260914-stage7-3"></script>
+  <script src="./pwa-register.js?v=20260914-stage7-4"></script>
 </body>
 </html>
