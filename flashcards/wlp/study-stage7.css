@@ -1445,3 +1445,22 @@ body.stage7-study-body{
     grid-template-columns:54px auto 54px!important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 7 — utility contrast micro-polish v2.11
+   Layout, border, background, and sizing remain unchanged.
+   ========================================================= */
+
+/* Front is a more important return action, so it gets the stronger
+   of the two subtle contrast bumps. */
+.stage7-study-body .study-front-control.is-visible{
+  color:#587266!important;
+  opacity:.94!important;
+}
+
+/* Shuffle stays quieter, but is a little easier to discover than v2.10. */
+.stage7-study-body .study-shuffle-control{
+  color:#63796d!important;
+  opacity:.90!important;
+}
