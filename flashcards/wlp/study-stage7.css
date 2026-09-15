@@ -1517,3 +1517,39 @@ body.stage7-study-body{
   .study-app-shell .app-header > .brand small{font-size:.62rem}
   .study-header-actions{gap:1px}
 }
+
+
+/* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
+.stage7-study-body .app-header{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:nowrap!important;
+}
+.stage7-study-body .app-header > .brand{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  margin:0!important;
+  z-index:1;
+}
+.stage7-study-body .app-header > #menu-button{
+  flex:0 0 auto;
+  z-index:2;
+}
+.stage7-study-body .study-header-actions{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex:0 0 auto;
+  z-index:2;
+}
+.stage7-study-body .study-header-actions .role-pill{
+  margin:0!important;
+  flex:0 0 auto;
+}
+@media (max-width:390px){
+  .stage7-study-body .study-header-actions{gap:3px;}
+}

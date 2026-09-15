@@ -15,6 +15,45 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./deck-browser.css">
+<style>
+    /* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
+    .app-header{
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:nowrap!important;
+    }
+    .app-header > .brand{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      margin:0!important;
+      z-index:1;
+    }
+    .app-header > #menu-button{
+      flex:0 0 auto;
+      z-index:2;
+    }
+    .header-actions{
+      margin-left:auto;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex:0 0 auto;
+      z-index:2;
+    }
+    .header-actions .role-pill{
+      margin:0!important;
+      flex:0 0 auto;
+    }
+    .header-actions .header-search-button{
+      flex:0 0 auto;
+    }
+    @media (max-width:390px){
+      .header-actions{gap:3px;}
+    }
+</style>
 </head>
 <body class="app-body deck-browser-page">
   <div class="app-shell">
@@ -26,12 +65,14 @@
         <svg class="brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
         <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
       </a>
+      <div class="header-actions">
       <a class="icon-button header-search-button" href="./global-search.html?return=deck-browser.html" aria-label="Global Search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
       </a>
       <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
         <span class="role-dot" aria-hidden="true"></span><span id="role-label">Guest</span>
       </button>
+      </div>
     </header>
 
     <main class="deck-content">
