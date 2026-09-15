@@ -5,30 +5,154 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Choose a Deck — WLP</title>
   <meta name="theme-color" content="#eef6ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WLP Garden">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./deck-browser.css">
 </head>
-<body>
-  <main class="deck-shell">
-    <header class="deck-header">
-      <a class="back" href="./index.html" aria-label="Back to Home"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></a>
-      <a class="brand" href="./index.html"><svg viewBox="0 0 32 32"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a>
-      <span class="header-spacer"></span>
+<body class="app-body deck-browser-page">
+  <div class="app-shell">
+    <header class="app-header">
+      <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="brand" href="./index.html" aria-label="WLP home">
+        <svg class="brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
+        <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
+      </a>
+      <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
+        <span class="role-dot" aria-hidden="true"></span><span id="role-label">Guest</span>
+      </button>
     </header>
 
-    <section class="deck-content">
-      <div class="title-row"><div><span class="eyebrow">Study</span><h1>Choose a Deck</h1></div><span class="deck-count" id="deck-count">Loading…</span></div>
+    <main class="deck-content">
+      <section class="deck-intro">
+        <div>
+          <span class="section-kicker">Study</span>
+          <h1>Choose a Deck</h1>
+          <p>Jump straight in, return to a recent deck, or browse the garden by range.</p>
+        </div>
+        <span class="deck-count" id="deck-count">Loading…</span>
+      </section>
 
-      <label class="deck-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="deck-search" type="search" autocomplete="off" placeholder="Deck number or word…"></label>
+      <section class="finder-panel" aria-label="Find a deck">
+        <label class="deck-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input id="deck-search" type="search" autocomplete="off" placeholder="Search deck number, word, meaning…">
+        </label>
+        <form class="jump-form" id="jump-form">
+          <label for="jump-input">Jump to deck #</label>
+          <div class="jump-control">
+            <span>WLP</span>
+            <input id="jump-input" inputmode="numeric" pattern="[0-9]*" placeholder="351" aria-label="Deck number">
+            <button type="submit" aria-label="Open deck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+          </div>
+          <small id="jump-message" aria-live="polite"></small>
+        </form>
+      </section>
 
-      <section id="continue-section" class="browser-section" hidden><div class="section-head"><h2>Continue</h2></div><div id="continue-deck"></div></section>
-      <section id="pinned-section" class="browser-section" hidden><div class="section-head"><h2>Pinned</h2><span>Keep important decks close</span></div><div id="pinned-list" class="deck-list"></div></section>
-      <section id="recent-section" class="browser-section" hidden><div class="section-head"><h2>Recent</h2><span>Your latest study decks</span></div><div id="recent-list" class="deck-list"></div></section>
-      <section class="browser-section all-section"><div class="section-head"><h2 id="all-heading">All Decks</h2><span id="result-meta">Loading your garden…</span></div><div id="all-list" class="deck-list"></div><button id="load-more" type="button" class="load-more" hidden>Show more decks</button></section>
-    </section>
-  </main>
+      <section id="search-section" class="browser-section" hidden>
+        <div class="section-head"><div><h2>Search Results</h2><span id="search-meta"></span></div><button id="clear-search" class="text-button" type="button">Clear</button></div>
+        <div id="search-list" class="deck-list"></div>
+      </section>
+
+      <section id="continue-section" class="browser-section" hidden>
+        <div class="section-head"><div><h2>Continue Studying</h2><span>Pick up where you left off</span></div></div>
+        <div id="continue-deck" class="continue-feature"></div>
+      </section>
+
+      <section id="pinned-section" class="browser-section" hidden>
+        <div class="section-head"><div><h2>Pinned Decks</h2><span>Keep important decks close</span></div></div>
+        <div id="pinned-list" class="deck-list compact-list"></div>
+      </section>
+
+      <section id="recent-section" class="browser-section" hidden>
+        <div class="section-head"><div><h2>Recent Decks</h2><span>Your latest study decks</span></div></div>
+        <div id="recent-list" class="deck-list compact-list"></div>
+      </section>
+
+      <section class="browser-section browse-section" id="browse-section">
+        <div class="section-head browse-head">
+          <div><h2>Browse by Range</h2><span id="browse-meta">Choose a 50-deck range</span></div>
+          <button id="browse-back" class="text-button" type="button" hidden>Back</button>
+        </div>
+        <nav class="range-breadcrumbs" id="range-breadcrumbs" aria-label="Deck range breadcrumb" hidden></nav>
+        <div id="range-grid" class="range-grid"></div>
+        <div id="range-decks" class="deck-list range-decks" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="app-drawer" id="app-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <a class="drawer-brand" href="./index.html" aria-label="WLP home">
+        <svg class="drawer-brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
+        <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
+      </a>
+      <button id="drawer-close" class="icon-button" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <nav class="drawer-nav">
+      <a class="drawer-item" href="./index.html">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span>
+      </a>
+      <a class="drawer-item is-current" href="./deck-browser.html">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span>
+      </a>
+      <a class="drawer-item" href="./legacy-home.html#review">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span>
+      </a>
+      <a class="drawer-item" href="./legacy-home.html#drafts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span>Drafts</span>
+      </a>
+      <a class="drawer-item" href="./legacy-home.html">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span>
+      </a>
+      <hr>
+      <button class="drawer-item drawer-action" id="drawer-settings" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21H10v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span>
+      </button>
+      <button class="drawer-item drawer-action" id="drawer-role-action" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span>
+      </button>
+      <hr>
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="Help is coming to the Stage 7 menu.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.9.5-1.2 1-1.2 2M12 17h.01"/></svg><span>Help</span>
+      </button>
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="About WLP will live here.">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>About</span>
+      </button>
+      <p class="drawer-motto">“More words.<br>A wider world.”</p>
+    </nav>
+  </aside>
+
+  <div class="role-menu" id="role-menu" role="menu" hidden>
+    <strong id="role-menu-title">Guest mode</strong>
+    <small id="role-menu-copy">Study normally without editing tools.</small>
+    <button id="role-menu-action" type="button" role="menuitem">Admin Login</button>
+  </div>
+
+  <div class="admin-gate" id="admin-gate" hidden>
+    <form class="admin-card" id="admin-form" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+      <button class="admin-close" id="admin-close" type="button" aria-label="Close admin login">×</button>
+      <span class="section-kicker">WLP access</span>
+      <h2 id="admin-title">Admin Login</h2>
+      <p>Enter the existing WLP admin password to unlock editing and import/export tools.</p>
+      <label><span>Password</span><input id="admin-password" type="password" autocomplete="current-password" required></label>
+      <label class="remember-admin"><input id="remember-admin" type="checkbox"><span>Remember Admin on this device</span></label>
+      <p class="admin-error" id="admin-error" hidden>Incorrect admin password.</p>
+      <div class="admin-actions"><button id="admin-cancel" type="button">Cancel</button><button type="submit">Login as Admin</button></div>
+    </form>
+  </div>
+
+  <div class="toast" id="deck-toast" role="status" aria-live="polite" hidden></div>
   <script src="./deck-browser.js"></script>
-  <script src="./pwa-register.js?v=20260914-stage7-1"></script>
+  <script src="./pwa-register.js?v=20260914-stage7-7"></script>
 </body>
 </html>

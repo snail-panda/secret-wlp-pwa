@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-hero-v1-6';
+const CACHE_NAME = 'wlp-stage7-deck-browser-v1-7';
 const CORE = [
   './',
   './index.html',
