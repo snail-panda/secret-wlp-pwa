@@ -92,7 +92,7 @@
     a.addEventListener('click', e => { e.preventDefault(); openDeck(deck); });
 
     const subtitle = opts.match
-      ? `<strong>${escapeHtml(opts.match)}</strong>${opts.matchField ? ` — Matched in ${escapeHtml(opts.matchField)}` : ''}`
+      ? `<strong>${escapeHtml(opts.match)}</strong>${opts.matchField ? `: Matched in ${escapeHtml(opts.matchField)}` : ''}`
       : (words.length ? words.slice(0, 3).map(escapeHtml).join(' · ') : 'Open this deck');
     a.innerHTML = `<span class="deck-title">Deck WLP${pad(deck)}</span><span class="deck-sub">${subtitle}</span>`;
 
