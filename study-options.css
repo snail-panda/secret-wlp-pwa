@@ -20,7 +20,7 @@ body.s7-study-options-open{overflow:hidden}
   position:absolute;
   top:0;
   right:0;
-  width:min(87vw,390px);
+  width:min(83vw,380px);
   height:100%;
   height:100dvh;
   overflow:auto;
@@ -395,7 +395,7 @@ body.s7-study-options-open{overflow:hidden}
 
 @media (max-width:390px){
   .s7-study-options-sheet{
-    width:min(88vw,360px);
+    width:min(86vw,350px);
     padding-left:13px;
     padding-right:13px;
   }
