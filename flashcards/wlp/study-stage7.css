@@ -1464,3 +1464,13 @@ body.stage7-study-body{
   color:#63796d!important;
   opacity:.90!important;
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Front affordance micro-polish v2.12
+   Shuffle intentionally unchanged from v2.11.
+   ========================================================= */
+.stage7-study-body .study-front-control.is-visible{
+  color:#4e695d!important;
+  opacity:.98!important;
+}

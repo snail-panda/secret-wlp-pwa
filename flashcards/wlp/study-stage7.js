@@ -325,6 +325,19 @@
 
   const cardsMount = document.getElementById('cards') || document.body;
   cardsMount.addEventListener('click', event => {
+    const backVoice = event.target.closest('.back .btn-voice');
+    if (backVoice) {
+      const card = backVoice.closest('.flashcard');
+      const frontVoice = card?.querySelector('.front .btn-voice');
+      if (frontVoice && frontVoice !== backVoice) {
+        event.preventDefault();
+        event.stopPropagation();
+        frontVoice.click();
+        queueMicrotask(queueStage7UiSync);
+      }
+      return;
+    }
+
     const studiedProxy = event.target.closest('.btn-studied-front');
     if (studiedProxy) {
       const real = studiedProxy.closest('.flashcard')?.querySelector('.back .btn-studied');
