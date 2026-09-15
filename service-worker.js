@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-range-link-contrast-v3-0-8';
+const CACHE_NAME = 'wlp-stage7-study-options-v1-0';
 const CORE = [
   './',
   './index.html',
@@ -11,6 +11,8 @@ const CORE = [
   './deck-browser.html',
   './deck-browser.css',
   './deck-browser.js',
+  './study-options.css',
+  './study-options.js',
   './legacy-home.html',
   './legacy-style.css',
   './manifest.webmanifest',

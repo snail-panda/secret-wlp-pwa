@@ -1,0 +1,317 @@
+
+/* =========================================================
+   WLP Stage 7 — Study Options v1
+   Shared by Choose a Deck and active Study.
+   ========================================================= */
+
+body.s7-study-options-open{overflow:hidden}
+
+.s7-study-options-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:180;
+  background:rgba(29,48,38,.24);
+  backdrop-filter:blur(2px);
+  -webkit-backdrop-filter:blur(2px);
+}
+.s7-study-options-backdrop[hidden]{display:none!important}
+
+.s7-study-options-sheet{
+  position:absolute;
+  top:0;
+  right:0;
+  width:min(92vw,420px);
+  height:100%;
+  height:100dvh;
+  overflow:auto;
+  overscroll-behavior:contain;
+  background:#f8fbf7;
+  color:#244638;
+  border-left:1px solid rgba(78,108,87,.15);
+  box-shadow:-18px 0 48px rgba(37,62,47,.13);
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    16px
+    calc(24px + env(safe-area-inset-bottom));
+  text-align:left;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.s7-study-options-head{
+  position:sticky;
+  top:calc(-16px - env(safe-area-inset-top));
+  z-index:2;
+  margin:
+    calc(-16px - env(safe-area-inset-top))
+    -16px
+    10px;
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    16px
+    12px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  background:rgba(248,251,247,.95);
+  border-bottom:1px solid rgba(83,113,91,.10);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.s7-study-options-kicker{
+  display:block;
+  margin-bottom:3px;
+  color:#789083;
+  font-size:.64rem;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.s7-study-options-head h2{
+  margin:0;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:1.72rem;
+  line-height:1;
+  font-weight:600;
+  color:#214536;
+}
+.s7-study-options-close{
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  color:#587064;
+  display:grid;
+  place-items:center;
+  font-size:1.42rem;
+  line-height:1;
+}
+.s7-study-options-close:active{background:#e7efe7}
+
+.s7-study-options-intro{
+  margin:0 2px 15px;
+  color:#6b7d74;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.93rem;
+  line-height:1.35;
+}
+
+.s7-options-section{
+  margin:0 0 13px;
+  padding:14px;
+  border:1px solid rgba(78,110,86,.13);
+  border-radius:17px;
+  background:rgba(255,255,252,.75);
+}
+.s7-options-section-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.s7-options-section h3{
+  margin:0;
+  color:#2d5242;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:1.12rem;
+  font-weight:600;
+}
+.s7-options-section small,
+.s7-option-help{
+  color:#7a8981;
+  font-size:.72rem;
+  line-height:1.3;
+}
+
+.s7-preset-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+.s7-preset-button,
+.s7-side-button{
+  min-height:38px;
+  border:1px solid rgba(77,108,85,.17);
+  border-radius:10px;
+  background:#fbfcf8;
+  color:#61766b;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.96rem;
+  font-weight:500;
+}
+.s7-preset-button[aria-pressed="true"],
+.s7-side-button[aria-pressed="true"]{
+  color:#2e5b47;
+  background:#e7f0e8;
+  border-color:rgba(62,107,79,.27);
+}
+.s7-preset-description{
+  min-height:2.4em;
+  margin:8px 2px 0;
+  color:#74837b;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.82rem;
+  line-height:1.25;
+}
+
+.s7-custom-content{
+  margin-top:11px;
+  padding-top:10px;
+  border-top:1px solid rgba(79,108,88,.11);
+}
+.s7-custom-content[hidden]{display:none!important}
+.s7-custom-row{
+  min-height:41px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-bottom:1px solid rgba(79,108,88,.075);
+}
+.s7-custom-row:last-child{border-bottom:0}
+.s7-custom-row > span:first-child{
+  color:#435e50;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.94rem;
+}
+.s7-fixed-value{
+  color:#849088;
+  font-size:.72rem;
+}
+.s7-custom-row select,
+.s7-voice-select{
+  min-height:34px;
+  max-width:58%;
+  padding:5px 28px 5px 9px;
+  border:1px solid rgba(78,109,86,.17);
+  border-radius:9px;
+  background:#fbfcf8;
+  color:#496355;
+  font-size:.78rem;
+}
+.s7-voice-select{
+  width:100%;
+  max-width:none;
+  margin-top:2px;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.9rem;
+}
+
+.s7-side-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+
+.s7-switch-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.s7-switch-copy strong{
+  display:block;
+  color:#435e50;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.96rem;
+  font-weight:500;
+}
+.s7-switch-copy small{display:block;margin-top:2px}
+.s7-switch{
+  position:relative;
+  width:42px;
+  height:24px;
+  flex:0 0 42px;
+}
+.s7-switch input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.s7-switch-track{
+  position:absolute;
+  inset:0;
+  border-radius:999px;
+  background:#dce5dc;
+  border:1px solid rgba(73,105,80,.14);
+  transition:.16s ease;
+}
+.s7-switch-track::after{
+  content:"";
+  position:absolute;
+  width:18px;
+  height:18px;
+  left:2px;
+  top:2px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 1px 4px rgba(31,57,40,.16);
+  transition:.16s ease;
+}
+.s7-switch input:checked + .s7-switch-track{
+  background:#9ebca6;
+}
+.s7-switch input:checked + .s7-switch-track::after{
+  transform:translateX(18px);
+}
+
+.s7-options-autosave{
+  margin:12px 2px 0;
+  color:#849087;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.76rem;
+  text-align:center;
+}
+
+/* Collapsed content rows inside Study cards. */
+.stage7-study-body .s7-card-content-hidden{
+  display:none!important;
+}
+.stage7-study-body .s7-card-content-toggle{
+  width:100%;
+  min-height:34px!important;
+  margin:5px 0!important;
+  padding:5px 4px!important;
+  border:0!important;
+  border-top:1px solid rgba(84,111,91,.10)!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:#687b70!important;
+  display:flex!important;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  box-shadow:none!important;
+  font-family:"EB Garamond",Georgia,serif!important;
+  font-size:.85rem!important;
+  font-weight:500!important;
+  text-align:left;
+}
+.stage7-study-body .s7-card-content-toggle .s7-toggle-action{
+  color:#54705f;
+  font-size:.78rem;
+  white-space:nowrap;
+}
+.stage7-study-body .s7-card-content-toggle:active{
+  background:rgba(226,236,226,.40)!important;
+}
+.stage7-study-body.s7-swipe-enabled .flashcard{
+  touch-action:pan-y;
+}
+
+@media (max-width:390px){
+  .s7-study-options-sheet{
+    width:min(94vw,390px);
+    padding-left:13px;
+    padding-right:13px;
+  }
+  .s7-study-options-head{
+    margin-left:-13px;
+    margin-right:-13px;
+    padding-left:13px;
+    padding-right:13px;
+  }
+  .s7-options-section{padding:12px}
+}
