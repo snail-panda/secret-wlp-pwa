@@ -15,6 +15,7 @@
   let minorRange = null;
   let searchQuery = '';
   let recentExpanded = false;
+  let pinnedExpanded = false;
 
   function readList(key) {
     try {
@@ -173,7 +174,15 @@
     }
 
     $('pinned-section').hidden = !p.length;
-    if (p.length) appendRows($('pinned-list'), p.slice(0, 8));
+    if (p.length) {
+      appendRows($('pinned-list'), pinnedExpanded ? p : p.slice(0, 3));
+      const pinnedToggle = $('pinned-toggle');
+      pinnedToggle.hidden = p.length <= 3;
+      pinnedToggle.textContent = pinnedExpanded ? 'Show Less' : 'Show More';
+      pinnedToggle.setAttribute('aria-expanded', String(pinnedExpanded));
+    } else {
+      $('pinned-toggle').hidden = true;
+    }
 
     $('recent-section').hidden = !r.length;
     if (r.length) {
@@ -289,6 +298,11 @@
     $('deck-search').value = '';
     renderSearch();
     $('deck-search').focus();
+  });
+
+  $('pinned-toggle').addEventListener('click', () => {
+    pinnedExpanded = !pinnedExpanded;
+    renderShortcuts();
   });
 
   $('recent-toggle').addEventListener('click', () => {
