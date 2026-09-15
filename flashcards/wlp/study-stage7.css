@@ -1359,3 +1359,82 @@ body.stage7-study-body{
     font-size:.68rem!important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Study utility + saved-note polish v2.9
+   ========================================================= */
+
+/* Saved-take note belongs to Clear: align its right edge with Clear,
+   keep it close to the take controls, and leave only a modest gap
+   before the learning buttons. */
+.stage7-study-body .study-record-center .record-practice .record-clear-note{
+  flex:0 0 auto!important;
+  width:auto!important;
+  max-width:58%!important;
+  align-self:flex-end;
+  margin:-1px 2px 0 auto!important;
+  min-height:0!important;
+  text-align:right!important;
+  font-size:.68rem!important;
+  line-height:1.12!important;
+}
+.stage7-study-body .study-learning-practice.is-record-expanded{
+  row-gap:7px!important;
+}
+
+/* Quiet utilities: no filled pill. Keep the page background visible.
+   A very light outline gives Front / Shuffle a tappable affordance
+   without increasing text contrast. */
+.stage7-study-body .study-mode-utility{
+  background:transparent!important;
+  border:1px solid rgba(75,105,78,.14)!important;
+  box-shadow:none!important;
+  color:#6d8376!important;
+  opacity:.82!important;
+  border-radius:999px;
+  min-height:34px;
+  padding:5px 9px;
+}
+.stage7-study-body .study-mode-utility:active{
+  background:rgba(214,229,216,.20)!important;
+  border-color:rgba(75,105,78,.20)!important;
+}
+.stage7-study-body .study-front-control.is-visible,
+.stage7-study-body .study-shuffle-control{
+  opacity:.82!important;
+}
+
+/* The center mode switch stays centered independently of the utilities. */
+.stage7-study-body .study-mode-row{
+  position:relative;
+}
+.stage7-study-body .study-mode-toggle{
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+.stage7-study-body .study-front-control{
+  position:absolute!important;
+  left:0;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:2;
+}
+.stage7-study-body .study-shuffle-control{
+  position:absolute!important;
+  right:0;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:2;
+}
+
+@media(max-width:560px){
+  .stage7-study-body .study-mode-utility{
+    min-height:32px;
+    padding:4px 7px;
+  }
+  .stage7-study-body .study-record-center .record-practice .record-clear-note{
+    max-width:62%!important;
+    font-size:.66rem!important;
+  }
+}
