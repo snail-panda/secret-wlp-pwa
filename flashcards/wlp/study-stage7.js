@@ -29,9 +29,13 @@
 
     if (isSearchSolo && isNormalDeck && params.get('wordid')) {
       const context = document.querySelector('.study-context');
-      if (context) {
-        const actions = document.createElement('div');
-        actions.className = 'search-solo-actions';
+      const deckTitle = context?.querySelector('.study-deck-title');
+      if (context && deckTitle) {
+        const center = document.createElement('span');
+        center.className = 'study-context-center search-solo-context-center';
+        deckTitle.insertAdjacentElement('beforebegin', center);
+        center.append(deckTitle);
+
         const view = document.createElement('a');
         view.className = 'search-solo-view-deck';
         const next = new URLSearchParams();
@@ -41,8 +45,7 @@
         if (safeSearchReturn) next.set('searchreturn', safeSearchReturn);
         view.href = `./batch.html?${next.toString()}`;
         view.innerHTML = '<span>View in Deck</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
-        actions.append(view);
-        context.insertAdjacentElement('afterend', actions);
+        center.append(view);
       }
     }
   }
