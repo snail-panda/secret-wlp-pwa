@@ -9,6 +9,73 @@
   const batchNum = Number(batchRaw);
   const isNormalDeck = Number.isFinite(batchNum) && batchNum > 0 && !params.get('review') && !params.get('draft');
 
+  /* Stage 7 v3.0 — Global Search always knows how to return to the exact
+     Study URL that launched it. Both the header icon and drawer entry use
+     the same destination. */
+  const searchLinks = Array.from(document.querySelectorAll('.global-search-link'));
+  const buildSearchHref = () => {
+    const returnUrl = new URL(location.href);
+    returnUrl.searchParams.delete('s7card');
+    const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
+    const activeIndex = cards.findIndex(card => card.classList.contains('active'));
+    if (activeIndex >= 0) returnUrl.searchParams.set('s7card', String(activeIndex + 1));
+    const relativeReturn = `${returnUrl.pathname.replace(/^\/+/, '')}${returnUrl.search}${returnUrl.hash}`;
+    return `../../global-search.html?return=${encodeURIComponent(relativeReturn)}`;
+  };
+  const syncSearchLinks = () => searchLinks.forEach(link => { link.href = buildSearchHref(); });
+  searchLinks.forEach(link => {
+    link.addEventListener('pointerdown', syncSearchLinks);
+    link.addEventListener('focus', syncSearchLinks);
+    link.addEventListener('click', syncSearchLinks);
+  });
+  syncSearchLinks();
+
+  /* Global Search can also open an exact browser-local Draft card. app.js
+     intentionally owns Draft rendering; this only selects the requested
+     rendered card after that proven rendering finishes. */
+  const draftTargetLocalId = String(params.get('localid') || '').trim();
+  let draftTargetPending = Boolean(params.get('draft') && draftTargetLocalId);
+  const requestedStage7Card = Number(params.get('s7card'));
+  let returnCardPending = Number.isInteger(requestedStage7Card) && requestedStage7Card >= 1;
+  const draftTargetIndex = () => {
+    if (!draftTargetPending) return -1;
+    try {
+      const parsed = JSON.parse(localStorage.getItem('wlp:local-additions:v1') || '[]');
+      if (!Array.isArray(parsed)) return -1;
+      const rows = parsed.filter(draft => draft && typeof draft === 'object' && String(draft.Word || '').trim());
+      const deckNo = Math.max(1, Number(params.get('draft')) || 1);
+      const deckRows = rows.slice((deckNo - 1) * 10, (deckNo - 1) * 10 + 10);
+      return deckRows.findIndex(draft => String(draft.localId || '').trim() === draftTargetLocalId);
+    } catch {
+      return -1;
+    }
+  };
+  const activateRenderedCard = (cards, index) => {
+    if (index < 0 || !cards[index]) return false;
+    cards.forEach(card => card.classList.remove('active'));
+    const target = cards[index];
+    target.classList.add('active');
+    const front = target.querySelector('.front');
+    const back = target.querySelector('.back');
+    if (front) front.style.display = 'block';
+    if (back) back.style.display = 'none';
+    return true;
+  };
+  const focusRequestedCard = () => {
+    if (!draftTargetPending && !returnCardPending) return;
+    const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
+    if (!cards.length) return;
+    if (draftTargetPending) {
+      const index = draftTargetIndex();
+      draftTargetPending = false;
+      if (activateRenderedCard(cards, index)) { returnCardPending = false; return; }
+    }
+    if (returnCardPending) {
+      activateRenderedCard(cards, requestedStage7Card - 1);
+      returnCardPending = false;
+    }
+  };
+
   const title = document.getElementById('study-deck-title');
   if (title) {
     if (isNormalDeck) title.textContent = `Deck WLP${String(batchNum).padStart(3, '0')}`;
@@ -316,10 +383,12 @@
     uiSyncQueued = true;
     requestAnimationFrame(() => {
       uiSyncQueued = false;
+      focusRequestedCard();
       syncStage7VoiceControls();
       syncFrontProgressProxies();
       syncRecordingLayout();
       syncStudyModeToolbar();
+      syncSearchLinks();
     });
   };
 

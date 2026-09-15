@@ -1474,3 +1474,46 @@ body.stage7-study-body{
   color:#4e695d!important;
   opacity:.98!important;
 }
+
+/* =========================================================
+   WLP Stage 7 — Global Search entry v3.0
+   Keep the WLP brand physically centered while adding Search + role actions.
+   ========================================================= */
+.study-app-shell .app-header{
+  grid-template-columns:58px minmax(0,1fr) auto;
+}
+.study-app-shell .app-header > .brand{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:1;
+}
+.study-header-actions{
+  justify-self:end;
+  display:flex;
+  align-items:center;
+  gap:3px;
+  position:relative;
+  z-index:2;
+}
+.study-app-shell .study-search-button{
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  color:#557264;
+}
+.study-app-shell .study-search-button svg{
+  width:20px;
+  height:20px;
+  stroke-width:1.7;
+}
+.study-app-shell .study-search-button:active{background:#e8f0e9}
+@media(max-width:390px){
+  .study-app-shell .app-header{grid-template-columns:50px minmax(0,1fr) auto}
+  .study-app-shell .study-search-button{width:34px;height:34px}
+  .study-app-shell .app-header > .brand{gap:5px}
+  .study-app-shell .app-header > .brand .brand-sprout{width:21px;height:21px}
+  .study-app-shell .app-header > .brand strong{font-size:1.20rem}
+  .study-app-shell .app-header > .brand small{font-size:.62rem}
+  .study-header-actions{gap:1px}
+}

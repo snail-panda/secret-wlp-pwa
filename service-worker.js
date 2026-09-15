@@ -1,10 +1,13 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-study-voice-fix-v2-12';
+const CACHE_NAME = 'wlp-stage7-global-search-v3-0';
 const CORE = [
   './',
   './index.html',
   './style.css',
   './stage7-home.js',
+  './global-search.html',
+  './global-search.css',
+  './global-search.js',
   './deck-browser.html',
   './deck-browser.css',
   './deck-browser.js',

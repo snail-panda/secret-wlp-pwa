@@ -45,7 +45,7 @@
   };
 
   document.getElementById('search-launch')?.addEventListener('click', () => {
-    showToast('Global Search is the next Stage 7 screen.');
+    location.href = './global-search.html';
   });
   drawerSettings?.addEventListener('click', () => {
     setDrawer(false);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Choose a Deck — WLP</title>
+  <title>Search — WLP</title>
   <meta name="theme-color" content="#eef6ee">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -14,10 +14,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./deck-browser.css">
+  <link rel="stylesheet" href="./global-search.css?v=20260915-s7-v30">
 </head>
-<body class="app-body deck-browser-page">
-  <div class="app-shell">
+<body class="app-body global-search-page">
+  <div class="app-shell search-shell">
     <header class="app-header">
       <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -31,60 +31,39 @@
       </button>
     </header>
 
-    <main class="deck-content">
-      <section class="deck-intro">
-        <div>
-          <span class="section-kicker">Study</span>
-          <h1>Choose a Deck</h1>
-          <p>Jump straight in, return to a recent deck, or browse the garden by range.</p>
-        </div>
-        <span class="deck-count" id="deck-count">Loading…</span>
-      </section>
+    <main class="global-search-main">
+      <div class="search-page-context">
+        <a id="search-back-link" class="search-back-link" href="./index.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Back to Home</span>
+        </a>
+        <span class="section-kicker">Global Search</span>
+      </div>
 
-      <section class="finder-panel" aria-label="Find a deck">
-        <label class="deck-search">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-          <input id="deck-search" type="search" autocomplete="off" placeholder="Search deck number, word, meaning…">
+      <section class="search-hero" aria-labelledby="global-search-title">
+        <p class="search-eyebrow">Search the Effective Deck</p>
+        <h1 id="global-search-title">Find a word anywhere.</h1>
+        <p class="search-intro">Search headwords, definitions, synonyms, examples, and notes across the Master plus your local edits and drafts.</p>
+        <label class="global-search-box" for="global-search-input">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
+          <input id="global-search-input" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search words, meanings, examples…">
+          <button id="global-search-clear" type="button" aria-label="Clear search" hidden>×</button>
         </label>
-        <form class="jump-form" id="jump-form">
-          <label for="jump-input">Jump to deck #</label>
-          <div class="jump-control">
-            <span>WLP</span>
-            <input id="jump-input" inputmode="numeric" pattern="[0-9]*" placeholder="351" aria-label="Deck number">
-            <button type="submit" aria-label="Open deck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+        <div class="search-source-meta" id="search-source-meta" aria-live="polite">Loading the garden…</div>
+      </section>
+
+      <section class="search-results-section" aria-live="polite">
+        <div class="search-results-head">
+          <div>
+            <h2>Results</h2>
+            <span id="search-results-meta">Type something to search.</span>
           </div>
-          <small id="jump-message" aria-live="polite"></small>
-        </form>
-      </section>
-
-      <section id="search-section" class="browser-section" hidden>
-        <div class="section-head"><div><h2>Search Results</h2><span id="search-meta"></span></div><button id="clear-search" class="text-button" type="button">Clear</button></div>
-        <div id="search-list" class="deck-list"></div>
-      </section>
-
-      <section id="continue-section" class="browser-section" hidden>
-        <div class="section-head"><div><h2>Continue Studying</h2><span>Pick up where you left off</span></div></div>
-        <div id="continue-deck" class="continue-feature"></div>
-      </section>
-
-      <section id="pinned-section" class="browser-section" hidden>
-        <div class="section-head"><div><h2>Pinned Decks</h2><span>Keep important decks close</span></div></div>
-        <div id="pinned-list" class="deck-list compact-list"></div>
-      </section>
-
-      <section id="recent-section" class="browser-section" hidden>
-        <div class="section-head"><div><h2>Recent Decks</h2><span>Your latest study decks</span></div></div>
-        <div id="recent-list" class="deck-list compact-list"></div>
-      </section>
-
-      <section class="browser-section browse-section" id="browse-section">
-        <div class="section-head browse-head">
-          <div><h2>Browse by Range</h2><span id="browse-meta">Choose a 50-deck range</span></div>
-          <button id="browse-back" class="text-button" type="button" hidden>Back</button>
         </div>
-        <nav class="range-breadcrumbs" id="range-breadcrumbs" aria-label="Deck range breadcrumb" hidden></nav>
-        <div id="range-grid" class="range-grid"></div>
-        <div id="range-decks" class="deck-list range-decks" hidden></div>
+        <div id="search-results" class="search-results">
+          <div class="search-empty-state">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
+            <p>Start with a word, phrase, meaning, synonym, or example.</p>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -102,10 +81,10 @@
       <a class="drawer-item" href="./index.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span>
       </a>
-      <a class="drawer-item" href="./global-search.html?return=deck-browser.html">
+      <a class="drawer-item is-current" href="./global-search.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span>
       </a>
-      <a class="drawer-item is-current" href="./deck-browser.html">
+      <a class="drawer-item" href="./deck-browser.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span>
       </a>
       <a class="drawer-item" href="./legacy-home.html#review">
@@ -157,8 +136,8 @@
     </form>
   </div>
 
-  <div class="toast" id="deck-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./deck-browser.js"></script>
-  <script src="./pwa-register.js?v=20260914-stage7-7"></script>
+  <div class="toast" id="search-toast" role="status" aria-live="polite" hidden></div>
+  <script src="./global-search.js?v=20260915-s7-v30"></script>
+  <script src="./pwa-register.js?v=20260915-s7-v30"></script>
 </body>
 </html>
