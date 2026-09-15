@@ -111,10 +111,11 @@
       </section>
 
       <section class="finder-panel" aria-label="Find a deck">
-        <label class="deck-search">
+        <div class="deck-search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-          <input id="deck-search" type="search" autocomplete="off" placeholder="Search deck number, word, meaning…">
-        </label>
+          <input id="deck-search" type="search" autocomplete="off" placeholder="Search deck number, word, meaning…" aria-label="Search decks">
+          <button id="deck-search-clear" class="deck-search-clear" type="button" aria-label="Clear search" hidden>×</button>
+        </div>
         <form class="jump-form" id="jump-form">
           <label for="jump-input">Jump to deck #</label>
           <div class="jump-control">

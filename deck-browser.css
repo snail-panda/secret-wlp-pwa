@@ -17,7 +17,11 @@
 .deck-search svg,.jump-control svg,.deck-row svg,.range-card svg,.breadcrumb-button svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .deck-search svg{width:20px;height:20px;flex:none;color:#667870}
 .deck-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.deck-search input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
 .deck-search input::placeholder{color:#8a9690}
+.deck-search-clear{width:30px;height:30px;flex:0 0 30px;margin-right:1px;padding:0;border:0;border-radius:50%;background:transparent;color:#71837a;display:grid;place-items:center;font:400 24px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
+.deck-search-clear[hidden]{display:none!important}
+.deck-search-clear:active{background:#edf3ee}
 .jump-form{margin-top:12px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px 12px}
 .jump-form>label{color:#65776d;font:500 .78rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .jump-control{display:grid;grid-template-columns:auto minmax(70px,1fr) 38px;align-items:center;border:1px solid #d7e2da;border-radius:13px;background:#fbfdfb;overflow:hidden}

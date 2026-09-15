@@ -92,7 +92,7 @@
     a.addEventListener('click', e => { e.preventDefault(); openDeck(deck); });
 
     const subtitle = opts.match
-      ? `Match: <strong>${escapeHtml(opts.match)}</strong>`
+      ? `<strong>${escapeHtml(opts.match)}</strong>${opts.matchField ? ` — Matched in ${escapeHtml(opts.matchField)}` : ''}`
       : (words.length ? words.slice(0, 3).map(escapeHtml).join(' · ') : 'Open this deck');
     a.innerHTML = `<span class="deck-title">Deck WLP${pad(deck)}</span><span class="deck-sub">${subtitle}</span>`;
 
@@ -128,21 +128,21 @@
     const directText = s.replace(/^#?wlp\s*/i, '').replace(/^deck\s*/i, '').trim();
     const direct = /^\d+$/.test(directText) ? Number(directText) : NaN;
     const matches = new Map();
-    if (clampDeck(direct)) matches.set(direct, {deck: direct, match: `Deck WLP${pad(direct)}`});
+    if (clampDeck(direct)) matches.set(direct, {deck: direct, match: `Deck WLP${pad(direct)}`, matchField: 'Deck #'});
 
     for (const row of rows) {
       const deck = rowDeck(row);
       if (!deck || matches.has(deck) && matches.size >= 80) continue;
       const candidates = [
-        field(row, 'Word'),
-        field(row, 'Definition'),
-        field(row, 'Synonym(s)', 'Synonyms'),
-        field(row, 'Example Sentence', 'Example'),
-        field(row, 'Note(s)', 'Note')
-      ].filter(Boolean);
-      const hit = candidates.find(v => String(v).toLowerCase().includes(s));
+        {value: field(row, 'Word'), label: 'Headword'},
+        {value: field(row, 'Definition'), label: 'Definition'},
+        {value: field(row, 'Synonym(s)', 'Synonyms'), label: 'Synonyms'},
+        {value: field(row, 'Example Sentence', 'Example'), label: 'Example'},
+        {value: field(row, 'Note(s)', 'Note'), label: 'Notes'}
+      ].filter(item => item.value);
+      const hit = candidates.find(item => String(item.value).toLowerCase().includes(s));
       if (hit && !matches.has(deck)) {
-        matches.set(deck, {deck, match: field(row, 'Word') || hit});
+        matches.set(deck, {deck, match: field(row, 'Word') || hit.value, matchField: hit.label});
         if (matches.size >= 80) break;
       }
     }
@@ -291,6 +291,11 @@
   });
 
   const deckSearchInput = $('deck-search');
+  const deckSearchClear = $('deck-search-clear');
+
+  function updateDeckSearchClear() {
+    deckSearchClear.hidden = !deckSearchInput.value;
+  }
 
   function scrollToSearchResults() {
     const section = $('search-section');
@@ -300,6 +305,7 @@
 
   function runDeckSearch({scroll = false} = {}) {
     searchQuery = deckSearchInput.value;
+    updateDeckSearchClear();
     renderSearch();
     if (scroll) scrollToSearchResults();
   }
@@ -315,12 +321,16 @@
     deckSearchInput.blur();
   });
 
-  $('clear-search').addEventListener('click', () => {
+  function clearDeckSearch() {
     searchQuery = '';
     deckSearchInput.value = '';
+    updateDeckSearchClear();
     renderSearch();
     deckSearchInput.focus();
-  });
+  }
+
+  deckSearchClear.addEventListener('click', clearDeckSearch);
+  $('clear-search').addEventListener('click', clearDeckSearch);
 
   $('pinned-toggle').addEventListener('click', () => {
     pinnedExpanded = !pinnedExpanded;
@@ -494,6 +504,7 @@
       // A user can begin typing before the TSV finishes loading. Re-run any
       // existing query now that the Effective Deck data is actually available.
       searchQuery = deckSearchInput.value;
+      updateDeckSearchClear();
       if (searchQuery.trim()) renderSearch();
 
       if (initialView === 'recent' && !$('recent-section').hidden) {
