@@ -179,7 +179,25 @@
   };
 
   document.querySelectorAll('[data-study-options-launch]').forEach(button => {
-    button.addEventListener('click', openPanel);
+    button.addEventListener('click', () => {
+      const drawer = document.getElementById('app-drawer');
+      const drawerBackdrop = document.querySelector('.drawer-backdrop, .app-drawer-backdrop, [data-drawer-backdrop]');
+      const menuButton = document.getElementById('menu-button');
+
+      if (drawer) {
+        drawer.classList.remove('open', 'is-open', 'active');
+        drawer.removeAttribute('data-open');
+        drawer.setAttribute('aria-hidden', 'true');
+      }
+      if (drawerBackdrop) {
+        drawerBackdrop.classList.remove('open', 'is-open', 'active');
+        drawerBackdrop.hidden = true;
+      }
+      if (menuButton) menuButton.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('drawer-open', 'menu-open');
+
+      requestAnimationFrame(openPanel);
+    });
   });
   panel.querySelector('.s7-study-options-close')?.addEventListener('click', closePanel);
   panel.addEventListener('click', event => {
@@ -232,8 +250,8 @@
   };
 
   const toggleText = (button, expanded) => {
-    const action = button.querySelector('.s7-toggle-action');
-    if (action) action.textContent = expanded ? 'Hide ↑' : 'Show ↓';
+    const verb = button.querySelector('.s7-toggle-verb');
+    if (verb) verb.textContent = expanded ? 'Hide' : 'Show';
     button.setAttribute('aria-expanded', String(expanded));
   };
 
@@ -244,7 +262,7 @@
     button.type = 'button';
     button.className = 's7-card-content-toggle';
     button.dataset.s7Field = key;
-    button.innerHTML = `<span>${label}</span><span class="s7-toggle-action">Show ↓</span>`;
+    button.innerHTML = `<span class="s7-collapse-label"><span class="s7-toggle-verb">Show</span> ${label}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></span>`;
     button.addEventListener('click', () => {
       const expanded = el.dataset.s7Expanded !== 'true';
       el.dataset.s7Expanded = String(expanded);
@@ -263,24 +281,34 @@
 
     if (!hasContent) {
       el.classList.remove('s7-card-content-hidden');
-      if (existing) existing.hidden = true;
+      if (existing) {
+        existing.hidden = true;
+        existing.setAttribute('aria-hidden', 'true');
+      }
       return;
     }
 
     if (mode === 'hidden') {
       el.classList.add('s7-card-content-hidden');
-      if (existing) existing.hidden = true;
+      if (existing) {
+        existing.hidden = true;
+        existing.setAttribute('aria-hidden', 'true');
+      }
       return;
     }
 
     if (mode === 'shown') {
       el.classList.remove('s7-card-content-hidden');
-      if (existing) existing.hidden = true;
+      if (existing) {
+        existing.hidden = true;
+        existing.setAttribute('aria-hidden', 'true');
+      }
       return;
     }
 
     const button = ensureContentToggle(card, el, key, label);
     button.hidden = false;
+    button.removeAttribute('aria-hidden');
     const expanded = el.dataset.s7Expanded === 'true';
     el.classList.toggle('s7-card-content-hidden', !expanded);
     toggleText(button, expanded);

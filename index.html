@@ -70,6 +70,7 @@
     }
 
 </style>
+  <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v11">
 </head>
 <body class="app-body">
   <div class="app-shell">
@@ -174,6 +175,12 @@
       <a class="drawer-item" href="./deck-browser.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span>
       </a>
+      <button class="drawer-item drawer-study-options" type="button" data-study-options-launch>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/>
+        </svg>
+        <span>Study Options</span>
+      </button>
       <a class="drawer-item" href="./legacy-home.html#review">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span>
       </a>
@@ -226,5 +233,6 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js?v=20260915-s7-v30"></script>
   <script src="./pwa-register.js?v=20260914-stage7-5"></script>
+  <script src="./study-options.js?v=20260915-s7-options-v11"></script>
 </body>
 </html>

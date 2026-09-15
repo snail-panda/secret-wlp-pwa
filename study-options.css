@@ -269,34 +269,69 @@ body.s7-study-options-open{overflow:hidden}
 .stage7-study-body .s7-card-content-hidden{
   display:none!important;
 }
+
+/* hidden must beat the generic flex display below */
+.stage7-study-body .s7-card-content-toggle[hidden]{
+  display:none!important;
+}
+
 .stage7-study-body .s7-card-content-toggle{
   width:100%;
-  min-height:34px!important;
-  margin:5px 0!important;
-  padding:5px 4px!important;
+  min-height:25px!important;
+  margin:1px 0 2px!important;
+  padding:1px 0!important;
   border:0!important;
-  border-top:1px solid rgba(84,111,91,.10)!important;
   border-radius:0!important;
   background:transparent!important;
-  color:#687b70!important;
+  color:#60766a!important;
   display:flex!important;
   align-items:center;
-  justify-content:space-between;
-  gap:12px;
+  justify-content:center;
+  gap:8px;
   box-shadow:none!important;
   font-family:"EB Garamond",Georgia,serif!important;
-  font-size:.85rem!important;
+  font-size:.80rem!important;
   font-weight:500!important;
-  text-align:left;
+  text-align:center;
+  line-height:1.05!important;
 }
-.stage7-study-body .s7-card-content-toggle .s7-toggle-action{
-  color:#54705f;
-  font-size:.78rem;
+
+.stage7-study-body .s7-card-content-toggle::before,
+.stage7-study-body .s7-card-content-toggle::after{
+  content:"";
+  height:1px;
+  flex:1 1 auto;
+  max-width:42px;
+  background:rgba(84,111,91,.17);
+}
+
+.stage7-study-body .s7-collapse-label{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
   white-space:nowrap;
 }
-.stage7-study-body .s7-card-content-toggle:active{
-  background:rgba(226,236,226,.40)!important;
+
+.stage7-study-body .s7-collapse-label svg{
+  width:11px;
+  height:11px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  transition:transform .14s ease;
 }
+
+.stage7-study-body .s7-card-content-toggle[aria-expanded="true"] .s7-collapse-label svg{
+  transform:rotate(180deg);
+}
+
+.stage7-study-body .s7-card-content-toggle:active{
+  opacity:.72;
+}
+
 .stage7-study-body.s7-swipe-enabled .flashcard{
   touch-action:pan-y;
 }
