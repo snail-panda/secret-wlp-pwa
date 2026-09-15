@@ -1360,81 +1360,88 @@ body.stage7-study-body{
   }
 }
 
-
 /* =========================================================
-   WLP Stage 7 — Study utility + saved-note polish v2.9
+   WLP Stage 7 — safe toolbar rollback + polish v2.10
+   Keep the proven v2.8 three-column toolbar layout. No absolute
+   positioning is used for Front / Shuffle.
    ========================================================= */
 
-/* Saved-take note belongs to Clear: align its right edge with Clear,
-   keep it close to the take controls, and leave only a modest gap
-   before the learning buttons. */
+/* Saved-take note: keep it tied visually to Clear without colliding
+   with the Studied / Review row. */
 .stage7-study-body .study-record-center .record-practice .record-clear-note{
   flex:0 0 auto!important;
   width:auto!important;
   max-width:58%!important;
-  align-self:flex-end;
-  margin:-1px 2px 0 auto!important;
   min-height:0!important;
+  align-self:flex-end!important;
+  margin:-1px 2px 0 auto!important;
+  padding:0!important;
+  position:static!important;
+  display:block;
   text-align:right!important;
   font-size:.68rem!important;
   line-height:1.12!important;
+  white-space:normal!important;
+}
+.stage7-study-body .study-record-center .record-practice .record-clear-note[hidden]{
+  display:none!important;
 }
 .stage7-study-body .study-learning-practice.is-record-expanded{
   row-gap:7px!important;
 }
 
-/* Quiet utilities: no filled pill. Keep the page background visible.
-   A very light outline gives Front / Shuffle a tappable affordance
-   without increasing text contrast. */
+/* Quiet utility controls: page background shows through; a faint outline
+   is the only affordance. The text is intentionally NOT darkened. */
 .stage7-study-body .study-mode-utility{
   background:transparent!important;
   border:1px solid rgba(75,105,78,.14)!important;
   box-shadow:none!important;
   color:#6d8376!important;
-  opacity:.82!important;
-  border-radius:999px;
-  min-height:34px;
-  padding:5px 9px;
+  opacity:.84!important;
+  border-radius:999px!important;
 }
 .stage7-study-body .study-mode-utility:active{
-  background:rgba(214,229,216,.20)!important;
+  background:rgba(214,229,216,.18)!important;
   border-color:rgba(75,105,78,.20)!important;
 }
 .stage7-study-body .study-front-control.is-visible,
 .stage7-study-body .study-shuffle-control{
-  opacity:.82!important;
+  opacity:.84!important;
 }
 
-/* The center mode switch stays centered independently of the utilities. */
-.stage7-study-body .study-mode-row{
-  position:relative;
+/* Explicitly preserve v2.8 layout behavior. These declarations guard
+   against any stale v2.9 cached positioning rules. */
+.stage7-study-body .study-mode-toolbar{
+  position:static!important;
+  display:grid!important;
+  grid-template-columns:minmax(64px,1fr) auto minmax(64px,1fr)!important;
+  align-items:center!important;
 }
-.stage7-study-body .study-mode-toggle{
-  margin-left:auto!important;
-  margin-right:auto!important;
-}
-.stage7-study-body .study-front-control{
-  position:absolute!important;
-  left:0;
-  top:50%;
-  transform:translateY(-50%);
-  z-index:2;
-}
+.stage7-study-body .study-front-control,
 .stage7-study-body .study-shuffle-control{
-  position:absolute!important;
-  right:0;
-  top:50%;
-  transform:translateY(-50%);
-  z-index:2;
+  position:static!important;
+  inset:auto!important;
+  transform:none!important;
+}
+.stage7-study-body .study-front-control{justify-self:start!important;}
+.stage7-study-body .study-shuffle-control{justify-self:end!important;}
+.stage7-study-body .mode-controls{
+  justify-self:center!important;
+  margin-left:0!important;
+  margin-right:0!important;
 }
 
 @media(max-width:560px){
-  .stage7-study-body .study-mode-utility{
-    min-height:32px;
-    padding:4px 7px;
+  .stage7-study-body .study-mode-toolbar{
+    grid-template-columns:minmax(58px,1fr) auto minmax(58px,1fr)!important;
   }
   .stage7-study-body .study-record-center .record-practice .record-clear-note{
     max-width:62%!important;
     font-size:.66rem!important;
+  }
+}
+@media(max-width:390px){
+  .stage7-study-body .study-mode-toolbar{
+    grid-template-columns:54px auto 54px!important;
   }
 }
