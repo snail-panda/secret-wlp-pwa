@@ -1,9 +1,15 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage6-my-take-layout-v3-7-v6249';
+const CACHE_NAME = 'wlp-stage7-app-shell-v1-v6250';
 const CORE = [
   './',
   './index.html',
   './style.css',
+  './stage7-home.js',
+  './deck-browser.html',
+  './deck-browser.css',
+  './deck-browser.js',
+  './legacy-home.html',
+  './legacy-style.css',
   './manifest.webmanifest',
   './pwa-register.js',
   './pwa-icons/icon-192.png',

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Choose a Deck — WLP</title>
+  <meta name="theme-color" content="#eef6ee">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="./deck-browser.css">
+</head>
+<body>
+  <main class="deck-shell">
+    <header class="deck-header">
+      <a class="back" href="./index.html" aria-label="Back to Home"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></a>
+      <a class="brand" href="./index.html"><svg viewBox="0 0 32 32"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a>
+      <span class="header-spacer"></span>
+    </header>
+
+    <section class="deck-content">
+      <div class="title-row"><div><span class="eyebrow">Study</span><h1>Choose a Deck</h1></div><span class="deck-count" id="deck-count">Loading…</span></div>
+
+      <label class="deck-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><input id="deck-search" type="search" autocomplete="off" placeholder="Deck number or word…"></label>
+
+      <section id="continue-section" class="browser-section" hidden><div class="section-head"><h2>Continue</h2></div><div id="continue-deck"></div></section>
+      <section id="pinned-section" class="browser-section" hidden><div class="section-head"><h2>Pinned</h2><span>Keep important decks close</span></div><div id="pinned-list" class="deck-list"></div></section>
+      <section id="recent-section" class="browser-section" hidden><div class="section-head"><h2>Recent</h2><span>Your latest study decks</span></div><div id="recent-list" class="deck-list"></div></section>
+      <section class="browser-section all-section"><div class="section-head"><h2 id="all-heading">All Decks</h2><span id="result-meta">Loading your garden…</span></div><div id="all-list" class="deck-list"></div><button id="load-more" type="button" class="load-more" hidden>Show more decks</button></section>
+    </section>
+  </main>
+  <script src="./deck-browser.js"></script>
+  <script src="./pwa-register.js?v=20260914-stage7-1"></script>
+</body>
+</html>
