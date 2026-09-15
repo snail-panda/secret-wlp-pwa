@@ -76,12 +76,19 @@
         <div class="section-heading"><h2>Recently Studied</h2><a href="./deck-browser.html?view=recent">See all <span aria-hidden="true">›</span></a></div>
         <div id="recent-home-list" class="recent-list"><p class="empty-state">Your recent decks will appear here.</p></div>
       </section>
+      <p class="home-motto"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span>Words open new doors.</span></p>
     </main>
   </div>
 
   <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
   <aside class="app-drawer" id="app-drawer" aria-hidden="true">
-    <div class="drawer-head"><strong>WLP</strong><button id="drawer-close" class="icon-button" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="drawer-head">
+      <a class="drawer-brand" href="./index.html" aria-label="WLP home">
+        <svg class="drawer-brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
+        <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
+      </a>
+      <button id="drawer-close" class="icon-button" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
     <nav class="drawer-nav">
       <a class="drawer-item is-current" href="./index.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span>
@@ -137,6 +144,6 @@
 
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js"></script>
-  <script src="./pwa-register.js?v=20260914-stage7-4"></script>
+  <script src="./pwa-register.js?v=20260914-stage7-5"></script>
 </body>
 </html>
