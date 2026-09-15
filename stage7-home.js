@@ -18,6 +18,7 @@
   const roleMenuAction = document.getElementById('role-menu-action');
   const drawerRoleAction = document.getElementById('drawer-role-action');
   const drawerSettings = document.getElementById('drawer-settings');
+  const drawerAdminOnly = Array.from(document.querySelectorAll('.drawer-admin-only'));
   const adminGate = document.getElementById('admin-gate');
   const adminForm = document.getElementById('admin-form');
   const adminPassword = document.getElementById('admin-password');
@@ -79,7 +80,9 @@
       ? 'Editing and import/export tools are unlocked.'
       : 'Study normally without editing tools.';
     roleMenuAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
-    drawerRoleAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
+    const drawerLabel = drawerRoleAction?.querySelector('.drawer-role-label');
+    if (drawerLabel) drawerLabel.textContent = admin ? 'Switch to Guest' : 'Admin Login';
+    drawerAdminOnly.forEach(item => { item.hidden = !admin; });
   };
 
   const closeRoleMenu = () => {

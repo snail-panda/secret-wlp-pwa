@@ -24,6 +24,8 @@
 .drawer-head{font-size:25px;padding:3px 4px 15px}
 .drawer-nav{display:grid!important;margin-top:10px!important}
 .app-drawer .drawer-item{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:12px;text-decoration:none;border:0!important;border-radius:11px;padding:11px 12px!important;margin:2px 0;background:transparent;color:var(--ink);font-family:Georgia,'Times New Roman',serif;font-size:17px;text-align:left;width:100%;cursor:pointer}
+
+.app-drawer .drawer-item[hidden]{display:none!important}
 .app-drawer .drawer-item svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .app-drawer .drawer-item.is-current{background:#edf3e9}
 .app-drawer .drawer-item:active{background:#eef4ec}

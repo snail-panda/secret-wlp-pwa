@@ -307,6 +307,7 @@
   const roleMenuCopy = $('role-menu-copy');
   const roleMenuAction = $('role-menu-action');
   const drawerRoleAction = $('drawer-role-action');
+  const drawerAdminOnly = Array.from(document.querySelectorAll('.drawer-admin-only'));
   const adminGate = $('admin-gate');
   const adminForm = $('admin-form');
   const adminPassword = $('admin-password');
@@ -365,6 +366,7 @@
     roleMenuAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
     const drawerLabel = drawerRoleAction.querySelector('.drawer-role-label');
     if (drawerLabel) drawerLabel.textContent = admin ? 'Switch to Guest' : 'Admin Login';
+    drawerAdminOnly.forEach(item => { item.hidden = !admin; });
   };
 
   const closeRoleMenu = () => { roleMenu.hidden = true; rolePill.setAttribute('aria-expanded', 'false'); };

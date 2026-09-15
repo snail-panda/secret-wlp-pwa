@@ -4627,6 +4627,20 @@ if (clearAllButton) {
 // -------------------------------------------------------------
 
 if (
+  location.hash === "#editor" &&
+  getWlpUiRole() === "admin"
+) {
+
+  const editorButton =
+    nav.querySelector(
+      '[data-wlp-view="editor"]'
+    );
+
+  if (editorButton) {
+    editorButton.click();
+  }
+
+} else if (
   location.hash === "#drafts" &&
   getWlpUiRole() === "admin"
 ) {
