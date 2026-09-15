@@ -14,6 +14,7 @@
   let majorRange = null;
   let minorRange = null;
   let searchQuery = '';
+  let recentExpanded = false;
 
   function readList(key) {
     try {
@@ -175,7 +176,15 @@
     if (p.length) appendRows($('pinned-list'), p.slice(0, 8));
 
     $('recent-section').hidden = !r.length;
-    if (r.length) appendRows($('recent-list'), r.slice(0, 8));
+    if (r.length) {
+      appendRows($('recent-list'), recentExpanded ? r : r.slice(0, 3));
+      const recentToggle = $('recent-toggle');
+      recentToggle.hidden = r.length <= 3;
+      recentToggle.textContent = recentExpanded ? 'Show Less' : 'Show More';
+      recentToggle.setAttribute('aria-expanded', String(recentExpanded));
+    } else {
+      $('recent-toggle').hidden = true;
+    }
   }
 
   function rangeCard(start, end, kind) {
@@ -280,6 +289,11 @@
     $('deck-search').value = '';
     renderSearch();
     $('deck-search').focus();
+  });
+
+  $('recent-toggle').addEventListener('click', () => {
+    recentExpanded = !recentExpanded;
+    renderShortcuts();
   });
 
   $('jump-form').addEventListener('submit', e => {
