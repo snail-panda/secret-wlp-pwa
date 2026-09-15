@@ -290,15 +290,36 @@
     renderBrowse();
   });
 
-  $('deck-search').addEventListener('input', e => {
-    searchQuery = e.target.value;
+  const deckSearchInput = $('deck-search');
+
+  function scrollToSearchResults() {
+    const section = $('search-section');
+    if (!searchQuery.trim() || section.hidden) return;
+    requestAnimationFrame(() => section.scrollIntoView({behavior: 'smooth', block: 'start'}));
+  }
+
+  function runDeckSearch({scroll = false} = {}) {
+    searchQuery = deckSearchInput.value;
     renderSearch();
+    if (scroll) scrollToSearchResults();
+  }
+
+  // Keep the existing live search, but also make the keyboard Search/Enter action
+  // an explicit, reliable search trigger on iPhone and desktop.
+  deckSearchInput.addEventListener('input', () => runDeckSearch());
+  deckSearchInput.addEventListener('search', () => runDeckSearch({scroll: true}));
+  deckSearchInput.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    runDeckSearch({scroll: true});
+    deckSearchInput.blur();
   });
+
   $('clear-search').addEventListener('click', () => {
     searchQuery = '';
-    $('deck-search').value = '';
+    deckSearchInput.value = '';
     renderSearch();
-    $('deck-search').focus();
+    deckSearchInput.focus();
   });
 
   $('pinned-toggle').addEventListener('click', () => {
@@ -469,6 +490,12 @@
       $('deck-count').textContent = `${maxBatch} decks`;
       renderShortcuts();
       renderBrowse();
+
+      // A user can begin typing before the TSV finishes loading. Re-run any
+      // existing query now that the Effective Deck data is actually available.
+      searchQuery = deckSearchInput.value;
+      if (searchQuery.trim()) renderSearch();
+
       if (initialView === 'recent' && !$('recent-section').hidden) {
         $('recent-section').scrollIntoView({behavior: 'smooth', block: 'start'});
       }
