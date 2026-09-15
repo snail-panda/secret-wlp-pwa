@@ -692,3 +692,309 @@ body.stage7-study-body{
     gap:4px!important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Study audio/practice layout v2.5
+   Card content stays visually separate from reusable audio,
+   voice and recording controls. Existing app.js behavior is kept.
+   ========================================================= */
+
+/* The flashcard root is now the Study state container; the actual
+   paper card is .study-card-surface. */
+.stage7-study-body .flashcard{
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+}
+.stage7-study-body .flashcard .front,
+.stage7-study-body .flashcard .back{
+  padding-top:0!important;
+}
+.stage7-study-body .study-card-surface{
+  position:relative;
+  width:100%;
+  border:1px solid rgba(88,118,91,.14);
+  border-radius:23px;
+  background:rgba(255,255,252,.94);
+  box-shadow:0 12px 30px rgba(44,72,53,.075),0 2px 7px rgba(44,72,53,.035);
+}
+.stage7-study-body .study-front-card{
+  min-height:320px;
+  padding:58px 54px 42px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.stage7-study-body .study-back-card{
+  padding:46px 22px 18px;
+  text-align:left;
+}
+.stage7-study-body .study-card-surface .card-tag{
+  top:16px!important;
+  right:16px!important;
+}
+
+/* Front primary content only. */
+.stage7-study-body .study-front-card .word{margin-top:0!important}
+.stage7-study-body .study-front-card .btn-flip{margin-top:14px!important}
+.stage7-study-body .flashcard.definition-first .study-front-card .word,
+.stage7-study-body .flashcard.definition-first .study-front-card h2.word{
+  margin-top:0!important;
+  margin-bottom:14px!important;
+}
+
+/* Front card-to-card chevrons belong to the paper card, not the whole
+   practice area below it. */
+.stage7-study-body .flashcard .front .study-front-card .nav-buttons{
+  position:absolute!important;
+  top:50%!important;
+  left:4px!important;
+  right:4px!important;
+  margin:0!important;
+  transform:translateY(-50%)!important;
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:center!important;
+  pointer-events:none!important;
+  z-index:6!important;
+}
+.stage7-study-body .flashcard .front .study-front-card .nav-buttons .btn-prev,
+.stage7-study-body .flashcard .front .study-front-card .nav-buttons .btn-next{
+  pointer-events:auto!important;
+  width:42px!important;
+  min-width:42px!important;
+  height:52px!important;
+  min-height:52px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#4e725e!important;
+  font-size:1.68rem!important;
+}
+
+/* Reusable audio/practice zone below the paper card. */
+.stage7-study-body .study-practice-zone{
+  width:min(100%,640px);
+  margin:12px auto 0;
+  color:#315d49;
+}
+.stage7-study-body .study-audio-strip,
+.stage7-study-body .study-playback-strip,
+.stage7-study-body .study-voice-strip{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.stage7-study-body .study-audio-strip{margin-bottom:9px}
+.stage7-study-body .study-playback-strip{margin-bottom:9px}
+.stage7-study-body .study-voice-strip{margin-bottom:9px}
+
+.stage7-study-body .study-practice-zone button{
+  min-height:40px!important;
+  margin:0!important;
+  font-family:var(--s7-serif)!important;
+  font-size:.98rem!important;
+  font-weight:500!important;
+  color:#315f43!important;
+  background:rgba(255,255,255,.54)!important;
+  border:1px solid rgba(84,117,89,.18)!important;
+  border-radius:12px!important;
+  box-shadow:none!important;
+}
+.stage7-study-body .study-practice-zone .btn-speak{
+  min-width:104px!important;
+  background:#edf4ef!important;
+}
+.stage7-study-body .study-playback-strip > button{
+  min-width:112px!important;
+}
+
+/* Actual voice identity is mirrored into the existing voice button by
+   study-stage7.js. Keep the old detail element available to app.js but
+   visually collapse it. */
+.stage7-study-body .voice-control{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:0;
+}
+.stage7-study-body .voice-control .voice-detail{
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  padding:0!important;
+  margin:-1px!important;
+  overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;
+  border:0!important;
+}
+.stage7-study-body .study-practice-zone .btn-voice{
+  min-width:164px!important;
+  max-width:238px!important;
+  padding:7px 14px!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  background:#f3f7f3!important;
+  border-color:rgba(74,107,80,.20)!important;
+  color:#345f49!important;
+}
+
+/* Recording is a dedicated practice row, separate from playback. */
+.stage7-study-body .study-record-strip{
+  width:100%;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  gap:10px;
+  padding:9px 11px;
+  border:1px solid rgba(85,116,89,.13);
+  border-radius:15px;
+  background:rgba(255,255,255,.40);
+}
+.stage7-study-body .study-practice-label{
+  font-family:var(--s7-serif);
+  font-size:.82rem;
+  font-weight:500;
+  color:#718076;
+  white-space:nowrap;
+}
+.stage7-study-body .study-record-strip .record-practice{
+  width:100%;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:6px!important;
+  flex-wrap:wrap!important;
+  margin:0!important;
+}
+.stage7-study-body .study-record-strip .record-practice button{
+  min-width:auto!important;
+  min-height:38px!important;
+  padding:6px 10px!important;
+  font-size:.93rem!important;
+}
+.stage7-study-body .study-record-strip .record-practice .btn-record{
+  min-width:104px!important;
+  background:#f6e9ec!important;
+  border-color:#e7cfd5!important;
+  color:#704e57!important;
+}
+.stage7-study-body .study-record-strip .record-status{
+  flex:1 0 100%;
+  margin:1px 2px 0!important;
+  text-align:right!important;
+  font-family:var(--s7-serif);
+  font-size:.76rem!important;
+  color:#758078;
+}
+
+/* Back-side post-card actions now form explicit rows outside the paper card. */
+.stage7-study-body .back .local-edit-actions{margin:10px auto 5px!important}
+.stage7-study-body .study-learning-actions{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:10px auto 0;
+}
+.stage7-study-body .study-learning-actions > button{margin:0!important}
+.stage7-study-body .study-secondary-actions{
+  margin:7px auto 0;
+  text-align:center;
+}
+.stage7-study-body .study-secondary-actions .btn-shuffle{margin:0!important}
+
+/* Back content retains full usable width. */
+.stage7-study-body .study-back-card .def,
+.stage7-study-body .study-back-card .ex,
+.stage7-study-body .study-back-card .syn,
+.stage7-study-body .study-back-card .note,
+.stage7-study-body .study-back-card .back-answer{
+  margin-left:0!important;
+  margin-right:0!important;
+}
+
+@media(max-width:560px){
+  .stage7-study-body .study-front-card{
+    min-height:306px;
+    padding:52px 42px 38px;
+  }
+  .stage7-study-body .study-back-card{
+    padding:44px 15px 16px;
+  }
+  .stage7-study-body .study-card-surface .card-tag{
+    top:13px!important;
+    right:13px!important;
+  }
+  .stage7-study-body .study-practice-zone{margin-top:10px}
+  .stage7-study-body .study-audio-strip,
+  .stage7-study-body .study-playback-strip,
+  .stage7-study-body .study-voice-strip{gap:6px}
+  .stage7-study-body .study-playback-strip{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    width:100%;
+  }
+  .stage7-study-body .study-playback-strip > button{
+    min-width:0!important;
+    width:100%!important;
+    padding-left:7px!important;
+    padding-right:7px!important;
+    font-size:.88rem!important;
+  }
+  .stage7-study-body .study-practice-zone .btn-voice{
+    min-width:170px!important;
+    max-width:min(228px,62vw)!important;
+  }
+  .stage7-study-body .study-record-strip{
+    grid-template-columns:1fr;
+    gap:6px;
+    padding:9px;
+  }
+  .stage7-study-body .study-practice-label{text-align:center}
+  .stage7-study-body .study-record-strip .record-practice{
+    justify-content:center!important;
+  }
+  .stage7-study-body .study-record-strip .record-status{text-align:center!important}
+  .stage7-study-body .study-learning-actions{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    width:100%;
+    gap:7px;
+  }
+  .stage7-study-body .study-learning-actions > button{
+    min-width:0!important;
+    width:100%!important;
+    padding-left:7px!important;
+    padding-right:7px!important;
+  }
+}
+
+@media(max-width:390px){
+  .stage7-study-body .study-front-card{
+    padding-left:38px;
+    padding-right:38px;
+  }
+  .stage7-study-body .study-audio-strip{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    width:100%;
+  }
+  .stage7-study-body .study-practice-zone .btn-speak{min-width:88px!important}
+  .stage7-study-body .study-practice-zone .btn-voice{
+    width:100%!important;
+    min-width:0!important;
+    max-width:none!important;
+  }
+}

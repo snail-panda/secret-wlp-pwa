@@ -203,4 +203,46 @@
     sessionStorage.removeItem('wlp:stage7:study-notice:v1');
     setTimeout(() => showToast(notice), 80);
   }
+
+
+  /* Stage 7 v2.5 — present the actual current voice as the selector label
+     without changing app.js voice selection/cycling behavior. */
+  const compactVoiceLabel = raw => {
+    const value = String(raw || '').trim();
+    if (!value || /^default voice$/i.test(value)) return 'Default';
+    const match = value.match(/^(.*?)\s*·\s*([A-Za-z]{2})[-_]([A-Za-z]{2})$/);
+    if (!match) return value;
+    const name = match[1].trim();
+    const region = match[3].toUpperCase();
+    const regionLabel = ({ GB:'UK', US:'US', AU:'AU', CA:'CA', IE:'IE', NZ:'NZ', IN:'IN', ZA:'ZA' })[region] || region;
+    return `${name} · ${regionLabel}`;
+  };
+
+  const syncStage7VoiceControls = () => {
+    document.querySelectorAll('.voice-control').forEach(control => {
+      const btn = control.querySelector('.btn-voice');
+      const detail = control.querySelector('.voice-detail');
+      if (!btn || !detail) return;
+      const compact = compactVoiceLabel(detail.textContent);
+      const desired = `‹ ${compact} ›`;
+      if (btn.textContent !== desired) btn.textContent = desired;
+      btn.setAttribute('aria-label', `Voice: ${compact}. Tap to switch voice.`);
+    });
+  };
+
+  let voiceSyncQueued = false;
+  const queueStage7VoiceSync = () => {
+    if (voiceSyncQueued) return;
+    voiceSyncQueued = true;
+    requestAnimationFrame(() => {
+      voiceSyncQueued = false;
+      syncStage7VoiceControls();
+    });
+  };
+
+  const cardsMount = document.getElementById('cards') || document.body;
+  const voiceObserver = new MutationObserver(queueStage7VoiceSync);
+  voiceObserver.observe(cardsMount, { childList:true, subtree:true, characterData:true });
+  queueStage7VoiceSync();
+
 })();
