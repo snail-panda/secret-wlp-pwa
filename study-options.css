@@ -20,7 +20,7 @@ body.s7-study-options-open{overflow:hidden}
   position:absolute;
   top:0;
   right:0;
-  width:min(92vw,420px);
+  width:min(87vw,390px);
   height:100%;
   height:100dvh;
   overflow:auto;
@@ -78,16 +78,26 @@ body.s7-study-options-open{overflow:hidden}
   width:36px;
   height:36px;
   flex:0 0 36px;
-  border:0;
+  border:1px solid rgba(78,109,86,.10);
   border-radius:50%;
-  background:transparent;
-  color:#587064;
+  background:rgba(236,243,236,.76);
+  color:#557064;
   display:grid;
   place-items:center;
-  font-size:1.42rem;
+  padding:0;
   line-height:1;
 }
-.s7-study-options-close:active{background:#e7efe7}
+.s7-study-options-close svg{
+  width:17px;
+  height:17px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  pointer-events:none;
+}
+.s7-study-options-close:active{background:#e1ece3}
 
 .s7-study-options-intro{
   margin:0 2px 15px;
@@ -180,8 +190,7 @@ body.s7-study-options-open{overflow:hidden}
   color:#849088;
   font-size:.72rem;
 }
-.s7-custom-row select,
-.s7-voice-select{
+.s7-custom-row select{
   min-height:34px;
   max-width:58%;
   padding:5px 28px 5px 9px;
@@ -191,12 +200,50 @@ body.s7-study-options-open{overflow:hidden}
   color:#496355;
   font-size:.78rem;
 }
-.s7-voice-select{
+
+
+.s7-voice-cycle{
   width:100%;
-  max-width:none;
-  margin-top:2px;
+  min-height:40px;
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr) 38px;
+  align-items:center;
+  border:1px solid rgba(78,109,86,.17);
+  border-radius:11px;
+  background:#fbfcf8;
+  overflow:hidden;
+}
+.s7-voice-cycle button{
+  width:38px;
+  height:38px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#587165;
+  display:grid;
+  place-items:center;
+}
+.s7-voice-cycle button:active{background:#e9f0e9}
+.s7-voice-cycle button svg{
+  width:15px;
+  height:15px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.s7-voice-current{
+  min-width:0;
+  padding:0 6px;
+  color:#496355;
   font-family:"EB Garamond",Georgia,serif;
-  font-size:.9rem;
+  font-size:.92rem;
+  line-height:1.15;
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 .s7-side-grid{
@@ -277,9 +324,9 @@ body.s7-study-options-open{overflow:hidden}
 
 .stage7-study-body .s7-card-content-toggle{
   width:100%;
-  min-height:25px!important;
-  margin:1px 0 2px!important;
-  padding:1px 0!important;
+  min-height:22px!important;
+  margin:-3px 0 -2px!important;
+  padding:0!important;
   border:0!important;
   border-radius:0!important;
   background:transparent!important;
@@ -290,7 +337,7 @@ body.s7-study-options-open{overflow:hidden}
   gap:8px;
   box-shadow:none!important;
   font-family:"EB Garamond",Georgia,serif!important;
-  font-size:.80rem!important;
+  font-size:.78rem!important;
   font-weight:500!important;
   text-align:center;
   line-height:1.05!important;
@@ -301,7 +348,7 @@ body.s7-study-options-open{overflow:hidden}
   content:"";
   height:1px;
   flex:1 1 auto;
-  max-width:42px;
+  max-width:36px;
   background:rgba(84,111,91,.17);
 }
 
@@ -336,9 +383,19 @@ body.s7-study-options-open{overflow:hidden}
   touch-action:pan-y;
 }
 
+
+/* When Notes are collapsed, reclaim the vertical space before External Reference. */
+.stage7-study-body .s7-card-content-toggle[data-s7-field="notes"]:not([hidden])[aria-expanded="false"] ~ .back-utility-row{
+  margin-top:7px!important;
+}
+/* Focus deliberately removes secondary fields, so keep the utility row tight too. */
+.stage7-study-body[data-s7-content-preset="focus"] .flashcard .back .back-utility-row{
+  margin-top:7px!important;
+}
+
 @media (max-width:390px){
   .s7-study-options-sheet{
-    width:min(94vw,390px);
+    width:min(88vw,360px);
     padding-left:13px;
     padding-right:13px;
   }

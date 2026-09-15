@@ -69,8 +69,19 @@
       stroke-width:1.7!important;
     }
 
+
+    /* Stage 7 v1.2 — Continue Studying uses the whole card as its tap target. */
+    .continue-card:not([hidden]){
+      cursor:pointer;
+      -webkit-tap-highlight-color:rgba(72,108,82,.08);
+    }
+    .continue-card:focus-visible{
+      outline:2px solid rgba(65,105,78,.30);
+      outline-offset:3px;
+    }
+
 </style>
-  <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v11">
+  <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
 <body class="app-body">
   <div class="app-shell">
@@ -141,7 +152,7 @@
         </span>
       </a>
 
-      <section class="continue-card" id="continue-card" hidden>
+      <section class="continue-card" id="continue-card" role="link" tabindex="0" aria-label="Continue studying" hidden>
         <div><span class="section-kicker">Continue studying</span><strong id="continue-title">Deck WLP001</strong><small id="continue-meta">Return to your recent deck</small></div>
         <a id="continue-link" class="round-arrow" href="./deck-browser.html" aria-label="Continue studying">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
@@ -233,6 +244,6 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js?v=20260915-s7-v30"></script>
   <script src="./pwa-register.js?v=20260914-stage7-5"></script>
-  <script src="./study-options.js?v=20260915-s7-options-v11"></script>
+  <script src="./study-options.js?v=20260915-s7-options-v12"></script>
 </body>
 </html>

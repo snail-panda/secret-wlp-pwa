@@ -1581,3 +1581,19 @@ body.stage7-study-body{
 .stage7-study-body .study-context-options:active{
   background:#e8f0e9;
 }
+
+
+/* Study Options v1.2 — keep External Reference useful but visually secondary. */
+.stage7-study-body .flashcard .back .back-utility-row .external-link{
+  font-size:.91rem!important;
+  gap:6px!important;
+}
+.stage7-study-body .flashcard .back .back-utility-row .external-link .ui-icon{
+  width:17px!important;
+  height:17px!important;
+}
+@media(max-width:390px){
+  .stage7-study-body .flashcard .back .back-utility-row .external-link{
+    font-size:.87rem!important;
+  }
+}

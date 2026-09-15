@@ -132,10 +132,16 @@
             <h3>Audio</h3>
             <small>Default voice</small>
           </div>
-          <select class="s7-voice-select" id="s7-default-voice" aria-label="Default Study voice">
-            <option value="">System Default</option>
-          </select>
-          <p class="s7-option-help">Uses the English voices available on this device. You can still cycle voices from the card.</p>
+          <div class="s7-voice-cycle" id="s7-voice-cycle" role="group" aria-label="Default Study voice">
+            <button type="button" id="s7-voice-prev" aria-label="Previous voice">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+            </button>
+            <div class="s7-voice-current" id="s7-voice-current">System Default</div>
+            <button type="button" id="s7-voice-next" aria-label="Next voice">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg>
+            </button>
+          </div>
+          <p class="s7-option-help">Shows WLP’s preferred English study voices available on this device. You can still cycle voices from the card.</p>
         </section>
 
         <section class="s7-options-section">
@@ -161,7 +167,9 @@
   const sheet = panel.querySelector('.s7-study-options-sheet');
   const presetDescription = panel.querySelector('#s7-preset-description');
   const customPanel = panel.querySelector('#s7-custom-content');
-  const voiceSelect = panel.querySelector('#s7-default-voice');
+  const voiceCurrent = panel.querySelector('#s7-voice-current');
+  const voicePrev = panel.querySelector('#s7-voice-prev');
+  const voiceNext = panel.querySelector('#s7-voice-next');
   const swipeInput = panel.querySelector('#s7-swipe-cards');
 
   const closePanel = () => {
@@ -172,7 +180,7 @@
   const openPanel = () => {
     prefs = loadPrefs();
     syncPanel();
-    populateVoices();
+    normalizeStoredVoice();
     panel.hidden = false;
     document.body.classList.add('s7-study-options-open');
     setTimeout(() => panel.querySelector('.s7-study-options-close')?.focus(), 0);
@@ -227,7 +235,7 @@
     });
 
     swipeInput.checked = prefs.swipe;
-    if (voiceSelect) voiceSelect.value = currentVoice();
+    updateOptionsVoiceLabel();
   };
 
   const resetCollapsedState = () => {
@@ -316,6 +324,7 @@
 
   const applyCardContent = () => {
     const state = contentState();
+    document.body.dataset.s7ContentPreset = prefs.contentPreset;
     document.querySelectorAll('#cards .flashcard').forEach(card => {
       applyFieldMode(card, '.ex', 'example', 'Examples', state.example);
       applyFieldMode(card, '.syn', 'synonyms', 'Synonyms', state.synonyms);
@@ -334,10 +343,31 @@
     document.body.classList.toggle('s7-swipe-enabled', Boolean(prefs.swipe));
   };
 
+  const PREFERRED_VOICE_NAMES = [
+    'Samantha',
+    'Karen',
+    'Victoria',
+    'Daniel',
+    'Alex',
+    'Oliver',
+    'Microsoft Zira Desktop',
+    'Microsoft Aria',
+    'Microsoft David Desktop',
+    'Microsoft Guy'
+  ];
+
+  const NOVELTY_VOICE_RE = /\b(?:Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos?|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox)\b/i;
+
   const voiceLabel = voice => {
     if (!voice) return 'System Default';
     const locale = String(voice.lang || '').replace('_','-');
-    return locale ? `${voice.name} · ${locale}` : voice.name;
+    let region = locale;
+    const match = locale.match(/^en-([A-Za-z]{2})$/i);
+    if (match) {
+      const code = match[1].toUpperCase();
+      region = ({US:'US',GB:'UK',AU:'AU',CA:'CA',IE:'IE',NZ:'NZ',IN:'IN',ZA:'ZA'})[code] || code;
+    }
+    return region ? `${voice.name} · ${region}` : voice.name;
   };
 
   const getVoices = () => {
@@ -345,42 +375,99 @@
     return window.speechSynthesis.getVoices() || [];
   };
 
-  const populateVoices = () => {
-    if (!voiceSelect) return;
-    const selected = currentVoice();
+  const availableStudyVoices = () => {
     const voices = getVoices();
-    const english = voices.filter(v => /^en(?:-|_)/i.test(v.lang || ''));
-    const list = english.length ? english : voices;
+    if (!voices.length) return [];
 
-    const unique = [];
+    const preferred = [];
+    PREFERRED_VOICE_NAMES.forEach(name => {
+      const exact = voices.find(v =>
+        v &&
+        v.name === name &&
+        /^en(?:-|_)/i.test(v.lang || '')
+      );
+      if (exact) preferred.push(exact);
+    });
+    if (preferred.length) return preferred;
+
+    /* Fallback for an unfamiliar platform: English speech voices only,
+       excluding Apple's novelty/effect voices and duplicate names. */
+    const nameCounts = new Map();
+    voices.forEach(v => {
+      if (!v?.name) return;
+      nameCounts.set(v.name, (nameCounts.get(v.name) || 0) + 1);
+    });
     const seen = new Set();
-    list.forEach(v => {
-      if (!v?.name || seen.has(v.name)) return;
+    return voices.filter(v => {
+      if (!v?.name || !/^en(?:-|_)/i.test(v.lang || '')) return false;
+      if (NOVELTY_VOICE_RE.test(v.name)) return false;
+      /* app.js stores voices by name, so avoid ambiguous duplicate names
+         that can resolve to the wrong locale (e.g. Eddy variants). */
+      if ((nameCounts.get(v.name) || 0) > 1) return false;
+      if (seen.has(v.name)) return false;
       seen.add(v.name);
-      unique.push(v);
-    });
-    unique.sort((a,b) => a.name.localeCompare(b.name));
+      return true;
+    }).slice(0, 8);
+  };
 
-    voiceSelect.innerHTML = '<option value="">System Default</option>';
-    unique.forEach(voice => {
-      const option = document.createElement('option');
-      option.value = voice.name;
-      option.textContent = voiceLabel(voice);
-      voiceSelect.appendChild(option);
-    });
+  const voiceByStoredName = () => {
+    const selected = currentVoice();
+    if (!selected) return null;
+    return availableStudyVoices().find(v => v.name === selected) || null;
+  };
 
-    if (selected && !seen.has(selected)) {
-      const option = document.createElement('option');
-      option.value = selected;
-      option.textContent = `${selected} · saved`;
-      voiceSelect.appendChild(option);
+  const updateOptionsVoiceLabel = () => {
+    if (!voiceCurrent) return;
+    const selected = currentVoice();
+    const match = voiceByStoredName();
+    voiceCurrent.textContent = selected && match ? voiceLabel(match) : 'System Default';
+  };
+
+  const normalizeStoredVoice = () => {
+    const selected = currentVoice();
+    if (!selected) {
+      updateOptionsVoiceLabel();
+      return;
     }
-    voiceSelect.value = selected;
+    const allowed = availableStudyVoices();
+    if (!allowed.length) {
+      updateOptionsVoiceLabel();
+      return;
+    }
+    if (!allowed.some(v => v.name === selected)) {
+      localStorage.setItem(VOICE_KEY, allowed[0].name);
+    }
+    updateOptionsVoiceLabel();
+    updateVisibleVoiceLabels();
+  };
+
+  const cycleOptionsVoice = direction => {
+    const voices = availableStudyVoices();
+    if (!voices.length) {
+      localStorage.setItem(VOICE_KEY, '');
+      updateOptionsVoiceLabel();
+      updateVisibleVoiceLabels();
+      return;
+    }
+
+    const names = ['', ...voices.map(v => v.name)];
+    const cur = currentVoice();
+    let index = names.indexOf(cur);
+
+    if (index < 0) index = 0;
+    const nextIndex = (index + direction + names.length) % names.length;
+    localStorage.setItem(VOICE_KEY, names[nextIndex]);
+    updateOptionsVoiceLabel();
+    updateVisibleVoiceLabels();
   };
 
   const updateVisibleVoiceLabels = () => {
     const selected = currentVoice();
-    const match = getVoices().find(v => v.name === selected);
+    const match = getVoices().find(v =>
+      v &&
+      v.name === selected &&
+      /^en(?:-|_)/i.test(v.lang || '')
+    );
     const label = voiceLabel(match || (selected ? {name:selected, lang:''} : null));
     document.querySelectorAll('.voice-control').forEach(control => {
       const detail = control.querySelector('.voice-detail');
@@ -442,10 +529,8 @@
     button.addEventListener('click', () => applyCurrentMode(button.dataset.s7Side));
   });
 
-  voiceSelect?.addEventListener('change', () => {
-    localStorage.setItem(VOICE_KEY, voiceSelect.value || '');
-    updateVisibleVoiceLabels();
-  });
+  voicePrev?.addEventListener('click', () => cycleOptionsVoice(-1));
+  voiceNext?.addEventListener('click', () => cycleOptionsVoice(1));
 
   swipeInput?.addEventListener('change', () => {
     prefs.swipe = swipeInput.checked;
@@ -454,9 +539,9 @@
   });
 
   if ('speechSynthesis' in window) {
-    populateVoices();
+    normalizeStoredVoice();
     if (typeof window.speechSynthesis.addEventListener === 'function') {
-      window.speechSynthesis.addEventListener('voiceschanged', populateVoices);
+      window.speechSynthesis.addEventListener('voiceschanged', normalizeStoredVoice);
     }
   }
 

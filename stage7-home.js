@@ -186,7 +186,21 @@
     const card = document.getElementById('continue-card');
     document.getElementById('continue-title').textContent = `Deck WLP${pad}`;
     document.getElementById('continue-link').href = `./flashcards/wlp/batch.html?batch=${pad}`;
+    card.dataset.href = `./flashcards/wlp/batch.html?batch=${pad}`;
     card.hidden = false;
+
+    const openContinue = () => {
+      if (card.dataset.href) location.href = card.dataset.href;
+    };
+    card.addEventListener('click', event => {
+      if (event.target.closest('a,button')) return;
+      openContinue();
+    });
+    card.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      openContinue();
+    });
   }
 
   const list = document.getElementById('recent-home-list');
