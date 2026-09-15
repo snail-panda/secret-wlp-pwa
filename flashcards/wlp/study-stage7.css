@@ -1609,3 +1609,53 @@ body.stage7-study-body{
 .stage7-study-body .study-back-card{
   padding-bottom:12px!important;
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Global Search v3.1 result context
+   ========================================================= */
+.search-solo-actions{
+  width:min(100%,680px);
+  margin:-1px auto 7px;
+  padding:0 4px;
+  display:flex;
+  justify-content:flex-end;
+}
+.search-solo-view-deck{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  min-height:30px;
+  padding:2px 8px;
+  border-radius:999px;
+  color:#557264;
+  text-decoration:none;
+  font-family:var(--s7-serif);
+  font-size:.78rem;
+}
+.search-solo-view-deck svg{
+  width:13px;
+  height:13px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.search-solo-view-deck:active{background:rgba(225,237,226,.68)}
+.stage7-study-body.s7-search-solo .flashcard .front .nav-buttons,
+.stage7-study-body.s7-search-solo .flashcard .back .back-nav-chevron,
+.stage7-study-body.s7-search-solo #deck-nav-links,
+.stage7-study-body.s7-search-solo .study-shuffle-control{
+  display:none!important;
+}
+.stage7-study-body.s7-search-solo .flashcard .back .back-utility-row{
+  width:100%!important;
+  margin-left:0!important;
+  margin-right:0!important;
+  grid-template-columns:minmax(0,1fr)!important;
+}
+.stage7-study-body.s7-search-solo .flashcard .back .back-utility-row .external-link{
+  grid-column:1!important;
+  justify-self:center!important;
+}

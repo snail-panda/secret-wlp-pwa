@@ -6,6 +6,7 @@
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
   const WLP_ADMIN_PASSWORD_SHA256 = 'd199aa3ab28923618bab089d78e8faa5e5004d0bc37c22ae5589454d575d192c';
   const RESULT_LIMIT = 120;
+  const SEARCH_RETURN_STATE_KEY = 'wlp:stage7:global-search:return:v1';
   const $ = id => document.getElementById(id);
 
   const SEARCH_FIELDS = [
@@ -153,16 +154,47 @@
     mark.textContent = raw.slice(idx, idx + q.length);
     target.append(mark, document.createTextNode(raw.slice(idx + q.length)));
   }
-  function resultHref(row) {
+  function searchReturnPath() {
+    return `global-search.html${location.search || ''}`;
+  }
+  function resultDeckHref(row, { solo = false } = {}) {
+    const searchReturn = encodeURIComponent(searchReturnPath());
     if (row.__source === 'draft') {
       const draftDeck = Math.floor(Number(row.__draftIndex || 0) / 10) + 1;
       const local = row.__localId ? `&localid=${encodeURIComponent(row.__localId)}` : '';
-      return `./flashcards/wlp/batch.html?draft=${draftDeck}${local}`;
+      const soloPart = solo ? '&solo=1' : '';
+      return `./flashcards/wlp/batch.html?draft=${draftDeck}${local}${soloPart}&from=search&searchreturn=${searchReturn}`;
     }
     const batch = Number(row['Batch #'] || 0);
     const wid = String(row.WordID || '').trim();
     if (!batch) return './deck-browser.html';
-    return `./flashcards/wlp/batch.html?batch=${pad3(batch)}${wid ? `&wordid=${encodeURIComponent(wid)}` : ''}`;
+    const wordPart = wid ? `&wordid=${encodeURIComponent(wid)}` : '';
+    const soloPart = solo && wid ? '&solo=1' : '';
+    return `./flashcards/wlp/batch.html?batch=${pad3(batch)}${wordPart}${soloPart}&from=search&searchreturn=${searchReturn}`;
+  }
+  function saveSearchReturnState() {
+    try {
+      sessionStorage.setItem(SEARCH_RETURN_STATE_KEY, JSON.stringify({
+        path: searchReturnPath(),
+        scrollY: Math.max(0, Math.round(window.scrollY || 0)),
+        savedAt: Date.now()
+      }));
+    } catch {}
+  }
+  function restoreSearchReturnState() {
+    try {
+      const raw = sessionStorage.getItem(SEARCH_RETURN_STATE_KEY);
+      if (!raw) return;
+      const state = JSON.parse(raw);
+      if (!state || state.path !== searchReturnPath()) return;
+      if (Date.now() - Number(state.savedAt || 0) > 2 * 60 * 60 * 1000) {
+        sessionStorage.removeItem(SEARCH_RETURN_STATE_KEY);
+        return;
+      }
+      sessionStorage.removeItem(SEARCH_RETURN_STATE_KEY);
+      const y = Math.max(0, Number(state.scrollY || 0));
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top:y, left:0, behavior:'auto' })));
+    } catch {}
   }
   function locationText(row) {
     if (row.__source === 'draft') {
@@ -204,20 +236,49 @@
       const location = document.createElement('span'); location.className='location-badge'; location.textContent=locationText(row); loc.append(location);
       if (row.__source === 'draft') { const b=document.createElement('span'); b.className='local-badge'; b.textContent='Local draft'; loc.append(b); }
       else if (row.__hasOverride) { const b=document.createElement('span'); b.className='local-badge'; b.textContent='Local edit'; loc.append(b); }
+      if (row.__source !== 'draft') {
+        const viewDeck = document.createElement('a');
+        viewDeck.className='search-view-deck';
+        viewDeck.href=resultDeckHref(row);
+        viewDeck.innerHTML='<span>View in Deck</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
+        viewDeck.setAttribute('aria-label',`View ${row.Word || 'card'} in its deck`);
+        viewDeck.addEventListener('click', saveSearchReturnState);
+        loc.append(viewDeck);
+      }
       const label = document.createElement('div'); label.className='search-match-label';
       const strong = document.createElement('strong'); strong.textContent=`Matched in ${hit.match?.label || 'card'}`; label.append(strong);
       const snip = document.createElement('p'); snip.className='search-result-snippet'; appendHighlighted(snip, snippetFor(hit), q);
       main.append(top,loc,label); if (snip.textContent) main.append(snip);
-      const open = document.createElement('a'); open.className='search-open-card'; open.href=resultHref(row); open.setAttribute('aria-label',`Open ${row.Word || 'card'}`); open.title='Open card'; open.innerHTML='<span>Open Card</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
+
+      const openHref = resultDeckHref(row, {solo:true});
+      const open = document.createElement('a'); open.className='search-open-card'; open.href=openHref; open.setAttribute('aria-label',`Open ${row.Word || 'card'}`); open.title='Open card'; open.innerHTML='<span>Open Card</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
+      open.addEventListener('click', saveSearchReturnState);
+
+      card.addEventListener('click', event => {
+        if (event.target.closest('a,button,input,select,textarea,label')) return;
+        saveSearchReturnState();
+        location.href=openHref;
+      });
+
       card.append(main,open); resultsNode.append(card);
     });
     if (hits.length > RESULT_LIMIT) {
       const more=document.createElement('div'); more.className='search-result-more'; more.textContent=`Showing the first ${RESULT_LIMIT} results. Refine your search to narrow it down.`; resultsNode.append(more);
     }
   }
+  function syncSearchUrl(query) {
+    const next = new URLSearchParams();
+    const q = String(query || '').trim();
+    if (safeReturn) next.set('return', safeReturn);
+    if (q) next.set('q', q);
+    const suffix = next.toString();
+    history.replaceState(null,'',`./global-search.html${suffix ? `?${suffix}` : ''}`);
+  }
   function scheduleSearch() {
+    const q = $('global-search-input').value;
+    syncSearchUrl(q);
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => renderResults($('global-search-input').value), 55);
+    searchTimer = setTimeout(() => renderResults(q), 55);
   }
   async function loadEffectiveDeck() {
     try {
@@ -231,6 +292,7 @@
       effectiveRows = [...applyOverrides(master,overrides), ...drafts];
       $('search-source-meta').textContent = `${masterCount.toLocaleString()} Master cards · ${draftCount.toLocaleString()} local draft${draftCount === 1 ? '' : 's'} · ${overrideCount.toLocaleString()} local edit${overrideCount === 1 ? '' : 's'}`;
       renderResults($('global-search-input').value);
+      restoreSearchReturnState();
     } catch (error) {
       console.error('Global Search could not load the Effective Deck:', error);
       $('search-source-meta').textContent = 'Could not load the Effective Deck.';
@@ -256,7 +318,7 @@
   const initialQ = params.get('q') || '';
   input.value = initialQ;
   input.addEventListener('input', scheduleSearch);
-  $('global-search-clear').addEventListener('click', () => { input.value=''; renderResults(''); input.focus(); history.replaceState(null,'', safeReturn ? `./global-search.html?return=${encodeURIComponent(safeReturn)}` : './global-search.html'); });
+  $('global-search-clear').addEventListener('click', () => { input.value=''; renderResults(''); syncSearchUrl(''); input.focus(); });
   if (initialQ) setTimeout(() => input.setSelectionRange(input.value.length,input.value.length), 0);
 
   // Shared Stage 7 shell behavior.

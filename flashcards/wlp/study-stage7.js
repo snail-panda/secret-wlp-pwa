@@ -8,6 +8,44 @@
   const batchRaw = params.get('batch');
   const batchNum = Number(batchRaw);
   const isNormalDeck = Number.isFinite(batchNum) && batchNum > 0 && !params.get('review') && !params.get('draft');
+  const isFromSearch = params.get('from') === 'search';
+  const isSearchSolo = isFromSearch && params.get('solo') === '1';
+  const searchReturnRaw = String(params.get('searchreturn') || '').replace(/^\/+/, '');
+  const safeSearchReturn = searchReturnRaw && !searchReturnRaw.includes('..') && /^[A-Za-z0-9_./?&=%#-]+$/.test(searchReturnRaw)
+    ? searchReturnRaw
+    : '';
+
+  if (isFromSearch) {
+    document.body.classList.add('s7-from-search');
+    if (isSearchSolo) document.body.classList.add('s7-search-solo');
+
+    const backToSearch = document.querySelector('.study-back-decks');
+    if (backToSearch) {
+      backToSearch.href = `../../${safeSearchReturn || 'global-search.html'}`;
+      backToSearch.setAttribute('aria-label', 'Back to Search');
+      const label = backToSearch.querySelector('span');
+      if (label) label.textContent = 'Back to Search';
+    }
+
+    if (isSearchSolo && isNormalDeck && params.get('wordid')) {
+      const context = document.querySelector('.study-context');
+      if (context) {
+        const actions = document.createElement('div');
+        actions.className = 'search-solo-actions';
+        const view = document.createElement('a');
+        view.className = 'search-solo-view-deck';
+        const next = new URLSearchParams();
+        next.set('batch', String(batchRaw));
+        next.set('wordid', String(params.get('wordid')));
+        next.set('from', 'search');
+        if (safeSearchReturn) next.set('searchreturn', safeSearchReturn);
+        view.href = `./batch.html?${next.toString()}`;
+        view.innerHTML = '<span>View in Deck</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
+        actions.append(view);
+        context.insertAdjacentElement('afterend', actions);
+      }
+    }
+  }
 
   /* Stage 7 v3.0 — Global Search always knows how to return to the exact
      Study URL that launched it. Both the header icon and drawer entry use
@@ -66,7 +104,7 @@
     const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
     if (!cards.length) return;
     if (draftTargetPending) {
-      const index = draftTargetIndex();
+      const index = isSearchSolo ? 0 : draftTargetIndex();
       draftTargetPending = false;
       if (activateRenderedCard(cards, index)) { returnCardPending = false; return; }
     }

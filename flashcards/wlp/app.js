@@ -34,6 +34,9 @@ const DRAFT_PARAM =
 const WORDID_PARAM =
   PARAMS.get("wordid");
 
+const LOCALID_PARAM =
+  PARAMS.get("localid");
+
 const SOLO_PARAM =
   PARAMS.get("solo");
 
@@ -45,7 +48,10 @@ const IS_FROM_PROGRESS =
 
 const IS_SOLO_MODE =
   SOLO_PARAM === "1" &&
-  Boolean(WORDID_PARAM);
+  Boolean(
+    WORDID_PARAM ||
+    (DRAFT_PARAM && LOCALID_PARAM)
+  );
 
 const IS_REVIEW_MODE =
   Boolean(REVIEW_PARAM);
@@ -3008,6 +3014,43 @@ installAdjacentDeckLinks(
 
     label =
       BATCH_PARAM;
+
+  }
+
+
+  if (
+    IS_DRAFT_MODE &&
+    IS_SOLO_MODE &&
+    LOCALID_PARAM
+  ) {
+
+    const draftIndex =
+      selectedRows.findIndex(
+        row =>
+          String(
+            row.__localId || ""
+          ).trim() ===
+          String(
+            LOCALID_PARAM
+          ).trim()
+      );
+
+    if (draftIndex >= 0) {
+      selectedRows = [
+        selectedRows[draftIndex]
+      ];
+    } else {
+      document
+        .getElementById(
+          "cards"
+        )
+        .innerHTML = `
+          <div style="text-align:center;padding:3em 1em;">
+            This local draft card could not be found.
+          </div>
+        `;
+      return;
+    }
 
   }
 
