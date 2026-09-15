@@ -1612,21 +1612,20 @@ body.stage7-study-body{
 
 
 /* =========================================================
-   WLP Stage 7 — Global Search v3.1.1 result context
-   Open Card keeps its deck action in the same context row.
+   WLP Stage 7 — Global Search v3.1.2 result context
+   Keep the deck title truly centered; View in Deck becomes a
+   separate right-side action in the same row.
    ========================================================= */
-.search-solo-context-center{
+.stage7-study-body.s7-search-solo .study-context > .study-deck-title{
+  grid-column:2;
+  grid-row:1;
   justify-self:center;
-  display:inline-flex;
-  align-items:center;
-  gap:5px;
-  min-width:0;
-  white-space:nowrap;
-}
-.search-solo-context-center .study-deck-title{
-  flex:none;
 }
 .search-solo-view-deck{
+  grid-column:3;
+  grid-row:1;
+  justify-self:start;
+  align-self:center;
   display:inline-flex;
   align-items:center;
   gap:1px;
@@ -1638,11 +1637,12 @@ body.stage7-study-body{
   font-size:.74rem;
   font-weight:400;
   letter-spacing:0;
+  white-space:nowrap;
 }
-.search-solo-view-deck::before{
-  content:'·';
-  margin:0 3px 0 0;
-  color:#91a398;
+.stage7-study-body.s7-search-solo .study-context-options{
+  grid-column:3;
+  grid-row:1;
+  justify-self:end;
 }
 .search-solo-view-deck svg{
   width:12px;
@@ -1658,9 +1658,7 @@ body.stage7-study-body{
   text-underline-offset:2px;
 }
 @media(max-width:390px){
-  .search-solo-context-center{gap:3px}
   .search-solo-view-deck{font-size:.71rem}
-  .search-solo-view-deck::before{margin-right:2px}
 }
 .stage7-study-body.s7-search-solo .flashcard .front .nav-buttons,
 .stage7-study-body.s7-search-solo .flashcard .back .back-nav-chevron,
