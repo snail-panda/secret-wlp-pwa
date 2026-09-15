@@ -299,7 +299,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260915-s7-v22" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260915-s7-v24" />
 </head>
 <body class="stage7-study-body">
   <div class="study-app-shell">
@@ -362,7 +362,11 @@
         <pre class="ex"></pre>
         <pre class="syn"></pre>
         <pre class="note"></pre>
-        <a class="external-link" target="_blank"><svg class="ui-icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.75"></circle><path d="M14.75 14.75 20 20"></path></svg><span>External Reference</span></a>
+        <div class="back-utility-row" aria-label="Answer navigation and reference">
+          <button class="btn-prev back-nav-chevron" aria-label="Previous card" title="Previous card">‹</button>
+          <a class="external-link" target="_blank"><svg class="ui-icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.75"></circle><path d="M14.75 14.75 20 20"></path></svg><span>External Reference</span></a>
+          <button class="btn-next back-nav-chevron" aria-label="Next card" title="Next card">›</button>
+        </div>
         <div class="spacer"></div>
 		<!-- TTS Buttons -->
 <div class="tts-buttons" style="text-align:center; margin: 8px 0;">
@@ -391,10 +395,6 @@
         <button class="btn-studied">Studied</button>
         <button class="btn-review">Review</button>
         <button class="btn-shuffle"><svg class="ui-icon shuffle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4.5 0 5.5 10 10 10h3"></path><path d="m17 14 3 3-3 3"></path><path d="M4 17h3c1.7 0 2.9-1.4 4-3.2"></path><path d="M14 8.2C15 7.5 16 7 17 7h3"></path><path d="m17 4 3 3-3 3"></path></svg><span>Shuffle</span></button>
-        <div class="nav-buttons">
-          <button class="btn-prev" aria-label="Previous card" title="Previous card">‹</button>
-          <button class="btn-next" aria-label="Next card" title="Next card">›</button>
-        </div>
         <span class="card-tag"></span>
       </div>
     </div>
