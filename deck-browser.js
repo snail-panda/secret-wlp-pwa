@@ -14,7 +14,8 @@
   let majorRange = null;
   let minorRange = null;
   let searchQuery = '';
-  let recentExpanded = false;
+  const initialView = new URLSearchParams(location.search).get('view');
+  let recentExpanded = initialView === 'recent';
   let pinnedExpanded = false;
 
   function readList(key) {
@@ -305,6 +306,11 @@
     renderShortcuts();
   });
 
+  document.querySelector('.range-jump-link')?.addEventListener('click', e => {
+    e.preventDefault();
+    $('browse-section').scrollIntoView({behavior: 'smooth', block: 'start'});
+  });
+
   $('recent-toggle').addEventListener('click', () => {
     recentExpanded = !recentExpanded;
     renderShortcuts();
@@ -463,7 +469,7 @@
       $('deck-count').textContent = `${maxBatch} decks`;
       renderShortcuts();
       renderBrowse();
-      if (new URLSearchParams(location.search).get('view') === 'recent' && !$('recent-section').hidden) {
+      if (initialView === 'recent' && !$('recent-section').hidden) {
         $('recent-section').scrollIntoView({behavior: 'smooth', block: 'start'});
       }
     })

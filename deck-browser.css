@@ -116,3 +116,30 @@
 .study-options-button:active{
   background:#e8f0e9;
 }
+
+
+/* Browse-by-Range inline shortcut v3.0.7 */
+.range-jump-link{
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+  color:#557264;
+  text-decoration:none;
+  font-weight:500;
+}
+.range-jump-link svg{
+  width:13px;
+  height:13px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  transform:translateY(1px);
+}
+.range-jump-link:active{
+  opacity:.7;
+}
+#browse-section{
+  scroll-margin-top:14px;
+}
