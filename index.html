@@ -22,16 +22,31 @@
         <svg class="brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
         <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
       </a>
-      <a class="icon-button" href="./legacy-home.html" aria-label="Open legacy WLP tools" title="Legacy WLP tools">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.7.6 1 .28.3.67.48 1.1.5h.1v4h-.1a1.7 1.7 0 0 0-1.7.5Z"/></svg>
-      </a>
+      <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
+        <span class="role-dot" aria-hidden="true"></span><span id="role-label">Guest</span>
+      </button>
     </header>
 
     <main class="home-main">
       <section class="hero garden-panel">
-        <div class="hero-leaves" aria-hidden="true"></div>
-        <p class="eyebrow">Your English, growing with you.</p>
-        <h1>Grow your<br>English, naturally.</h1>
+        <div class="secret-garden-art" aria-hidden="true">
+          <svg viewBox="0 0 360 190">
+            <path class="garden-arch" d="M76 174V78C76 33 112 12 180 12s104 21 104 66v96"/>
+            <path class="garden-vine" d="M68 171c27-17 30-51 13-71M292 171c-27-17-30-51-13-71"/>
+            <path class="garden-leaf" d="M78 123c-13-11-21-8-25-3 7 10 15 12 25 3ZM282 119c13-11 21-8 25-3-7 10-15 12-25 3ZM82 147c-15-7-22-2-24 4 10 7 18 6 24-4ZM278 145c15-7 22-2 24 4-10 7-18 6-24-4Z"/>
+            <g class="robin">
+              <path d="M245 73c-18-15-40-4-40 16 0 17 14 28 32 26 17-2 29-15 28-31-1-5-3-8-6-12-4 5-8 7-14 1Z"/>
+              <path d="M215 91c9 6 18 7 28 3-5 14-15 20-27 17"/>
+              <path d="M263 78l17 4-16 6"/>
+              <circle cx="250" cy="75" r="2.4"/>
+              <path d="M280 83c10 4 18 9 24 17"/>
+              <circle cx="306" cy="102" r="8"/>
+              <path d="M306 110v19m0-10h10m-10 5h8"/>
+            </g>
+          </svg>
+        </div>
+        <p class="eyebrow">The secret garden is always open now.</p>
+        <h1>Now the whole <em>word</em><br>is a garden.</h1>
         <button class="search-launch" id="search-launch" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
           <span>Search words, meanings, or examples…</span>
@@ -80,7 +95,11 @@
       <a href="./deck-browser.html">Study / Deck Browser</a>
       <a href="./legacy-home.html#review">Review</a>
       <a href="./legacy-home.html#drafts">Drafts</a>
-      <a href="./legacy-home.html">Progress / Admin tools</a>
+      <a href="./legacy-home.html">Progress</a>
+      <hr>
+      <span class="drawer-section-label">Account / Mode</span>
+      <button class="drawer-action" id="drawer-role-action" type="button">Admin Login</button>
+      <button class="drawer-action" id="drawer-settings" type="button">Settings</button>
       <hr>
       <a href="./legacy-home.html">Phrasal Verbs</a>
       <a href="./legacy-home.html">Media Language</a>
@@ -88,8 +107,27 @@
     </nav>
   </aside>
 
+  <div class="role-menu" id="role-menu" role="menu" hidden>
+    <strong id="role-menu-title">Guest mode</strong>
+    <small id="role-menu-copy">Study normally without editing tools.</small>
+    <button id="role-menu-action" type="button" role="menuitem">Admin Login</button>
+  </div>
+
+  <div class="admin-gate" id="admin-gate" hidden>
+    <form class="admin-card" id="admin-form" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+      <button class="admin-close" id="admin-close" type="button" aria-label="Close admin login">×</button>
+      <span class="section-kicker">WLP access</span>
+      <h2 id="admin-title">Admin Login</h2>
+      <p>Enter the existing WLP admin password to unlock editing and import/export tools.</p>
+      <label><span>Password</span><input id="admin-password" type="password" autocomplete="current-password" required></label>
+      <label class="remember-admin"><input id="remember-admin" type="checkbox"><span>Remember Admin on this device</span></label>
+      <p class="admin-error" id="admin-error" hidden>Incorrect admin password.</p>
+      <div class="admin-actions"><button id="admin-cancel" type="button">Cancel</button><button type="submit">Login as Admin</button></div>
+    </form>
+  </div>
+
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js"></script>
-  <script src="./pwa-register.js?v=20260914-stage7-1"></script>
+  <script src="./pwa-register.js?v=20260914-stage7-2"></script>
 </body>
 </html>
