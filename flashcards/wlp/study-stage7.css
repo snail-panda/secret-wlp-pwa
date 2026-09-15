@@ -1295,3 +1295,67 @@ body.stage7-study-body{
   .stage7-study-body .study-mode-utility{font-size:.72rem}
   .stage7-study-body .study-shuffle-control{gap:2px}
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Study spacing + utility polish v2.8
+   ========================================================= */
+
+/* The saved-take warning owns a real line below the take controls.
+   It must never float into the Studied / Review row. */
+.stage7-study-body .study-record-center .record-practice .record-clear-note{
+  flex:1 0 100%!important;
+  width:100%!important;
+  min-height:1.05rem;
+  margin:2px 0 0!important;
+  padding:0!important;
+  position:static!important;
+  display:block;
+  text-align:center;
+  font-family:var(--s7-serif);
+  font-size:.70rem!important;
+  line-height:1.15!important;
+  color:#81786e!important;
+  white-space:normal!important;
+}
+.stage7-study-body .study-record-center .record-practice .record-clear-note[hidden]{
+  display:none!important;
+}
+.stage7-study-body .study-learning-practice.is-record-expanded .study-record-center{
+  padding-bottom:2px;
+}
+.stage7-study-body .study-learning-practice.is-record-expanded{
+  row-gap:12px;
+}
+
+/* Front / Shuffle are deliberately quieter than the central mode switch,
+   but now read clearly as tappable utility controls. */
+.stage7-study-body .study-mode-utility{
+  border:1px solid rgba(75,105,78,.13);
+  background:rgba(255,255,255,.34);
+  border-radius:999px;
+  min-height:34px;
+  padding:5px 9px;
+  color:#557264;
+}
+.stage7-study-body .study-mode-utility:active{
+  background:rgba(221,234,222,.58);
+  border-color:rgba(75,105,78,.20);
+}
+.stage7-study-body .study-front-control.is-visible{
+  opacity:.92;
+}
+.stage7-study-body .study-shuffle-control{
+  opacity:.86;
+}
+
+@media(max-width:560px){
+  .stage7-study-body .study-mode-utility{
+    min-height:32px;
+    padding-left:7px;
+    padding-right:7px;
+  }
+  .stage7-study-body .study-record-center .record-practice .record-clear-note{
+    font-size:.68rem!important;
+  }
+}
