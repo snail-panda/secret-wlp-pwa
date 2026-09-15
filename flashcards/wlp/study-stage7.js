@@ -230,19 +230,71 @@
     });
   };
 
-  let voiceSyncQueued = false;
-  const queueStage7VoiceSync = () => {
-    if (voiceSyncQueued) return;
-    voiceSyncQueued = true;
+  /* Front-side Studied / Review controls are visual proxies. app.js still
+     owns the real progress actions on the answer side, so progress behavior
+     and storage remain unchanged. */
+  const syncFrontProgressProxies = () => {
+    document.querySelectorAll('.flashcard').forEach(root => {
+      const realStudied = root.querySelector('.back .btn-studied');
+      const realReview = root.querySelector('.back .btn-review');
+      const frontStudied = root.querySelector('.btn-studied-front');
+      const frontReview = root.querySelector('.btn-review-front');
+      if (frontStudied && realStudied) {
+        frontStudied.disabled = Boolean(realStudied.disabled);
+        frontStudied.title = realStudied.title || 'Mark as studied';
+      }
+      if (frontReview && realReview) {
+        frontReview.disabled = Boolean(realReview.disabled);
+        frontReview.title = realReview.title || 'Mark for review';
+      }
+    });
+  };
+
+  const syncRecordingLayout = () => {
+    document.querySelectorAll('.study-learning-practice').forEach(row => {
+      const practice = row.querySelector('.record-practice');
+      if (!practice) return;
+      const visibleButtons = Array.from(practice.querySelectorAll('button'))
+        .filter(button => !button.hidden);
+      row.classList.toggle('is-record-expanded', visibleButtons.length > 1);
+    });
+  };
+
+  let uiSyncQueued = false;
+  const queueStage7UiSync = () => {
+    if (uiSyncQueued) return;
+    uiSyncQueued = true;
     requestAnimationFrame(() => {
-      voiceSyncQueued = false;
+      uiSyncQueued = false;
       syncStage7VoiceControls();
+      syncFrontProgressProxies();
+      syncRecordingLayout();
     });
   };
 
   const cardsMount = document.getElementById('cards') || document.body;
-  const voiceObserver = new MutationObserver(queueStage7VoiceSync);
-  voiceObserver.observe(cardsMount, { childList:true, subtree:true, characterData:true });
-  queueStage7VoiceSync();
+  cardsMount.addEventListener('click', event => {
+    const studiedProxy = event.target.closest('.btn-studied-front');
+    if (studiedProxy) {
+      const real = studiedProxy.closest('.flashcard')?.querySelector('.back .btn-studied');
+      if (real && !real.disabled) real.click();
+      return;
+    }
+    const reviewProxy = event.target.closest('.btn-review-front');
+    if (reviewProxy) {
+      const real = reviewProxy.closest('.flashcard')?.querySelector('.back .btn-review');
+      if (real && !real.disabled) real.click();
+    }
+  });
+
+  const uiObserver = new MutationObserver(queueStage7UiSync);
+  uiObserver.observe(cardsMount, {
+    childList:true,
+    subtree:true,
+    characterData:true,
+    attributes:true,
+    attributeFilter:['hidden','disabled']
+  });
+  queueStage7UiSync();
 
 })();

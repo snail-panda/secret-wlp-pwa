@@ -998,3 +998,221 @@ body.stage7-study-body{
     max-width:none!important;
   }
 }
+
+/* =========================================================
+   WLP Stage 7 — Study learning/practice refinement v2.6
+   Recording is no longer boxed off. Studied / Record / Review
+   share one lightweight action row. Front progress controls proxy
+   the existing progress actions so app.js behavior stays unchanged.
+   ========================================================= */
+
+/* Move the card chevrons closer to the physical card edges and make the
+   touch target taller without turning them into visible button boxes. */
+.stage7-study-body .flashcard .front .study-front-card .nav-buttons{
+  left:-18px!important;
+  right:-18px!important;
+}
+.stage7-study-body .flashcard .front .study-front-card .nav-buttons .btn-prev,
+.stage7-study-body .flashcard .front .study-front-card .nav-buttons .btn-next{
+  width:48px!important;
+  min-width:48px!important;
+  height:82px!important;
+  min-height:82px!important;
+  font-size:1.92rem!important;
+}
+
+/* Back chevrons sit in the collision-proof External Reference row, but the
+   row itself now reaches almost to the paper-card edge. */
+.stage7-study-body .flashcard .back .back-utility-row{
+  width:calc(100% + 24px)!important;
+  margin-left:-12px!important;
+  margin-right:-12px!important;
+  grid-template-columns:52px minmax(0,1fr) 52px!important;
+}
+.stage7-study-body .flashcard .back .back-nav-chevron{
+  width:48px!important;
+  min-width:48px!important;
+  height:64px!important;
+  min-height:64px!important;
+  font-size:1.82rem!important;
+}
+
+/* Audio/playback remains its own small row. The recording/progress row below
+   has no enclosing card, border, or tinted panel. */
+.stage7-study-body .study-learning-practice{
+  width:min(100%,620px);
+  margin:11px auto 0;
+  display:grid;
+  grid-template-columns:minmax(88px,1fr) minmax(126px,auto) minmax(88px,1fr);
+  align-items:start;
+  gap:9px;
+}
+.stage7-study-body .study-learning-practice > .btn-studied,
+.stage7-study-body .study-learning-practice > .btn-review,
+.stage7-study-body .study-learning-practice > .btn-studied-front,
+.stage7-study-body .study-learning-practice > .btn-review-front{
+  width:100%!important;
+  max-width:160px!important;
+  min-width:0!important;
+  min-height:44px!important;
+  margin:0!important;
+  padding:8px 10px!important;
+  border-radius:12px!important;
+  font-family:var(--s7-serif)!important;
+  font-size:.98rem!important;
+  font-weight:600!important;
+  box-shadow:none!important;
+}
+.stage7-study-body .study-learning-practice > .btn-studied,
+.stage7-study-body .study-learning-practice > .btn-studied-front{
+  justify-self:end;
+  color:#315f43!important;
+  background:#e6f0e5!important;
+  border:1px solid #ccdeca!important;
+}
+.stage7-study-body .study-learning-practice > .btn-review,
+.stage7-study-body .study-learning-practice > .btn-review-front{
+  justify-self:start;
+  color:#755f4f!important;
+  background:#f5eee7!important;
+  border:1px solid #e8d7c8!important;
+}
+.stage7-study-body .study-learning-practice > button:disabled{
+  opacity:.45!important;
+}
+
+.stage7-study-body .study-record-center{
+  min-width:126px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:4px;
+}
+.stage7-study-body .study-record-center .record-practice{
+  width:auto!important;
+  max-width:100%;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  flex-wrap:wrap!important;
+  margin:0!important;
+}
+.stage7-study-body .study-record-center .record-practice button{
+  min-height:44px!important;
+  min-width:auto!important;
+  margin:0!important;
+  padding:7px 10px!important;
+  border-radius:12px!important;
+  font-family:var(--s7-serif)!important;
+  font-size:.93rem!important;
+  font-weight:500!important;
+  box-shadow:none!important;
+}
+.stage7-study-body .study-record-center .record-practice .btn-record{
+  min-width:118px!important;
+  color:#704e57!important;
+  background:#f6e5e9!important;
+  border:1px solid #e7c9d0!important;
+}
+.stage7-study-body .study-record-caption{
+  display:block;
+  font-family:var(--s7-serif);
+  font-size:.76rem;
+  line-height:1.15;
+  color:#7a786f;
+  text-align:center;
+  white-space:nowrap;
+}
+.stage7-study-body .study-record-center .record-status{
+  flex:1 0 100%;
+  width:100%;
+  margin:1px 0 0!important;
+  text-align:center!important;
+  font-family:var(--s7-serif);
+  font-size:.74rem!important;
+  color:#758078;
+}
+
+/* My Take / Saved Take states need more horizontal room. The row expands
+   gracefully instead of growing a second enclosing panel. */
+.stage7-study-body .study-learning-practice.is-record-expanded{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  row-gap:8px;
+}
+.stage7-study-body .study-learning-practice.is-record-expanded .study-record-center{
+  grid-column:1 / -1;
+  grid-row:1;
+  width:100%;
+}
+.stage7-study-body .study-learning-practice.is-record-expanded > .btn-studied,
+.stage7-study-body .study-learning-practice.is-record-expanded > .btn-studied-front{
+  grid-column:1;
+  grid-row:2;
+  justify-self:stretch;
+  max-width:none!important;
+}
+.stage7-study-body .study-learning-practice.is-record-expanded > .btn-review,
+.stage7-study-body .study-learning-practice.is-record-expanded > .btn-review-front{
+  grid-column:2;
+  grid-row:2;
+  justify-self:stretch;
+  max-width:none!important;
+}
+
+/* Back to Word remains separate for now; its final home will be decided with
+   the future Hint / Study Options pass. */
+.stage7-study-body .study-back-return{
+  margin:9px auto 0;
+  text-align:center;
+}
+.stage7-study-body .study-back-return .btn-flip-back{
+  margin:0!important;
+}
+
+@media(max-width:560px){
+  .stage7-study-body .study-learning-practice{
+    grid-template-columns:minmax(82px,1fr) minmax(116px,auto) minmax(82px,1fr);
+    gap:7px;
+  }
+  .stage7-study-body .study-learning-practice > .btn-studied,
+  .stage7-study-body .study-learning-practice > .btn-review,
+  .stage7-study-body .study-learning-practice > .btn-studied-front,
+  .stage7-study-body .study-learning-practice > .btn-review-front{
+    font-size:.91rem!important;
+    padding-left:6px!important;
+    padding-right:6px!important;
+  }
+  .stage7-study-body .study-record-center .record-practice .btn-record{
+    min-width:108px!important;
+  }
+  .stage7-study-body .study-record-caption{
+    font-size:.72rem;
+  }
+  .stage7-study-body .flashcard .front .study-front-card .nav-buttons{
+    left:-16px!important;
+    right:-16px!important;
+  }
+  .stage7-study-body .flashcard .back .back-utility-row{
+    width:calc(100% + 20px)!important;
+    margin-left:-10px!important;
+    margin-right:-10px!important;
+  }
+}
+
+@media(max-width:390px){
+  .stage7-study-body .study-learning-practice{
+    grid-template-columns:minmax(76px,1fr) minmax(108px,auto) minmax(76px,1fr);
+    gap:6px;
+  }
+  .stage7-study-body .study-learning-practice > .btn-studied,
+  .stage7-study-body .study-learning-practice > .btn-review,
+  .stage7-study-body .study-learning-practice > .btn-studied-front,
+  .stage7-study-body .study-learning-practice > .btn-review-front{
+    font-size:.87rem!important;
+  }
+  .stage7-study-body .study-record-center .record-practice .btn-record{
+    min-width:102px!important;
+  }
+}

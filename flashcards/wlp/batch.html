@@ -299,7 +299,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260915-s7-v24" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260915-s7-v26" />
 </head>
 <body class="stage7-study-body">
   <div class="study-app-shell">
@@ -345,19 +345,23 @@
             <button class="btn-speak"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Listen</span></button>
             <span class="voice-control"><button class="btn-voice" type="button" title="Switch Voice">‹ Voice ›</button><span class="voice-detail" aria-live="polite"></span></span>
           </div>
-          <div class="study-record-strip">
-            <span class="study-practice-label">Pronunciation</span>
-            <div class="record-practice" data-record-kind="word">
-          <button type="button" class="btn-record" title="Record your pronunciation"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
-          <button type="button" class="btn-record-stop" hidden>■ Stop</button>
-          <button type="button" class="btn-record-mine" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>My Take</span></button>
-          <button type="button" class="btn-record-save" hidden>♡ Save</button>
-          <button type="button" class="btn-record-retake" hidden title="Record a new take"><svg class="ui-icon retake-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"></path><path d="M19.2 11A7.5 7.5 0 1 0 19 16"></path></svg><span>Retake</span></button>
-          <span class="record-clear-group"><button type="button" class="btn-record-clear" hidden title="Clear the current unsaved take"><svg class="ui-icon clear-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg><span>Clear</span></button><span class="record-clear-note" hidden>Saved Take won’t be deleted.</span></span>
-          <button type="button" class="btn-record-saved" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Saved Take</span></button>
-          <button type="button" class="btn-record-delete" hidden title="Delete saved take">Delete</button>
-          <span class="record-status"></span>
-        </div>
+          <div class="study-learning-practice">
+            <button type="button" class="btn-studied-front">Studied</button>
+            <div class="study-record-center">
+              <div class="record-practice" data-record-kind="word">
+                <button type="button" class="btn-record" title="Record your pronunciation"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
+                <button type="button" class="btn-record-stop" hidden>■ Stop</button>
+                <button type="button" class="btn-record-mine" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>My Take</span></button>
+                <button type="button" class="btn-record-save" hidden>♡ Save</button>
+                <button type="button" class="btn-record-retake" hidden title="Record a new take"><svg class="ui-icon retake-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"></path><path d="M19.2 11A7.5 7.5 0 1 0 19 16"></path></svg><span>Retake</span></button>
+                <span class="record-clear-group"><button type="button" class="btn-record-clear" hidden title="Clear the current unsaved take"><svg class="ui-icon clear-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg><span>Clear</span></button><span class="record-clear-note" hidden>Saved Take won’t be deleted.</span></span>
+                <button type="button" class="btn-record-saved" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Saved Take</span></button>
+                <button type="button" class="btn-record-delete" hidden title="Delete saved take">Delete</button>
+                <span class="record-status"></span>
+              </div>
+              <span class="study-record-caption">Record your pronunciation</span>
+            </div>
+            <button type="button" class="btn-review-front">Review</button>
           </div>
         </section>
       </div>
@@ -388,19 +392,23 @@
             <button class="btn-tts-all"><svg class="ui-icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Read All</span></button>
           </div>
           <div class="study-voice-strip"><span class="voice-control"><button class="btn-voice" type="button" title="Switch Voice">‹ Voice ›</button><span class="voice-detail" aria-live="polite"></span></span></div>
-          <div class="study-record-strip">
-            <span class="study-practice-label">Example Practice</span>
-            <div class="record-practice" data-record-kind="example">
-          <button type="button" class="btn-record" title="Record the example sentence"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
-          <button type="button" class="btn-record-stop" hidden>■ Stop</button>
-          <button type="button" class="btn-record-mine" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>My Take</span></button>
-          <button type="button" class="btn-record-save" hidden>♡ Save</button>
-          <button type="button" class="btn-record-retake" hidden title="Record a new take"><svg class="ui-icon retake-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"></path><path d="M19.2 11A7.5 7.5 0 1 0 19 16"></path></svg><span>Retake</span></button>
-          <span class="record-clear-group"><button type="button" class="btn-record-clear" hidden title="Clear the current unsaved take"><svg class="ui-icon clear-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg><span>Clear</span></button><span class="record-clear-note" hidden>Saved Take won’t be deleted.</span></span>
-          <button type="button" class="btn-record-saved" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Saved Take</span></button>
-          <button type="button" class="btn-record-delete" hidden title="Delete saved take">Delete</button>
-          <span class="record-status"></span>
-        </div>
+          <div class="study-learning-practice">
+            <button class="btn-studied">Studied</button>
+            <div class="study-record-center">
+              <div class="record-practice" data-record-kind="example">
+                <button type="button" class="btn-record" title="Record the example sentence"><svg class="ui-icon mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg><span>Record</span></button>
+                <button type="button" class="btn-record-stop" hidden>■ Stop</button>
+                <button type="button" class="btn-record-mine" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>My Take</span></button>
+                <button type="button" class="btn-record-save" hidden>♡ Save</button>
+                <button type="button" class="btn-record-retake" hidden title="Record a new take"><svg class="ui-icon retake-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"></path><path d="M19.2 11A7.5 7.5 0 1 0 19 16"></path></svg><span>Retake</span></button>
+                <span class="record-clear-group"><button type="button" class="btn-record-clear" hidden title="Clear the current unsaved take"><svg class="ui-icon clear-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg><span>Clear</span></button><span class="record-clear-note" hidden>Saved Take won’t be deleted.</span></span>
+                <button type="button" class="btn-record-saved" hidden><svg class="ui-icon play-icon record-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="play-fill" d="M4.5 2.8 21 12 4.5 21.2Z"></path></svg><span>Saved Take</span></button>
+                <button type="button" class="btn-record-delete" hidden title="Delete saved take">Delete</button>
+                <span class="record-status"></span>
+              </div>
+              <span class="study-record-caption">Record your pronunciation</span>
+            </div>
+            <button class="btn-review">Review</button>
           </div>
         </section>
 
@@ -408,10 +416,8 @@
           <button type="button" class="btn-edit-local">Edit Card</button>
           <button type="button" class="btn-revert-local" hidden>Revert</button>
         </div>
-        <div class="study-learning-actions">
+        <div class="study-back-return">
           <button class="btn-flip-back">Back to Word</button>
-          <button class="btn-studied">Studied</button>
-          <button class="btn-review">Review</button>
         </div>
         <div class="study-secondary-actions">
           <button class="btn-shuffle"><svg class="ui-icon shuffle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3c4.5 0 5.5 10 10 10h3"></path><path d="m17 14 3 3-3 3"></path><path d="M4 17h3c1.7 0 2.9-1.4 4-3.2"></path><path d="M14 8.2C15 7.5 16 7 17 7h3"></path><path d="m17 4 3 3-3 3"></path></svg><span>Shuffle</span></button>
@@ -591,6 +597,6 @@
   <div class="study-toast" id="study-toast" hidden></div>
 
   <script type="module" src="./app.js?v=20260913-garden-v621"></script>
-  <script src="./study-stage7.js?v=20260915-s7-v25"></script>
+  <script src="./study-stage7.js?v=20260915-s7-v26"></script>
 </body>
 </html>
