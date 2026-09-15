@@ -21,6 +21,7 @@
   const adminGate = document.getElementById('admin-gate');
   const adminForm = document.getElementById('admin-form');
   const adminPassword = document.getElementById('admin-password');
+  const adminPasswordToggle = document.getElementById('admin-password-toggle');
   const rememberAdmin = document.getElementById('remember-admin');
   const adminError = document.getElementById('admin-error');
 
@@ -47,13 +48,6 @@
   drawerSettings?.addEventListener('click', () => {
     setDrawer(false);
     showToast('Settings will move into the Stage 7 app shell.');
-  });
-
-  document.querySelectorAll('.drawer-placeholder').forEach(button => {
-    button.addEventListener('click', () => {
-      setDrawer(false);
-      showToast(button.dataset.placeholder || 'Coming soon.');
-    });
   });
 
   const getRole = () => (
@@ -85,8 +79,7 @@
       ? 'Editing and import/export tools are unlocked.'
       : 'Study normally without editing tools.';
     roleMenuAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
-    const drawerRoleLabel = drawerRoleAction?.querySelector('.drawer-role-label');
-    if (drawerRoleLabel) drawerRoleLabel.textContent = admin ? 'Log in as Guest' : 'Admin Login';
+    drawerRoleAction.textContent = admin ? 'Switch to Guest' : 'Admin Login';
   };
 
   const closeRoleMenu = () => {
@@ -103,11 +96,24 @@
   roleMenu?.addEventListener('click', e => e.stopPropagation());
   document.addEventListener('click', closeRoleMenu);
 
+  const setPasswordVisible = visible => {
+    adminPassword.type = visible ? 'text' : 'password';
+    adminPasswordToggle?.setAttribute('aria-pressed', String(visible));
+    adminPasswordToggle?.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    adminPasswordToggle?.setAttribute('title', visible ? 'Hide password' : 'Show password');
+  };
+  adminPasswordToggle?.addEventListener('click', () => {
+    const visible = adminPassword.type === 'text';
+    setPasswordVisible(!visible);
+    adminPassword.focus({ preventScroll: true });
+  });
+
   const openAdminGate = () => {
     closeRoleMenu();
     setDrawer(false);
     adminError.hidden = true;
     adminPassword.value = '';
+    setPasswordVisible(false);
     rememberAdmin.checked = false;
     adminGate.hidden = false;
     setTimeout(() => adminPassword.focus(), 0);
@@ -116,6 +122,7 @@
     adminGate.hidden = true;
     adminError.hidden = true;
     adminPassword.value = '';
+    setPasswordVisible(false);
   };
 
   const roleAction = () => {

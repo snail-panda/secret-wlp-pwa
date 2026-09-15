@@ -310,6 +310,7 @@
   const adminGate = $('admin-gate');
   const adminForm = $('admin-form');
   const adminPassword = $('admin-password');
+  const adminPasswordToggle = $('admin-password-toggle');
   const rememberAdmin = $('remember-admin');
   const adminError = $('admin-error');
 
@@ -376,11 +377,23 @@
   roleMenu.addEventListener('click', e => e.stopPropagation());
   document.addEventListener('click', closeRoleMenu);
 
+  const setPasswordVisible = visible => {
+    adminPassword.type = visible ? 'text' : 'password';
+    adminPasswordToggle?.setAttribute('aria-pressed', String(visible));
+    adminPasswordToggle?.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    adminPasswordToggle?.setAttribute('title', visible ? 'Hide password' : 'Show password');
+  };
+  adminPasswordToggle?.addEventListener('click', () => {
+    const visible = adminPassword.type === 'text';
+    setPasswordVisible(!visible);
+    adminPassword.focus({ preventScroll: true });
+  });
+
   const openAdminGate = () => {
-    closeRoleMenu(); setDrawer(false); adminError.hidden = true; adminPassword.value = ''; rememberAdmin.checked = false; adminGate.hidden = false;
+    closeRoleMenu(); setDrawer(false); adminError.hidden = true; adminPassword.value = ''; setPasswordVisible(false); rememberAdmin.checked = false; adminGate.hidden = false;
     setTimeout(() => adminPassword.focus(), 0);
   };
-  const closeAdminGate = () => { adminGate.hidden = true; adminError.hidden = true; adminPassword.value = ''; };
+  const closeAdminGate = () => { adminGate.hidden = true; adminError.hidden = true; adminPassword.value = ''; setPasswordVisible(false); };
   const roleAction = () => {
     if (getRole() === 'admin') {
       clearAdmin(); refreshRoleUI(); closeRoleMenu(); setDrawer(false); showToast('Switched to Guest mode.');
