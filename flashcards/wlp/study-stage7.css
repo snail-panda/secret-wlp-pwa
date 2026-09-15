@@ -522,3 +522,89 @@ body.stage7-study-body{
     font-size:.80rem!important;
   }
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Study refinement v2.3
+   Back-side chevron collision fix + explicit Deck labels.
+   ========================================================= */
+
+/*
+  Keep the front chevrons at the visual center, but on the answer side
+  reserve slim text gutters so long Definition / Example / Synonym / Note
+  content never runs underneath the card-to-card controls.
+*/
+.stage7-study-body .flashcard .back .def,
+.stage7-study-body .flashcard .back .ex,
+.stage7-study-body .flashcard .back .syn,
+.stage7-study-body .flashcard .back .note,
+.stage7-study-body .flashcard .back .back-answer{
+  margin-left:34px!important;
+  margin-right:34px!important;
+}
+
+/* Back chevrons remain around the card's middle, but hug the inner edges. */
+.stage7-study-body .flashcard .back .nav-buttons{
+  left:-2px!important;
+  right:-2px!important;
+  top:50%!important;
+}
+.stage7-study-body .flashcard .back .nav-buttons .btn-prev,
+.stage7-study-body .flashcard .back .nav-buttons .btn-next{
+  width:34px!important;
+  min-width:34px!important;
+  height:44px!important;
+  min-height:44px!important;
+  background:rgba(247,250,246,.94)!important;
+}
+
+/* Bottom navigation must say Deck explicitly; this is deck-to-deck navigation. */
+.stage7-study-body #deck-nav-links .deck-step-link{
+  font-weight:500!important;
+}
+
+@media(max-width:560px){
+  .stage7-study-body .flashcard .back .def,
+  .stage7-study-body .flashcard .back .ex,
+  .stage7-study-body .flashcard .back .syn,
+  .stage7-study-body .flashcard .back .note,
+  .stage7-study-body .flashcard .back .back-answer{
+    margin-left:30px!important;
+    margin-right:30px!important;
+  }
+  .stage7-study-body .flashcard .back .nav-buttons{
+    left:-3px!important;
+    right:-3px!important;
+  }
+  .stage7-study-body .flashcard .back .nav-buttons .btn-prev,
+  .stage7-study-body .flashcard .back .nav-buttons .btn-next{
+    width:32px!important;
+    min-width:32px!important;
+    height:42px!important;
+    min-height:42px!important;
+    font-size:1.45rem!important;
+  }
+  .stage7-study-body #deck-nav-links .deck-step-link{
+    font-size:.84rem!important;
+    padding-left:5px!important;
+    padding-right:5px!important;
+  }
+}
+
+@media(max-width:390px){
+  .stage7-study-body .flashcard .back .def,
+  .stage7-study-body .flashcard .back .ex,
+  .stage7-study-body .flashcard .back .syn,
+  .stage7-study-body .flashcard .back .note,
+  .stage7-study-body .flashcard .back .back-answer{
+    margin-left:28px!important;
+    margin-right:28px!important;
+  }
+  .stage7-study-body #deck-nav-links .deck-step-link{
+    font-size:.79rem!important;
+    gap:4px!important;
+  }
+  .stage7-study-body #deck-nav-links .deck-home-link{
+    font-size:.78rem!important;
+  }
+}
