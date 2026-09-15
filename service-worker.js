@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-mock-balance-v1-5';
+const CACHE_NAME = 'wlp-stage7-hero-v1-6';
 const CORE = [
   './',
   './index.html',
@@ -17,7 +17,7 @@ const CORE = [
   './pwa-icons/apple-touch-icon.png',
   './assets/skull-crossbones.png',
   './assets/skull.png',
-  './assets/stage7-secret-garden-hero-v15.webp',
+  './assets/stage7-secret-garden-hero-v16.webp',
   './flashcards/wlp/batch.html',
   './flashcards/wlp/flashcards.css',
   './flashcards/wlp/app.js',
