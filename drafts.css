@@ -65,3 +65,27 @@
   .drafts-count{font-size:.72rem;padding:5px 8px}
   .draft-deck-card{padding:13px 12px}
 }
+
+/* Stage 7 Drafts v1.2 — show local Master-card edits without mixing them into Draft Decks. */
+.drafts-local-edits{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin:-8px 2px 20px;
+  padding:0 2px;
+  color:#627268;
+}
+.drafts-local-edits[hidden]{display:none!important}
+.drafts-local-edits-copy{display:flex;align-items:baseline;gap:7px;min-width:0;flex-wrap:wrap}
+.drafts-local-edits-label{font-size:.69rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#819087}
+.drafts-local-edits-copy strong{font-family:"EB Garamond",Georgia,serif;font-size:.93rem;font-weight:600;color:#496454}
+.drafts-local-edits-note{font-size:.71rem;color:#7a887f}
+.drafts-local-edits-link{flex:0 0 auto;color:#4f6b5d;text-decoration:none;font-size:.74rem;font-weight:700;white-space:nowrap}
+.drafts-local-edits-link span{margin-left:2px;font-size:.95rem}
+@media(max-width:430px){
+  .drafts-local-edits{align-items:flex-start;gap:8px}
+  .drafts-local-edits-copy{gap:4px 6px}
+  .drafts-local-edits-note{flex-basis:100%}
+  .drafts-local-edits-link{font-size:.7rem;padding-top:1px}
+}

@@ -483,12 +483,21 @@
 </div>
 
   <div id="drafts-back-link" style="display:none;">
-    <a class="drafts-footer-return" href="../../drafts.html" aria-label="Back to Drafts">
-      <svg class="drafts-footer-return-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="m15 18-6-6 6-6"></path>
-      </svg>
-      <span>Back to Drafts</span>
-    </a>
+    <div class="drafts-footer-actions">
+      <a class="drafts-footer-return" href="../../drafts.html" aria-label="Back to Drafts">
+        <svg class="drafts-footer-return-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+        <span>Back to Drafts</span>
+      </a>
+      <a class="drafts-footer-edit" id="drafts-footer-edit" href="../../legacy-home.html#editor" aria-label="Edit Draft in Editor" hidden>
+        <svg class="drafts-footer-edit-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 20h4l11-11a2.1 2.1 0 0 0-3-3L5 17l-1 3Z"></path>
+          <path d="m14.5 7.5 3 3"></path>
+        </svg>
+        <span>Edit Draft</span>
+      </a>
+    </div>
   </div>
 
   <div
@@ -606,9 +615,9 @@
         <span>Study Options</span>
       </button>
       <a class="drawer-item" href="../../legacy-home.html#review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
-      <a class="drawer-item" href="../../drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span>Drafts</span></a>
+      <a class="drawer-item" href="../../drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Drafts</span><small>Study your new local cards</small></span></a>
       <a class="drawer-item" href="../../legacy-home.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span></a>
-      <a class="drawer-item drawer-admin-only" href="../../legacy-home.html#editor" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg><span>Editor</span></a>
+      <a class="drawer-item drawer-admin-only" href="../../legacy-home.html#editor" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Editor</span><small>Create · Edit · Overrides · Import &amp; Export</small></span></a>
       <hr>
       <button class="drawer-item" id="drawer-settings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36A1.8 1.8 0 0 0 13.9 21H10a1.8 1.8 0 0 0-1.1-1.65 1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span></button>
       <button class="drawer-item" id="drawer-role-action" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span></button>

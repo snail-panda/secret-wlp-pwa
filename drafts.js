@@ -1,5 +1,6 @@
 (() => {
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
+  const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
   const WLP_ADMIN_PASSWORD_SHA256 = 'd199aa3ab28923618bab089d78e8faa5e5004d0bc37c22ae5589454d575d192c';
@@ -21,6 +22,17 @@
     }
   }
 
+  function countLocalOverrides() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LOCAL_OVERRIDES_KEY) || '{}');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 0;
+      return Object.values(parsed).filter(value => value && typeof value === 'object' && !Array.isArray(value)).length;
+    } catch (error) {
+      console.warn('Could not read WLP local overrides:', error);
+      return 0;
+    }
+  }
+
   function renderDrafts() {
     const drafts = readDrafts();
     const deckCount = Math.ceil(drafts.length / 10);
@@ -28,6 +40,12 @@
     const meta = $('drafts-meta');
     const list = $('draft-deck-list');
     const empty = $('drafts-empty');
+    const localEdits = countLocalOverrides();
+    const localEditsRow = $('drafts-local-edits');
+    const localEditsCount = $('drafts-local-edits-count');
+
+    if (localEditsRow) localEditsRow.hidden = localEdits < 1;
+    if (localEditsCount) localEditsCount.textContent = `${localEdits} Local Edit${localEdits === 1 ? '' : 's'}`;
 
     if (count) count.textContent = `${drafts.length} draft${drafts.length === 1 ? '' : 's'}`;
     if (meta) {
@@ -225,7 +243,7 @@
   });
 
   window.addEventListener('storage', event => {
-    if (event.key === LOCAL_ADDITIONS_KEY) renderDrafts();
+    if (event.key === LOCAL_ADDITIONS_KEY || event.key === LOCAL_OVERRIDES_KEY) renderDrafts();
     if (event.key === WLP_UI_ROLE_KEY) syncRoleUi();
   });
   window.addEventListener('pageshow', () => { renderDrafts(); syncRoleUi(); });

@@ -162,6 +162,7 @@
   const rememberAdmin = document.getElementById('remember-admin');
   const adminError = document.getElementById('admin-error');
   const toast = document.getElementById('study-toast');
+  const draftsFooterEdit = document.getElementById('drafts-footer-edit');
 
   const setDrawer = open => {
     if (!drawer || !menu || !backdrop) return;
@@ -224,6 +225,7 @@
     const drawerLabel = drawerRoleAction?.querySelector('.drawer-role-label');
     if (drawerLabel) drawerLabel.textContent = admin ? 'Switch to Guest' : 'Admin Login';
     drawerAdminOnly.forEach(item => { item.hidden = !admin; });
+    if (draftsFooterEdit) draftsFooterEdit.hidden = !(admin && Boolean(params.get('draft')) && !isFromSearch);
   };
 
   const closeRoleMenu = () => {
