@@ -40,47 +40,47 @@
       </div>
     </header>
 
-    <main class="editor-content new-card-content draft-edit-content">
-      <a class="editor-back-link" id="draft-edit-back" href="./editor-drafts.html" aria-label="Back to Manage Drafts">
+    <main class="editor-content new-card-content local-edit-edit-content">
+      <a class="editor-back-link" id="local-edit-back" href="./editor-local-edits.html" aria-label="Back to Manage Local Edits">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
-        <span id="draft-edit-back-label">Back to Manage Drafts</span>
+        <span id="local-edit-back-label">Back to Manage Local Edits</span>
       </a>
 
       <section class="editor-intro new-card-intro">
         <div>
-          <span class="section-kicker">Editor · Draft</span>
-          <h1>Edit Draft</h1>
-          <p>Update this browser-local card. Its Draft ID and original creation date stay the same.</p>
+          <span class="section-kicker">Editor · Local Edit</span>
+          <h1>Edit Card</h1>
+          <p>Save changes as a Local Edit on this browser. The canonical Master card stays unchanged.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
       </section>
 
-      <section class="editor-note" aria-label="Draft edit note">
+      <section class="editor-note" aria-label="Local Edit note">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>
-        <div><strong>Browser-local Draft</strong><span>Saving here never modifies the canonical Master TSV.</span></div>
+        <div><strong>Local Edit</strong><span>This browser shows your edited version until you revert it to the canonical Master.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
         <h2>Admin access required</h2>
-        <p>Login as Admin to edit this Draft card.</p>
+        <p>Login as Admin to create or update a Local Edit.</p>
         <button id="editor-login-button" type="button">Admin Login</button>
       </section>
 
       <div class="editor-workspace" id="editor-workspace">
-        <section class="draft-edit-missing" id="draft-edit-missing" hidden>
-          <h2>Draft not found</h2>
-          <p>This Draft may have been deleted or belongs to another browser.</p>
-          <a href="./editor-drafts.html">Back to Manage Drafts</a>
+        <section class="draft-edit-missing" id="local-edit-missing" hidden>
+          <h2>Master card not found</h2>
+          <p>This Word ID could not be found in the canonical Master TSV.</p>
+          <a href="./editor-local-edits.html">Back to Manage Local Edits</a>
         </section>
 
-        <form id="draft-edit-form" class="new-card-form" autocomplete="off">
+        <form id="local-edit-form" class="new-card-form" autocomplete="off">
           <section class="new-card-panel new-card-primary-panel">
             <div class="new-card-section-head">
-              <div><span class="editor-tool-kicker">Draft</span><h2>Word</h2></div>
-              <span class="new-card-draft-badge" id="draft-edit-badge">Local Draft</span>
+              <div><span class="editor-tool-kicker">Local Edit</span><h2>Word</h2></div>
+              <span class="new-card-draft-badge local-edit-wid-pill" id="local-edit-wid-pill">WID</span>
             </div>
-            <label class="new-card-field new-card-word-field"><span>Word <b aria-hidden="true">*</b></span><input name="Word" id="draft-edit-word" type="text" required autocomplete="off"></label>
+            <label class="new-card-field new-card-word-field"><span>Word <b aria-hidden="true">*</b></span><input name="Word" id="local-edit-word" type="text" required autocomplete="off"></label>
             <div class="new-card-grid two-col">
               <label class="new-card-field"><span>IPA</span><input name="IPA" type="text" autocomplete="off"></label>
               <label class="new-card-field"><span>Part of Speech</span><input name="Part of Speech" type="text" list="wlp-pos-options" autocomplete="off" placeholder="Choose or type…"></label>
@@ -89,12 +89,12 @@
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div><label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
-          <div class="new-card-save-bar draft-edit-save-bar">
-            <button type="button" class="draft-edit-delete" id="draft-edit-delete">Delete Draft</button>
-            <div class="new-card-actions"><a class="draft-edit-cancel" id="draft-edit-cancel" href="./editor-drafts.html">Cancel</a><button type="submit" class="new-card-primary">Save Changes</button></div>
+          <div class="new-card-save-bar draft-edit-save-bar local-edit-save-bar">
+            <button type="button" class="draft-edit-delete local-edit-revert" id="local-edit-revert" hidden>Revert to Master</button>
+            <div class="new-card-actions"><a class="draft-edit-cancel" id="local-edit-cancel" href="./editor-local-edits.html">Cancel</a><button type="submit" class="new-card-primary">Save Changes</button></div>
           </div>
         </form>
-        <section class="new-card-success" id="draft-edit-success" hidden aria-live="polite"><div><strong>Changes saved</strong><span>The updated Draft is already available in Drafts and Global Search.</span></div><div class="new-card-success-actions"><a id="draft-edit-success-primary" href="./editor-drafts.html">Back to Manage Drafts</a><a id="draft-edit-success-secondary" href="./drafts.html">Study Draft</a><a id="draft-edit-home" href="./index.html">Home</a></div></section>
+        <section class="new-card-success" id="local-edit-success" hidden aria-live="polite"><div><strong>Local Edit saved</strong><span>This browser now shows your edited version of the Master card.</span></div><div class="new-card-success-actions"><a id="local-edit-success-primary" href="./editor-local-edits.html">Back to Manage Local Edits</a><a id="local-edit-success-secondary" href="./deck-browser.html">View Card</a><a id="local-edit-home" href="./index.html">Home</a></div></section>
         <datalist id="wlp-pos-options">
           <option value="noun"></option><option value="verb"></option><option value="adjective"></option><option value="adverb"></option><option value="pronoun"></option><option value="preposition"></option><option value="complex preposition"></option><option value="conjunction"></option><option value="interjection"></option><option value="determiner"></option><option value="proper noun"></option><option value="noun phrase"></option><option value="verb phrase"></option><option value="adjective phrase"></option><option value="adverbial phrase"></option><option value="prepositional phrase"></option><option value="phrasal verb"></option><option value="idiom"></option><option value="phrase"></option><option value="expression"></option><option value="collocation"></option><option value="verb construction"></option><option value="verb pattern"></option><option value="slang"></option>
         </datalist>
@@ -151,8 +151,8 @@
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-local-edits.js?v=20260915-s7-editor-v1-4"></script>
+  <script src="./editor-local-edits.js?v=20260916-s7-editor-v1-4-1"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
-  <script src="./pwa-register.js?v=20260915-s7-editor-v1-4"></script>
+  <script src="./pwa-register.js?v=20260916-s7-editor-v1-4-1"></script>
 </body>
 </html>
