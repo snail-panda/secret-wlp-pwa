@@ -13,6 +13,10 @@
       ipa: true,
       pos: true
     },
+    youglish: {
+      visible: true,
+      accent: 'us'
+    },
     swipe: true
   };
 
@@ -39,6 +43,10 @@
         notes: ['shown','collapsed','hidden'].includes(custom.notes) ? custom.notes : DEFAULTS.custom.notes,
         ipa: typeof custom.ipa === 'boolean' ? custom.ipa : DEFAULTS.custom.ipa,
         pos: typeof custom.pos === 'boolean' ? custom.pos : DEFAULTS.custom.pos
+      },
+      youglish: {
+        visible: typeof stored.youglish?.visible === 'boolean' ? stored.youglish.visible : DEFAULTS.youglish.visible,
+        accent: ['us','uk','aus'].includes(stored.youglish?.accent) ? stored.youglish.accent : DEFAULTS.youglish.accent
       },
       swipe: typeof stored.swipe === 'boolean' ? stored.swipe : DEFAULTS.swipe
     };
@@ -145,6 +153,31 @@
         </section>
 
         <section class="s7-options-section">
+          <div class="s7-options-section-head">
+            <h3>Pronunciation Reference</h3>
+            <small>Real speech</small>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>Show YouGlish</strong>
+              <small>Open the current headword in real-world video clips.</small>
+            </div>
+            <label class="s7-switch">
+              <input type="checkbox" id="s7-youglish-visible">
+              <span class="s7-switch-track"></span>
+            </label>
+          </div>
+          <div class="s7-reference-accent-row" id="s7-youglish-accent-row">
+            <span>Default accent</span>
+            <div class="s7-reference-accent-grid" role="group" aria-label="YouGlish default accent">
+              <button type="button" data-s7-youglish-accent="us">US</button>
+              <button type="button" data-s7-youglish-accent="uk">UK</button>
+              <button type="button" data-s7-youglish-accent="aus">AU</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="s7-options-section">
           <div class="s7-switch-row">
             <div class="s7-switch-copy">
               <strong>Swipe to change cards</strong>
@@ -157,7 +190,7 @@
           </div>
         </section>
 
-        <p class="s7-options-autosave">Study Options v1 · saved on this device</p>
+        <p class="s7-options-autosave">Study Options v1.4 · saved on this device</p>
       </aside>`;
     document.body.appendChild(backdrop);
     return backdrop;
@@ -171,6 +204,8 @@
   const voicePrev = panel.querySelector('#s7-voice-prev');
   const voiceNext = panel.querySelector('#s7-voice-next');
   const swipeInput = panel.querySelector('#s7-swipe-cards');
+  const youglishVisibleInput = panel.querySelector('#s7-youglish-visible');
+  const youglishAccentRow = panel.querySelector('#s7-youglish-accent-row');
 
   const closePanel = () => {
     panel.hidden = true;
@@ -235,6 +270,12 @@
     });
 
     swipeInput.checked = prefs.swipe;
+    if (youglishVisibleInput) youglishVisibleInput.checked = prefs.youglish.visible;
+    if (youglishAccentRow) youglishAccentRow.classList.toggle('is-disabled', !prefs.youglish.visible);
+    panel.querySelectorAll('[data-s7-youglish-accent]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.s7YouglishAccent === prefs.youglish.accent));
+      button.disabled = !prefs.youglish.visible;
+    });
     updateOptionsVoiceLabel();
   };
 
@@ -341,6 +382,33 @@
 
   const applySwipeState = () => {
     document.body.classList.toggle('s7-swipe-enabled', Boolean(prefs.swipe));
+  };
+
+  const YOUGLISH_ACCENT_LABELS = { us:'US', uk:'UK', aus:'AU' };
+
+  const youglishUrl = (word, accent) => {
+    const clean = String(word || '').trim();
+    if (!clean) return 'https://youglish.com/';
+    return `https://youglish.com/pronounce/${encodeURIComponent(clean)}/english/${accent}`;
+  };
+
+  const applyYouGlishState = () => {
+    const visible = Boolean(prefs.youglish?.visible);
+    const accent = ['us','uk','aus'].includes(prefs.youglish?.accent) ? prefs.youglish.accent : 'us';
+    const accentLabel = YOUGLISH_ACCENT_LABELS[accent] || 'US';
+    document.body.classList.toggle('s7-youglish-enabled', visible);
+
+    document.querySelectorAll('#cards .flashcard').forEach(card => {
+      const word = String(card.querySelector('.word')?.textContent || card.querySelector('.back-word')?.textContent || '').trim();
+      card.querySelectorAll('[data-youglish]').forEach(link => {
+        if (link.hidden === visible) link.hidden = !visible;
+        link.href = youglishUrl(word, accent);
+        const badge = link.querySelector('.s7-youglish-accent');
+        if (badge && badge.textContent !== accentLabel) badge.textContent = accentLabel;
+        link.setAttribute('aria-label', `Hear ${word || 'this word'} in real speech on YouGlish (${accentLabel})`);
+        link.title = `Hear it in real speech on YouGlish · ${accentLabel}`;
+      });
+    });
   };
 
   const PREFERRED_VOICE_NAMES = [
@@ -495,6 +563,7 @@
   const applyAll = () => {
     applyCardContent();
     applySwipeState();
+    applyYouGlishState();
     updateVisibleVoiceLabels();
   };
 
@@ -532,6 +601,22 @@
   voicePrev?.addEventListener('click', () => cycleOptionsVoice(-1));
   voiceNext?.addEventListener('click', () => cycleOptionsVoice(1));
 
+  youglishVisibleInput?.addEventListener('change', () => {
+    prefs.youglish.visible = youglishVisibleInput.checked;
+    savePrefs();
+    syncPanel();
+    applyYouGlishState();
+  });
+
+  panel.querySelectorAll('[data-s7-youglish-accent]').forEach(button => {
+    button.addEventListener('click', () => {
+      prefs.youglish.accent = button.dataset.s7YouglishAccent;
+      savePrefs();
+      syncPanel();
+      applyYouGlishState();
+    });
+  });
+
   swipeInput?.addEventListener('change', () => {
     prefs.swipe = swipeInput.checked;
     savePrefs();
@@ -554,6 +639,7 @@
     requestAnimationFrame(() => {
       applyQueued = false;
       applyCardContent();
+      applyYouGlishState();
       updateVisibleVoiceLabels();
     });
   };

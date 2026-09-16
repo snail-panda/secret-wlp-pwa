@@ -407,3 +407,43 @@ body.s7-study-options-open{overflow:hidden}
   }
   .s7-options-section{padding:12px}
 }
+
+
+/* Stage 7 — Pronunciation Reference / YouGlish */
+.s7-reference-accent-row{
+  margin-top:11px;
+  padding-top:10px;
+  border-top:1px solid rgba(79,108,88,.09);
+  display:grid;
+  grid-template-columns:auto minmax(138px,1fr);
+  align-items:center;
+  gap:12px;
+}
+.s7-reference-accent-row > span{
+  color:#435e50;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.94rem;
+}
+.s7-reference-accent-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:5px;
+}
+.s7-reference-accent-grid button{
+  min-height:34px;
+  padding:5px 8px;
+  border:1px solid rgba(78,109,86,.17);
+  border-radius:9px;
+  background:#fbfcf8;
+  color:#597166;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.82rem;
+  font-weight:600;
+}
+.s7-reference-accent-grid button[aria-pressed="true"]{
+  color:#2e5b47;
+  background:#e7f0e8;
+  border-color:rgba(62,107,79,.27);
+}
+.s7-reference-accent-grid button:disabled{opacity:.42}
+.s7-reference-accent-row.is-disabled > span{opacity:.52}

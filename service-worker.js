@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-deck-search-fields-v3-1-5';
+const CACHE_NAME = 'wlp-stage7-youglish-v1';
 const CORE = [
   './',
   './index.html',
