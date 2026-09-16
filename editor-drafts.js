@@ -45,6 +45,46 @@
     if(home) home.href='./index.html';
   };
 
+
+
+  function ensureConfirmDialog(){
+    let overlay=$('wlp-draft-confirm');
+    if(overlay) return overlay;
+    overlay=document.createElement('div');
+    overlay.id='wlp-draft-confirm';
+    overlay.className='wlp-confirm-overlay';
+    overlay.hidden=true;
+    overlay.innerHTML=`<div class="wlp-confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="wlp-draft-confirm-title" aria-describedby="wlp-draft-confirm-message"><h2 id="wlp-draft-confirm-title">Delete draft?</h2><p id="wlp-draft-confirm-message"></p><span id="wlp-draft-confirm-detail" class="wlp-confirm-detail"></span><div class="wlp-confirm-actions"><button type="button" class="wlp-confirm-cancel" id="wlp-draft-confirm-cancel">Cancel</button><button type="button" class="wlp-confirm-do" id="wlp-draft-confirm-do">Delete</button></div></div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function openWlpConfirm({title='Delete draft?',message='Delete this local Draft? This removes only the Draft on this device. The Master TSV is not affected.',detail='',confirmLabel='Delete'}={}){
+    const overlay=ensureConfirmDialog();
+    const titleEl=$('wlp-draft-confirm-title'), messageEl=$('wlp-draft-confirm-message'), detailEl=$('wlp-draft-confirm-detail');
+    const cancel=$('wlp-draft-confirm-cancel'), confirm=$('wlp-draft-confirm-do');
+    if(titleEl) titleEl.textContent=title;
+    if(messageEl) messageEl.textContent=message;
+    if(detailEl){ detailEl.textContent=detail; detailEl.hidden=!detail; }
+    if(confirm) confirm.textContent=confirmLabel;
+    return new Promise(resolve=>{
+      let done=false;
+      const finish=value=>{
+        if(done) return; done=true; overlay.hidden=true;
+        cancel?.removeEventListener('click',onCancel); confirm?.removeEventListener('click',onConfirm);
+        overlay.removeEventListener('click',onBackdrop); document.removeEventListener('keydown',onKeydown);
+        resolve(value);
+      };
+      const onCancel=()=>finish(false), onConfirm=()=>finish(true);
+      const onBackdrop=e=>{ if(e.target===overlay) finish(false); };
+      const onKeydown=e=>{ if(e.key==='Escape'){ e.preventDefault(); finish(false); } };
+      cancel?.addEventListener('click',onCancel); confirm?.addEventListener('click',onConfirm);
+      overlay.addEventListener('click',onBackdrop); document.addEventListener('keydown',onKeydown);
+      overlay.hidden=false;
+      requestAnimationFrame(()=>cancel?.focus());
+    });
+  }
+
   function syncCountPill(drafts = readDrafts()) {
     const pill=$('editor-count-pill'); if(!pill) return;
     let edits=0; try { const v=JSON.parse(localStorage.getItem('wlp:local-overrides:v1')||'{}'); if(v&&typeof v==='object'&&!Array.isArray(v)) edits=Object.values(v).filter(x=>x&&typeof x==='object'&&!Array.isArray(x)).length; } catch {}
@@ -63,10 +103,16 @@
       const detail=String(d.Definition||d['Example Sentence']||d['Note(s)']||'No definition yet.').trim();
       return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}&return=${encodeURIComponent('editor-drafts.html')}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}">Delete</button></div></article>`;
     }).join('');
-    list.querySelectorAll('[data-delete-draft]').forEach(btn=>btn.addEventListener('click',()=>{
+    list.querySelectorAll('[data-delete-draft]').forEach(btn=>btn.addEventListener('click',async()=>{
       if(!isAdmin()) return;
       const id=String(btn.dataset.deleteDraft||''); const rows=readDrafts(); const target=rows.find(d=>String(d.localId||'')===id); if(!target) return;
-      if(!confirm(`Delete local draft “${target.Word||'Untitled Draft'}”?\n\nThis removes only the browser-local Draft. The Master TSV is not affected.`)) return;
+      const ok=await openWlpConfirm({
+        title:'Delete draft?',
+        message:'Delete this local Draft? This removes only the Draft on this device. The Master TSV is not affected.',
+        detail:`${target.Word||'Untitled Draft'}`,
+        confirmLabel:'Delete'
+      });
+      if(!ok) return;
       writeDrafts(rows.filter(d=>String(d.localId||'')!==id)); renderManage();
     }));
   }
@@ -89,9 +135,15 @@
       const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); latest[at]=next; writeDrafts(latest);
       const success=$('draft-edit-success'); if(success) success.hidden=false; if(study) study.href=studyHref(latest,at); syncEditNavigation(latest,at);
     });
-    $('draft-edit-delete')?.addEventListener('click',()=>{
+    $('draft-edit-delete')?.addEventListener('click',async()=>{
       if(!isAdmin()) return; const latest=readDrafts(); const current=latest.find(d=>String(d.localId||'')===id); if(!current) return;
-      if(!confirm(`Delete local draft “${current.Word||'Untitled Draft'}”?\n\nThis removes only the browser-local Draft. The Master TSV is not affected.`)) return;
+      const ok=await openWlpConfirm({
+        title:'Delete draft?',
+        message:'Delete this local Draft? This removes only the Draft on this device. The Master TSV is not affected.',
+        detail:`${current.Word||'Untitled Draft'}`,
+        confirmLabel:'Delete'
+      });
+      if(!ok) return;
       writeDrafts(latest.filter(d=>String(d.localId||'')!==id)); location.href='./editor-drafts.html';
     });
   }

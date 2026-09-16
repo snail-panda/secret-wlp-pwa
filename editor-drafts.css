@@ -19,3 +19,30 @@
 .draft-edit-content{max-width:760px}.draft-edit-missing{padding:22px 16px;border:1px solid rgba(145,95,88,.15);border-radius:16px;background:#fbf4f1;color:#5f665f}.draft-edit-missing[hidden]{display:none!important}.draft-edit-missing h2{margin:0 0 4px;font-family:"EB Garamond",Georgia,serif}.draft-edit-missing p{margin:0 0 12px;font-size:.78rem}.draft-edit-missing a{color:#567263;font-size:.75rem;font-weight:800;text-decoration:none}
 .draft-edit-save-bar{align-items:center}.draft-edit-delete{min-height:38px;padding:8px 11px;border:1px solid rgba(145,95,88,.18);border-radius:999px;background:#faf0ee;color:#8e625d;font:800 .7rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.draft-edit-cancel{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 11px;border:1px solid rgba(85,114,100,.17);border-radius:999px;background:rgba(255,255,255,.72);color:#687a70;text-decoration:none;font:800 .7rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 @media(max-width:520px){.draft-manage-card{grid-template-columns:1fr}.draft-manage-actions{justify-content:flex-end}.draft-manage-toolbar{justify-content:stretch}.draft-manage-toolbar a{flex:1}.draft-edit-save-bar{align-items:center}.draft-edit-save-bar .new-card-actions{margin-left:auto}}
+
+
+/* Stage 7 shared destructive-action confirmation — Draft Delete. */
+.wlp-confirm-overlay[hidden]{display:none!important}
+.wlp-confirm-overlay{
+  position:fixed;inset:0;z-index:10020;
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;box-sizing:border-box;
+  background:rgba(37,43,34,.42);
+}
+.wlp-confirm-panel{
+  width:min(390px,92vw);box-sizing:border-box;
+  padding:22px 20px 18px;border-radius:18px;
+  border:1px solid rgba(85,114,100,.22);
+  background:#fffdf7;color:#34382f;
+  box-shadow:0 18px 52px rgba(31,38,31,.22);
+  text-align:center;
+}
+.wlp-confirm-panel h2{margin:0 0 8px;font-size:1.08rem;line-height:1.35;color:#35483f}
+.wlp-confirm-panel p{margin:0;font-size:.9rem;line-height:1.55;color:#6b7067}
+.wlp-confirm-detail{display:block;margin-top:7px;font-weight:700;color:#42493f;overflow-wrap:anywhere}
+.wlp-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.wlp-confirm-actions button{min-height:44px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
+.wlp-confirm-cancel{border:1px solid rgba(85,114,100,.28);background:#fffdf7;color:#557264}
+.wlp-confirm-do{border:1px solid #d3aaa3;background:#f5e6e2;color:#835d56}
+.wlp-confirm-do:active{background:#efd9d4}
+@media(max-width:520px){.wlp-confirm-panel{padding:20px 17px 16px}}
