@@ -1,0 +1,69 @@
+:root{
+  --editor-ink:#26382f;
+  --editor-muted:#627268;
+  --editor-line:rgba(72,101,84,.16);
+  --editor-panel:rgba(255,255,252,.76);
+  --editor-soft:#f3f7ef;
+  --editor-accent:#557264;
+}
+.app-header{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap!important}
+.app-header>.brand{position:absolute;left:50%;transform:translateX(-50%);margin:0!important;z-index:1}
+.app-header>#menu-button{flex:0 0 auto;z-index:2}
+.header-actions{margin-left:auto;display:flex;align-items:center;gap:6px;flex:0 0 auto;z-index:2}
+.header-actions .role-pill{margin:0!important;flex:0 0 auto}
+.header-actions .header-search-button{width:34px!important;height:34px!important;padding:0!important;color:#557264!important;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.header-actions .header-search-button svg{width:20px!important;height:20px!important;stroke-width:1.7!important}
+
+.editor-content{width:min(760px,calc(100% - 28px));margin:0 auto;padding:28px 0 72px}
+.editor-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:8px 2px 18px}
+.editor-intro h1{margin:2px 0 4px;font-family:"EB Garamond",Georgia,serif;font-size:clamp(2.05rem,8vw,2.85rem);font-weight:600;line-height:1;color:var(--editor-ink)}
+.editor-intro p{max-width:590px;margin:0;color:#4f6b5d;font-size:.94rem;line-height:1.5}
+.editor-count-pill{flex:0 0 auto;margin-bottom:4px;padding:6px 10px;border:1px solid var(--editor-line);border-radius:999px;background:rgba(255,255,255,.64);color:var(--editor-muted);font-size:.74rem;font-weight:700;white-space:nowrap}
+
+.editor-note{display:flex;align-items:center;gap:10px;margin:4px 0 18px;padding:11px 13px;border:1px solid rgba(99,125,105,.15);border-radius:14px;background:rgba(239,246,236,.72);color:#51675b}
+.editor-note svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.72;flex:0 0 auto}
+.editor-note div{display:flex;flex-direction:column;gap:1px}
+.editor-note strong{font-family:"EB Garamond",Georgia,serif;font-size:1rem;font-weight:600;color:#3f594b}
+.editor-note span{font-size:.74rem;opacity:.82;line-height:1.35}
+
+.editor-workspace{display:grid;grid-template-columns:1fr;gap:10px}
+.editor-workspace[hidden]{display:none!important}
+.editor-tool-card{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;padding:15px 14px 14px;border:1px solid var(--editor-line);border-radius:17px;background:var(--editor-panel);box-shadow:0 3px 13px rgba(52,75,61,.035);scroll-margin-top:84px}
+.editor-tool-icon{width:42px;height:42px;border:1px solid rgba(85,114,100,.16);border-radius:13px;background:#f0f6ed;color:#557264;display:grid;place-items:center;grid-row:1/span 2}
+.editor-tool-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
+.editor-tool-copy{min-width:0}
+.editor-tool-kicker{display:block;margin-bottom:1px;color:#87958c;font-size:.64rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.editor-tool-copy h2{display:flex;align-items:center;gap:7px;margin:0 0 3px;font-family:"EB Garamond",Georgia,serif;color:#30473b;font-size:1.24rem;font-weight:600;line-height:1.1}
+.editor-tool-copy p{margin:0;color:#64736a;font-size:.8rem;line-height:1.43}
+.editor-mini-count{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#edf4ea;color:#5a7465;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:.68rem;font-weight:800}
+.editor-primary-action,.editor-secondary-action{grid-column:2;justify-self:start;display:inline-flex;align-items:center;gap:4px;margin-top:7px;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.editor-primary-action{color:#4d6959;font-size:.78rem;font-weight:800}
+.editor-primary-action span{font-size:1rem;line-height:1}
+.editor-secondary-action{color:#75847b;font-size:.75rem;font-weight:700}
+.editor-action-row{grid-column:2;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.editor-action-row .editor-primary-action,.editor-action-row .editor-secondary-action{grid-column:auto;margin-top:7px}
+.editor-backup-card .editor-tool-icon{background:#f5f2e9;color:#7c725b}
+
+.editor-locked{text-align:center;padding:42px 18px;border:1px solid var(--editor-line);border-radius:18px;background:var(--editor-panel)}
+.editor-locked[hidden]{display:none!important}
+.editor-locked>svg{width:30px;height:30px;fill:none;stroke:#6d8878;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
+.editor-locked h2{margin:10px 0 4px;font-family:"EB Garamond",Georgia,serif;color:#334b3e;font-size:1.4rem}
+.editor-locked p{max-width:360px;margin:0 auto;color:#6d7b72;font-size:.82rem;line-height:1.5}
+.editor-locked button{margin-top:15px;padding:9px 16px;border:1px solid rgba(76,111,88,.25);border-radius:999px;background:#edf5ea;color:#496454;font:700 .78rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+
+.app-drawer .drawer-item .drawer-item-copy{display:flex;flex-direction:column;min-width:0;line-height:1.05}
+.app-drawer .drawer-item .drawer-item-title{display:block;min-width:0}
+.app-drawer .drawer-item .drawer-item-copy small{display:block;margin-top:3px;color:#718178;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:10.5px;font-weight:500;line-height:1.18;letter-spacing:.005em;white-space:normal}
+.app-drawer .drawer-item .drawer-item-copy small span{display:block}
+
+@media(min-width:720px){.editor-workspace{grid-template-columns:1fr 1fr}.editor-tool-card{min-height:178px}.editor-action-row,.editor-primary-action,.editor-secondary-action{align-self:end}}
+@media(max-width:430px){
+  .editor-content{width:min(100% - 22px,760px);padding-top:22px}
+  .editor-intro{gap:10px;align-items:flex-start;flex-direction:column}
+  .editor-intro p{font-size:.9rem}
+  .editor-count-pill{font-size:.7rem;padding:5px 8px;margin:2px 0 0}
+  .editor-tool-card{grid-template-columns:40px minmax(0,1fr);gap:10px;padding:13px 12px}
+  .editor-tool-icon{width:39px;height:39px;border-radius:12px}
+  .editor-tool-copy h2{font-size:1.18rem}
+  .editor-tool-copy p{font-size:.77rem}
+}

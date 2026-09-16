@@ -1965,3 +1965,7 @@ body.stage7-study-body{
   .stage7-study-body #drafts-back-link .drafts-footer-actions{gap:17px}
   .stage7-study-body #drafts-back-link .drafts-footer-edit{font-size:.92rem}
 }
+
+
+/* Stage 7 Editor v1 — two-line Editor capability hint. */
+.app-drawer .drawer-item .drawer-item-copy small span{display:block}

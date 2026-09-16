@@ -1521,7 +1521,7 @@ function renderEditorDrafts(editorView) {
         localAdditions.length === 1 ? "" : "s"
       } = ${effectiveCount} effective card${
         effectiveCount === 1 ? "" : "s"
-      } · ${countLocalOverrides()} local override${
+      } · ${countLocalOverrides()} local edit${
         countLocalOverrides() === 1 ? "" : "s"
       }.`;
   }
@@ -1694,7 +1694,7 @@ function renderEditorOverrides(editorView) {
       <div class="local-draft-row">
         <div class="local-draft-main">
           <div class="local-draft-word">${escapeHtml(word)}</div>
-          <div class="local-draft-meta">WID${escapeHtml(wid)} · Local override</div>
+          <div class="local-draft-meta">WID${escapeHtml(wid)} · Local Edit</div>
           <div class="local-draft-detail">${escapeHtml(definition)}</div>
         </div>
         <button
@@ -1713,7 +1713,7 @@ function revertLocalOverrideFromEditor(wordId, editorView) {
   const wid = String(wordId || "").trim();
   if (!wid || !localOverrides[wid]) return false;
 
-  if (!confirm(`Revert WID${wid} to the canonical Master version?\n\nThis removes only the browser-local override.`)) {
+  if (!confirm(`Revert WID${wid} to the canonical Master version?\n\nThis removes only the browser-local edit.`)) {
     return false;
   }
 
@@ -4086,7 +4086,7 @@ function installWlpSubnav() {
 
     <div class="editor-wrap">
       <div class="editor-panel">
-        <h3>Add Card / Save Draft</h3>
+        <h3 id="editor-create-section">Add Card / Save Draft</h3>
         <p>
           Save a new card locally in this browser. Local drafts do not receive an official Master WordID yet and do not modify the canonical Master TSV.
         </p>
@@ -4165,7 +4165,7 @@ function installWlpSubnav() {
 
         <div class="editor-divider"></div>
 
-        <h3>Local Drafts</h3>
+        <h3 id="editor-drafts-section">Local Drafts</h3>
         <p id="local-draft-empty" class="editor-muted">
           No local drafts yet.
         </p>
@@ -4173,14 +4173,14 @@ function installWlpSubnav() {
 
         <div class="editor-divider"></div>
 
-        <h3>Local Overrides</h3>
-        <p>Official Master cards edited from the flashcard screen appear here. Revert restores the canonical Master version without touching the Master TSV.</p>
-        <p id="local-override-empty" class="editor-muted">No local overrides yet.</p>
+        <h3 id="editor-local-edits-section">Local Edits</h3>
+        <p>Changes made to existing Master cards appear here. These local edits override the canonical card only in this browser until you revert them.</p>
+        <p id="local-override-empty" class="editor-muted">No local edits yet.</p>
         <div id="local-override-list" class="local-draft-list"></div>
 
         <div class="editor-divider"></div>
 
-        <h3>Backup</h3>
+        <h3 id="editor-backup-section">Backup · Import &amp; Export</h3>
         <p>
           Export the current effective deck, export only browser-local drafts for transfer/enrichment, or import Draft TSV data from another device/browser. New Cards exports include Local Draft ID metadata so an enriched copy can update the same Draft instead of creating a duplicate. Draft import never modifies the canonical Master TSV. Progress has its own separate backup.
         </p>
@@ -4626,8 +4626,16 @@ if (clearAllButton) {
 // #review で開いたときは Review Decks を自動表示
 // -------------------------------------------------------------
 
+const editorHashTargets = {
+  "#editor": null,
+  "#editor-create": "editor-create-section",
+  "#editor-drafts": "editor-drafts-section",
+  "#editor-local-edits": "editor-local-edits-section",
+  "#editor-backup": "editor-backup-section"
+};
+
 if (
-  location.hash === "#editor" &&
+  Object.prototype.hasOwnProperty.call(editorHashTargets, location.hash) &&
   getWlpUiRole() === "admin"
 ) {
 
@@ -4638,6 +4646,16 @@ if (
 
   if (editorButton) {
     editorButton.click();
+
+    const sectionId = editorHashTargets[location.hash];
+    if (sectionId) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const section = document.getElementById(sectionId);
+          if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
   }
 
 } else if (
