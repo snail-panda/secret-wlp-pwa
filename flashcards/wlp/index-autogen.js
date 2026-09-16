@@ -4145,6 +4145,7 @@ function installWlpSubnav() {
           <option value="adverb"></option>
           <option value="pronoun"></option>
           <option value="preposition"></option>
+          <option value="complex preposition"></option>
           <option value="conjunction"></option>
           <option value="interjection"></option>
           <option value="determiner"></option>
@@ -4153,6 +4154,7 @@ function installWlpSubnav() {
           <option value="verb phrase"></option>
           <option value="adjective phrase"></option>
           <option value="adverbial phrase"></option>
+          <option value="prepositional phrase"></option>
           <option value="phrasal verb"></option>
           <option value="idiom"></option>
           <option value="phrase"></option>

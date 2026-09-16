@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Add New Card — WLP</title>
+  <title>Manage Drafts — WLP</title>
   <meta name="theme-color" content="#eef6ee">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,9 +16,10 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
   <link rel="stylesheet" href="./editor-new-card.css">
+  <link rel="stylesheet" href="./editor-drafts.css">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
-<body class="app-body editor-page editor-new-card-page">
+<body class="app-body editor-page editor-drafts-page">
   <div class="app-shell">
     <header class="app-header">
       <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
@@ -29,7 +30,7 @@
         <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
       </a>
       <div class="header-actions">
-        <a class="icon-button header-search-button" href="./global-search.html?return=editor-new-card.html" aria-label="Global Search">
+        <a class="icon-button header-search-button" href="./global-search.html?return=editor-drafts.html" aria-label="Global Search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
         </a>
         <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
@@ -38,104 +39,45 @@
       </div>
     </header>
 
-    <main class="editor-content new-card-content">
-      <a class="editor-back-link" href="./editor.html#create" aria-label="Back to Editor">
+    <main class="editor-content draft-manage-content">
+      <a class="editor-back-link" href="./editor.html#drafts" aria-label="Back to Editor">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
         <span>Back to Editor</span>
       </a>
 
-      <section class="editor-intro new-card-intro">
+      <section class="editor-intro draft-manage-intro">
         <div>
-          <span class="section-kicker">Editor · New card</span>
-          <h1>Add New Card</h1>
-          <p>Create a browser-local Draft. It stays separate from the canonical Master until you deliberately integrate it.</p>
+          <span class="section-kicker">Editor · Drafts</span>
+          <h1>Manage Drafts</h1>
+          <p>Edit or delete browser-local cards before they are integrated into the canonical Master.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
       </section>
 
-      <section class="editor-note" aria-label="Draft storage note">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8 7c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4 1.8-4 4 1.8 4 4 4-1.8 4-4"/></svg>
-        <div><strong>Saved as a Draft</strong><span>No official WordID is assigned here. The Master TSV is not modified.</span></div>
+      <section class="editor-note" aria-label="Draft management note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><path d="m16 16 2 2 4-4"/></svg>
+        <div><strong>Manage here, study in Drafts</strong><span>Changes appear immediately in Draft Decks and Global Search on this browser.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
         <h2>Admin access required</h2>
-        <p>Login as Admin to create a new Draft card.</p>
+        <p>Login as Admin to edit or delete Draft cards.</p>
         <button id="editor-login-button" type="button">Admin Login</button>
       </section>
 
       <div class="editor-workspace" id="editor-workspace">
-        <form id="new-card-form" class="new-card-form" autocomplete="off">
-          <section class="new-card-panel new-card-primary-panel">
-            <div class="new-card-section-head">
-              <div><span class="editor-tool-kicker">Required</span><h2>Word</h2></div>
-              <span class="new-card-draft-badge">Local Draft</span>
-            </div>
-            <label class="new-card-field new-card-word-field">
-              <span>Word <b aria-hidden="true">*</b></span>
-              <input name="Word" id="new-card-word" type="text" required autocomplete="off" placeholder="Word or phrase">
-            </label>
-            <div class="new-card-grid two-col">
-              <label class="new-card-field">
-                <span>IPA</span>
-                <input name="IPA" type="text" autocomplete="off" placeholder="Optional">
-              </label>
-              <label class="new-card-field">
-                <span>Part of Speech</span>
-                <input name="Part of Speech" type="text" list="wlp-pos-options" autocomplete="off" placeholder="Choose or type…">
-              </label>
-            </div>
-          </section>
-
-          <section class="new-card-panel">
-            <div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div>
-            <label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4" placeholder="Meaning, nuance, or core explanation"></textarea></label>
-          </section>
-
-          <section class="new-card-panel">
-            <div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div>
-            <label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2" placeholder="Useful related words or phrases"></textarea></label>
-            <label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4" placeholder="Natural example(s)"></textarea></label>
-            <label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4" placeholder="Nuance, contrast, usage notes, structure…"></textarea></label>
-          </section>
-
-          <section class="new-card-panel">
-            <div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div>
-            <div class="new-card-grid two-col">
-              <label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label>
-              <label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label>
-            </div>
-          </section>
-
-          <div class="new-card-save-bar">
-            <div class="new-card-save-copy"><strong>Browser-local Draft</strong><span>Safe to edit or delete later in Editor.</span></div>
-            <div class="new-card-actions">
-              <button type="reset" class="new-card-secondary">Clear</button>
-              <button type="submit" class="new-card-primary">Save Draft</button>
-            </div>
-          </div>
-        </form>
-
-        <section class="new-card-success" id="new-card-success" hidden aria-live="polite">
-          <div>
-            <strong id="new-card-success-title">Draft saved</strong>
-            <span id="new-card-success-copy">The card is now available in Drafts and Global Search.</span>
-          </div>
-          <div class="new-card-success-actions">
-            <a href="./drafts.html">Study Drafts</a>
-            <a href="./editor-drafts.html">Manage Drafts</a>
-          </div>
+        <div class="draft-manage-toolbar">
+          <a class="draft-manage-primary" href="./editor-new-card.html">Add New Card</a>
+          <a class="draft-manage-secondary" href="./drafts.html">Study Drafts</a>
+        </div>
+        <section class="draft-manage-empty" id="draft-manage-empty" hidden>
+          <span class="draft-manage-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/></svg></span>
+          <h2>No Drafts yet</h2>
+          <p>New cards saved in Editor will appear here automatically.</p>
+          <a href="./editor-new-card.html">Add New Card</a>
         </section>
-
-        <datalist id="wlp-pos-options">
-          <option value="noun"></option><option value="verb"></option><option value="adjective"></option><option value="adverb"></option>
-          <option value="pronoun"></option><option value="preposition"></option><option value="complex preposition"></option><option value="conjunction"></option><option value="interjection"></option>
-          <option value="determiner"></option><option value="proper noun"></option><option value="noun phrase"></option><option value="verb phrase"></option>
-          <option value="adjective phrase"></option><option value="adverbial phrase"></option><option value="prepositional phrase"></option><option value="phrasal verb"></option><option value="idiom"></option>
-          <option value="phrase"></option><option value="expression"></option><option value="collocation"></option><option value="verb construction"></option>
-          <option value="verb pattern"></option><option value="slang"></option>
-        </datalist>
+        <section class="draft-manage-list" id="draft-manage-list" aria-live="polite"></section>
       </div>
     </main>
   </div>
@@ -151,7 +93,7 @@
     </div>
     <nav class="drawer-nav">
       <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
-      <a class="drawer-item" href="./global-search.html?return=editor-new-card.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
+      <a class="drawer-item" href="./global-search.html?return=editor-drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
       <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
       <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
       <a class="drawer-item" href="./legacy-home.html#review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
@@ -188,8 +130,9 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./editor.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
+  <script src="./editor-drafts.js?v=20260915-s7-editor-v1-2"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
-  <script src="./pwa-register.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./pwa-register.js?v=20260915-s7-editor-v1-2"></script>
 </body>
 </html>
