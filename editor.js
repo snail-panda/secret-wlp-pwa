@@ -197,6 +197,22 @@
 
 
   // Stage 7 Editor — standalone New Card form.
+  const newCardParams = new URLSearchParams(location.search);
+  const newCardPrefillWord = String(newCardParams.get('word') || '').trim();
+  const newCardReturnRaw = String(newCardParams.get('return') || '').replace(/^\/+/, '');
+  const newCardReturnSafe = newCardReturnRaw && !newCardReturnRaw.includes('..') && /^[A-Za-z0-9_./?&=%#-]+$/.test(newCardReturnRaw) ? newCardReturnRaw : '';
+  if (newCardReturnSafe) {
+    const backLink = document.querySelector('.editor-new-card-page .editor-back-link');
+    if (backLink) {
+      backLink.href = `./${newCardReturnSafe}`;
+      const label = backLink.querySelector('span');
+      if (label && /global-search\.html/i.test(newCardReturnSafe)) label.textContent = 'Back to Search';
+    }
+  }
+  if (newCardPrefillWord && $('new-card-word')) {
+    $('new-card-word').value = newCardPrefillWord;
+  }
+
   const NEW_CARD_FIELDS = [
     'Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'
   ];

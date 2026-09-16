@@ -1978,43 +1978,5 @@ body.stage7-study-body{
 .app-drawer .drawer-item .drawer-item-title{display:block;min-width:0}
 .app-drawer .drawer-item .drawer-item-copy small{display:block;margin-top:3px;color:#718178;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:10.5px;font-weight:500;line-height:1.18;letter-spacing:.005em;white-space:normal}
 
-/* Stage 7 Drafts v1.2 — Draft Study utility bridge to Editor. */
-.stage7-study-body #drafts-back-link .drafts-footer-actions{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:22px;
-  flex-wrap:wrap;
-}
-.stage7-study-body #drafts-back-link .drafts-footer-edit{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:5px;
-  color:#64796d;
-  font-family:var(--s7-serif);
-  font-size:.96rem;
-  line-height:1.2;
-  text-decoration:none;
-  -webkit-tap-highlight-color:transparent;
-}
-.stage7-study-body #drafts-back-link .drafts-footer-edit[hidden]{display:none!important}
-.stage7-study-body #drafts-back-link .drafts-footer-edit-icon{
-  width:16px;
-  height:16px;
-  flex:0 0 auto;
-  fill:none;
-  stroke:currentColor;
-  stroke-width:1.65;
-  stroke-linecap:round;
-  stroke-linejoin:round;
-}
-.stage7-study-body #drafts-back-link .drafts-footer-edit:active{opacity:.7}
-@media(max-width:390px){
-  .stage7-study-body #drafts-back-link .drafts-footer-actions{gap:17px}
-  .stage7-study-body #drafts-back-link .drafts-footer-edit{font-size:.92rem}
-}
-
-
 /* Stage 7 Editor v1 — two-line Editor capability hint. */
 .app-drawer .drawer-item .drawer-item-copy small span{display:block}

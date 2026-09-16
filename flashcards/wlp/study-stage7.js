@@ -162,35 +162,7 @@
   const rememberAdmin = document.getElementById('remember-admin');
   const adminError = document.getElementById('admin-error');
   const toast = document.getElementById('study-toast');
-  const draftsFooterEdit = document.getElementById('drafts-footer-edit');
 
-  const syncDraftEditHref = () => {
-    if (!draftsFooterEdit || !params.get('draft') || isFromSearch) return;
-    try {
-      const parsed = JSON.parse(localStorage.getItem('wlp:local-additions:v1') || '[]');
-      if (!Array.isArray(parsed)) return;
-      const drafts = parsed.filter(draft => draft && typeof draft === 'object' && String(draft.Word || '').trim());
-      const deckNo = Math.max(1, Number(params.get('draft')) || 1);
-      const deckRows = drafts.slice((deckNo - 1) * 10, (deckNo - 1) * 10 + 10);
-      const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
-      const activeIndex = Math.max(0, cards.findIndex(card => card.classList.contains('active')));
-      const draft = deckRows[activeIndex] || deckRows[0];
-      const localId = String(draft?.localId || '').trim();
-      const returnParams = new URLSearchParams();
-      returnParams.set('draft', String(deckNo));
-      if (localId) returnParams.set('localid', localId);
-      returnParams.set('from', 'drafts');
-      const returnTo = `flashcards/wlp/batch.html?${returnParams.toString()}`;
-      draftsFooterEdit.href = localId
-        ? `../../editor-draft-edit.html?id=${encodeURIComponent(localId)}&return=${encodeURIComponent(returnTo)}`
-        : '../../editor-drafts.html';
-    } catch {
-      draftsFooterEdit.href = '../../editor-drafts.html';
-    }
-  };
-  draftsFooterEdit?.addEventListener('pointerdown', syncDraftEditHref);
-  draftsFooterEdit?.addEventListener('focus', syncDraftEditHref);
-  draftsFooterEdit?.addEventListener('click', syncDraftEditHref);
 
   const setDrawer = open => {
     if (!drawer || !menu || !backdrop) return;
@@ -253,8 +225,6 @@
     const drawerLabel = drawerRoleAction?.querySelector('.drawer-role-label');
     if (drawerLabel) drawerLabel.textContent = admin ? 'Switch to Guest' : 'Admin Login';
     drawerAdminOnly.forEach(item => { item.hidden = !admin; });
-    if (draftsFooterEdit) draftsFooterEdit.hidden = !(admin && Boolean(params.get('draft')) && !isFromSearch);
-    if (admin) syncDraftEditHref();
   };
 
   const closeRoleMenu = () => {

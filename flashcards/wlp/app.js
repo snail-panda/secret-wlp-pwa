@@ -127,6 +127,9 @@ if (IS_REVIEW_MODE) {
 
 if (IS_DRAFT_MODE) {
 
+  // Stage 7 final polish: Draft navigation lives in the app context and
+  // Draft editing uses the same quiet card-corner pencil as Master cards.
+  // The old footer action row stays hidden.
   const draftsBackLink =
     document.getElementById(
       "drafts-back-link"
@@ -134,7 +137,7 @@ if (IS_DRAFT_MODE) {
 
   if (draftsBackLink) {
     draftsBackLink.style.display =
-      "block";
+      "none";
   }
 
 }
@@ -1030,11 +1033,35 @@ root
         location.href = `../../editor-local-edit.html?wid=${encodeURIComponent(wid)}&return=${encodeURIComponent(returnTo)}`;
       };
 
-      if (IS_DRAFT_MODE || !isWlpAdminMode()) {
+      const openDraftEdit = () => {
+        const localId = String(row.__localId || "").trim();
+        if (!localId) return;
+        const returnParams = new URLSearchParams(location.search);
+        returnParams.delete("s7card");
+        returnParams.set("draft", String(Math.max(1, Number(DRAFT_PARAM) || 1)));
+        returnParams.set("localid", localId);
+        returnParams.set("from", "drafts");
+        const activeIndex = currentIndex();
+        if (activeIndex >= 0) returnParams.set("s7card", String(activeIndex + 1));
+        const returnTo = `flashcards/wlp/batch.html?${returnParams.toString()}`;
+        location.href = `../../editor-draft-edit.html?id=${encodeURIComponent(localId)}&return=${encodeURIComponent(returnTo)}`;
+      };
+
+      if (!isWlpAdminMode()) {
         if (editButton) editButton.hidden = true;
         if (frontEditButton) frontEditButton.hidden = true;
         if (backEditButton) backEditButton.hidden = true;
         if (revertButton) revertButton.hidden = true;
+      } else if (IS_DRAFT_MODE) {
+        if (editButton) editButton.hidden = true;
+        if (revertButton) revertButton.hidden = true;
+        [frontEditButton, backEditButton].forEach(button => {
+          if (!button) return;
+          button.hidden = false;
+          button.setAttribute("aria-label", "Edit Draft");
+          button.setAttribute("title", "Edit Draft");
+          button.addEventListener("click", openDraftEdit);
+        });
       } else {
         if (frontEditButton) {
           frontEditButton.hidden = false;
