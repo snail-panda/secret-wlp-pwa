@@ -34,9 +34,6 @@ const DRAFT_PARAM =
 const WORDID_PARAM =
   PARAMS.get("wordid");
 
-const LOCALID_PARAM =
-  PARAMS.get("localid");
-
 const SOLO_PARAM =
   PARAMS.get("solo");
 
@@ -48,10 +45,7 @@ const IS_FROM_PROGRESS =
 
 const IS_SOLO_MODE =
   SOLO_PARAM === "1" &&
-  Boolean(
-    WORDID_PARAM ||
-    (DRAFT_PARAM && LOCALID_PARAM)
-  );
+  Boolean(WORDID_PARAM);
 
 const IS_REVIEW_MODE =
   Boolean(REVIEW_PARAM);
@@ -971,10 +965,17 @@ root
         if (revertButton) revertButton.hidden = true;
       } else {
         if (editButton) {
-          editButton.textContent = row.__hasLocalOverride
-            ? "✏️ Edit Override"
-            : "✏️ Edit Card";
-          editButton.addEventListener("click", () => openLocalOverrideEditor(row));
+          editButton.textContent = "✏️ Edit Card";
+          editButton.addEventListener("click", () => {
+            const wid = String(row.WordID || "").trim();
+            if (!wid) return;
+            const returnParams = new URLSearchParams(location.search);
+            returnParams.delete("s7card");
+            const activeIndex = currentIndex();
+            if (activeIndex >= 0) returnParams.set("s7card", String(activeIndex + 1));
+            const returnTo = `flashcards/wlp/batch.html?${returnParams.toString()}`;
+            location.href = `../../editor-local-edit.html?wid=${encodeURIComponent(wid)}&return=${encodeURIComponent(returnTo)}`;
+          });
         }
         if (revertButton) {
           revertButton.hidden = !row.__hasLocalOverride;
@@ -3014,43 +3015,6 @@ installAdjacentDeckLinks(
 
     label =
       BATCH_PARAM;
-
-  }
-
-
-  if (
-    IS_DRAFT_MODE &&
-    IS_SOLO_MODE &&
-    LOCALID_PARAM
-  ) {
-
-    const draftIndex =
-      selectedRows.findIndex(
-        row =>
-          String(
-            row.__localId || ""
-          ).trim() ===
-          String(
-            LOCALID_PARAM
-          ).trim()
-      );
-
-    if (draftIndex >= 0) {
-      selectedRows = [
-        selectedRows[draftIndex]
-      ];
-    } else {
-      document
-        .getElementById(
-          "cards"
-        )
-        .innerHTML = `
-          <div style="text-align:center;padding:3em 1em;">
-            This local draft card could not be found.
-          </div>
-        `;
-      return;
-    }
 
   }
 

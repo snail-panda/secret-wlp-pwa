@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Editor — WLP</title>
+  <title>Edit Local Edit — WLP</title>
   <meta name="theme-color" content="#eef6ee">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,9 +15,12 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
+  <link rel="stylesheet" href="./editor-new-card.css">
+  <link rel="stylesheet" href="./editor-drafts.css">
+  <link rel="stylesheet" href="./editor-local-edits.css">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
-<body class="app-body editor-page">
+<body class="app-body editor-page editor-new-card-page editor-draft-edit-page">
   <div class="app-shell">
     <header class="app-header">
       <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
@@ -28,7 +31,7 @@
         <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
       </a>
       <div class="header-actions">
-        <a class="icon-button header-search-button" href="./global-search.html?return=editor.html" aria-label="Global Search">
+        <a class="icon-button header-search-button" href="./global-search.html?return=editor-local-edit.html" aria-label="Global Search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
         </a>
         <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
@@ -37,71 +40,64 @@
       </div>
     </header>
 
-    <main class="editor-content">
-      <section class="editor-intro">
+    <main class="editor-content new-card-content draft-edit-content">
+      <a class="editor-back-link" id="draft-edit-back" href="./editor-drafts.html" aria-label="Back to Manage Drafts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+        <span id="draft-edit-back-label">Back to Manage Drafts</span>
+      </a>
+
+      <section class="editor-intro new-card-intro">
         <div>
-          <span class="section-kicker">Admin workspace</span>
-          <h1>Editor</h1>
-          <p>Create and manage browser-local vocabulary, local edits, and transfer files without changing the canonical Master TSV.</p>
+          <span class="section-kicker">Editor · Draft</span>
+          <h1>Edit Draft</h1>
+          <p>Update this browser-local card. Its Draft ID and original creation date stay the same.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
       </section>
 
-      <section class="editor-note" aria-label="Editor storage note">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8 7c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4 1.8-4 4 1.8 4 4 4-1.8 4-4"/></svg>
-        <div><strong>Local by design</strong><span>Drafts and Local Edits stay in this browser until you export or deliberately integrate them.</span></div>
+      <section class="editor-note" aria-label="Draft edit note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>
+        <div><strong>Browser-local Draft</strong><span>Saving here never modifies the canonical Master TSV.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
         <h2>Admin access required</h2>
-        <p>Login as Admin to create cards, manage Drafts and Local Edits, or use backup tools.</p>
+        <p>Login as Admin to edit this Draft card.</p>
         <button id="editor-login-button" type="button">Admin Login</button>
       </section>
 
       <div class="editor-workspace" id="editor-workspace">
-        <section class="editor-tool-card" id="create">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>New Cards</h2>
-            <p>Create a new browser-local Draft card. It remains separate from the Master until you deliberately integrate it.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-new-card.html">Add New Card <span aria-hidden="true">›</span></a>
+        <section class="draft-edit-missing" id="draft-edit-missing" hidden>
+          <h2>Draft not found</h2>
+          <p>This Draft may have been deleted or belongs to another browser.</p>
+          <a href="./editor-drafts.html">Back to Manage Drafts</a>
         </section>
 
-        <section class="editor-tool-card" id="drafts">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/><path d="m16 15 3 3 3-3"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Drafts <span class="editor-mini-count" id="editor-draft-count">0</span></h2>
-            <p>Edit or delete new cards stored only in this browser, or open them as Draft Decks for study.</p>
+        <form id="draft-edit-form" class="new-card-form" autocomplete="off">
+          <section class="new-card-panel new-card-primary-panel">
+            <div class="new-card-section-head">
+              <div><span class="editor-tool-kicker">Draft</span><h2>Word</h2></div>
+              <span class="new-card-draft-badge" id="draft-edit-badge">Local Draft</span>
+            </div>
+            <label class="new-card-field new-card-word-field"><span>Word <b aria-hidden="true">*</b></span><input name="Word" id="draft-edit-word" type="text" required autocomplete="off"></label>
+            <div class="new-card-grid two-col">
+              <label class="new-card-field"><span>IPA</span><input name="IPA" type="text" autocomplete="off"></label>
+              <label class="new-card-field"><span>Part of Speech</span><input name="Part of Speech" type="text" list="wlp-pos-options" autocomplete="off" placeholder="Choose or type…"></label>
+            </div>
+          </section>
+          <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div><label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4"></textarea></label></section>
+          <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
+          <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
+          <div class="new-card-save-bar draft-edit-save-bar">
+            <button type="button" class="draft-edit-delete" id="draft-edit-delete">Delete Draft</button>
+            <div class="new-card-actions"><a class="draft-edit-cancel" id="draft-edit-cancel" href="./editor-drafts.html">Cancel</a><button type="submit" class="new-card-primary">Save Changes</button></div>
           </div>
-          <div class="editor-action-row">
-            <a class="editor-primary-action" href="./editor-drafts.html">Manage Drafts <span aria-hidden="true">›</span></a>
-            <a class="editor-secondary-action" href="./drafts.html">Study Drafts</a>
-          </div>
-        </section>
-
-        <section class="editor-tool-card" id="local-edits">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Local Edits <span class="editor-mini-count" id="editor-local-edit-count">0</span></h2>
-            <p>Review changes made to existing Master cards on this device. Revert returns a card to its canonical Master version.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-local-edits.html">Manage Local Edits <span aria-hidden="true">›</span></a>
-        </section>
-
-        <section class="editor-tool-card editor-backup-card" id="backup">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Backup</span>
-            <h2>Import &amp; Export</h2>
-            <p>Export the effective deck or new cards only, and import Drafts or updated Drafts from another browser or device.</p>
-          </div>
-          <a class="editor-primary-action" href="./legacy-home.html#editor-backup">Open Backup Tools <span aria-hidden="true">›</span></a>
-        </section>
+        </form>
+        <section class="new-card-success" id="draft-edit-success" hidden aria-live="polite"><div><strong>Changes saved</strong><span>The updated Draft is already available in Drafts and Global Search.</span></div><div class="new-card-success-actions"><a id="draft-edit-success-primary" href="./editor-drafts.html">Back to Manage Drafts</a><a id="draft-edit-success-secondary" href="./drafts.html">Study Draft</a><a id="draft-edit-home" href="./index.html">Home</a></div></section>
+        <datalist id="wlp-pos-options">
+          <option value="noun"></option><option value="verb"></option><option value="adjective"></option><option value="adverb"></option><option value="pronoun"></option><option value="preposition"></option><option value="complex preposition"></option><option value="conjunction"></option><option value="interjection"></option><option value="determiner"></option><option value="proper noun"></option><option value="noun phrase"></option><option value="verb phrase"></option><option value="adjective phrase"></option><option value="adverbial phrase"></option><option value="prepositional phrase"></option><option value="phrasal verb"></option><option value="idiom"></option><option value="phrase"></option><option value="expression"></option><option value="collocation"></option><option value="verb construction"></option><option value="verb pattern"></option><option value="slang"></option>
+        </datalist>
       </div>
     </main>
   </div>
@@ -117,7 +113,7 @@
     </div>
     <nav class="drawer-nav">
       <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
-      <a class="drawer-item" href="./global-search.html?return=editor.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
+      <a class="drawer-item" href="./global-search.html?return=editor-local-edit.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
       <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
       <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
       <a class="drawer-item" href="./legacy-home.html#review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
@@ -154,8 +150,9 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./editor.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
+  <script src="./editor-local-edits.js?v=20260915-s7-editor-v1-4"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
-  <script src="./pwa-register.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./pwa-register.js?v=20260915-s7-editor-v1-4"></script>
 </body>
 </html>

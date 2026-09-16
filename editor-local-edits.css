@@ -1,0 +1,10 @@
+
+.local-edit-manage-content,.local-edit-edit-content{max-width:760px}
+.local-edit-wid-pill{white-space:nowrap}
+.local-edit-card .draft-manage-meta{font-variant-numeric:tabular-nums}
+.local-edit-card .local-edit-state{display:inline-flex;align-items:center;gap:4px;color:#5d7969}
+.local-edit-card .local-edit-state::before{content:"";width:5px;height:5px;border-radius:50%;background:#769581;box-shadow:0 0 0 3px rgba(118,149,129,.10)}
+.local-edit-revert{white-space:nowrap}
+.local-edit-card .draft-manage-delete{min-width:62px}
+.local-edit-master-note{color:#7c887f;font-size:.66rem;margin-top:3px}
+@media(max-width:520px){.local-edit-save-bar{align-items:center}.local-edit-save-bar .new-card-actions{margin-left:auto}}
