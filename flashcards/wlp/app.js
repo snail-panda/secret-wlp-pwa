@@ -456,13 +456,54 @@ function revertLocalOverride(wordId) {
   const wid = String(wordId || "").trim();
   if (!wid || !localOverrides[wid]) return;
 
-  if (!confirm(`Revert WID${wid} to the canonical Master version?\n\nThis removes only the browser-local override.`)) {
+  const modal = document.getElementById("local-revert-confirm");
+  const cancelButton = document.getElementById("local-revert-confirm-cancel");
+  const revertButton = document.getElementById("local-revert-confirm-do");
+  const wordLabel = document.getElementById("local-revert-confirm-word");
+
+  const applyRevert = () => {
+    delete localOverrides[wid];
+    saveLocalOverrides();
+    location.reload();
+  };
+
+  if (!modal || !cancelButton || !revertButton) {
+    if (confirm(`Revert WID${wid} to the canonical Master version?\n\nThis removes only the browser-local edit.`)) {
+      applyRevert();
+    }
     return;
   }
 
-  delete localOverrides[wid];
-  saveLocalOverrides();
-  location.reload();
+  const row = allRows.find(item => String(item.WordID || "").trim() === wid);
+  const word = String(row?.Word || "").trim();
+  if (wordLabel) wordLabel.textContent = word ? `${word} · WID${wid}` : `WID${wid}`;
+
+  const close = () => {
+    modal.hidden = true;
+    cancelButton.onclick = null;
+    revertButton.onclick = null;
+    modal.onclick = null;
+    document.removeEventListener("keydown", onKeydown);
+  };
+
+  const onKeydown = event => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  };
+
+  cancelButton.onclick = close;
+  revertButton.onclick = () => {
+    close();
+    applyRevert();
+  };
+  modal.onclick = event => {
+    if (event.target === modal) close();
+  };
+  document.addEventListener("keydown", onKeydown);
+  modal.hidden = false;
+  cancelButton.focus();
 }
 
 function installLocalOverrideEditor() {

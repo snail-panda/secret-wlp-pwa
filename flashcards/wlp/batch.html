@@ -103,6 +103,72 @@
       gap: 10px;
       margin-top: 16px;
     }
+
+    .local-revert-confirm[hidden] { display: none !important; }
+    .local-revert-confirm {
+      position: fixed;
+      inset: 0;
+      z-index: 10020;
+      background: rgba(37, 43, 34, 0.44);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .local-revert-confirm-panel {
+      width: min(390px, 92vw);
+      background: #fffdf7;
+      color: #34382f;
+      border: 1px solid rgba(85, 114, 100, 0.22);
+      border-radius: 18px;
+      padding: 22px 20px 18px;
+      box-sizing: border-box;
+      box-shadow: 0 18px 52px rgba(31, 38, 31, 0.24);
+      text-align: center;
+    }
+    .local-revert-confirm-panel h2 {
+      margin: 0 0 8px;
+      font-size: 1.08rem;
+      line-height: 1.35;
+      color: #35483f;
+    }
+    .local-revert-confirm-panel p {
+      margin: 0;
+      font-size: .9rem;
+      line-height: 1.55;
+      color: #6b7067;
+    }
+    .local-revert-confirm-word {
+      display: block;
+      margin-top: 7px;
+      font-weight: 700;
+      color: #42493f;
+      overflow-wrap: anywhere;
+    }
+    .local-revert-confirm-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .local-revert-confirm-actions button {
+      min-height: 44px;
+      border-radius: 12px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .local-revert-confirm-cancel {
+      border: 1px solid rgba(85, 114, 100, 0.28);
+      background: #fffdf7;
+      color: #557264;
+    }
+    .local-revert-confirm-do {
+      border: 1px solid #a45d54;
+      background: #a45d54;
+      color: #fff;
+    }
     .local-edit-help {
       text-align: center;
       opacity: .72;
@@ -543,6 +609,18 @@
 </div>
   </div>
 
+  <div id="local-revert-confirm" class="local-revert-confirm" hidden>
+    <div class="local-revert-confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="local-revert-confirm-title" aria-describedby="local-revert-confirm-copy">
+      <h2 id="local-revert-confirm-title">Revert local edit?</h2>
+      <p id="local-revert-confirm-copy">Restore the Master version? This removes only the local edit on this device.</p>
+      <span id="local-revert-confirm-word" class="local-revert-confirm-word"></span>
+      <div class="local-revert-confirm-actions">
+        <button type="button" class="local-revert-confirm-cancel" id="local-revert-confirm-cancel">Cancel</button>
+        <button type="button" class="local-revert-confirm-do" id="local-revert-confirm-do">Revert</button>
+      </div>
+    </div>
+  </div>
+
   <div id="local-edit-modal" class="local-edit-modal" hidden>
     <div class="local-edit-panel" role="dialog" aria-modal="true" aria-labelledby="local-edit-title">
       <h2 id="local-edit-title">Edit Local Edit</h2>
@@ -661,7 +739,7 @@
 
   <div class="study-toast" id="study-toast" hidden></div>
 
-  <script type="module" src="./app.js?v=20260916-s7-front-edit-v142"></script>
+  <script type="module" src="./app.js?v=20260916-s7-revert-confirm-v143"></script>
   <script src="./study-stage7.js?v=20260915-s7-editor-drafts-v13"></script>
   <script src="../../study-options.js?v=20260915-s7-options-v12"></script>
 </body>
