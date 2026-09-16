@@ -16,6 +16,35 @@
     return `./flashcards/wlp/batch.html?${p.toString()}`;
   };
 
+  const editReturnContext = () => {
+    const raw=String(new URLSearchParams(location.search).get('return')||'').trim();
+    if(raw==='editor-drafts.html' || raw==='./editor-drafts.html') return {href:'./editor-drafts.html',label:'Back to Manage Drafts',kind:'manage'};
+    if(raw.startsWith('flashcards/wlp/batch.html?') && !raw.includes('..') && !/^\w+:/.test(raw)) return {href:`./${raw}`,label:'Back to Draft',kind:'study'};
+    return {href:'./editor-drafts.html',label:'Back to Manage Drafts',kind:'manage'};
+  };
+
+  const syncEditNavigation = (drafts, index) => {
+    const ctx=editReturnContext();
+    const back=$('draft-edit-back');
+    const backLabel=$('draft-edit-back-label');
+    const cancel=$('draft-edit-cancel');
+    const primary=$('draft-edit-success-primary');
+    const secondary=$('draft-edit-success-secondary');
+    const home=$('draft-edit-home');
+    if(back){ back.href=ctx.href; back.setAttribute('aria-label',ctx.label); }
+    if(backLabel) backLabel.textContent=ctx.label;
+    if(cancel){ cancel.href=ctx.href; cancel.setAttribute('aria-label',`Cancel and ${ctx.label.toLowerCase()}`); }
+    if(primary){
+      primary.href=ctx.href;
+      primary.textContent=ctx.kind==='study' ? 'Back to Draft' : 'Back to Manage Drafts';
+    }
+    if(secondary){
+      if(ctx.kind==='study'){ secondary.href='./editor-drafts.html'; secondary.textContent='Manage Drafts'; }
+      else { secondary.href=studyHref(drafts,index); secondary.textContent='Study Draft'; }
+    }
+    if(home) home.href='./index.html';
+  };
+
   function syncCountPill(drafts = readDrafts()) {
     const pill=$('editor-count-pill'); if(!pill) return;
     let edits=0; try { const v=JSON.parse(localStorage.getItem('wlp:local-overrides:v1')||'{}'); if(v&&typeof v==='object'&&!Array.isArray(v)) edits=Object.values(v).filter(x=>x&&typeof x==='object'&&!Array.isArray(x)).length; } catch {}
@@ -32,7 +61,7 @@
       const date=formatDate(d.updatedAt||d.createdAt);
       const meta=[`Draft ${String(i+1).padStart(3,'0')}`,pos,date?`Updated ${date}`:''].filter(Boolean).join(' · ');
       const detail=String(d.Definition||d['Example Sentence']||d['Note(s)']||'No definition yet.').trim();
-      return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}">Delete</button></div></article>`;
+      return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}&return=${encodeURIComponent('editor-drafts.html')}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}">Delete</button></div></article>`;
     }).join('');
     list.querySelectorAll('[data-delete-draft]').forEach(btn=>btn.addEventListener('click',()=>{
       if(!isAdmin()) return;
@@ -52,12 +81,13 @@
     FIELDS.forEach(field=>{ const el=form.elements.namedItem(field); if(el) el.value=String(draft[field]||''); });
     const badge=$('draft-edit-badge'); if(badge) badge.textContent=`Draft ${String(index+1).padStart(3,'0')}`;
     const study=$('draft-edit-study'); if(study) study.href=studyHref(drafts,index);
+    syncEditNavigation(drafts,index);
     form.addEventListener('submit',event=>{
       event.preventDefault(); if(!isAdmin()) return;
       const latest=readDrafts(); const at=latest.findIndex(d=>String(d.localId||'')===id); if(at<0){ location.reload(); return; }
       const fd=new FormData(form); const word=String(fd.get('Word')||'').trim(); if(!word){ $('draft-edit-word')?.focus(); return; }
       const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); latest[at]=next; writeDrafts(latest);
-      const success=$('draft-edit-success'); if(success) success.hidden=false; if(study) study.href=studyHref(latest,at);
+      const success=$('draft-edit-success'); if(success) success.hidden=false; if(study) study.href=studyHref(latest,at); syncEditNavigation(latest,at);
     });
     $('draft-edit-delete')?.addEventListener('click',()=>{
       if(!isAdmin()) return; const latest=readDrafts(); const current=latest.find(d=>String(d.localId||'')===id); if(!current) return;

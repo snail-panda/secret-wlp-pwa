@@ -176,8 +176,13 @@
       const activeIndex = Math.max(0, cards.findIndex(card => card.classList.contains('active')));
       const draft = deckRows[activeIndex] || deckRows[0];
       const localId = String(draft?.localId || '').trim();
+      const returnParams = new URLSearchParams();
+      returnParams.set('draft', String(deckNo));
+      if (localId) returnParams.set('localid', localId);
+      returnParams.set('from', 'drafts');
+      const returnTo = `flashcards/wlp/batch.html?${returnParams.toString()}`;
       draftsFooterEdit.href = localId
-        ? `../../editor-draft-edit.html?id=${encodeURIComponent(localId)}`
+        ? `../../editor-draft-edit.html?id=${encodeURIComponent(localId)}&return=${encodeURIComponent(returnTo)}`
         : '../../editor-drafts.html';
     } catch {
       draftsFooterEdit.href = '../../editor-drafts.html';
