@@ -118,6 +118,27 @@
             <span><strong>Choose Draft TSV</strong><small>Import Drafts / Updated Drafts</small></span>
           </button>
 
+          <section class="backup-import-preview" id="draft-import-preview" hidden aria-live="polite">
+            <div class="import-preview-head">
+              <div><span class="editor-tool-kicker">Import Preview</span><h3 id="draft-import-file-name">Selected Draft TSV</h3></div>
+              <button type="button" class="import-preview-clear" id="draft-import-clear">Clear</button>
+            </div>
+            <div class="import-preview-counts">
+              <div><strong id="import-preview-add">0</strong><span>New</span></div>
+              <div><strong id="import-preview-update">0</strong><span>Update</span></div>
+              <div><strong id="import-preview-skip">0</strong><span>Skip</span></div>
+            </div>
+            <p class="import-preview-warning" id="draft-import-warning" hidden></p>
+            <div class="import-preview-actions">
+              <button type="button" class="import-review-button" id="draft-import-review-changes" aria-expanded="false">Review Changes</button>
+              <button type="button" class="import-continue-button" id="draft-import-continue">Continue to Import</button>
+            </div>
+            <div class="import-change-details" id="draft-import-change-details" hidden>
+              <p class="import-review-help">Updates compare the Draft on this device with the incoming TSV. Highlighted text shows the changed portion.</p>
+              <div id="draft-import-change-list"></div>
+            </div>
+          </section>
+
           <section class="backup-status" id="draft-import-status" hidden aria-live="polite"></section>
         </section>
 
@@ -178,8 +199,8 @@
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-backup.js?v=20260916-s7-editor-backup-v1-5-0"></script>
+  <script src="./editor-backup.js?v=20260916-s7-editor-backup-v1-5-1"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
-  <script src="./pwa-register.js?v=20260916-s7-editor-backup-v1-5-0"></script>
+  <script src="./pwa-register.js?v=20260916-s7-editor-backup-v1-5-1"></script>
 </body>
 </html>
