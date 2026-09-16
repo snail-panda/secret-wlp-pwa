@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-selection-search-v1-5-4';
+const CACHE_NAME = 'wlp-stage7-reference-assist-v1-5-5';
 const CORE = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const CORE = [
   './editor.js',
   './editor-new-card.html',
   './editor-new-card.css',
+  './reference-assist.js',
   './editor-drafts.html',
   './editor-draft-edit.html',
   './editor-drafts.css',
