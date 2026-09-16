@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-draft-delete-confirm-v1-4-7';
+const CACHE_NAME = 'wlp-stage7-editor-backup-v1-5-0';
 const CORE = [
   './',
   './index.html',
@@ -27,6 +27,9 @@ const CORE = [
   './editor-local-edit.html',
   './editor-local-edits.css',
   './editor-local-edits.js',
+  './editor-backup.html',
+  './editor-backup.css',
+  './editor-backup.js',
   './study-options.css',
   './study-options.js',
   './legacy-home.html',

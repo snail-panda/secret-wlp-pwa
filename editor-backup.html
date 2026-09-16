@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Editor — WLP</title>
+  <title>Import & Export — WLP</title>
   <meta name="theme-color" content="#eef6ee">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,9 +15,13 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
+  <link rel="stylesheet" href="./editor-new-card.css">
+  <link rel="stylesheet" href="./editor-drafts.css">
+  <link rel="stylesheet" href="./editor-local-edits.css">
+  <link rel="stylesheet" href="./editor-backup.css">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
-<body class="app-body editor-page">
+<body class="app-body editor-page editor-backup-page">
   <div class="app-shell">
     <header class="app-header">
       <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
@@ -28,7 +32,7 @@
         <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
       </a>
       <div class="header-actions">
-        <a class="icon-button header-search-button" href="./global-search.html?return=editor.html" aria-label="Global Search">
+        <a class="icon-button header-search-button" href="./global-search.html?return=editor-backup.html" aria-label="Global Search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
         </a>
         <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
@@ -37,70 +41,89 @@
       </div>
     </header>
 
-    <main class="editor-content">
-      <section class="editor-intro">
+    <main class="editor-content editor-backup-content">
+      <a class="editor-back-link" href="./editor.html#backup" aria-label="Back to Editor">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+        <span>Back to Editor</span>
+      </a>
+
+      <section class="editor-page-head backup-page-head">
         <div>
-          <span class="section-kicker">Admin workspace</span>
-          <h1>Editor</h1>
-          <p>Create and manage browser-local vocabulary, local edits, and transfer files without changing the canonical Master TSV.</p>
+          <span class="section-kicker">Editor · Backup</span>
+          <h1>Import &amp; Export</h1>
+          <p>Back up the Effective Deck, move new Drafts between devices, or bring enriched Drafts back into this browser.</p>
         </div>
-        <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
+        <span class="editor-count-pill" id="editor-count-pill">Loading…</span>
       </section>
 
-      <section class="editor-note" aria-label="Editor storage note">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8 7c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4 1.8-4 4 1.8 4 4 4-1.8 4-4"/></svg>
-        <div><strong>Local by design</strong><span>Drafts and Local Edits stay in this browser until you export or deliberately integrate them.</span></div>
-      </section>
-
-      <section class="editor-locked" id="editor-locked" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-        <h2>Admin access required</h2>
-        <p>Login as Admin to create cards, manage Drafts and Local Edits, or use backup tools.</p>
+      <div id="editor-locked" class="editor-locked" hidden>
+        <span class="section-kicker">Admin tool</span>
+        <h2>Import &amp; Export is locked</h2>
+        <p>Login as Admin to export WLP data or import Draft changes.</p>
         <button id="editor-login-button" type="button">Admin Login</button>
-      </section>
+      </div>
 
-      <div class="editor-workspace" id="editor-workspace">
-        <section class="editor-tool-card" id="create">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>New Cards</h2>
-            <p>Create a new browser-local Draft card. It remains separate from the Master until you deliberately integrate it.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-new-card.html">Add New Card <span aria-hidden="true">›</span></a>
+      <div id="editor-workspace" class="backup-workspace" hidden>
+        <section class="backup-summary" aria-label="Current local data summary">
+          <div><strong id="backup-master-count">—</strong><span>Master cards</span></div>
+          <div><strong id="backup-draft-count">—</strong><span>Drafts</span></div>
+          <div><strong id="backup-edit-count">—</strong><span>Local Edits</span></div>
         </section>
 
-        <section class="editor-tool-card" id="drafts">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/><path d="m16 15 3 3 3-3"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Drafts <span class="editor-mini-count" id="editor-draft-count">0</span></h2>
-            <p>Edit or delete new cards stored only in this browser, or open them as Draft Decks for study.</p>
+        <section class="backup-panel">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Export</span>
+              <h2>Back up or transfer your deck</h2>
+            </div>
           </div>
-          <div class="editor-action-row">
-            <a class="editor-primary-action" href="./editor-drafts.html">Manage Drafts <span aria-hidden="true">›</span></a>
-            <a class="editor-secondary-action" href="./drafts.html">Study Drafts</a>
-          </div>
+
+          <article class="backup-action-card">
+            <div class="backup-action-copy">
+              <h3>Entire Deck</h3>
+              <p>Exports the Master deck with Local Edits applied, then appends browser-local Drafts. Master order stays unchanged.</p>
+              <small id="entire-deck-summary">Preparing deck summary…</small>
+            </div>
+            <button class="backup-primary" id="deck-export-entire" type="button">Export Entire Deck <span>.tsv</span></button>
+          </article>
+
+          <article class="backup-action-card">
+            <div class="backup-action-copy">
+              <h3>New Cards Only</h3>
+              <p>Exports only browser-local Drafts, including Local Draft ID metadata so an enriched copy can update the same Draft later.</p>
+              <small id="new-cards-summary">Checking local Drafts…</small>
+            </div>
+            <button class="backup-secondary-action" id="deck-export-new-only" type="button">Export New Cards Only <span>.tsv</span></button>
+          </article>
         </section>
 
-        <section class="editor-tool-card" id="local-edits">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Local Edits <span class="editor-mini-count" id="editor-local-edit-count">0</span></h2>
-            <p>Review changes made to existing Master cards on this device. Revert returns a card to its canonical Master version.</p>
+        <section class="backup-panel import-panel">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Import</span>
+              <h2>Drafts / Updated Drafts</h2>
+              <p>Select a WLP Draft TSV from another browser, device, or enrichment pass.</p>
+            </div>
           </div>
-          <a class="editor-primary-action" href="./editor-local-edits.html">Manage Local Edits <span aria-hidden="true">›</span></a>
+
+          <div class="backup-import-rules">
+            <span>Same Local Draft ID → update</span>
+            <span>Exact duplicate → skip</span>
+            <span>Official WordID row → skip</span>
+          </div>
+
+          <input id="draft-import-file" type="file" accept=".tsv,text/tab-separated-values,text/plain" hidden>
+          <button class="backup-import-button" id="draft-import-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M5 4h14v4"/></svg>
+            <span><strong>Choose Draft TSV</strong><small>Import Drafts / Updated Drafts</small></span>
+          </button>
+
+          <section class="backup-status" id="draft-import-status" hidden aria-live="polite"></section>
         </section>
 
-        <section class="editor-tool-card editor-backup-card" id="backup">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Backup</span>
-            <h2>Import &amp; Export</h2>
-            <p>Export the effective deck or new cards only, and import Drafts or updated Drafts from another browser or device.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-backup.html">Open Backup Tools <span aria-hidden="true">›</span></a>
+        <section class="backup-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>
+          <div><strong>Master stays untouched.</strong><span>Draft import only changes browser-local Drafts. Progress has its own separate backup.</span></div>
         </section>
       </div>
     </main>
@@ -117,7 +140,7 @@
     </div>
     <nav class="drawer-nav">
       <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
-      <a class="drawer-item" href="./global-search.html?return=editor.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
+      <a class="drawer-item" href="./global-search.html?return=editor-backup.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
       <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
       <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
       <a class="drawer-item" href="./legacy-home.html#review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
@@ -154,8 +177,9 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./editor.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
+  <script src="./editor-backup.js?v=20260916-s7-editor-backup-v1-5-0"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
-  <script src="./pwa-register.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./pwa-register.js?v=20260916-s7-editor-backup-v1-5-0"></script>
 </body>
 </html>
