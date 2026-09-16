@@ -1850,3 +1850,27 @@ body.stage7-study-body{
     gap:5px;
   }
 }
+
+/* =========================================================
+   Stage 7 — YouGlish pronunciation utility v1.2
+   Tighten utility captions and pull the learning row upward.
+   ========================================================= */
+.stage7-study-body .s7-audio-utility{
+  gap:1px;
+}
+.stage7-study-body .s7-youglish-caption{
+  position:relative;
+  top:-1px;
+}
+
+@media(max-width:560px){
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip.s7-audio-tools{
+    margin-bottom:2px;
+  }
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-learning-practice{
+    margin-top:3px;
+  }
+  .stage7-study-body .s7-back-audio-tools{
+    margin-bottom:2px;
+  }
+}
