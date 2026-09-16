@@ -8,3 +8,53 @@
 .local-edit-card .draft-manage-delete{min-width:62px}
 .local-edit-master-note{color:#7c887f;font-size:.66rem;margin-top:3px}
 @media(max-width:520px){.local-edit-save-bar{align-items:center}.local-edit-save-bar .new-card-actions{margin-left:auto}}
+
+/* Stage 7 Local Edit confirmation — shared by Manage Local Edits and Edit Card. */
+.wlp-confirm-overlay[hidden]{display:none!important}
+.wlp-confirm-overlay{
+  position:fixed;inset:0;z-index:10020;
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;box-sizing:border-box;
+  background:rgba(37,43,34,.42);
+}
+.wlp-confirm-panel{
+  width:min(390px,92vw);box-sizing:border-box;
+  padding:22px 20px 18px;border-radius:18px;
+  border:1px solid rgba(85,114,100,.22);
+  background:#fffdf7;color:#34382f;
+  box-shadow:0 18px 52px rgba(31,38,31,.22);
+  text-align:center;
+}
+.wlp-confirm-panel h2{margin:0 0 8px;font-size:1.08rem;line-height:1.35;color:#35483f}
+.wlp-confirm-panel p{margin:0;font-size:.9rem;line-height:1.55;color:#6b7067}
+.wlp-confirm-detail{display:block;margin-top:7px;font-weight:700;color:#42493f;overflow-wrap:anywhere}
+.wlp-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.wlp-confirm-actions button{min-height:44px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
+.wlp-confirm-cancel{border:1px solid rgba(85,114,100,.28);background:#fffdf7;color:#557264}
+.wlp-confirm-do{border:1px solid #d3aaa3;background:#f5e6e2;color:#835d56}
+.wlp-confirm-do:active{background:#efd9d4}
+
+/* Master-vs-Local preview. Inputs stay ordinary editable controls; the diff is a
+   small read-only aid directly beneath only the fields that actually differ. */
+.local-edit-change-preview{
+  margin-top:7px;padding:8px 9px 9px;border-radius:11px;
+  border:1px solid rgba(92,121,101,.13);background:rgba(247,250,246,.72);
+  font-size:.72rem;line-height:1.42;color:#59675e;
+}
+.local-edit-change-preview[hidden]{display:none!important}
+.local-edit-change-head{display:flex;align-items:center;margin-bottom:5px}
+.local-edit-change-head span{
+  display:inline-flex;align-items:center;min-height:20px;padding:1px 7px;border-radius:999px;
+  background:#edf4ec;color:#587263;font-size:.65rem;font-weight:700;letter-spacing:.015em;
+}
+.local-edit-diff-row{display:grid;grid-template-columns:42px minmax(0,1fr);gap:6px;align-items:start;margin-top:3px}
+.local-edit-diff-row[hidden]{display:none!important}
+.local-edit-diff-row b{font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;color:#879188;padding-top:1px}
+.local-edit-diff-text{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#455148}
+.local-edit-diff-added{background:#dfeedd;color:#355b43;border-radius:4px;padding:0 2px;margin:0 -1px}
+.local-edit-diff-removed{background:#f2e4df;color:#7c5b55;border-radius:4px;padding:0 2px;margin:0 -1px;text-decoration:none}
+@media(max-width:520px){
+  .wlp-confirm-panel{padding:20px 17px 16px}
+  .local-edit-change-preview{font-size:.7rem}
+}
+

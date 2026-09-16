@@ -3,7 +3,7 @@
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
-  const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260915-s7-editor-local-edits-v1-4';
+  const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260916-s7-editor-local-edits-v1-4-6';
   const FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -60,6 +60,106 @@
     if(home)home.href='./index.html';
   }
 
+  function ensureConfirmDialog(){
+    let overlay=$('wlp-local-confirm');
+    if(overlay) return overlay;
+    overlay=document.createElement('div');
+    overlay.id='wlp-local-confirm';
+    overlay.className='wlp-confirm-overlay';
+    overlay.hidden=true;
+    overlay.innerHTML=`<div class="wlp-confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="wlp-confirm-title" aria-describedby="wlp-confirm-message"><h2 id="wlp-confirm-title">Revert local edit?</h2><p id="wlp-confirm-message"></p><span id="wlp-confirm-detail" class="wlp-confirm-detail"></span><div class="wlp-confirm-actions"><button type="button" class="wlp-confirm-cancel" id="wlp-confirm-cancel">Cancel</button><button type="button" class="wlp-confirm-do" id="wlp-confirm-do">Revert</button></div></div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function openWlpConfirm({title='Revert local edit?',message='Restore the Master version? This removes only the local edit on this device.',detail='',confirmLabel='Revert'}={}){
+    const overlay=ensureConfirmDialog();
+    const titleEl=$('wlp-confirm-title'), messageEl=$('wlp-confirm-message'), detailEl=$('wlp-confirm-detail');
+    const cancel=$('wlp-confirm-cancel'), confirm=$('wlp-confirm-do');
+    if(titleEl) titleEl.textContent=title;
+    if(messageEl) messageEl.textContent=message;
+    if(detailEl){detailEl.textContent=detail;detailEl.hidden=!detail;}
+    if(confirm) confirm.textContent=confirmLabel;
+    return new Promise(resolve=>{
+      let done=false;
+      const finish=value=>{
+        if(done)return; done=true; overlay.hidden=true;
+        cancel?.removeEventListener('click',onCancel); confirm?.removeEventListener('click',onConfirm);
+        overlay.removeEventListener('click',onBackdrop); document.removeEventListener('keydown',onKeydown);
+        resolve(value);
+      };
+      const onCancel=()=>finish(false), onConfirm=()=>finish(true);
+      const onBackdrop=e=>{if(e.target===overlay)finish(false);};
+      const onKeydown=e=>{if(e.key==='Escape'){e.preventDefault();finish(false);}};
+      cancel?.addEventListener('click',onCancel); confirm?.addEventListener('click',onConfirm);
+      overlay.addEventListener('click',onBackdrop); document.addEventListener('keydown',onKeydown);
+      overlay.hidden=false;
+      requestAnimationFrame(()=>cancel?.focus());
+    });
+  }
+
+  function commonDiff(masterValue, localValue){
+    const oldText=String(masterValue??''), newText=String(localValue??'');
+    if(oldText===newText) return null;
+    let prefix=0;
+    while(prefix<oldText.length&&prefix<newText.length&&oldText[prefix]===newText[prefix]) prefix++;
+    let suffix=0;
+    while(suffix<oldText.length-prefix&&suffix<newText.length-prefix&&oldText[oldText.length-1-suffix]===newText[newText.length-1-suffix]) suffix++;
+    return {
+      prefix:newText.slice(0,prefix),
+      oldMid:oldText.slice(prefix,oldText.length-suffix),
+      newMid:newText.slice(prefix,newText.length-suffix),
+      suffix:suffix?newText.slice(newText.length-suffix):''
+    };
+  }
+
+  function appendDiffText(target,{prefix,mid,suffix},kind){
+    target.textContent='';
+    if(prefix) target.append(document.createTextNode(prefix));
+    if(mid){
+      const mark=document.createElement(kind==='removed'?'span':'mark');
+      mark.className=kind==='removed'?'local-edit-diff-removed':'local-edit-diff-added';
+      mark.textContent=mid;
+      target.append(mark);
+    }
+    if(suffix) target.append(document.createTextNode(suffix));
+  }
+
+  function renderFieldDiff(control,masterValue){
+    if(!control)return;
+    const label=control.closest('.new-card-field'); if(!label)return;
+    let box=label.querySelector('.local-edit-change-preview');
+    if(!box){
+      box=document.createElement('div');
+      box.className='local-edit-change-preview';
+      box.hidden=true;
+      box.innerHTML=`<div class="local-edit-change-head"><span>Changed from Master</span></div><div class="local-edit-diff-row local-edit-diff-master"><b>Master</b><div class="local-edit-diff-text"></div></div><div class="local-edit-diff-row local-edit-diff-local"><b>Local</b><div class="local-edit-diff-text"></div></div>`;
+      label.appendChild(box);
+    }
+    const current=String(control.value??'').trim(), master=String(masterValue??'').trim();
+    const diff=commonDiff(master,current);
+    if(!diff){box.hidden=true;return;}
+    box.hidden=false;
+    const masterRow=box.querySelector('.local-edit-diff-master');
+    const localRow=box.querySelector('.local-edit-diff-local');
+    const masterText=masterRow?.querySelector('.local-edit-diff-text');
+    const localText=localRow?.querySelector('.local-edit-diff-text');
+    if(masterText) appendDiffText(masterText,{prefix:diff.prefix,mid:diff.oldMid,suffix:diff.suffix},'removed');
+    if(localText) appendDiffText(localText,{prefix:diff.prefix,mid:diff.newMid,suffix:diff.suffix},'added');
+    if(masterRow) masterRow.hidden=!diff.oldMid && !!diff.newMid; // pure addition: Local preview is enough
+    if(localRow) localRow.hidden=!diff.newMid && !!diff.oldMid;   // pure deletion: Master preview is enough
+  }
+
+  function installDiffPreviews(form,masterRow){
+    FIELDS.forEach(field=>{
+      const control=form.elements.namedItem(field); if(!control)return;
+      const update=()=>renderFieldDiff(control,masterRow[field]);
+      control.addEventListener('input',update);
+      control.addEventListener('change',update);
+      update();
+    });
+  }
+
   async function renderManage() {
     const list=$('local-edit-manage-list'), empty=$('local-edit-manage-empty'); if(!list||!empty) return;
     const overrides=readOverrides(); syncCountPill(overrides);
@@ -78,10 +178,11 @@
       const detail=String(edit.Definition||edit['Example Sentence']||edit['Note(s)']||master.Definition||'Local changes saved on this browser.').trim();
       return `<article class="draft-manage-card local-edit-card" data-word-id="${esc(wid)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(word)}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div><div class="local-edit-master-note"><span class="local-edit-state">Local Edit active</span></div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-local-edit.html?wid=${encodeURIComponent(wid)}&return=${encodeURIComponent('editor-local-edits.html')}">Edit</a><button class="draft-manage-delete" type="button" data-revert-local-edit="${esc(wid)}">Revert</button></div></article>`;
     }).join('');
-    list.querySelectorAll('[data-revert-local-edit]').forEach(btn=>btn.addEventListener('click',()=>{
+    list.querySelectorAll('[data-revert-local-edit]').forEach(btn=>btn.addEventListener('click',async()=>{
       if(!isAdmin())return; const wid=String(btn.dataset.revertLocalEdit||''); const current=readOverrides(); if(!current[wid])return;
-      const word=String(current[wid].Word||`WID${wid}`).trim();
-      if(!confirm(`Revert “${word}” (WID${wid}) to the canonical Master version?\n\nThis removes only the browser-local edit.`))return;
+      const word=String(current[wid].Word||masterMap.get(wid)?.Word||`WID${wid}`).trim();
+      const ok=await openWlpConfirm({detail:`${word} · WID${wid}`});
+      if(!ok)return;
       delete current[wid]; writeOverrides(current); renderManage();
     }));
   }
@@ -100,16 +201,18 @@
     const pill=$('local-edit-wid-pill'); if(pill)pill.textContent=`WID${wid}`;
     const revert=$('local-edit-revert'); if(revert)revert.hidden=!existing;
     syncEditNavigation(masterRow);
+    installDiffPreviews(form,masterRow);
     form.addEventListener('submit',event=>{
       event.preventDefault(); if(!isAdmin())return;
       const fd=new FormData(form), word=String(fd.get('Word')||'').trim(); if(!word){$('local-edit-word')?.focus();return;}
       const latest=readOverrides(), next={updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{next[field]=String(fd.get(field)||'').trim();}); latest[wid]=next; writeOverrides(latest);
       if(revert)revert.hidden=false; const success=$('local-edit-success'); if(success)success.hidden=false; syncEditNavigation(masterRow);
     });
-    revert?.addEventListener('click',()=>{
+    revert?.addEventListener('click',async()=>{
       if(!isAdmin())return; const latest=readOverrides(); if(!latest[wid])return;
       const word=String(latest[wid].Word||masterRow.Word||`WID${wid}`).trim();
-      if(!confirm(`Revert “${word}” (WID${wid}) to the canonical Master version?\n\nThis removes only the browser-local edit.`))return;
+      const ok=await openWlpConfirm({detail:`${word} · WID${wid}`});
+      if(!ok)return;
       delete latest[wid]; writeOverrides(latest); location.href=safeReturnContext().href;
     });
   }

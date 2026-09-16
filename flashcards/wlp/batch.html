@@ -165,9 +165,9 @@
       color: #557264;
     }
     .local-revert-confirm-do {
-      border: 1px solid #a45d54;
-      background: #a45d54;
-      color: #fff;
+      border: 1px solid #d3aaa3;
+      background: #f5e6e2;
+      color: #835d56;
     }
     .local-edit-help {
       text-align: center;
@@ -365,7 +365,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260916-s7-revert-fix-exact-pencil-v145" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260916-s7-local-edit-diff-v146" />
   <link rel="stylesheet" href="../../study-options.css?v=20260915-s7-options-v12" />
 </head>
 <body class="stage7-study-body">
@@ -460,7 +460,7 @@
       <div class="back">
         <div class="study-card-surface study-back-card">
           <button type="button" class="btn-edit-local-back" aria-label="Edit Card" title="Edit Card" hidden>
-            <span class="back-edit-pencil" aria-hidden="true">✏️</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11a2.1 2.1 0 0 0-3-3L5 17l-1 3Z"></path><path d="m14.5 7.5 3 3"></path></svg>
           </button>
           <span class="card-tag"></span>
           <div class="back-answer" hidden>
@@ -517,10 +517,6 @@
           </div>
         </section>
 
-        <div class="local-edit-actions">
-          <button type="button" class="btn-edit-local">Edit Card</button>
-          <button type="button" class="btn-revert-local" hidden>Revert</button>
-        </div>
         <!-- Keep source controls inside each card so the proven app.js behavior
              remains untouched. Stage 7 exposes lightweight proxies above. -->
         <button class="btn-flip-back study-front-source" type="button" hidden tabindex="-1" aria-hidden="true">Front</button>
@@ -742,7 +738,7 @@
 
   <div class="study-toast" id="study-toast" hidden></div>
 
-  <script type="module" src="./app.js?v=20260916-s7-revert-fix-exact-pencil-v145"></script>
+  <script type="module" src="./app.js?v=20260916-s7-local-edit-diff-v146"></script>
   <script src="./study-stage7.js?v=20260916-s7-editor-drafts-v13"></script>
   <script src="../../study-options.js?v=20260915-s7-options-v12"></script>
 </body>

@@ -811,48 +811,8 @@ body.stage7-study-body{
 }
 
 
-/* Admin-only Back shortcut trial: warm yellow pencil for comparison.
-   The existing lower Edit Card / Revert actions stay in place. */
-.stage7-study-body .study-back-card .btn-edit-local-back{
-  position:absolute;
-  top:12px;
-  left:12px;
-  z-index:7;
-  width:32px;
-  min-width:32px;
-  height:32px;
-  min-height:32px;
-  padding:0;
-  margin:0;
-  border:1px solid rgba(194,151,54,.14);
-  border-radius:50%;
-  background:rgba(255,252,241,.78);
-  color:inherit;
-  box-shadow:none;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
-  opacity:.92;
-  -webkit-tap-highlight-color:transparent;
-}
-.stage7-study-body .study-back-card .btn-edit-local-back[hidden]{display:none!important}
-.stage7-study-body .study-back-card .btn-edit-local-back .back-edit-pencil{
-  display:block;
-  font-size:16px;
-  line-height:1;
-  transform:translateY(-.25px);
-}
-.stage7-study-body .study-back-card .btn-edit-local-back:active{
-  transform:translateY(1px);
-  background:rgba(255,246,211,.98);
-  opacity:1;
-}
-.stage7-study-body .study-back-card .btn-edit-local-back:focus-visible{
-  outline:2px solid rgba(202,159,55,.38);
-  outline-offset:2px;
-}
-
-/* Admin-only front shortcut: intentionally quiet so the learning face stays clean. */
+/* Admin-only card edit shortcuts: same quiet pencil on Front and Back. */
+.stage7-study-body .study-back-card .btn-edit-local-back,
 .stage7-study-body .study-front-card .btn-edit-local-front{
   position:absolute;
   top:12px;
@@ -875,7 +835,9 @@ body.stage7-study-body{
   opacity:.76;
   -webkit-tap-highlight-color:transparent;
 }
+.stage7-study-body .study-back-card .btn-edit-local-back[hidden],
 .stage7-study-body .study-front-card .btn-edit-local-front[hidden]{display:none!important}
+.stage7-study-body .study-back-card .btn-edit-local-back svg,
 .stage7-study-body .study-front-card .btn-edit-local-front svg{
   width:15px;
   height:15px;
@@ -885,11 +847,13 @@ body.stage7-study-body{
   stroke-linecap:round;
   stroke-linejoin:round;
 }
+.stage7-study-body .study-back-card .btn-edit-local-back:active,
 .stage7-study-body .study-front-card .btn-edit-local-front:active{
   transform:translateY(1px);
   background:rgba(238,245,239,.94);
   opacity:1;
 }
+.stage7-study-body .study-back-card .btn-edit-local-back:focus-visible,
 .stage7-study-body .study-front-card .btn-edit-local-front:focus-visible{
   outline:2px solid rgba(78,114,94,.42);
   outline-offset:2px;
