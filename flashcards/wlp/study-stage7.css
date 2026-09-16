@@ -810,6 +810,49 @@ body.stage7-study-body{
   right:16px!important;
 }
 
+/* Admin-only front shortcut: intentionally quiet so the learning face stays clean. */
+.stage7-study-body .study-front-card .btn-edit-local-front{
+  position:absolute;
+  top:12px;
+  left:12px;
+  z-index:7;
+  width:32px;
+  min-width:32px;
+  height:32px;
+  min-height:32px;
+  padding:0;
+  margin:0;
+  border:1px solid rgba(76,111,91,.14);
+  border-radius:50%;
+  background:rgba(249,252,248,.72);
+  color:#688274;
+  box-shadow:none;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  opacity:.76;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage7-study-body .study-front-card .btn-edit-local-front[hidden]{display:none!important}
+.stage7-study-body .study-front-card .btn-edit-local-front svg{
+  width:15px;
+  height:15px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.65;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .study-front-card .btn-edit-local-front:active{
+  transform:translateY(1px);
+  background:rgba(238,245,239,.94);
+  opacity:1;
+}
+.stage7-study-body .study-front-card .btn-edit-local-front:focus-visible{
+  outline:2px solid rgba(78,114,94,.42);
+  outline-offset:2px;
+}
+
 /* Front primary content only. */
 .stage7-study-body .study-front-card .word{margin-top:0!important}
 .stage7-study-body .study-front-card .btn-flip{margin-top:14px!important}

@@ -958,24 +958,32 @@ root
       );
 
       const editButton = root.querySelector(".btn-edit-local");
+      const frontEditButton = root.querySelector(".btn-edit-local-front");
       const revertButton = root.querySelector(".btn-revert-local");
+
+      const openLocalEdit = () => {
+        const wid = String(row.WordID || "").trim();
+        if (!wid) return;
+        const returnParams = new URLSearchParams(location.search);
+        returnParams.delete("s7card");
+        const activeIndex = currentIndex();
+        if (activeIndex >= 0) returnParams.set("s7card", String(activeIndex + 1));
+        const returnTo = `flashcards/wlp/batch.html?${returnParams.toString()}`;
+        location.href = `../../editor-local-edit.html?wid=${encodeURIComponent(wid)}&return=${encodeURIComponent(returnTo)}`;
+      };
 
       if (IS_DRAFT_MODE || !isWlpAdminMode()) {
         if (editButton) editButton.hidden = true;
+        if (frontEditButton) frontEditButton.hidden = true;
         if (revertButton) revertButton.hidden = true;
       } else {
+        if (frontEditButton) {
+          frontEditButton.hidden = false;
+          frontEditButton.addEventListener("click", openLocalEdit);
+        }
         if (editButton) {
           editButton.textContent = "✏️ Edit Card";
-          editButton.addEventListener("click", () => {
-            const wid = String(row.WordID || "").trim();
-            if (!wid) return;
-            const returnParams = new URLSearchParams(location.search);
-            returnParams.delete("s7card");
-            const activeIndex = currentIndex();
-            if (activeIndex >= 0) returnParams.set("s7card", String(activeIndex + 1));
-            const returnTo = `flashcards/wlp/batch.html?${returnParams.toString()}`;
-            location.href = `../../editor-local-edit.html?wid=${encodeURIComponent(wid)}&return=${encodeURIComponent(returnTo)}`;
-          });
+          editButton.addEventListener("click", openLocalEdit);
         }
         if (revertButton) {
           revertButton.hidden = !row.__hasLocalOverride;
