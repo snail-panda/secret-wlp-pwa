@@ -267,6 +267,31 @@ body.stage7-study-body{
 .stage7-study-body #review-back-link,
 .stage7-study-body #progress-back-link,
 .stage7-study-body #drafts-back-link{margin:9px 0;font-family:var(--s7-serif)}
+
+.stage7-study-body #drafts-back-link{text-align:center}
+.stage7-study-body #drafts-back-link .drafts-footer-return{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  color:#345d48;
+  font-family:var(--s7-serif);
+  font-size:1.02rem;
+  line-height:1.2;
+  text-decoration:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage7-study-body #drafts-back-link .drafts-footer-return-icon{
+  width:17px;
+  height:17px;
+  flex:0 0 auto;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body #drafts-back-link .drafts-footer-return:active{opacity:.7}
 .stage7-study-body #deck-nav-links{
   width:min(100%,680px)!important;
   margin:15px auto 0!important;
