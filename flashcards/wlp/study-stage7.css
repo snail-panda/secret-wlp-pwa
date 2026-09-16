@@ -2009,3 +2009,27 @@ body.stage7-study-body{
   outline-offset:2px;
   border-radius:3px;
 }
+
+
+/* Stage 7 v1.5.4 — Selection → Search WLP.
+   A quiet contextual action shown only for user-selected text on the card back. */
+.selection-wlp-search{
+  position:fixed;
+  z-index:1200;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:34px;
+  padding:7px 11px;
+  border:1px solid rgba(71,105,87,.18);
+  border-radius:999px;
+  background:rgba(250,252,248,.97);
+  color:#426b57;
+  box-shadow:0 5px 18px rgba(37,57,47,.14);
+  font:600 12.5px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+.selection-wlp-search[hidden]{display:none!important}
+.selection-wlp-search svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.selection-wlp-search:active{transform:translateY(1px);opacity:.78}

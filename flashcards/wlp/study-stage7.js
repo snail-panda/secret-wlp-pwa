@@ -498,6 +498,76 @@
     location.href = `./batch.html?${next.toString()}`;
   });
 
+  // Stage 7 v1.5.4 — Selection → Search WLP.
+  // Selecting readable answer text offers a small contextual search action.
+  // It deliberately reuses Global Search, so an absent exact headword can
+  // continue into the existing Admin “Add as Draft” path.
+  const selectionSearch = document.getElementById('selection-wlp-search');
+  let selectionSearchText = '';
+  const cleanSelectionText = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const hideSelectionSearch = () => {
+    if (!selectionSearch) return;
+    selectionSearch.hidden = true;
+    selectionSearchText = '';
+  };
+  const selectionIsOnReadableBack = range => {
+    const node = range?.commonAncestorContainer;
+    const element = node?.nodeType === 1 ? node : node?.parentElement;
+    const back = element?.closest?.('.flashcard.active .back .study-back-card');
+    if (!back) return false;
+    // Native/control selections should keep their normal behavior.
+    if (element.closest('button,a,input,textarea,select,[contenteditable="true"]')) return false;
+    return Boolean(element.closest('.def,.ex,.syn,.note,.back-answer'));
+  };
+  const syncSelectionSearch = () => {
+    if (!selectionSearch) return;
+    const selection = window.getSelection?.();
+    if (!selection || selection.rangeCount < 1 || selection.isCollapsed) return hideSelectionSearch();
+    const text = cleanSelectionText(selection.toString());
+    if (!text || text.length > 160) return hideSelectionSearch();
+    const range = selection.getRangeAt(0);
+    if (!selectionIsOnReadableBack(range)) return hideSelectionSearch();
+    const rect = range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) return hideSelectionSearch();
+
+    selectionSearchText = text;
+    selectionSearch.hidden = false;
+    const width = selectionSearch.offsetWidth || 104;
+    const height = selectionSearch.offsetHeight || 34;
+    const margin = 8;
+    const left = Math.min(window.innerWidth - width - margin, Math.max(margin, rect.left + rect.width / 2 - width / 2));
+    let top = rect.bottom + 10;
+    if (top + height + margin > window.innerHeight) top = Math.max(margin, rect.top - height - 10);
+    selectionSearch.style.left = `${Math.round(left)}px`;
+    selectionSearch.style.top = `${Math.round(top)}px`;
+  };
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(window.__wlpSelectionSearchTimer);
+    window.__wlpSelectionSearchTimer = setTimeout(syncSelectionSearch, 90);
+  });
+  document.addEventListener('touchend', () => setTimeout(syncSelectionSearch, 120), {passive:true});
+  document.addEventListener('mouseup', () => setTimeout(syncSelectionSearch, 0));
+  window.addEventListener('scroll', hideSelectionSearch, {passive:true});
+  window.addEventListener('resize', hideSelectionSearch);
+  selectionSearch?.addEventListener('pointerdown', event => event.preventDefault());
+  selectionSearch?.addEventListener('click', event => {
+    event.preventDefault();
+    const query = selectionSearchText;
+    if (!query) return;
+    const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
+    const activeIndex = cards.findIndex(card => card.classList.contains('active'));
+    const returnUrl = new URL(location.href);
+    returnUrl.searchParams.delete('return');
+    returnUrl.searchParams.delete('searchreturn');
+    if (activeIndex >= 0) returnUrl.searchParams.set('s7card', String(activeIndex + 1));
+    returnUrl.searchParams.set('s7side', 'back');
+    const relativeReturn = `${returnUrl.pathname.replace(/^\/+/, '')}${returnUrl.search}${returnUrl.hash}`;
+    const next = new URLSearchParams();
+    next.set('q', query);
+    next.set('return', relativeReturn);
+    location.href = `../../global-search.html?${next.toString()}`;
+  });
+
   cardsMount.addEventListener('click', event => {
     const backVoice = event.target.closest('.back .btn-voice');
     if (backVoice) {

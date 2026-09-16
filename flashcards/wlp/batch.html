@@ -365,7 +365,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260916-s7-connected-headwords-v153" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260916-s7-selection-search-v154" />
   <link rel="stylesheet" href="../../study-options.css?v=20260915-s7-options-v12" />
 </head>
 <body class="stage7-study-body">
@@ -722,8 +722,13 @@
 
   <div class="study-toast" id="study-toast" hidden></div>
 
-  <script type="module" src="./app.js?v=20260916-s7-connected-headwords-v153"></script>
-  <script src="./study-stage7.js?v=20260916-s7-connected-headwords-v153"></script>
+  <button type="button" id="selection-wlp-search" class="selection-wlp-search" hidden aria-label="Search selected text in WLP">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.75"></circle><path d="M14.75 14.75 20 20"></path></svg>
+    <span>Search WLP</span>
+  </button>
+
+  <script type="module" src="./app.js?v=20260916-s7-selection-search-v154"></script>
+  <script src="./study-stage7.js?v=20260916-s7-selection-search-v154"></script>
   <script src="../../study-options.js?v=20260915-s7-options-v12"></script>
 </body>
 </html>
