@@ -1679,106 +1679,174 @@ body.stage7-study-body{
 
 
 /* =========================================================
-   Stage 7 — YouGlish pronunciation utility v1
-   Card-external companion to the voice selector.
+   Stage 7 — YouGlish pronunciation utility v1.1
+   Card-external audio utilities: Listen / Voice / YouGlish.
    ========================================================= */
 .stage7-study-body .s7-youglish-link[hidden]{display:none!important}
+.stage7-study-body .s7-audio-utility{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:5px;
+}
+.stage7-study-body .s7-audio-caption{
+  min-height:14px;
+  color:#62786c;
+  font-family:var(--s7-serif);
+  font-size:.72rem;
+  font-weight:500;
+  line-height:1.05;
+  text-align:center;
+  white-space:nowrap;
+}
+
+/* Front Listen becomes a compact icon button with its label below. */
+.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak{
+  width:52px!important;
+  min-width:52px!important;
+  height:44px!important;
+  min-height:44px!important;
+  padding:0!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border-radius:14px!important;
+}
+.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak .ui-icon{
+  width:19px;
+  height:19px;
+  margin:0!important;
+}
+
+.stage7-study-body .s7-voice-utility .voice-control{width:100%!important}
+.stage7-study-body .s7-voice-utility .btn-voice{width:100%!important}
+
+/* YouGlish-inspired wordmark, recolored to WLP green. */
 .stage7-study-body .s7-youglish-link{
-  min-height:40px;
-  min-width:106px;
-  padding:7px 10px;
+  min-height:44px;
+  min-width:0;
+  padding:5px 5px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:6px;
-  border:1px solid rgba(70,110,91,.18);
+  gap:5px;
+  border:1px solid transparent;
   border-radius:12px;
-  background:rgba(239,246,241,.78);
-  color:#3f6754;
+  background:transparent;
+  color:#173f30;
   text-decoration:none;
-  font-family:var(--s7-serif);
-  font-size:.92rem;
-  font-weight:600;
-  line-height:1;
   box-sizing:border-box;
   -webkit-tap-highlight-color:transparent;
 }
-.stage7-study-body .s7-youglish-link:active{background:#e5f0e8}
-.stage7-study-body .s7-youglish-ear{
-  width:16px;
-  height:16px;
-  flex:0 0 16px;
-  fill:none;
-  stroke:currentColor;
-  stroke-width:1.65;
-  stroke-linecap:round;
-  stroke-linejoin:round;
-  opacity:.86;
+.stage7-study-body .s7-youglish-link:active{background:rgba(229,240,232,.76)}
+.stage7-study-body .s7-youglish-logo{
+  display:inline-flex;
+  align-items:stretch;
+  white-space:nowrap;
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:1.02rem;
+  font-weight:800;
+  letter-spacing:-.045em;
+  line-height:1;
 }
-.stage7-study-body .s7-youglish-name{white-space:nowrap}
+.stage7-study-body .s7-youglish-you{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 1px 3px 0;
+  color:#193f31;
+}
+.stage7-study-body .s7-youglish-glish{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 5px 3px 4px;
+  border-radius:5px;
+  background:#416f5a;
+  color:#fff;
+  letter-spacing:-.035em;
+}
 .stage7-study-body .s7-youglish-accent{
-  min-width:24px;
-  padding:3px 5px 2px;
+  min-width:25px;
+  padding:4px 6px 3px;
   border-radius:999px;
   background:rgba(83,120,98,.10);
-  color:#62786c;
+  color:#587165;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size:.59rem;
+  font-size:.60rem;
   font-weight:700;
   letter-spacing:.04em;
   line-height:1;
+  text-align:center;
 }
-.stage7-study-body .study-voice-strip .s7-youglish-link{margin-left:2px}
+.stage7-study-body .s7-youglish-caption{font-size:.68rem}
+
+/* Back keeps its Definition / Example(s) / Read All row untouched.
+   Voice + YouGlish form a separate compact utility row beneath it. */
+.stage7-study-body .s7-back-audio-tools{
+  display:grid;
+  grid-template-columns:minmax(0,230px) 126px;
+  justify-content:center;
+  align-items:start;
+  gap:8px;
+}
 
 @media(max-width:560px){
-  /* Keep Listen / Voice / YouGlish on one compact row on iPhone. */
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip{
+  /* Three balanced audio utilities on the card front. */
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip.s7-audio-tools{
     display:grid;
-    grid-template-columns:92px minmax(0,1fr) 104px;
+    grid-template-columns:58px minmax(0,1fr) 118px;
+    align-items:start;
     gap:6px;
     width:100%;
+    margin-bottom:7px;
   }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .btn-speak{
-    width:100%!important;
-    min-width:0!important;
-    padding-left:8px!important;
-    padding-right:8px!important;
-  }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .voice-control{
-    width:100%!important;
-    min-width:0!important;
-  }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .btn-voice{
-    width:100%!important;
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-voice-utility .btn-voice{
     min-width:0!important;
     max-width:none!important;
     padding-left:8px!important;
     padding-right:8px!important;
   }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .s7-youglish-link{
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-youglish-link{
     width:100%;
-    min-width:0;
-    padding-left:7px;
-    padding-right:7px;
+    padding-left:2px;
+    padding-right:2px;
     gap:4px;
-    font-size:.86rem;
   }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .s7-youglish-ear{
-    width:14px;
-    height:14px;
-    flex-basis:14px;
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-youglish-logo{
+    font-size:.92rem;
   }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .s7-youglish-accent{
-    min-width:21px;
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-youglish-accent{
+    min-width:22px;
     padding-left:4px;
     padding-right:4px;
     font-size:.56rem;
   }
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-youglish-caption{
+    font-size:.62rem;
+  }
+  .stage7-study-body .s7-back-audio-tools{
+    grid-template-columns:minmax(0,220px) 120px;
+    gap:6px;
+    margin-bottom:7px;
+  }
+  .stage7-study-body .s7-back-audio-tools .s7-youglish-logo{font-size:.94rem}
+  .stage7-study-body .s7-back-audio-tools .s7-youglish-caption{font-size:.63rem}
 }
 
-@media(max-width:380px){
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip{
-    grid-template-columns:86px minmax(0,1fr) 96px;
+@media(max-width:390px){
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip.s7-audio-tools{
+    grid-template-columns:54px minmax(0,1fr) 112px;
+    gap:5px;
   }
-  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip .s7-youglish-name{font-size:.82rem}
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak{
+    width:50px!important;
+    min-width:50px!important;
+  }
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-youglish-logo{font-size:.88rem}
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-youglish-caption{font-size:.59rem}
+  .stage7-study-body .s7-back-audio-tools{
+    grid-template-columns:minmax(0,208px) 112px;
+    gap:5px;
+  }
 }
