@@ -810,6 +810,51 @@ body.stage7-study-body{
   right:16px!important;
 }
 
+
+/* Admin-only Back shortcut trial: warm yellow pencil for comparison.
+   The existing lower Edit Card / Revert actions stay in place. */
+.stage7-study-body .study-back-card .btn-edit-local-back{
+  position:absolute;
+  top:12px;
+  left:12px;
+  z-index:7;
+  width:32px;
+  min-width:32px;
+  height:32px;
+  min-height:32px;
+  padding:0;
+  margin:0;
+  border:1px solid rgba(194,151,54,.20);
+  border-radius:50%;
+  background:rgba(255,250,232,.88);
+  color:#d5a72f;
+  box-shadow:none;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  opacity:.92;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage7-study-body .study-back-card .btn-edit-local-back[hidden]{display:none!important}
+.stage7-study-body .study-back-card .btn-edit-local-back svg{
+  width:16px;
+  height:16px;
+  fill:rgba(229,184,65,.16);
+  stroke:currentColor;
+  stroke-width:1.75;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .study-back-card .btn-edit-local-back:active{
+  transform:translateY(1px);
+  background:rgba(255,246,211,.98);
+  opacity:1;
+}
+.stage7-study-body .study-back-card .btn-edit-local-back:focus-visible{
+  outline:2px solid rgba(202,159,55,.38);
+  outline-offset:2px;
+}
+
 /* Admin-only front shortcut: intentionally quiet so the learning face stays clean. */
 .stage7-study-body .study-front-card .btn-edit-local-front{
   position:absolute;

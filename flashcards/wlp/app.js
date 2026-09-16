@@ -454,7 +454,17 @@ function saveCurrentLocalOverride(form) {
 
 function revertLocalOverride(wordId) {
   const wid = String(wordId || "").trim();
-  if (!wid || !localOverrides[wid]) return;
+  if (!wid) return;
+
+  // Always re-read Local Edits at click time. Study can be revisited after
+  // editing on another Stage 7 page, so the in-memory copy may be stale.
+  const latest = readLocalOverrides();
+  const current = latest[wid];
+  if (!current || typeof current !== "object") {
+    localOverrides = latest;
+    location.reload();
+    return;
+  }
 
   const modal = document.getElementById("local-revert-confirm");
   const cancelButton = document.getElementById("local-revert-confirm-cancel");
@@ -462,21 +472,32 @@ function revertLocalOverride(wordId) {
   const wordLabel = document.getElementById("local-revert-confirm-word");
 
   const applyRevert = () => {
-    delete localOverrides[wid];
+    delete latest[wid];
+    localOverrides = latest;
     saveLocalOverrides();
     location.reload();
   };
 
+  const row = allRows.find(item => String(item.WordID || "").trim() === wid);
+  const word = String(current.Word || row?.Word || "").trim();
+
+  // Fallback for any old/cached HTML that does not yet contain the Stage 7 dialog.
   if (!modal || !cancelButton || !revertButton) {
-    if (confirm(`Revert WID${wid} to the canonical Master version?\n\nThis removes only the browser-local edit.`)) {
+    const target = word ? `“${word}” (WID${wid})` : `WID${wid}`;
+    if (window.confirm(`Revert ${target} to the canonical Master version?\n\nThis removes only the browser-local edit.`)) {
       applyRevert();
     }
     return;
   }
 
-  const row = allRows.find(item => String(item.WordID || "").trim() === wid);
-  const word = String(row?.Word || "").trim();
   if (wordLabel) wordLabel.textContent = word ? `${word} · WID${wid}` : `WID${wid}`;
+
+  const onKeydown = event => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  };
 
   const close = () => {
     modal.hidden = true;
@@ -484,13 +505,6 @@ function revertLocalOverride(wordId) {
     revertButton.onclick = null;
     modal.onclick = null;
     document.removeEventListener("keydown", onKeydown);
-  };
-
-  const onKeydown = event => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-    }
   };
 
   cancelButton.onclick = close;
@@ -1000,6 +1014,7 @@ root
 
       const editButton = root.querySelector(".btn-edit-local");
       const frontEditButton = root.querySelector(".btn-edit-local-front");
+      const backEditButton = root.querySelector(".btn-edit-local-back");
       const revertButton = root.querySelector(".btn-revert-local");
 
       const openLocalEdit = () => {
@@ -1016,11 +1031,16 @@ root
       if (IS_DRAFT_MODE || !isWlpAdminMode()) {
         if (editButton) editButton.hidden = true;
         if (frontEditButton) frontEditButton.hidden = true;
+        if (backEditButton) backEditButton.hidden = true;
         if (revertButton) revertButton.hidden = true;
       } else {
         if (frontEditButton) {
           frontEditButton.hidden = false;
           frontEditButton.addEventListener("click", openLocalEdit);
+        }
+        if (backEditButton) {
+          backEditButton.hidden = false;
+          backEditButton.addEventListener("click", openLocalEdit);
         }
         if (editButton) {
           editButton.textContent = "✏️ Edit Card";
