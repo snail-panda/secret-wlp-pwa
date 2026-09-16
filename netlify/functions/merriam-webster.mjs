@@ -5,7 +5,7 @@ const json = (statusCode, body) => ({
   statusCode,
   headers: {
     'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'private, max-age=300'
+    'cache-control': 'no-store'
   },
   body: JSON.stringify(body)
 });

@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-mw-live-lookup-v1-5-6';
+const CACHE_NAME = 'wlp-stage7-mw-live-lookup-v1-5-6-1';
 const CORE = [
   './',
   './index.html',
@@ -73,6 +73,14 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // API lookups must never be served from the app cache. Each query needs
+  // its own live response; ignoreSearch caching would otherwise reuse the
+  // previous headword's Merriam-Webster result for a different word.
+  if (url.pathname.startsWith('/.netlify/functions/')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
 
   // Navigation: prefer current network version, fall back to cached app pages offline.
   if (request.mode === 'navigate') {
