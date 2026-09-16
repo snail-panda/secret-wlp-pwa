@@ -34,13 +34,27 @@ function walk(node, visitor) {
 
 function collectExamples(entry, limit = 3) {
   const out = [];
-  walk(entry?.def, obj => {
-    if (!Array.isArray(obj.vis)) return;
-    obj.vis.forEach(item => {
-      const text = cleanMarkup(item?.t);
-      if (text && !out.includes(text)) out.push(text);
-    });
-  });
+  const add = value => {
+    const text = cleanMarkup(value);
+    if (text && !out.includes(text)) out.push(text);
+  };
+  const scan = node => {
+    if (out.length >= limit || node == null) return;
+    if (Array.isArray(node)) {
+      // Merriam-Webster learner data commonly stores examples as
+      // ["vis", [{"t":"..."}, ...]] inside a definition's dt array.
+      if (node[0] === 'vis' && Array.isArray(node[1])) {
+        node[1].forEach(item => add(item?.t));
+      }
+      node.forEach(scan);
+      return;
+    }
+    if (typeof node === 'object') {
+      if (Array.isArray(node.vis)) node.vis.forEach(item => add(item?.t));
+      Object.values(node).forEach(scan);
+    }
+  };
+  scan(entry?.def);
   return out.slice(0, limit);
 }
 
@@ -116,8 +130,14 @@ function parseThesaurus(payload, query) {
 async function fetchReference(base, word, key) {
   const url = `${base}${encodeURIComponent(word)}?key=${encodeURIComponent(key)}`;
   const response = await fetch(url, { headers: { accept: 'application/json' } });
+  const text = await response.text();
   if (!response.ok) throw new Error(`Merriam-Webster returned ${response.status}`);
-  return response.json();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const safe = text.replace(/\s+/g, ' ').trim().slice(0, 120);
+    throw new Error(`Merriam-Webster returned a non-JSON response${safe ? `: ${safe}` : ''}`);
+  }
 }
 
 export const handler = async (event) => {
