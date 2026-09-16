@@ -478,8 +478,10 @@ function revertLocalOverride(wordId) {
     location.reload();
   };
 
-  const row = allRows.find(item => String(item.WordID || "").trim() === wid);
-  const word = String(current.Word || row?.Word || "").trim();
+  // The local edit itself is enough to label the confirmation.
+  // Do not reach for a non-existent global row collection here: that used to
+  // throw before the confirm dialog could open.
+  const word = String(current.Word || "").trim();
 
   // Fallback for any old/cached HTML that does not yet contain the Stage 7 dialog.
   if (!modal || !cancelButton || !revertButton) {

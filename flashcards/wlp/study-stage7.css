@@ -824,10 +824,10 @@ body.stage7-study-body{
   min-height:32px;
   padding:0;
   margin:0;
-  border:1px solid rgba(194,151,54,.20);
+  border:1px solid rgba(194,151,54,.14);
   border-radius:50%;
-  background:rgba(255,250,232,.88);
-  color:#d5a72f;
+  background:rgba(255,252,241,.78);
+  color:inherit;
   box-shadow:none;
   display:grid;
   place-items:center;
@@ -836,14 +836,11 @@ body.stage7-study-body{
   -webkit-tap-highlight-color:transparent;
 }
 .stage7-study-body .study-back-card .btn-edit-local-back[hidden]{display:none!important}
-.stage7-study-body .study-back-card .btn-edit-local-back svg{
-  width:16px;
-  height:16px;
-  fill:rgba(229,184,65,.16);
-  stroke:currentColor;
-  stroke-width:1.75;
-  stroke-linecap:round;
-  stroke-linejoin:round;
+.stage7-study-body .study-back-card .btn-edit-local-back .back-edit-pencil{
+  display:block;
+  font-size:16px;
+  line-height:1;
+  transform:translateY(-.25px);
 }
 .stage7-study-body .study-back-card .btn-edit-local-back:active{
   transform:translateY(1px);
