@@ -71,6 +71,68 @@ const LOCAL_OVERRIDE_FIELDS = [
   "Source"
 ];
 
+// Stage 7 — Connected Headwords. Synonyms that exactly match an Effective
+// Deck headword can open that existing WLP card as a lightweight side path.
+let connectedHeadwordTargets = new Map();
+
+function normalizeConnectedHeadword(value) {
+  return String(value ?? "")
+    .toLocaleLowerCase("en-US")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildConnectedHeadwordTargets(masterRows, draftRows) {
+  const map = new Map();
+
+  masterRows.forEach(row => {
+    const key = normalizeConnectedHeadword(row.Word);
+    const batch = Number(row["Batch #"] || 0);
+    const wid = String(row.WordID || "").trim();
+    if (!key || !batch || !wid || map.has(key)) return;
+    map.set(key, {
+      kind: "master",
+      batch: String(batch).padStart(3, "0"),
+      wordId: wid
+    });
+  });
+
+  draftRows.forEach((row, index) => {
+    const key = normalizeConnectedHeadword(row.Word);
+    const localId = String(row.__localId || "").trim();
+    if (!key || !localId || map.has(key)) return;
+    map.set(key, {
+      kind: "draft",
+      draftDeck: Math.floor(index / 10) + 1,
+      localId
+    });
+  });
+
+  return map;
+}
+
+function renderConnectedSynonyms(value, currentWord) {
+  const raw = String(value || "");
+  if (!raw) return "";
+  const currentKey = normalizeConnectedHeadword(currentWord);
+
+  return raw.split(/([,;\n]+)/).map(part => {
+    if (/^[,;\n]+$/.test(part)) return escapeHtml(part);
+    const leading = part.match(/^\s*/)?.[0] || "";
+    const trailing = part.match(/\s*$/)?.[0] || "";
+    const label = part.trim();
+    const key = normalizeConnectedHeadword(label);
+    const target = key && key !== currentKey ? connectedHeadwordTargets.get(key) : null;
+    if (!target) return escapeHtml(part);
+
+    const attrs = target.kind === "master"
+      ? `data-connected-kind="master" data-connected-batch="${escapeHtml(target.batch)}" data-connected-wordid="${escapeHtml(target.wordId)}"`
+      : `data-connected-kind="draft" data-connected-draft="${escapeHtml(target.draftDeck)}" data-connected-localid="${escapeHtml(target.localId)}"`;
+
+    return `${escapeHtml(leading)}<button type="button" class="syn-headword-link" ${attrs} aria-label="Open ${escapeHtml(label)} in WLP">${escapeHtml(label)}</button>${escapeHtml(trailing)}`;
+  }).join("");
+}
+
 let localOverrides = {};
 let editingOverrideRow = null;
 
@@ -1210,7 +1272,7 @@ const note =
     .querySelector(".syn")
     .innerHTML =
       syn
-        ? `<strong>Synonyms:</strong> ${escapeHtml(syn)}`
+        ? `<strong>Synonyms:</strong> ${renderConnectedSynonyms(syn, row["Word"])}`
         : "";
 
   root
@@ -3056,6 +3118,11 @@ installAdjacentDeckLinks(
 
   const draftRows =
     readLocalDraftRows();
+
+  connectedHeadwordTargets = buildConnectedHeadwordTargets(
+    effectiveRows,
+    draftRows
+  );
 
   installAdjacentDraftDeckLinks(
     draftRows

@@ -9,7 +9,13 @@
   const batchNum = Number(batchRaw);
   const isNormalDeck = Number.isFinite(batchNum) && batchNum > 0 && !params.get('review') && !params.get('draft');
   const isFromSearch = params.get('from') === 'search';
+  const isFromConnected = params.get('from') === 'connected';
   const isSearchSolo = isFromSearch && params.get('solo') === '1';
+  const isConnectedSolo = isFromConnected && params.get('solo') === '1';
+  const connectedReturnRaw = String(params.get('return') || '').replace(/^\/+/, '');
+  const safeConnectedReturn = connectedReturnRaw && !connectedReturnRaw.includes('..') && /^[A-Za-z0-9_./?&=%#-]+$/.test(connectedReturnRaw)
+    ? connectedReturnRaw
+    : '';
   const searchReturnRaw = String(params.get('searchreturn') || '').replace(/^\/+/, '');
   const safeSearchReturn = searchReturnRaw && !searchReturnRaw.includes('..') && /^[A-Za-z0-9_./?&=%#-]+$/.test(searchReturnRaw)
     ? searchReturnRaw
@@ -45,6 +51,19 @@
     }
   }
 
+  if (isFromConnected) {
+    document.body.classList.add('s7-from-connected');
+    if (isConnectedSolo) document.body.classList.add('s7-search-solo');
+
+    const backToCard = document.querySelector('.study-back-decks');
+    if (backToCard && safeConnectedReturn) {
+      backToCard.href = `../../${safeConnectedReturn}`;
+      backToCard.setAttribute('aria-label', 'Back to Card');
+      const label = backToCard.querySelector('span');
+      if (label) label.textContent = 'Back to Card';
+    }
+  }
+
   /* Stage 7 v3.0 — Global Search always knows how to return to the exact
      Study URL that launched it. Both the header icon and drawer entry use
      the same destination. */
@@ -72,6 +91,7 @@
   const draftTargetLocalId = String(params.get('localid') || '').trim();
   let draftTargetPending = Boolean(params.get('draft') && draftTargetLocalId);
   const requestedStage7Card = Number(params.get('s7card'));
+  const requestedStage7Side = params.get('s7side') === 'back' ? 'back' : 'front';
   let returnCardPending = Number.isInteger(requestedStage7Card) && requestedStage7Card >= 1;
   const draftTargetIndex = () => {
     if (!draftTargetPending) return -1;
@@ -86,15 +106,15 @@
       return -1;
     }
   };
-  const activateRenderedCard = (cards, index) => {
+  const activateRenderedCard = (cards, index, side = 'front') => {
     if (index < 0 || !cards[index]) return false;
     cards.forEach(card => card.classList.remove('active'));
     const target = cards[index];
     target.classList.add('active');
     const front = target.querySelector('.front');
     const back = target.querySelector('.back');
-    if (front) front.style.display = 'block';
-    if (back) back.style.display = 'none';
+    if (front) front.style.display = side === 'back' ? 'none' : 'block';
+    if (back) back.style.display = side === 'back' ? 'block' : 'none';
     return true;
   };
   const focusRequestedCard = () => {
@@ -102,12 +122,12 @@
     const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
     if (!cards.length) return;
     if (draftTargetPending) {
-      const index = isSearchSolo ? 0 : draftTargetIndex();
+      const index = (isSearchSolo || isConnectedSolo) ? 0 : draftTargetIndex();
       draftTargetPending = false;
       if (activateRenderedCard(cards, index)) { returnCardPending = false; return; }
     }
     if (returnCardPending) {
-      activateRenderedCard(cards, requestedStage7Card - 1);
+      activateRenderedCard(cards, requestedStage7Card - 1, requestedStage7Side);
       returnCardPending = false;
     }
   };
@@ -445,6 +465,39 @@
   };
 
   const cardsMount = document.getElementById('cards') || document.body;
+
+  // Connected Headwords — keep this as a reversible side trip. The target
+  // opens as a solo WLP card; Back returns to the exact originating card/back.
+  cardsMount.addEventListener('click', event => {
+    const link = event.target.closest('.syn-headword-link');
+    if (!link) return;
+    event.preventDefault();
+
+    const cards = Array.from(document.querySelectorAll('#cards .flashcard'));
+    const activeIndex = cards.findIndex(card => card.classList.contains('active'));
+    const returnUrl = new URL(location.href);
+    returnUrl.searchParams.delete('solo');
+    returnUrl.searchParams.delete('from');
+    returnUrl.searchParams.delete('return');
+    returnUrl.searchParams.delete('searchreturn');
+    if (activeIndex >= 0) returnUrl.searchParams.set('s7card', String(activeIndex + 1));
+    returnUrl.searchParams.set('s7side', 'back');
+    const relativeReturn = `${returnUrl.pathname.replace(/^\/+/, '')}${returnUrl.search}${returnUrl.hash}`;
+
+    const next = new URLSearchParams();
+    if (link.dataset.connectedKind === 'draft') {
+      next.set('draft', link.dataset.connectedDraft || '1');
+      next.set('localid', link.dataset.connectedLocalid || '');
+    } else {
+      next.set('batch', link.dataset.connectedBatch || '');
+      next.set('wordid', link.dataset.connectedWordid || '');
+    }
+    next.set('solo', '1');
+    next.set('from', 'connected');
+    next.set('return', relativeReturn);
+    location.href = `./batch.html?${next.toString()}`;
+  });
+
   cardsMount.addEventListener('click', event => {
     const backVoice = event.target.closest('.back .btn-voice');
     if (backVoice) {

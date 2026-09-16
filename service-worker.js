@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-editor-final-polish-v1-5-2';
+const CACHE_NAME = 'wlp-stage7-connected-headwords-v1-5-3';
 const CORE = [
   './',
   './index.html',
