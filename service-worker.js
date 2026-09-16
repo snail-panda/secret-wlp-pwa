@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-reference-assist-v1-5-5';
+const CACHE_NAME = 'wlp-stage7-mw-live-lookup-v1-5-6';
 const CORE = [
   './',
   './index.html',

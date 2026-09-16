@@ -11,14 +11,24 @@
   const cancel = document.getElementById('reference-preview-cancel');
   if (!form || !word || !lookup) return;
 
-  // Adapter boundary: real providers plug into this map later. API credentials
-  // must never be committed to client-side source. Until a secure provider is
-  // configured, the shell deliberately stops before any network request.
   const providers = {
+    'merriam-webster': {
+      label: 'Merriam-Webster',
+      configured: true,
+      async lookup(headword) {
+        const response = await fetch(`/.netlify/functions/merriam-webster?word=${encodeURIComponent(headword)}`, {
+          headers: { accept: 'application/json' }
+        });
+        let data = {};
+        try { data = await response.json(); } catch {}
+        if (!response.ok) throw new Error(data.error || 'lookup-failed');
+        return data;
+      }
+    },
     collins: {
       label: 'Collins Dictionary',
       configured: false,
-      async lookup(_headword) { throw new Error('provider-not-configured'); }
+      async lookup() { throw new Error('provider-not-configured'); }
     }
   };
 
@@ -27,6 +37,10 @@
     status.hidden = false;
   };
   const clearPreview = () => { preview.hidden = true; fieldsMount.replaceChildren(); };
+  const setBusy = (busy) => {
+    lookup.disabled = busy;
+    lookup.textContent = busy ? 'Looking Up…' : 'Look Up';
+  };
 
   lookup.addEventListener('click', async () => {
     clearPreview();
@@ -34,12 +48,25 @@
     if (!headword) { showStatus('Enter a Word or phrase first, then look it up.'); word.focus(); return; }
     const provider = providers[source.value];
     if (!provider?.configured) {
-      showStatus(`${provider?.label || 'This source'} is ready as the first Reference Source, but no API connection is configured yet. When a key/backend is added, suggestions will appear here for review before anything is applied to the Draft.`);
+      showStatus(`${provider?.label || 'This source'} is not connected yet. Your Draft has not been changed.`);
       return;
     }
-    // Future provider result shape: { pos, definition, synonyms, example, ipa }
-    try { renderPreview(await provider.lookup(headword)); }
-    catch { showStatus('The reference lookup could not be completed. Your Draft has not been changed.'); }
+    setBusy(true);
+    showStatus(`Looking up “${headword}”…`);
+    try {
+      const data = await provider.lookup(headword);
+      if (!data.found) {
+        const suffix = data.suggestions?.length ? ` Suggestions: ${data.suggestions.join(', ')}.` : '';
+        showStatus(`No exact Merriam-Webster entry was returned for “${headword}”.${suffix} Your Draft has not been changed.`);
+        return;
+      }
+      renderPreview(data);
+    } catch (error) {
+      const message = String(error?.message || '');
+      showStatus(message.includes('API keys are not available')
+        ? 'Merriam-Webster is connected, but its API keys are not available to this deploy context yet.'
+        : 'The Merriam-Webster lookup could not be completed. Your Draft has not been changed.');
+    } finally { setBusy(false); }
   });
 
   const mapping = [
@@ -56,7 +83,14 @@
       row.querySelector('.reference-preview-value').textContent=value;
       row.dataset.value=value; row.dataset.formName=label; fieldsMount.appendChild(row);
     });
-    if (!fieldsMount.children.length) { showStatus('No usable suggestions were returned. Your Draft has not been changed.'); return; }
+    if (data.related) {
+      const note = document.createElement('div');
+      note.className = 'reference-related-note';
+      note.innerHTML = '<strong>Related words</strong><span></span>';
+      note.querySelector('span').textContent = data.related;
+      fieldsMount.appendChild(note);
+    }
+    if (!fieldsMount.querySelector('.reference-preview-field')) { showStatus('No usable suggestions were returned. Your Draft has not been changed.'); return; }
     status.hidden=true; preview.hidden=false;
   }
   apply?.addEventListener('click', () => {
