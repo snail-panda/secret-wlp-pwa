@@ -116,8 +116,23 @@
   if (title) {
     if (isNormalDeck) title.textContent = `Deck WLP${String(batchNum).padStart(3, '0')}`;
     else if (params.get('review')) title.textContent = 'Review Deck';
-    else if (params.get('draft')) title.textContent = 'Draft Study';
+    else if (params.get('draft')) title.textContent = `Draft Deck ${String(Math.max(1, Number(params.get('draft')) || 1)).padStart(3, '0')}`;
     else title.textContent = 'Study';
+  }
+
+  if (params.get('draft') && !isFromSearch) {
+    const backToDrafts = document.querySelector('.study-back-decks');
+    if (backToDrafts) {
+      backToDrafts.href = '../../drafts.html';
+      backToDrafts.setAttribute('aria-label', 'Back to Drafts');
+      const label = backToDrafts.querySelector('span');
+      if (label) label.textContent = 'Back to Drafts';
+    }
+    const footerHome = document.querySelector('.deck-home-link.deck-home-duplicate');
+    if (footerHome) {
+      footerHome.href = '../../drafts.html';
+      footerHome.textContent = 'Back to Drafts';
+    }
   }
 
   if (isNormalDeck) {
