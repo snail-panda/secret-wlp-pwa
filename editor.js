@@ -195,6 +195,58 @@
   window.addEventListener('pageshow', () => { renderCounts(); syncRoleUi(); scrollToHash(); });
   window.addEventListener('focus', renderCounts);
 
+
+  // Stage 7 Editor — standalone New Card form.
+  const NEW_CARD_FIELDS = [
+    'Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'
+  ];
+  function makeLocalDraftId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `local-${crypto.randomUUID()}`;
+    return `local-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+  }
+  function readLocalDrafts() {
+    try {
+      const value = JSON.parse(localStorage.getItem(LOCAL_ADDITIONS_KEY) || '[]');
+      return Array.isArray(value) ? value.filter(v => v && typeof v === 'object') : [];
+    } catch { return []; }
+  }
+  function saveNewCardDraft(form) {
+    const data = new FormData(form);
+    const word = String(data.get('Word') || '').trim();
+    if (!word) {
+      $('new-card-word')?.focus();
+      return false;
+    }
+    const now = new Date().toISOString();
+    const draft = { localId: makeLocalDraftId(), createdAt: now, updatedAt: now };
+    NEW_CARD_FIELDS.forEach(field => { draft[field] = String(data.get(field) || '').trim(); });
+    const drafts = readLocalDrafts();
+    drafts.push(draft);
+    localStorage.setItem(LOCAL_ADDITIONS_KEY, JSON.stringify(drafts, null, 2));
+    return draft;
+  }
+  const newCardForm = $('new-card-form');
+  newCardForm?.addEventListener('submit', event => {
+    event.preventDefault();
+    if (getRole() !== 'admin') { openAdminGate(); return; }
+    const draft = saveNewCardDraft(newCardForm);
+    if (!draft) return;
+    newCardForm.reset();
+    renderCounts();
+    const success = $('new-card-success');
+    const title = $('new-card-success-title');
+    const copy = $('new-card-success-copy');
+    if (title) title.textContent = `Saved “${draft.Word}”`;
+    if (copy) copy.textContent = `Draft saved locally · ${readDraftCount()} Draft${readDraftCount() === 1 ? '' : 's'} total.`;
+    if (success) success.hidden = false;
+    showToast('Draft saved.');
+    requestAnimationFrame(() => $('new-card-word')?.focus());
+  });
+  newCardForm?.addEventListener('reset', () => {
+    const success = $('new-card-success');
+    if (success) success.hidden = true;
+  });
+
   renderCounts();
   syncRoleUi();
   scrollToHash();

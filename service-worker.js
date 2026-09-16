@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-editor-v1-0';
+const CACHE_NAME = 'wlp-stage7-editor-new-card-v1-1';
 const CORE = [
   './',
   './index.html',
@@ -17,6 +17,8 @@ const CORE = [
   './editor.html',
   './editor.css',
   './editor.js',
+  './editor-new-card.html',
+  './editor-new-card.css',
   './study-options.css',
   './study-options.js',
   './legacy-home.html',
