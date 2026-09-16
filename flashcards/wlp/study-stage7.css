@@ -1874,3 +1874,27 @@ body.stage7-study-body{
     margin-bottom:2px;
   }
 }
+
+/* =========================================================
+   Stage 7 — YouGlish pronunciation utility v1.3
+   Compact front TTS stop state: keep the small Listen button
+   visually balanced while speech is playing.
+   ========================================================= */
+.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak:not(:has(.ui-icon)){
+  font-size:0!important;
+  line-height:1!important;
+}
+.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak:not(:has(.ui-icon))::before{
+  content:"■";
+  font-size:11px;
+  line-height:1;
+  transform:translateY(-.25px);
+}
+.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak:not(:has(.ui-icon)) + .s7-audio-caption{
+  font-size:0;
+}
+.stage7-study-body .study-front-practice .s7-listen-utility .btn-speak:not(:has(.ui-icon)) + .s7-audio-caption::after{
+  content:"Stop";
+  font-size:.72rem;
+  line-height:1.05;
+}
