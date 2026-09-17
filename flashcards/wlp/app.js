@@ -630,6 +630,136 @@ function openExternalSearch(url) {
   a.remove();
 }
 
+const REFERENCE_PREF_KEY = "wlp:stage7:study-options:v1";
+
+function googleSearchUrl(word, mode = "normal") {
+  const clean = String(word || "").trim();
+  const suffix =
+    mode === "meaning"
+      ? " meaning usage examples"
+      : mode === "etymology"
+        ? " etymology origin history"
+        : mode === "realworld"
+          ? " natural real-life usage short dialogue conversation examples"
+          : "";
+  return `https://www.google.com/search?q=${encodeURIComponent(clean + suffix)}`;
+}
+
+function installGoogleReferenceTools(root, word) {
+  const wrap = root?.querySelector(".google-reference-wrap");
+  const trigger = root?.querySelector(".google-search-link");
+  const menu = root?.querySelector(".google-search-menu");
+  if (!wrap || !trigger || !menu || trigger.dataset.bound === "1") return;
+  trigger.dataset.bound = "1";
+
+  let holdTimer = null;
+  let held = false;
+  const openMenu = () => {
+    held = true;
+    menu.hidden = false;
+    wrap.classList.add("is-open");
+  };
+  const closeMenu = () => {
+    menu.hidden = true;
+    wrap.classList.remove("is-open");
+  };
+  const clearHold = () => {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+  };
+
+  trigger.addEventListener("pointerdown", () => {
+    held = false;
+    clearHold();
+    holdTimer = setTimeout(openMenu, 520);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(type =>
+    trigger.addEventListener(type, clearHold)
+  );
+  trigger.addEventListener("contextmenu", event => {
+    event.preventDefault();
+    clearHold();
+    openMenu();
+  });
+  trigger.addEventListener("click", event => {
+    event.preventDefault();
+    if (held) {
+      held = false;
+      return;
+    }
+    if (!menu.hidden) {
+      closeMenu();
+      return;
+    }
+    openExternalSearch(googleSearchUrl(word, "normal"));
+  });
+
+  menu.querySelectorAll("[data-google-mode]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const mode = button.dataset.googleMode || "normal";
+      closeMenu();
+      openExternalSearch(googleSearchUrl(word, mode));
+    });
+  });
+
+  document.addEventListener("click", event => {
+    if (!menu.hidden && !wrap.contains(event.target)) closeMenu();
+  });
+}
+
+function getReferenceToolPrefs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(REFERENCE_PREF_KEY) || "{}");
+    const tools = stored?.referenceTools || {};
+    return {
+      external: tools.external !== false,
+      google: tools.google !== false,
+      images: tools.images !== false,
+      jp: tools.jp !== false
+    };
+  } catch {
+    return { external: true, google: true, images: true, jp: true };
+  }
+}
+
+function applyReferenceToolVisibility(root) {
+  if (!root) return;
+  const prefs = getReferenceToolPrefs();
+  const entries = [
+    ["external", root.querySelector(".external-link")],
+    ["google", root.querySelector(".google-reference-wrap")],
+    ["images", root.querySelector(".image-search-link")],
+    ["jp", root.querySelector(".jp-reference-wrap")]
+  ];
+
+  entries.forEach(([key, el]) => {
+    if (!el) return;
+    const hidden = !prefs[key];
+    el.classList.toggle("s7-ref-hidden", hidden);
+    el.setAttribute("aria-hidden", String(hidden));
+  });
+
+  const toolbar = root.querySelector(".back-reference-tools");
+  if (!toolbar) return;
+  const visible = entries.filter(([key, el]) => el && prefs[key]).map(([, el]) => el);
+  toolbar.classList.toggle("s7-ref-toolbar-hidden", visible.length === 0);
+  toolbar.setAttribute("aria-hidden", String(visible.length === 0));
+
+  const children = Array.from(toolbar.children);
+  const visibleSet = new Set(visible);
+  children.forEach(child => {
+    if (!child.matches("[data-reference-divider]")) return;
+    let prev = child.previousElementSibling;
+    let next = child.nextElementSibling;
+    while (prev && prev.matches("[data-reference-divider]")) prev = prev.previousElementSibling;
+    while (next && next.matches("[data-reference-divider]")) next = next.nextElementSibling;
+    const show = Boolean(prev && next && visibleSet.has(prev) && visibleSet.has(next));
+    child.classList.toggle("s7-ref-hidden", !show);
+  });
+}
+
 function japaneseSearchUrl(word, mode = "quick") {
   const clean = String(word || "").trim();
   const suffix =
@@ -1157,20 +1287,17 @@ function renderCards(
           `https://www.google.com/search?tbm=isch&q=${q}`;
       }
 
-      const googleSearch =
-        root.querySelector(
-          ".google-search-link"
-        );
-
-      if (googleSearch) {
-        googleSearch.href =
-          `https://www.google.com/search?q=${q}`;
-      }
+      installGoogleReferenceTools(
+        root,
+        String(row["Word"] || "").trim()
+      );
 
       installJapaneseReferenceTools(
         root,
         String(row["Word"] || "").trim()
       );
+
+      applyReferenceToolVisibility(root);
 
       const cardTagText =
   IS_DRAFT_MODE

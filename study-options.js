@@ -465,26 +465,37 @@
 
   const applyReferenceToolsState = () => {
     const tools = prefs.referenceTools || DEFAULTS.referenceTools;
-    const selectors = {
-      external: '.external-link',
-      google: '.google-search-link',
-      images: '.image-search-link',
-      jp: '.jp-reference-wrap'
-    };
 
     document.querySelectorAll('#cards .flashcard').forEach(card => {
-      Object.entries(selectors).forEach(([key, selector]) => {
-        card.querySelectorAll(selector).forEach(el => {
-          el.hidden = tools[key] === false;
-          el.setAttribute('aria-hidden', String(tools[key] === false));
-        });
+      const entries = [
+        ['external', card.querySelector('.external-link')],
+        ['google', card.querySelector('.google-reference-wrap') || card.querySelector('.google-search-link')],
+        ['images', card.querySelector('.image-search-link')],
+        ['jp', card.querySelector('.jp-reference-wrap')]
+      ];
+
+      entries.forEach(([key, el]) => {
+        if (!el) return;
+        const hidden = tools[key] === false;
+        el.classList.toggle('s7-ref-hidden', hidden);
+        el.setAttribute('aria-hidden', String(hidden));
       });
+
       const toolbar = card.querySelector('.back-reference-tools');
-      if (toolbar) {
-        const anyVisible = Object.keys(selectors).some(key => tools[key] !== false);
-        toolbar.hidden = !anyVisible;
-        toolbar.setAttribute('aria-hidden', String(!anyVisible));
-      }
+      if (!toolbar) return;
+      const visible = entries.filter(([key, el]) => el && tools[key] !== false).map(([, el]) => el);
+      const visibleSet = new Set(visible);
+      toolbar.classList.toggle('s7-ref-toolbar-hidden', visible.length === 0);
+      toolbar.setAttribute('aria-hidden', String(visible.length === 0));
+
+      Array.from(toolbar.querySelectorAll('[data-reference-divider]')).forEach(divider => {
+        let prev = divider.previousElementSibling;
+        let next = divider.nextElementSibling;
+        while (prev && prev.matches('[data-reference-divider]')) prev = prev.previousElementSibling;
+        while (next && next.matches('[data-reference-divider]')) next = next.nextElementSibling;
+        const show = Boolean(prev && next && visibleSet.has(prev) && visibleSet.has(next));
+        divider.classList.toggle('s7-ref-hidden', !show);
+      });
     });
   };
 

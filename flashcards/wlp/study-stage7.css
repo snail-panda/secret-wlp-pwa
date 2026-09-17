@@ -2121,12 +2121,14 @@ body.stage7-study-body{
   flex:none;
   background:rgba(72,104,68,.22);
 }
-.stage7-study-body .flashcard .back .jp-reference-wrap{
+.stage7-study-body .flashcard .back .jp-reference-wrap,
+.stage7-study-body .flashcard .back .google-reference-wrap{
   position:relative;
   display:inline-flex;
   align-items:center;
 }
-.stage7-study-body .flashcard .back .jp-search-menu{
+.stage7-study-body .flashcard .back .jp-search-menu,
+.stage7-study-body .flashcard .back .google-search-menu{
   position:absolute;
   left:50%;
   bottom:calc(100% + 8px);
@@ -2139,8 +2141,10 @@ body.stage7-study-body{
   background:rgba(255,254,249,.98);
   box-shadow:0 8px 24px rgba(43,70,49,.14);
 }
-.stage7-study-body .flashcard .back .jp-search-menu[hidden]{display:none!important}
-.stage7-study-body .flashcard .back .jp-search-menu button{
+.stage7-study-body .flashcard .back .jp-search-menu[hidden],
+.stage7-study-body .flashcard .back .google-search-menu[hidden]{display:none!important}
+.stage7-study-body .flashcard .back .jp-search-menu button,
+.stage7-study-body .flashcard .back .google-search-menu button{
   width:100%;
   min-height:0;
   display:grid;
@@ -2156,9 +2160,18 @@ body.stage7-study-body{
   text-align:left;
   font-size:.86rem;
 }
-.stage7-study-body .flashcard .back .jp-search-menu button:hover{background:rgba(74,105,80,.07)}
-.stage7-study-body .flashcard .back .jp-search-menu strong{font-weight:600}
-.stage7-study-body .flashcard .back .jp-search-menu span{font-size:.75rem;opacity:.72}
+.stage7-study-body .flashcard .back .jp-search-menu button:hover,
+.stage7-study-body .flashcard .back .google-search-menu button:hover{background:rgba(74,105,80,.07)}
+.stage7-study-body .flashcard .back .jp-search-menu strong,
+.stage7-study-body .flashcard .back .google-search-menu strong{font-weight:600}
+.stage7-study-body .flashcard .back .jp-search-menu span,
+.stage7-study-body .flashcard .back .google-search-menu span{font-size:.75rem;opacity:.72}
+
+.stage7-study-body .flashcard .back .google-search-menu{width:220px}
+.stage7-study-body .flashcard .back .google-search-menu button{grid-template-columns:92px 1fr}
+.stage7-study-body .flashcard .back .s7-ref-hidden{display:none!important}
+.stage7-study-body .flashcard .back .back-reference-tools.s7-ref-toolbar-hidden{display:none!important}
+
 .stage7-study-body.s7-search-solo .flashcard .back .back-utility-row .back-reference-tools{
   grid-column:1!important;
   justify-self:center!important;
