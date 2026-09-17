@@ -2033,3 +2033,10 @@ body.stage7-study-body{
 .selection-wlp-search[hidden]{display:none!important}
 .selection-wlp-search svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .selection-wlp-search:active{transform:translateY(1px);opacity:.78}
+
+
+/* Editor-authored Notes may contain intentional line breaks. Master Notes keep
+   their existing presentation unless a local Draft/Edit explicitly marks them. */
+.stage7-study-body .flashcard .back .note.wlp-note-preserve-breaks{
+  white-space:pre-wrap!important;
+}

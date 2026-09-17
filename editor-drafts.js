@@ -132,7 +132,7 @@
       event.preventDefault(); if(!isAdmin()) return;
       const latest=readDrafts(); const at=latest.findIndex(d=>String(d.localId||'')===id); if(at<0){ location.reload(); return; }
       const fd=new FormData(form); const word=String(fd.get('Word')||'').trim(); if(!word){ $('draft-edit-word')?.focus(); return; }
-      const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); latest[at]=next; writeDrafts(latest);
+      const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); next.__noteLineBreaks=/[\r\n]/.test(next['Note(s)']||''); latest[at]=next; writeDrafts(latest);
       const success=$('draft-edit-success'); if(success) success.hidden=false; if(study) study.href=studyHref(latest,at); syncEditNavigation(latest,at);
     });
     $('draft-edit-delete')?.addEventListener('click',async()=>{

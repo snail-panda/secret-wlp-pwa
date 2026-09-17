@@ -236,6 +236,7 @@
     const now = new Date().toISOString();
     const draft = { localId: makeLocalDraftId(), createdAt: now, updatedAt: now };
     NEW_CARD_FIELDS.forEach(field => { draft[field] = String(data.get(field) || '').trim(); });
+    draft.__noteLineBreaks = /[\r\n]/.test(draft['Note(s)'] || '');
     const drafts = readLocalDrafts();
     drafts.push(draft);
     localStorage.setItem(LOCAL_ADDITIONS_KEY, JSON.stringify(drafts, null, 2));

@@ -198,6 +198,9 @@
     const overrides=readOverrides(), existing=overrides[wid]&&typeof overrides[wid]==='object'?overrides[wid]:null;
     const effective={...masterRow}; if(existing)FIELDS.forEach(field=>{if(Object.prototype.hasOwnProperty.call(existing,field))effective[field]=String(existing[field]??'');});
     FIELDS.forEach(field=>{const el=form.elements.namedItem(field);if(el)el.value=String(effective[field]||'');});
+    const noteControl=form.elements.namedItem('Note(s)');
+    let noteEditedByUser=false;
+    noteControl?.addEventListener('input',()=>{noteEditedByUser=true;});
     const pill=$('local-edit-wid-pill'); if(pill)pill.textContent=`WID${wid}`;
     const revert=$('local-edit-revert'); if(revert)revert.hidden=!existing;
     syncEditNavigation(masterRow);
@@ -205,7 +208,7 @@
     form.addEventListener('submit',event=>{
       event.preventDefault(); if(!isAdmin())return;
       const fd=new FormData(form), word=String(fd.get('Word')||'').trim(); if(!word){$('local-edit-word')?.focus();return;}
-      const latest=readOverrides(), next={updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{next[field]=String(fd.get(field)||'').trim();}); latest[wid]=next; writeOverrides(latest);
+      const latest=readOverrides(), previous=latest[wid]&&typeof latest[wid]==='object'?latest[wid]:null, next={updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{next[field]=String(fd.get(field)||'').trim();}); next.__noteLineBreaks=noteEditedByUser?/[\r\n]/.test(next['Note(s)']||''):Boolean(previous?.__noteLineBreaks); latest[wid]=next; writeOverrides(latest);
       if(revert)revert.hidden=false; const success=$('local-edit-success'); if(success)success.hidden=false; syncEditNavigation(masterRow);
     });
     revert?.addEventListener('click',async()=>{

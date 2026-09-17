@@ -17,7 +17,8 @@
   }
   function normalizeDraft(value){
     const d=value&&typeof value==='object'?value:{}; const now=new Date().toISOString();
-    return {localId:String(d.localId||makeLocalDraftId()),createdAt:String(d.createdAt||now),updatedAt:String(d.updatedAt||d.createdAt||now),Word:String(d.Word||'').trim(),IPA:String(d.IPA||'').trim(),'Part of Speech':String(d['Part of Speech']||'').trim(),Definition:String(d.Definition||'').trim(),'Synonym(s)':String(d['Synonym(s)']||'').trim(),'Example Sentence':String(d['Example Sentence']||'').trim(),'Note(s)':String(d['Note(s)']||'').trim(),Category:String(d.Category||'').trim(),Source:String(d.Source||'').trim()};
+    const note=String(d['Note(s)']||'').trim();
+    return {localId:String(d.localId||makeLocalDraftId()),createdAt:String(d.createdAt||now),updatedAt:String(d.updatedAt||d.createdAt||now),Word:String(d.Word||'').trim(),IPA:String(d.IPA||'').trim(),'Part of Speech':String(d['Part of Speech']||'').trim(),Definition:String(d.Definition||'').trim(),'Synonym(s)':String(d['Synonym(s)']||'').trim(),'Example Sentence':String(d['Example Sentence']||'').trim(),'Note(s)':note,Category:String(d.Category||'').trim(),Source:String(d.Source||'').trim(),__noteLineBreaks:Boolean(d.__noteLineBreaks)||/[\r\n]/.test(note)};
   }
   function readDrafts(){try{const v=JSON.parse(localStorage.getItem(LOCAL_ADDITIONS_KEY)||'[]');return Array.isArray(v)?v.map(normalizeDraft).filter(d=>d.Word):[];}catch{return[];}}
   function writeDrafts(value){localStorage.setItem(LOCAL_ADDITIONS_KEY,JSON.stringify(value,null,2));}
@@ -29,11 +30,14 @@
     const headers=table[0].map(v=>String(v||'').trim()); const rows=table.slice(1).map(cols=>Object.fromEntries(headers.map((h,i)=>[h,String(cols[i]??'').trim()]))); return{headers,rows};
   }
   async function loadMaster(){const r=await fetch(TSV_URL,{cache:'no-store'});if(!r.ok)throw new Error(`Could not load Master TSV (${r.status}).`);masterRows=parseTSVText(await r.text()).rows;return masterRows;}
-  function localDraftToWlpRow(d){return {'Batch #':'','Guidance #':'',WordID:'',Word:d.Word||'',IPA:d.IPA||'','Part of Speech':d['Part of Speech']||'',Definition:d.Definition||'','Synonym(s)':d['Synonym(s)']||'','Example Sentence':d['Example Sentence']||'','Note(s)':d['Note(s)']||'',Category:d.Category||'',Source:d.Source||''};}
+  function localDraftToWlpRow(d){return {'Batch #':'','Guidance #':'',WordID:'',Word:d.Word||'',IPA:d.IPA||'','Part of Speech':d['Part of Speech']||'',Definition:d.Definition||'','Synonym(s)':d['Synonym(s)']||'','Example Sentence':d['Example Sentence']||'','Note(s)':d['Note(s)']||'',Category:d.Category||'',Source:d.Source||'',__noteLineBreaks:Boolean(d.__noteLineBreaks)||/[\r\n]/.test(String(d['Note(s)']||''))};}
   function localDraftToPortableRow(d){return {...localDraftToWlpRow(d),'Local Draft ID':d.localId||'','Created At':d.createdAt||'','Updated At':d.updatedAt||''};}
-  function applyOverride(row,overrides){const wid=String(row.WordID||'').trim(),edit=wid?overrides[wid]:null;if(!edit||typeof edit!=='object')return{...row};const next={...row};LOCAL_OVERRIDE_FIELDS.forEach(f=>{if(Object.prototype.hasOwnProperty.call(edit,f))next[f]=String(edit[f]??'');});return next;}
+  function applyOverride(row,overrides){const wid=String(row.WordID||'').trim(),edit=wid?overrides[wid]:null;if(!edit||typeof edit!=='object')return{...row};const next={...row};LOCAL_OVERRIDE_FIELDS.forEach(f=>{if(Object.prototype.hasOwnProperty.call(edit,f))next[f]=String(edit[f]??'');});next.__noteLineBreaks=Boolean(edit.__noteLineBreaks);return next;}
+  function encodeEditorNoteBreaks(value){return String(value??'').replaceAll('\\','\\\\').replace(/\r\n?|\n/g,'\\n');}
+  function decodeEditorNoteBreaks(value){const text=String(value??'');let out='';for(let i=0;i<text.length;i++){if(text[i]==='\\'&&i+1<text.length){const next=text[i+1];if(next==='n'){out+='\n';i++;continue;}if(next==='\\'){out+='\\';i++;continue;}}out+=text[i];}return out;}
+  function exportCellValue(row,column){const value=row[column]??'';return column==='Note(s)'&&row.__noteLineBreaks?encodeEditorNoteBreaks(value):value;}
   function tsvEscape(value){const t=String(value??'');return /[\t\n\r"]/.test(t)?`"${t.replaceAll('"','""')}"`:t;}
-  function buildTSV(rows,columns){return [columns.join('\t'),...rows.map(row=>columns.map(c=>tsvEscape(row[c]??'')).join('\t'))].join('\n')+'\n';}
+  function buildTSV(rows,columns){return [columns.join('\t'),...rows.map(row=>columns.map(c=>tsvEscape(exportCellValue(row,c))).join('\t'))].join('\n')+'\n';}
   function dateStamp(){const n=new Date();return [n.getFullYear(),String(n.getMonth()+1).padStart(2,'0'),String(n.getDate()).padStart(2,'0')].join('-');}
   function downloadTSV(text,name){const blob=new Blob(['\uFEFF',text],{type:'text/tab-separated-values;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
   const DRAFT_COMPARE_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
@@ -44,7 +48,7 @@
       localId:String(row['Local Draft ID']||'').trim()||existing?.localId||makeLocalDraftId(),
       createdAt:String(row['Created At']||'').trim()||existing?.createdAt||now,
       updatedAt:String(row['Updated At']||'').trim()||now,
-      Word:row.Word,IPA:row.IPA,'Part of Speech':row['Part of Speech'],Definition:row.Definition,'Synonym(s)':row['Synonym(s)'],'Example Sentence':row['Example Sentence'],'Note(s)':row['Note(s)'],Category:row.Category,Source:row.Source
+      Word:row.Word,IPA:row.IPA,'Part of Speech':row['Part of Speech'],Definition:row.Definition,'Synonym(s)':row['Synonym(s)'],'Example Sentence':row['Example Sentence'],'Note(s)':decodeEditorNoteBreaks(row['Note(s)']),Category:row.Category,Source:row.Source
     });
   }
   function parseDraftDate(value){const raw=String(value||'').trim();if(!raw)return null;const ms=Date.parse(raw);return Number.isFinite(ms)?ms:null;}

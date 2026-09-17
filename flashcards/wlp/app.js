@@ -135,6 +135,7 @@ function renderConnectedSynonyms(value, currentWord) {
 
 let localOverrides = {};
 let editingOverrideRow = null;
+let editingOverrideNoteTouched = false;
 
 // -------------------------------------------------------------
 // Card display mode
@@ -460,6 +461,7 @@ function applyLocalOverrides(rows) {
       }
     });
     next.__hasLocalOverride = true;
+    next.__noteLineBreaks = Boolean(override.__noteLineBreaks);
     return next;
   });
 }
@@ -474,6 +476,7 @@ function openLocalOverrideEditor(row) {
   }
 
   editingOverrideRow = row;
+  editingOverrideNoteTouched = false;
   const modal = document.getElementById("local-edit-modal");
   const form = document.getElementById("local-edit-form");
   const title = document.getElementById("local-edit-title");
@@ -510,6 +513,10 @@ function saveCurrentLocalOverride(form) {
     next[field] = control ? String(control.value ?? "") : "";
   });
   next.updatedAt = new Date().toISOString();
+  const previous = localOverrides[wid] && typeof localOverrides[wid] === "object" ? localOverrides[wid] : null;
+  next.__noteLineBreaks = editingOverrideNoteTouched
+    ? /[\r\n]/.test(next["Note(s)"] || "")
+    : Boolean(previous?.__noteLineBreaks);
 
   localOverrides[wid] = next;
   saveLocalOverrides();
@@ -599,6 +606,9 @@ function installLocalOverrideEditor() {
     saveCurrentLocalOverride(form);
   });
 
+  const noteControl = form.elements.namedItem("Note(s)");
+  noteControl?.addEventListener("input", () => { editingOverrideNoteTouched = true; });
+
   if (cancel) cancel.addEventListener("click", closeLocalOverrideEditor);
 
   modal.addEventListener("click", event => {
@@ -682,7 +692,9 @@ function readLocalDraftRows() {
         __localId:
           String(
             draft.localId || ""
-          ).trim()
+          ).trim(),
+        __noteLineBreaks:
+          Boolean(draft.__noteLineBreaks) || /[\r\n]/.test(String(draft["Note(s)"] || ""))
       }));
 
   } catch (e) {
@@ -1275,12 +1287,12 @@ const note =
         ? `<strong>Synonyms:</strong> ${renderConnectedSynonyms(syn, row["Word"])}`
         : "";
 
-  root
-    .querySelector(".note")
-    .innerHTML =
+  const noteElement = root.querySelector(".note");
+  noteElement.innerHTML =
       note
         ? `<strong>Notes:</strong> ${escapeHtml(note)}`
         : "";
+  noteElement.classList.toggle("wlp-note-preserve-breaks", Boolean(row.__noteLineBreaks));
 
   applyCardMode(
     root,
