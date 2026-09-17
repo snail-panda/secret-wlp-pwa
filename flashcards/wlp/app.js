@@ -1063,8 +1063,9 @@ function installAdjacentDraftDeckLinks(
   if (deckNo > 1) {
     prev.href =
       `./batch.html?draft=${deckNo - 1}`;
-    prev.textContent =
-      "← Previous Draft Deck";
+    const prevLabel = prev.querySelector(".deck-nav-label");
+    if (prevLabel) prevLabel.textContent = "Previous Draft Deck";
+    prev.setAttribute("aria-label", "Previous Draft Deck");
     prev.hidden = false;
     prev.style.display =
       "inline-flex";
@@ -1073,8 +1074,9 @@ function installAdjacentDraftDeckLinks(
   if (deckNo < deckCount) {
     next.href =
       `./batch.html?draft=${deckNo + 1}`;
-    next.textContent =
-      "Next Draft Deck →";
+    const nextLabel = next.querySelector(".deck-nav-label");
+    if (nextLabel) nextLabel.textContent = "Next Draft Deck";
+    next.setAttribute("aria-label", "Next Draft Deck");
     next.hidden = false;
     next.style.display =
       "inline-flex";
@@ -2667,7 +2669,7 @@ const REVIEW_REASON_OPTIONS = [
 ];
 
 let studyToastTimer = null;
-function showStudyToast(message) {
+function showStudyToast(message, duration = 2200) {
   let toast = document.getElementById("study-progress-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -2680,7 +2682,7 @@ function showStudyToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
   clearTimeout(studyToastTimer);
-  studyToastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+  studyToastTimer = setTimeout(() => toast.classList.remove("show"), duration);
 }
 
 function ensureReviewAttentionSheet() {
@@ -3054,13 +3056,35 @@ function bindCardBehavior(
 
   studiedButton?.addEventListener("click", () => {
     const before = readProgress(stateKey);
+    const wasStudied = Boolean(before.known) && !Boolean(before.review);
+
+    if (wasStudied) {
+      saveProgress(stateKey, {
+        ...before,
+        known: false,
+        review: false,
+        lastResult: "neutral",
+        lastSeen: Date.now()
+      });
+      interactionEvent("studied_removed", row);
+      refreshProgressControls();
+      showStudyToast(
+        "Studied mark removed. This card is neutral for now.",
+        4200
+      );
+      return;
+    }
+
     updateProgress(stateKey, row, "studied");
     interactionEvent("studied", row, {
       previousReviewLevel: before.reviewLevel || "",
       previousReviewReasons: Array.isArray(before.reviewReasons) ? before.reviewReasons : []
     });
     refreshProgressControls();
-    showStudyToast("Marked Studied — no special attention for now.");
+    showStudyToast(
+      "Studied for now. No special review attention is active. Tap Studied again to remove this mark, or tap Review whenever you want to bring it back into review.",
+      6200
+    );
 
     if (IS_REVIEW_MODE) removeFromCurrentReviewDeck(root);
   });
