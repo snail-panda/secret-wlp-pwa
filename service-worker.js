@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-direct-shell-v1-8-6-3';
+const CACHE_NAME = 'wlp-stage7-shared-shell-fix-v1-8-6-2';
 const CORE = [
   './',
   './index.html',
@@ -44,8 +44,6 @@ const CORE = [
   './pwa-register.js',
   './stage7-shell.css',
   './stage7-shell.js',
-  './stage7-shell-v2.css',
-  './stage7-shell-v2.js',
   './pwa-icons/icon-192.png',
   './pwa-icons/icon-512.png',
   './pwa-icons/apple-touch-icon.png',
@@ -93,7 +91,7 @@ self.addEventListener('fetch', event => {
 
   // Shared shell / registration assets must be fresh. A stale copy of
   // pwa-register.js can prevent the shell from loading on most pages.
-  if (['/pwa-register.js', '/stage7-shell.js', '/stage7-shell.css', '/stage7-shell-v2.js', '/stage7-shell-v2.css'].includes(url.pathname)) {
+  if (['/pwa-register.js', '/stage7-shell.js', '/stage7-shell.css'].includes(url.pathname)) {
     event.respondWith(
       fetch(request, { cache: 'no-store' })
         .then(response => {
