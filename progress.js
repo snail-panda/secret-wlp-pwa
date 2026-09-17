@@ -12,9 +12,9 @@
   const $ = id => document.getElementById(id);
 
   const VIEW_META = {
-    overview: 'See where you are, what needs attention, and what to do next.',
-    landscape: 'See the garden as a landscape: where you have traveled, and where you have not.',
-    paths: 'See the different learning paths that make words deeper and more connected.'
+    overview: { title: 'Overview', description: 'See where you are, what needs attention, and what to do next.' },
+    landscape: { title: 'Landscape', description: 'See the garden as a landscape: where you have traveled, and where you have not.' },
+    paths: { title: 'Paths', description: 'See the different learning paths that make words deeper and more connected.' }
   };
 
   const PANEL_OPTIONS = {
@@ -400,7 +400,8 @@
       section.hidden = !active;
       section.classList.toggle('is-active', active);
     });
-    $('progress-view-description').textContent = VIEW_META[view];
+    $('progress-view-title').textContent = VIEW_META[view].title;
+    $('progress-view-description').textContent = VIEW_META[view].description;
     if (!options.skipUrl) {
       const url = new URL(location.href);
       url.searchParams.set('view', view);
@@ -452,9 +453,19 @@
     const close = () => {
       sheet.classList.remove('is-open');
       sheet.setAttribute('aria-hidden', 'true');
+      const optionsNav = $('progress-options-nav');
+      if (optionsNav) {
+        optionsNav.classList.remove('is-active');
+        optionsNav.setAttribute('aria-selected', 'false');
+      }
       setTimeout(() => { if (!sheet.classList.contains('is-open')) backdrop.hidden = true; }, 220);
     };
-    $('progress-options-button').addEventListener('click', open);
+    const optionsNav = $('progress-options-nav');
+    optionsNav.addEventListener('click', () => {
+      optionsNav.classList.add('is-active');
+      optionsNav.setAttribute('aria-selected', 'true');
+      open();
+    });
     $('progress-options-close').addEventListener('click', close);
     backdrop.addEventListener('click', close);
     $('progress-options-reset').addEventListener('click', () => {
@@ -471,24 +482,6 @@
     document.querySelectorAll('[data-open-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.openView, {scrollTop:true})));
     document.querySelectorAll('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast)));
     document.querySelectorAll('[data-practice-coming]').forEach(button => button.addEventListener('click', () => showToast('Context Practice is the next layer. This Progress foundation is ready to record it when we add it.')));
-
-    let startX = 0, startY = 0;
-    const views = ['overview','landscape','paths'];
-    const area = $('progress-views');
-    area.addEventListener('touchstart', event => {
-      if (event.touches.length !== 1) return;
-      startX = event.touches[0].clientX;
-      startY = event.touches[0].clientY;
-    }, {passive:true});
-    area.addEventListener('touchend', event => {
-      if (!event.changedTouches.length) return;
-      const dx = event.changedTouches[0].clientX - startX;
-      const dy = event.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
-      const index = views.indexOf(activeView);
-      const next = dx < 0 ? Math.min(views.length - 1, index + 1) : Math.max(0, index - 1);
-      if (next !== index) switchView(views[next], {scrollTop:true});
-    }, {passive:true});
   }
 
   function installShell(closeOptions) {
