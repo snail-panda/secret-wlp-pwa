@@ -2183,3 +2183,19 @@ body.stage7-study-body{
   .stage7-study-body .flashcard .back .reference-tool{min-width:28px;padding-inline:3px}
 }
 
+
+
+/* =========================================================
+   WLP Stage 7 — v1.6.5.1
+   Keep back-card chevrons anchored to grid columns even when
+   every Reference Tool is hidden in Study Options.
+   ========================================================= */
+.stage7-study-body .flashcard .back .back-utility-row > .btn-prev{
+  grid-column:1!important;
+}
+.stage7-study-body .flashcard .back .back-utility-row > .back-reference-tools{
+  grid-column:2!important;
+}
+.stage7-study-body .flashcard .back .back-utility-row > .btn-next{
+  grid-column:3!important;
+}

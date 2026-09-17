@@ -640,9 +640,10 @@ function googleSearchUrl(word, mode = "normal") {
       : mode === "etymology"
         ? " etymology origin history"
         : mode === "realworld"
-          ? " natural real-life usage short dialogue conversation examples"
+          ? ` natural real-life usage examples in short dialogues using the exact word "${clean}"`
           : "";
-  return `https://www.google.com/search?q=${encodeURIComponent(clean + suffix)}`;
+  const query = mode === "realworld" ? `"${clean}"${suffix}` : clean + suffix;
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 }
 
 function installGoogleReferenceTools(root, word) {
