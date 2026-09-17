@@ -4,6 +4,8 @@
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const PRACTICE_EVENTS_KEY = 'wlp:stage7:practice-events:v1';
+  const ACTIVITY_EVENTS_KEY = 'wlp:stage7:activity-events:v1';
+  const ACTIVITY_PERIOD_KEY = 'wlp:stage7:activity-period:v1';
   const PROGRESS_OPTIONS_KEY = 'wlp:stage7:progress-options:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
@@ -14,7 +16,8 @@
   const VIEW_META = {
     overview: { title: 'Overview', description: 'See where you are, what needs attention, and what to do next.' },
     landscape: { title: 'Landscape', description: 'See the garden as a landscape: where you have traveled, and where you have not.' },
-    paths: { title: 'Paths', description: 'See the different learning paths that make words deeper and more connected.' }
+    paths: { title: 'Paths', description: 'See the different learning paths that make words deeper and more connected.' },
+    activity: { title: 'Activity', description: 'See what you actually did over time—without turning progress into a single score.' }
   };
 
   const PANEL_OPTIONS = {
@@ -35,14 +38,23 @@
       ['paths.focus', 'Focus for Today'],
       ['paths.recent', 'Recently Practiced'],
       ['paths.motto', 'Paths Motto']
+    ],
+    Activity: [
+      ['activity.period', 'Time Window'],
+      ['activity.snapshot', 'Activity Snapshot'],
+      ['activity.trend', 'Activity Over Time'],
+      ['activity.mix', 'Activity Mix'],
+      ['activity.timeline', 'Timeline']
     ]
   };
 
   let rows = [];
   let progressRecords = [];
   let practiceEvents = [];
+  let activityEvents = [];
   let rowByWordId = new Map();
   let activeView = 'overview';
+  let activeActivityPeriod = localStorage.getItem(ACTIVITY_PERIOD_KEY) || '30d';
 
   function parseTSV(text) {
     const table = [];
@@ -99,7 +111,9 @@
           firstSeen: Number(data.firstSeen || 0),
           lastSeen: Number(data.lastSeen || 0),
           review: data.review === true || data.lastResult === 'review',
-          reviewLevel: ['high', 'medium', 'light'].includes(String(data.reviewLevel || '').toLowerCase()) ? String(data.reviewLevel).toLowerCase() : ''
+          reviewLevel: ['high', 'medium', 'light'].includes(String(data.reviewLevel || '').toLowerCase()) ? String(data.reviewLevel).toLowerCase() : '',
+          reviewReasons: Array.isArray(data.reviewReasons) ? data.reviewReasons : [],
+          lastReviewed: Number(data.lastReviewed || 0)
         });
       } catch (error) {
         console.warn('Could not read progress record:', key, error);
@@ -114,6 +128,16 @@
       return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
     } catch (error) {
       console.warn('Could not read practice events:', error);
+      return [];
+    }
+  }
+
+  function readActivityEvents() {
+    try {
+      const data = JSON.parse(localStorage.getItem(ACTIVITY_EVENTS_KEY) || '[]');
+      return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
+    } catch (error) {
+      console.warn('Could not read activity events:', error);
       return [];
     }
   }
@@ -376,14 +400,229 @@
 
   function titleCase(value) { return String(value).replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 
+  const ACTIVITY_PERIODS = {
+    today: { label: 'Today', days: 1, buckets: 6 },
+    '7d': { label: '7 Days', days: 7, buckets: 7 },
+    '30d': { label: '30 Days', days: 30, buckets: 10 },
+    '90d': { label: '3 Months', days: 90, buckets: 12 },
+    '180d': { label: '6 Months', days: 180, buckets: 12 },
+    all: { label: 'All Time', days: null, buckets: 12 }
+  };
+
+  function startOfToday() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+
+  function eventTimestamp(event) {
+    return Number(event?.timestamp || event?.createdAt || event?.at || 0) || 0;
+  }
+
+  function selectedActivityRange() {
+    const config = ACTIVITY_PERIODS[activeActivityPeriod] || ACTIVITY_PERIODS['30d'];
+    const end = Date.now();
+    if (activeActivityPeriod === 'today') return { ...config, start: startOfToday(), end };
+    if (config.days == null) {
+      const candidates = [];
+      activityEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
+      practiceEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
+      progressRecords.forEach(record => { if (record.firstSeen) candidates.push(record.firstSeen); if (record.lastSeen) candidates.push(record.lastSeen); });
+      const start = candidates.length ? Math.min(...candidates) : startOfToday();
+      return { ...config, start, end };
+    }
+    return { ...config, start: end - config.days * 86400000, end };
+  }
+
+  function inRange(timestamp, range) {
+    return timestamp >= range.start && timestamp <= range.end;
+  }
+
+  function normalizedActivityStream(range) {
+    const hasFullLog = activityEvents.some(event => eventTimestamp(event));
+    const stream = [];
+    if (hasFullLog) {
+      activityEvents.forEach(event => {
+        const timestamp = eventTimestamp(event);
+        if (!timestamp || !inRange(timestamp, range)) return;
+        stream.push({
+          ...event,
+          timestamp,
+          wordId: String(event.wordId || '').trim(),
+          type: String(event.type || event.action || 'study').toLowerCase(),
+          legacy: false,
+          source: event.source || 'card'
+        });
+      });
+    } else {
+      progressRecords.forEach(record => {
+        if (!record.lastSeen || !inRange(record.lastSeen, range)) return;
+        stream.push({
+          timestamp: record.lastSeen,
+          wordId: record.wordId,
+          type: record.review ? 'review' : 'study',
+          legacy: true,
+          source: 'legacy-card'
+        });
+      });
+    }
+
+    practiceEvents.forEach(event => {
+      const timestamp = eventTimestamp(event);
+      if (!timestamp || !inRange(timestamp, range)) return;
+      stream.push({
+        ...event,
+        timestamp,
+        type: 'practice',
+        practiceType: String(event.practiceType || event.type || 'practice').toLowerCase(),
+        legacy: false,
+        source: 'practice'
+      });
+    });
+    return stream.sort((a,b) => b.timestamp - a.timestamp);
+  }
+
+  function wordsFromActivityEvent(event) {
+    const ids = [];
+    if (event.wordId) ids.push(String(event.wordId));
+    if (Array.isArray(event.targets)) ids.push(...event.targets.map(String));
+    if (Array.isArray(event.supports)) ids.push(...event.supports.map(String));
+    return ids.filter(Boolean);
+  }
+
+  function activityEncounterCount(event) {
+    if (event.type === 'practice') {
+      const count = (Array.isArray(event.targets) ? event.targets.length : 0) + (Array.isArray(event.supports) ? event.supports.length : 0);
+      return Math.max(1, count);
+    }
+    return 1;
+  }
+
+  function activityStatsFor(range, stream) {
+    const unique = new Set();
+    const reviewWords = new Set();
+    let encounters = 0;
+    let practiceSessions = 0;
+    stream.forEach(event => {
+      const ids = wordsFromActivityEvent(event);
+      ids.forEach(id => unique.add(id));
+      encounters += activityEncounterCount(event);
+      if (event.type === 'review') ids.forEach(id => reviewWords.add(id));
+      if (event.type === 'practice') practiceSessions++;
+    });
+    progressRecords.forEach(record => {
+      if (record.review && record.lastSeen && inRange(record.lastSeen, range)) reviewWords.add(record.wordId);
+    });
+    const firstTouched = progressRecords.filter(record => record.firstSeen && inRange(record.firstSeen, range)).length;
+    const returned = progressRecords.filter(record => record.lastSeen && inRange(record.lastSeen, range) && record.firstSeen && record.firstSeen < range.start).length;
+    return { unique: unique.size, encounters, reviewWords: reviewWords.size, practiceSessions, firstTouched, returned };
+  }
+
+  function bucketLabel(timestamp, index, count, periodKey) {
+    const d = new Date(timestamp);
+    if (periodKey === 'today') return d.toLocaleTimeString(undefined, { hour: 'numeric' }).replace(':00','');
+    if (count <= 7 || index === 0 || index === count - 1 || index === Math.floor(count / 2)) return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return '';
+  }
+
+  function renderActivityTrend(range, stream) {
+    const target = $('activity-trend');
+    const bucketCount = Math.max(1, range.buckets || 10);
+    const span = Math.max(1, range.end - range.start);
+    const bucketSize = span / bucketCount;
+    const buckets = Array.from({length: bucketCount}, (_, i) => ({ count: 0, start: range.start + i * bucketSize }));
+    stream.forEach(event => {
+      let index = Math.floor((event.timestamp - range.start) / bucketSize);
+      if (index < 0) index = 0;
+      if (index >= bucketCount) index = bucketCount - 1;
+      buckets[index].count += activityEncounterCount(event);
+    });
+    const max = Math.max(1, ...buckets.map(bucket => bucket.count));
+    target.innerHTML = buckets.map((bucket, index) => {
+      const height = bucket.count ? Math.max(5, (bucket.count / max) * 100) : 2;
+      const label = bucketLabel(bucket.start, index, bucketCount, activeActivityPeriod);
+      return `<div class="trend-bucket ${bucket.count ? '' : 'is-empty'}" title="${escapeHtml(label || formatWhen(bucket.start))}: ${fmt(bucket.count)} recorded encounter${bucket.count === 1 ? '' : 's'}"><span class="trend-value">${bucket.count ? fmt(bucket.count) : ''}</span><div class="trend-bar-wrap"><span class="trend-bar" style="height:${height}%"></span></div><span class="trend-label">${escapeHtml(label)}</span></div>`;
+    }).join('');
+    $('activity-trend-note').textContent = activityEvents.length ? 'Based on event history recorded by WLP.' : 'Legacy progress can only reconstruct the latest recorded touch for each card. Full day-by-day history starts with the new event log.';
+  }
+
+  function renderActivityMix(stream) {
+    const counts = { Study: 0, Review: 0, Practice: 0 };
+    stream.forEach(event => {
+      if (event.type === 'practice') counts.Practice += activityEncounterCount(event);
+      else if (event.type === 'review') counts.Review += 1;
+      else counts.Study += 1;
+    });
+    const max = Math.max(1, ...Object.values(counts));
+    $('activity-mix-list').innerHTML = Object.entries(counts).map(([label,count]) => `<div class="activity-mix-row"><span>${escapeHtml(label)}</span><div class="activity-mix-track"><div class="activity-mix-fill" style="width:${count ? Math.max(6,(count/max)*100) : 0}%"></div></div><b>${fmt(count)}</b></div>`).join('');
+  }
+
+  function activityTimelineTitle(event) {
+    if (event.type === 'practice') return titleCase(event.practiceType || 'Practice');
+    const row = rowByWordId.get(String(event.wordId || '')) || {};
+    return field(row, 'Word') || (event.wordId ? `WID ${event.wordId}` : titleCase(event.type || 'Activity'));
+  }
+
+  function activityTimelineCopy(event) {
+    if (event.type === 'practice') {
+      const targets = Array.isArray(event.targets) ? event.targets.length : 0;
+      const supports = Array.isArray(event.supports) ? event.supports.length : 0;
+      return `${targets ? `${targets} target${targets === 1 ? '' : 's'}` : 'Practice'}${supports ? ` + ${supports} support` : ''}`;
+    }
+    const row = rowByWordId.get(String(event.wordId || '')) || {};
+    const deck = deckOf(row);
+    return `${deck ? `Deck WLP${pad3(deck)} · ` : ''}${event.legacy ? 'latest recorded touch' : titleCase(event.source || 'card')}`;
+  }
+
+  function renderActivityTimeline(stream) {
+    const target = $('activity-timeline');
+    const items = stream.slice(0, 18);
+    if (!items.length) {
+      target.innerHTML = '<p class="empty-progress">No recorded activity in this time window.</p>';
+      return;
+    }
+    target.innerHTML = items.map(event => `<div class="timeline-row"><span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study')}</span></div>`).join('');
+  }
+
+  function renderActivity() {
+    if (!ACTIVITY_PERIODS[activeActivityPeriod]) activeActivityPeriod = '30d';
+    const range = selectedActivityRange();
+    const stream = normalizedActivityStream(range);
+    const s = activityStatsFor(range, stream);
+    document.querySelectorAll('[data-activity-period]').forEach(button => button.classList.toggle('is-active', button.dataset.activityPeriod === activeActivityPeriod));
+    $('activity-unique-words').textContent = fmt(s.unique);
+    $('activity-encounters').textContent = fmt(s.encounters);
+    $('activity-review-words').textContent = fmt(s.reviewWords);
+    $('activity-practice-sessions').textContent = fmt(s.practiceSessions);
+    $('activity-new-words').textContent = fmt(s.firstTouched);
+    $('activity-returned-words').textContent = fmt(s.returned);
+    $('activity-data-quality').textContent = activityEvents.length
+      ? 'Full event history is available for recorded card activity in this period.'
+      : 'Legacy mode: older WLP data stores cumulative counts and the latest touch per card, so this view does not pretend to reconstruct interactions that were never timestamped. Review v2 will record each new event from here forward.';
+    renderActivityTrend(range, stream);
+    renderActivityMix(stream);
+    renderActivityTimeline(stream);
+  }
+
+  function installActivityPeriodControls() {
+    document.querySelectorAll('[data-activity-period]').forEach(button => button.addEventListener('click', () => {
+      const period = button.dataset.activityPeriod;
+      if (!ACTIVITY_PERIODS[period]) return;
+      activeActivityPeriod = period;
+      localStorage.setItem(ACTIVITY_PERIOD_KEY, period);
+      renderActivity();
+    }));
+  }
+
   function renderAll() {
     progressRecords = readProgressRecords();
     practiceEvents = readPracticeEvents();
+    activityEvents = readActivityEvents();
     const s = stats();
     $('progress-data-note').textContent = `${fmt(s.total)} cards · local progress`;
     renderOverview();
     renderLandscape();
     renderPaths();
+    renderActivity();
     applyPanelOptions();
   }
 
@@ -578,6 +817,7 @@
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
+  installActivityPeriodControls();
   installShell(closeOptions);
 
   const requestedView = new URLSearchParams(location.search).get('view');
@@ -594,10 +834,12 @@
       console.error(error);
       progressRecords = readProgressRecords();
       practiceEvents = readPracticeEvents();
+      activityEvents = readActivityEvents();
       $('progress-data-note').textContent = 'Deck data unavailable';
       renderOverview();
       renderLandscape();
       renderPaths();
+      renderActivity();
       showToast('Progress opened, but the Master deck data could not be loaded.');
     });
 })();

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./progress.css?v=20260917-s7-progress-v171">
+  <link rel="stylesheet" href="./progress.css?v=20260917-s7-progress-v172">
   <style>
     .app-header{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap!important}
     .app-header>.brand{position:absolute;left:50%;transform:translateX(-50%);margin:0!important;z-index:1}
@@ -110,6 +110,7 @@
           <article class="progress-panel" data-panel="overview.recent">
             <div class="panel-heading"><div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-3-6.7"/></svg></span><h2>Recent Activity</h2></div></div>
             <div class="recent-activity" id="recent-activity"></div>
+            <button class="panel-link panel-link-button" type="button" data-open-view="activity">See Activity <span aria-hidden="true">›</span></button>
           </article>
         </section>
 
@@ -177,6 +178,53 @@
             <p>More paths. Deeper connections.<br>A richer vocabulary.</p>
           </blockquote>
         </section>
+
+        <section class="progress-view" data-view="activity" aria-label="Activity" hidden>
+          <div class="activity-period-shell" data-panel="activity.period">
+            <div class="activity-period-tabs" id="activity-period-tabs" role="group" aria-label="Activity period">
+              <button type="button" data-activity-period="today">Today</button>
+              <button type="button" data-activity-period="7d">7 Days</button>
+              <button type="button" data-activity-period="30d" class="is-active">30 Days</button>
+              <button type="button" data-activity-period="90d">3 Months</button>
+              <button type="button" data-activity-period="180d">6 Months</button>
+              <button type="button" data-activity-period="all">All</button>
+            </div>
+          </div>
+
+          <article class="progress-panel" data-panel="activity.snapshot">
+            <div class="panel-heading">
+              <div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M10 19V5M15 19v-7M20 19V8"/></svg></span><h2>Activity Snapshot</h2></div>
+              <button class="panel-info" type="button" data-toast="Activity describes recorded learning events in the selected time window. It is not a mastery score." aria-label="About Activity Snapshot"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4.1" r="1"/><path d="M8 7v5"/></svg></button>
+            </div>
+            <div class="activity-summary-grid">
+              <div><strong id="activity-unique-words">0</strong><span>Unique words</span></div>
+              <div><strong id="activity-encounters">0</strong><span>Recorded encounters</span></div>
+              <div><strong id="activity-review-words">0</strong><span>Review words</span></div>
+              <div><strong id="activity-practice-sessions">0</strong><span>Practice sessions</span></div>
+            </div>
+            <div class="activity-secondary-stats">
+              <span><b id="activity-new-words">0</b> first touched</span>
+              <span><b id="activity-returned-words">0</b> returned to</span>
+            </div>
+            <p class="activity-data-quality" id="activity-data-quality"></p>
+          </article>
+
+          <article class="progress-panel" data-panel="activity.trend">
+            <div class="panel-heading"><div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16M6 15l4-5 3 2 5-7"/></svg></span><h2>Activity Over Time</h2></div></div>
+            <div class="activity-trend" id="activity-trend"></div>
+            <p class="panel-footnote" id="activity-trend-note"></p>
+          </article>
+
+          <article class="progress-panel" data-panel="activity.mix">
+            <div class="panel-heading"><div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v8h8"/></svg></span><h2>Activity Mix</h2></div></div>
+            <div class="activity-mix-list" id="activity-mix-list"></div>
+          </article>
+
+          <article class="progress-panel" data-panel="activity.timeline">
+            <div class="panel-heading"><div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M7 7h9M7 12h6M7 17h10"/></svg></span><h2>Timeline</h2></div></div>
+            <div class="activity-timeline" id="activity-timeline"></div>
+          </article>
+        </section>
       </div>
     </main>
   </div>
@@ -193,6 +241,10 @@
     <button type="button" data-progress-view="paths" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="m7 11 10-4M7 13l10 4"/></svg>
       <span>Paths</span>
+    </button>
+    <button type="button" data-progress-view="activity" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16M6 15l4-5 3 2 5-7"/><circle cx="6" cy="15" r=".7"/><circle cx="10" cy="10" r=".7"/><circle cx="13" cy="12" r=".7"/><circle cx="18" cy="5" r=".7"/></svg>
+      <span>Activity</span>
     </button>
     <button type="button" id="progress-options-nav" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg>
@@ -258,7 +310,7 @@
   </section>
 
   <div class="toast" id="progress-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./progress.js?v=20260917-s7-progress-v171"></script>
+  <script src="./progress.js?v=20260917-s7-progress-v172"></script>
   <script src="./pwa-register.js?v=20260914-stage7-7"></script>
 </body>
 </html>
