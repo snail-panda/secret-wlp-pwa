@@ -1,0 +1,67 @@
+/* Stage 7 shared app-shell additions: direct Backup & Restore access + compact page nav. */
+.stage7-global-bottom-nav{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:850;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:start;
+  min-height:58px;
+  padding:7px max(18px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+  background:rgba(249,251,247,.95);
+  border-top:1px solid rgba(78,111,88,.15);
+  box-shadow:0 -8px 24px rgba(43,66,52,.07);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.stage7-shell-nav-item{
+  appearance:none;
+  -webkit-appearance:none;
+  border:0;
+  background:transparent;
+  color:#4e725e;
+  min-height:44px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  padding:1px 12px;
+  text-decoration:none;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  cursor:pointer;
+}
+.stage7-shell-nav-item svg{
+  width:23px;
+  height:23px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.75;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-shell-nav-item span{
+  font-size:.64rem;
+  line-height:1.05;
+  font-weight:400;
+  letter-spacing:.01em;
+  color:#718078;
+}
+.stage7-shell-nav-item:active{opacity:.58}
+.stage7-shell-bottom-nav-active{padding-bottom:calc(76px + env(safe-area-inset-bottom))!important}
+.stage7-shell-bottom-nav-active .new-card-save-bar{
+  bottom:calc(66px + env(safe-area-inset-bottom))!important;
+}
+@media(min-width:700px){
+  .stage7-global-bottom-nav{
+    left:50%;
+    right:auto;
+    width:min(420px,100%);
+    transform:translateX(-50%);
+    border-left:1px solid rgba(78,111,88,.11);
+    border-right:1px solid rgba(78,111,88,.11);
+    border-radius:16px 16px 0 0;
+  }
+}

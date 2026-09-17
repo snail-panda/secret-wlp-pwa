@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-local-data-restore-v1-8-5';
+const CACHE_NAME = 'wlp-stage7-navigation-read-controls-v1-8-6';
 const CORE = [
   './',
   './index.html',
@@ -42,6 +42,8 @@ const CORE = [
   './legacy-style.css',
   './manifest.webmanifest',
   './pwa-register.js',
+  './stage7-shell.css',
+  './stage7-shell.js',
   './pwa-icons/icon-192.png',
   './pwa-icons/icon-512.png',
   './pwa-icons/apple-touch-icon.png',

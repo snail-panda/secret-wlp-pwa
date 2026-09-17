@@ -2359,6 +2359,91 @@ function pickSynonyms(row) {
 
 }
 
+
+function readAloudPreferences() {
+  const fallback = {
+    defaultTarget: "example",
+    targets: {
+      definition: true,
+      example: true,
+      synonyms: true,
+      notes: true
+    }
+  };
+
+  try {
+    const stored = JSON.parse(localStorage.getItem(REFERENCE_PREF_KEY) || "{}");
+    const read = stored && typeof stored.readAloud === "object" ? stored.readAloud : {};
+    const targets = read && typeof read.targets === "object" ? read.targets : {};
+    const allowed = ["definition", "example", "synonyms", "notes"];
+    const enabled = {};
+    allowed.forEach(key => {
+      enabled[key] = typeof targets[key] === "boolean" ? targets[key] : fallback.targets[key];
+    });
+    if (!allowed.some(key => enabled[key])) enabled.example = true;
+    let defaultTarget = allowed.includes(read.defaultTarget) ? read.defaultTarget : fallback.defaultTarget;
+    if (!enabled[defaultTarget]) defaultTarget = allowed.find(key => enabled[key]) || "example";
+    return { defaultTarget, targets: enabled };
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function readTargetLabel(target) {
+  return ({
+    definition: "Definition",
+    example: "Example",
+    synonyms: "Synonyms",
+    notes: "Notes"
+  })[target] || "Example";
+}
+
+function readChunksForTarget(row, target) {
+  if (target === "definition") {
+    const def = String(row["Definition"] || "").replace(/\s+/g, " ").trim();
+    return def ? [def] : [];
+  }
+
+  if (target === "example") {
+    return splitSentences(row["Example Sentence"] || "");
+  }
+
+  if (target === "synonyms") {
+    const list = pickSynonyms(row);
+    if (!list.length) return [];
+    const copy = [...list];
+    const last = copy.pop();
+    const spoken = copy.length ? `${copy.join(", ")}, and ${last}` : last;
+    return [`Synonyms: ${spoken}.`];
+  }
+
+  if (target === "notes") {
+    const note = String(row["Note(s)"] || "").replace(/\s+/g, " ").trim();
+    return note ? splitSentences(note) : [];
+  }
+
+  return [];
+}
+
+function syncReadAloudControl(root) {
+  const utility = root?.querySelector(".s7-read-utility");
+  if (!utility) return;
+  const prefs = readAloudPreferences();
+  const caption = utility.querySelector(".s7-read-caption");
+  const readButton = utility.querySelector(".btn-tts-read");
+  if (caption) caption.textContent = readTargetLabel(prefs.defaultTarget);
+  if (readButton) {
+    const label = readTargetLabel(prefs.defaultTarget);
+    readButton.title = `Read ${label}`;
+    readButton.setAttribute("aria-label", `Read ${label}`);
+  }
+  utility.querySelectorAll("[data-read-target]").forEach(button => {
+    const enabled = prefs.targets[button.dataset.readTarget] !== false;
+    button.hidden = !enabled;
+    button.setAttribute("aria-hidden", String(!enabled));
+  });
+}
+
 function speakBackAll(row) {
 
   const chunks = [];
@@ -2882,9 +2967,9 @@ function bindCardBehavior(
     );
 
   const speakBtn = root.querySelector(".btn-speak");
-  const exBtn = root.querySelector(".btn-tts-ex");
-  const defBtn = root.querySelector(".btn-tts-def");
-  const allBtn = root.querySelector(".btn-tts-all");
+  const readBtn = root.querySelector(".btn-tts-read");
+  const readMenuBtn = root.querySelector(".btn-tts-read-menu");
+  const readMenu = root.querySelector(".s7-read-target-menu");
 
   if (speakBtn) {
     speakBtn.addEventListener("click", () => {
@@ -2898,45 +2983,45 @@ function bindCardBehavior(
     });
   }
 
-  if (exBtn) {
-    exBtn.addEventListener("click", () => {
-      const chunks = splitSentences(row["Example Sentence"] || "");
-      if (chunks.length) {
-        interactionEvent("audio_play", row, { kind: "example" });
-        toggleTtsButton(exBtn, chunks, { voiceName: getCurrentVoiceName() });
-      }
-    });
-  }
+  const readTarget = target => {
+    const chunks = readChunksForTarget(row, target);
+    if (!chunks.length || !readBtn) return;
+    interactionEvent("audio_play", row, { kind: `read-${target}` });
+    toggleTtsButton(readBtn, chunks, { voiceName: getCurrentVoiceName() });
+  };
 
-  if (defBtn) {
-    defBtn.addEventListener("click", () => {
-      const def = (row["Definition"] || "").replace(/\s+/g, " ").trim();
-      if (def) {
-        interactionEvent("audio_play", row, { kind: "definition" });
-        toggleTtsButton(defBtn, [def], { voiceName: getCurrentVoiceName() });
-      }
-    });
-  }
+  syncReadAloudControl(root);
 
-  if (allBtn) {
-    allBtn.addEventListener("click", () => {
-      const chunks = [];
-      const def = (row["Definition"] || "").trim();
-      if (def) chunks.push(def);
-      chunks.push(...splitSentences(row["Example Sentence"] || ""));
-      const list = pickSynonyms(row);
-      if (list.length) {
-        const copy = [...list];
-        const last = copy.pop();
-        const spoken = copy.length ? `${copy.join(", ")}, and ${last}` : last;
-        chunks.push(`Synonyms: ${spoken}.`);
-      }
-      if (chunks.length) {
-        interactionEvent("audio_play", row, { kind: "read-all" });
-        toggleTtsButton(allBtn, chunks, { voiceName: getCurrentVoiceName() });
-      }
+  readBtn?.addEventListener("click", () => {
+    const prefs = readAloudPreferences();
+    readTarget(prefs.defaultTarget);
+  });
+
+  readMenuBtn?.addEventListener("click", event => {
+    event.stopPropagation();
+    if (!readMenu) return;
+    syncReadAloudControl(root);
+    readMenu.hidden = !readMenu.hidden;
+    readMenuBtn.setAttribute("aria-expanded", String(!readMenu.hidden));
+  });
+
+  readMenu?.querySelectorAll("[data-read-target]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      readMenu.hidden = true;
+      readMenuBtn?.setAttribute("aria-expanded", "false");
+      readTarget(button.dataset.readTarget);
     });
-  }
+  });
+
+  document.addEventListener("click", event => {
+    if (!readMenu || readMenu.hidden) return;
+    if (event.target.closest(".s7-read-control") === root.querySelector(".s7-read-control")) return;
+    readMenu.hidden = true;
+    readMenuBtn?.setAttribute("aria-expanded", "false");
+  });
+
+  window.addEventListener("wlp:study-options-changed", () => syncReadAloudControl(root));
 
   const voiceBtn =
     root.querySelector(

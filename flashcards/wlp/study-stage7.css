@@ -2634,3 +2634,135 @@ body.review-attention-open{overflow:hidden}
 @media(max-width:390px){
   .stage7-study-body #deck-nav-links{padding-left:6px!important;padding-right:6px!important}
 }
+
+/* =========================================================
+   Stage 7 v1.8.6 — Compact Read / Voice / YouGlish row.
+   One primary Read action with an optional target menu.
+   ========================================================= */
+.stage7-study-body .s7-back-audio-tools{
+  grid-template-columns:72px minmax(118px,152px) 108px!important;
+  justify-content:center!important;
+  align-items:start!important;
+  gap:7px!important;
+  width:100%!important;
+}
+.stage7-study-body .s7-read-control{
+  position:relative;
+  display:inline-grid;
+  grid-template-columns:44px 28px;
+  align-items:stretch;
+  min-height:44px;
+  border:1px solid rgba(74,107,80,.20);
+  border-radius:13px;
+  background:#f3f7f3;
+  overflow:visible;
+}
+.stage7-study-body .s7-read-control .btn-tts-read,
+.stage7-study-body .s7-read-control .btn-tts-read-menu{
+  min-width:0!important;
+  width:auto!important;
+  min-height:42px!important;
+  height:42px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.stage7-study-body .s7-read-control .btn-tts-read{
+  border-radius:12px 0 0 12px!important;
+}
+.stage7-study-body .s7-read-control .btn-tts-read-menu{
+  border-left:1px solid rgba(74,107,80,.15)!important;
+  border-radius:0 12px 12px 0!important;
+}
+.stage7-study-body .s7-read-control .btn-tts-read .ui-icon{
+  width:18px;
+  height:18px;
+}
+.stage7-study-body .s7-read-control .btn-tts-read-menu svg{
+  width:15px;
+  height:15px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .s7-read-target-menu{
+  position:absolute;
+  left:0;
+  bottom:calc(100% + 7px);
+  z-index:40;
+  width:152px;
+  padding:5px;
+  border:1px solid rgba(71,104,79,.17);
+  border-radius:12px;
+  background:rgba(251,253,250,.98);
+  box-shadow:0 12px 28px rgba(44,66,52,.14);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.stage7-study-body .s7-read-target-menu[hidden]{display:none!important}
+.stage7-study-body .s7-read-target-menu button{
+  width:100%!important;
+  min-height:34px!important;
+  padding:6px 9px!important;
+  justify-content:flex-start!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  color:#456755!important;
+  font-size:.82rem!important;
+  font-weight:500!important;
+  text-align:left!important;
+}
+.stage7-study-body .s7-read-target-menu button:active{
+  background:rgba(229,239,231,.78)!important;
+}
+.stage7-study-body .s7-back-audio-tools .s7-voice-utility .btn-voice{
+  min-width:0!important;
+  max-width:none!important;
+  width:100%!important;
+  padding:7px 9px!important;
+  font-size:.84rem!important;
+}
+.stage7-study-body .s7-back-audio-tools .s7-youglish-link{
+  width:100%;
+  padding-left:3px;
+  padding-right:3px;
+}
+
+/* Front: keep the same three utilities but stop Voice from owning most of the row. */
+@media(max-width:560px){
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip.s7-audio-tools{
+    grid-template-columns:54px minmax(118px,150px) 108px!important;
+    justify-content:center!important;
+    gap:6px!important;
+  }
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .s7-voice-utility .btn-voice{
+    min-width:0!important;
+    max-width:none!important;
+    width:100%!important;
+    padding-left:8px!important;
+    padding-right:8px!important;
+    font-size:.84rem!important;
+  }
+  .stage7-study-body .s7-back-audio-tools{
+    grid-template-columns:72px minmax(116px,146px) 106px!important;
+    gap:6px!important;
+  }
+}
+@media(max-width:390px){
+  body.s7-youglish-enabled.stage7-study-body .study-front-practice .study-audio-strip.s7-audio-tools{
+    grid-template-columns:52px minmax(108px,142px) 102px!important;
+    gap:5px!important;
+  }
+  .stage7-study-body .s7-back-audio-tools{
+    grid-template-columns:70px minmax(108px,138px) 102px!important;
+    gap:5px!important;
+  }
+}

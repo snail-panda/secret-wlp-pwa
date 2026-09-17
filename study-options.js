@@ -23,6 +23,15 @@
       images: true,
       jp: true
     },
+    readAloud: {
+      defaultTarget: 'example',
+      targets: {
+        definition: true,
+        example: true,
+        synonyms: true,
+        notes: true
+      }
+    },
     swipe: true
   };
 
@@ -60,6 +69,16 @@
         images: typeof stored.referenceTools?.images === 'boolean' ? stored.referenceTools.images : DEFAULTS.referenceTools.images,
         jp: typeof stored.referenceTools?.jp === 'boolean' ? stored.referenceTools.jp : DEFAULTS.referenceTools.jp
       },
+      readAloud: {
+        defaultTarget: ['definition','example','synonyms','notes'].includes(stored.readAloud?.defaultTarget)
+          ? stored.readAloud.defaultTarget : DEFAULTS.readAloud.defaultTarget,
+        targets: {
+          definition: typeof stored.readAloud?.targets?.definition === 'boolean' ? stored.readAloud.targets.definition : DEFAULTS.readAloud.targets.definition,
+          example: typeof stored.readAloud?.targets?.example === 'boolean' ? stored.readAloud.targets.example : DEFAULTS.readAloud.targets.example,
+          synonyms: typeof stored.readAloud?.targets?.synonyms === 'boolean' ? stored.readAloud.targets.synonyms : DEFAULTS.readAloud.targets.synonyms,
+          notes: typeof stored.readAloud?.targets?.notes === 'boolean' ? stored.readAloud.targets.notes : DEFAULTS.readAloud.targets.notes
+        }
+      },
       swipe: typeof stored.swipe === 'boolean' ? stored.swipe : DEFAULTS.swipe
     };
   };
@@ -68,6 +87,7 @@
 
   const savePrefs = () => {
     localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+    window.dispatchEvent(new CustomEvent('wlp:study-options-changed'));
   };
 
   const currentMode = () => localStorage.getItem(CARD_MODE_KEY) === 'definition' ? 'definition' : 'word';
@@ -164,6 +184,36 @@
           <p class="s7-option-help">Shows WLP’s preferred English study voices available on this device. You can still cycle voices from the card.</p>
         </section>
 
+        <section class="s7-options-section s7-read-aloud-options">
+          <div class="s7-options-section-head">
+            <h3>Read Aloud</h3>
+            <small>Back-side quick read</small>
+          </div>
+          <div class="s7-side-grid s7-read-default-grid" role="group" aria-label="Default read-aloud target">
+            <button class="s7-side-button" type="button" data-s7-read-default="definition">Definition</button>
+            <button class="s7-side-button" type="button" data-s7-read-default="example">Example</button>
+            <button class="s7-side-button" type="button" data-s7-read-default="synonyms">Synonyms</button>
+            <button class="s7-side-button" type="button" data-s7-read-default="notes">Notes</button>
+          </div>
+          <p class="s7-option-help">The main Read button uses this target. The small chevron on the card opens the other enabled choices.</p>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy"><strong>Definition</strong><small>Show in the Read menu.</small></div>
+            <label class="s7-switch"><input type="checkbox" data-s7-read-target="definition"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy"><strong>Example</strong><small>Show in the Read menu.</small></div>
+            <label class="s7-switch"><input type="checkbox" data-s7-read-target="example"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy"><strong>Synonyms</strong><small>Read useful synonym connections directly.</small></div>
+            <label class="s7-switch"><input type="checkbox" data-s7-read-target="synonyms"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy"><strong>Notes</strong><small>Read the card Notes without waiting through other fields.</small></div>
+            <label class="s7-switch"><input type="checkbox" data-s7-read-target="notes"><span class="s7-switch-track"></span></label>
+          </div>
+        </section>
+
         <section class="s7-options-section s7-reference-tools-options">
           <div class="s7-options-section-head">
             <h3>Reference Tools</h3>
@@ -238,7 +288,7 @@
           </div>
         </section>
 
-        <p class="s7-options-autosave">Study Options v1.5 · saved on this device</p>
+        <p class="s7-options-autosave">Study Options v1.6 · saved on this device</p>
       </aside>`;
     document.body.appendChild(backdrop);
     return backdrop;
@@ -327,6 +377,20 @@
     panel.querySelectorAll('[data-s7-reference-tool]').forEach(input => {
       const key = input.dataset.s7ReferenceTool;
       input.checked = prefs.referenceTools?.[key] !== false;
+    });
+
+    const readKeys = ['definition','example','synonyms','notes'];
+    if (!readKeys.some(key => prefs.readAloud.targets[key])) prefs.readAloud.targets.example = true;
+    if (!prefs.readAloud.targets[prefs.readAloud.defaultTarget]) {
+      prefs.readAloud.defaultTarget = readKeys.find(key => prefs.readAloud.targets[key]) || 'example';
+    }
+    panel.querySelectorAll('[data-s7-read-default]').forEach(button => {
+      const key = button.dataset.s7ReadDefault;
+      button.setAttribute('aria-pressed', String(key === prefs.readAloud.defaultTarget));
+      button.disabled = prefs.readAloud.targets[key] === false;
+    });
+    panel.querySelectorAll('[data-s7-read-target]').forEach(input => {
+      input.checked = prefs.readAloud.targets[input.dataset.s7ReadTarget] !== false;
     });
     updateOptionsVoiceLabel();
   };
@@ -703,6 +767,34 @@
       savePrefs();
       syncPanel();
       applyYouGlishState();
+    });
+  });
+
+  panel.querySelectorAll('[data-s7-read-default]').forEach(button => {
+    button.addEventListener('click', () => {
+      const key = button.dataset.s7ReadDefault;
+      if (prefs.readAloud.targets[key] === false) return;
+      prefs.readAloud.defaultTarget = key;
+      savePrefs();
+      syncPanel();
+    });
+  });
+
+  panel.querySelectorAll('[data-s7-read-target]').forEach(input => {
+    input.addEventListener('change', () => {
+      const key = input.dataset.s7ReadTarget;
+      const next = { ...prefs.readAloud.targets, [key]: input.checked };
+      if (!Object.values(next).some(Boolean)) {
+        input.checked = true;
+        return;
+      }
+      prefs.readAloud.targets[key] = input.checked;
+      if (!prefs.readAloud.targets[prefs.readAloud.defaultTarget]) {
+        prefs.readAloud.defaultTarget = ['definition','example','synonyms','notes']
+          .find(candidate => prefs.readAloud.targets[candidate]) || 'example';
+      }
+      savePrefs();
+      syncPanel();
     });
   });
 
