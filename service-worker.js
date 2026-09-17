@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-navigation-read-controls-v1-8-6';
+const CACHE_NAME = 'wlp-stage7-shared-shell-fix-v1-8-6-2';
 const CORE = [
   './',
   './index.html',
@@ -86,6 +86,22 @@ self.addEventListener('fetch', event => {
   // previous headword's Merriam-Webster result for a different word.
   if (url.pathname.startsWith('/.netlify/functions/')) {
     event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
+
+  // Shared shell / registration assets must be fresh. A stale copy of
+  // pwa-register.js can prevent the shell from loading on most pages.
+  if (['/pwa-register.js', '/stage7-shell.js', '/stage7-shell.css'].includes(url.pathname)) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then(response => {
+          if (response && response.ok) {
+            caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request, { ignoreSearch: true }))
+    );
     return;
   }
 

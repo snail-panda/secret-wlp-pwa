@@ -1,4 +1,7 @@
 (() => {
+  const shellScript = document.currentScript;
+  const appRoot = new URL('./', shellScript?.src || document.baseURI);
+  const rootUrl = (path) => new URL(path, appRoot).href;
   const page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
 
   const isAdmin = () => (
@@ -10,13 +13,17 @@
     const drawer = document.querySelector('.app-drawer .drawer-nav');
     if (!drawer || drawer.querySelector('.stage7-backup-restore-item')) return;
 
-    const editorLink = Array.from(drawer.querySelectorAll(':scope > a.drawer-item'))
-      .find(link => /(?:^|\/)editor\.html(?:[?#].*)?$/.test(link.getAttribute('href') || ''));
+    const editorLink = Array.from(drawer.children)
+      .find(node => (
+        node instanceof HTMLAnchorElement &&
+        node.classList.contains('drawer-item') &&
+        /(?:^|\/)editor\.html(?:[?#].*)?$/.test(node.getAttribute('href') || '')
+      ));
     if (!editorLink) return;
 
     const item = document.createElement('a');
     item.className = 'drawer-item drawer-admin-only stage7-backup-restore-item';
-    item.href = './editor-backup.html';
+    item.href = rootUrl('editor-backup.html');
     item.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"></path>
@@ -28,15 +35,18 @@
         <small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small>
       </span>`;
 
-    item.hidden = editorLink.hidden || !isAdmin();
+    const syncVisibility = () => {
+      item.hidden = editorLink.hidden || !isAdmin();
+    };
+    syncVisibility();
     editorLink.insertAdjacentElement('afterend', item);
 
-    // Existing page scripts cache their admin-only node list before this item is
-    // injected. Mirror the existing Editor item's visibility so role changes stay in sync.
-    const observer = new MutationObserver(() => {
-      item.hidden = editorLink.hidden || !isAdmin();
-    });
+    // Existing page scripts may cache their admin-only nodes before this link is
+    // injected. Mirror the Editor item's visibility so this late-added item stays
+    // aligned with the current Admin / Guest state.
+    const observer = new MutationObserver(syncVisibility);
     observer.observe(editorLink, { attributes: true, attributeFilter: ['hidden'] });
+    window.addEventListener('storage', syncVisibility);
   };
 
   const bottomNavPages = new Set([
@@ -57,24 +67,24 @@
     const requested = params.get('return');
     if (requested) {
       try {
-        const target = new URL(requested, location.href);
+        const target = new URL(requested, appRoot);
         if (target.origin === location.origin) return target.href;
       } catch (_) {}
     }
 
     const fallback = {
-      'deck-browser.html': './index.html',
-      'global-search.html': './index.html',
-      'drafts.html': './index.html',
-      'editor.html': './index.html',
-      'editor-new-card.html': './editor.html',
-      'editor-drafts.html': './editor.html',
-      'editor-draft-edit.html': './editor-drafts.html',
-      'editor-local-edits.html': './editor.html',
-      'editor-local-edit.html': './editor-local-edits.html',
-      'editor-backup.html': './editor.html'
-    }[page] || './index.html';
-    return new URL(fallback, location.href).href;
+      'deck-browser.html': 'index.html',
+      'global-search.html': 'index.html',
+      'drafts.html': 'index.html',
+      'editor.html': 'index.html',
+      'editor-new-card.html': 'editor.html',
+      'editor-drafts.html': 'editor.html',
+      'editor-draft-edit.html': 'editor-drafts.html',
+      'editor-local-edits.html': 'editor.html',
+      'editor-local-edit.html': 'editor-local-edits.html',
+      'editor-backup.html': 'editor.html'
+    }[page] || 'index.html';
+    return rootUrl(fallback);
   };
 
   const goBackSafely = () => {
@@ -101,7 +111,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg>
         <span>Back</span>
       </button>
-      <a class="stage7-shell-nav-item stage7-shell-home" href="./index.html" aria-label="Home">
+      <a class="stage7-shell-nav-item stage7-shell-home" href="${rootUrl('index.html')}" aria-label="Home">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"></path><path d="M9 20v-6h6v6"></path></svg>
         <span>Home</span>
       </a>`;
@@ -115,6 +125,9 @@
     injectBottomNav();
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
 })();
