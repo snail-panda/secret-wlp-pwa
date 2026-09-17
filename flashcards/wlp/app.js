@@ -1245,10 +1245,11 @@ const syn =
     row["Synonym(s)"]
   );
 
-const note =
-  compactCardText(
-    row["Note(s)"]
-  );
+const preserveNoteLineBreaks = Boolean(row.__noteLineBreaks);
+const noteRaw = String(row["Note(s)"] || "");
+const note = preserveNoteLineBreaks
+  ? noteRaw.replace(/\r\n?/g, "\n").trim()
+  : compactCardText(noteRaw);
 
   root
     .querySelector(
@@ -1292,7 +1293,7 @@ const note =
       note
         ? `<strong>Notes:</strong> ${escapeHtml(note)}`
         : "";
-  noteElement.classList.toggle("wlp-note-preserve-breaks", Boolean(row.__noteLineBreaks));
+  noteElement.classList.toggle("wlp-note-preserve-breaks", preserveNoteLineBreaks);
 
   applyCardMode(
     root,
