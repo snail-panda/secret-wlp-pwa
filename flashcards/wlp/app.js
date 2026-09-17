@@ -1046,6 +1046,9 @@ function installAdjacentDraftDeckLinks(
     return;
   }
 
+  prev.hidden = true;
+  next.hidden = true;
+
   const deckNo =
     Math.max(
       1,
@@ -1062,8 +1065,9 @@ function installAdjacentDraftDeckLinks(
       `./batch.html?draft=${deckNo - 1}`;
     prev.textContent =
       "← Previous Draft Deck";
+    prev.hidden = false;
     prev.style.display =
-      "inline";
+      "inline-flex";
   }
 
   if (deckNo < deckCount) {
@@ -1071,8 +1075,9 @@ function installAdjacentDraftDeckLinks(
       `./batch.html?draft=${deckNo + 1}`;
     next.textContent =
       "Next Draft Deck →";
+    next.hidden = false;
     next.style.display =
-      "inline";
+      "inline-flex";
   }
 }
 
@@ -2695,7 +2700,7 @@ function ensureReviewAttentionSheet() {
           <h2 id="review-attention-title">Set attention</h2>
           <p class="review-attention-word" id="review-attention-word"></p>
         </div>
-        <button type="button" class="review-attention-close" aria-label="Close">×</button>
+        <button type="button" class="review-attention-close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
       </div>
       <p class="review-attention-intro">How much attention do you want to give this word? This is not a mastery score.</p>
       <div class="review-attention-levels" role="group" aria-label="Attention level">
@@ -2710,9 +2715,10 @@ function ensureReviewAttentionSheet() {
         </div>
       </div>
       <div class="review-attention-actions">
-        <button type="button" class="review-attention-clear">Clear details</button>
-        <button type="button" class="review-attention-done">Done</button>
+        <button type="button" class="review-attention-clear">Clear All</button>
+        <button type="button" class="review-attention-done">Save</button>
       </div>
+      <p class="review-attention-save-note">Clear All resets the current level and reasons only. Learning history is kept.</p>
     </section>`;
   document.body.appendChild(backdrop);
 
@@ -3067,6 +3073,7 @@ function bindCardBehavior(
     }
 
     updateProgress(stateKey, row, "review");
+    activityEvent("review", row, { action: "added-to-review" });
     interactionEvent("review", row, { action: "added-to-review" });
     refreshProgressControls();
     showStudyToast("Added to Review. Set attention only if you want to.");
@@ -3583,6 +3590,9 @@ function escapeHtml(s) {
   return;
 }
 
+  prev.hidden = true;
+  next.hidden = true;
+
   const fromProgress =
     IS_FROM_PROGRESS
       ? "&from=progress"
@@ -3610,8 +3620,9 @@ function escapeHtml(s) {
         "0"
       )}${fromProgress}`;
 
+    prev.hidden = false;
     prev.style.display =
-      "inline";
+      "inline-flex";
 
   }
 
@@ -3627,8 +3638,9 @@ function escapeHtml(s) {
         "0"
       )}${fromProgress}`;
 
+    next.hidden = false;
     next.style.display =
-      "inline";
+      "inline-flex";
 
   }
 

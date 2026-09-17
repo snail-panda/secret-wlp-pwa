@@ -36,3 +36,15 @@
 
 @media(max-width:520px){.activity-summary-grid{grid-template-columns:repeat(2,1fr)}.activity-mix-row{grid-template-columns:90px 1fr 30px}.timeline-row{grid-template-columns:58px 1fr auto}.progress-bottom-nav{padding-left:5px;padding-right:5px}.progress-bottom-nav button{font-size:9px}.progress-bottom-nav button svg{width:20px;height:20px}}
 @media(max-width:380px){.progress-bottom-nav button{font-size:8.5px}.activity-period-tabs button{padding-left:9px;padding-right:9px}}
+
+
+/* WLP Stage 7 — Progress info readability v1.8.1 */
+.progress-page .toast.is-info{
+  width:min(calc(100vw - 32px),520px);
+  max-width:min(calc(100vw - 32px),520px);
+  padding:12px 14px;
+  border-radius:14px;
+  white-space:normal;
+  text-align:left;
+  line-height:1.38;
+}

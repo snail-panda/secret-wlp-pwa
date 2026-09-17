@@ -2309,8 +2309,19 @@ body.review-attention-open{overflow:hidden}
   border-radius:50%;
   background:#f7faf7;
   color:#5f7468;
-  font-size:1.35rem;
+  display:grid;
+  place-items:center;
+  padding:0;
   line-height:1;
+}
+.review-attention-close svg{
+  width:17px;
+  height:17px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.9;
+  stroke-linecap:round;
+  stroke-linejoin:round;
 }
 .review-attention-intro{
   margin:15px 0 13px;
@@ -2338,6 +2349,7 @@ body.review-attention-open{overflow:hidden}
   margin-bottom:4px;
   font-family:var(--s7-serif);
   font-size:1rem;
+  text-align:center;
 }
 .review-attention-levels button span{
   display:block;
@@ -2414,6 +2426,13 @@ body.review-attention-open{overflow:hidden}
   color:#28533b;
   font-weight:700;
 }
+.review-attention-save-note{
+  margin:8px 2px 0;
+  color:#8a958f;
+  font-size:.66rem;
+  line-height:1.35;
+  text-align:left;
+}
 .study-progress-toast{
   position:fixed;
   left:50%;
@@ -2442,4 +2461,83 @@ body.review-attention-open{overflow:hidden}
   .review-attention-levels{gap:6px}
   .review-attention-levels button{padding:9px 7px}
   .review-attention-levels button span{font-size:.62rem}
+}
+
+
+/* =========================================================
+   WLP Stage 7 — Review / Progress polish v1.8.1
+   Fixed deck navigation + quieter attention controls.
+   ========================================================= */
+.stage7-study-body .study-main{
+  padding-bottom:calc(96px + env(safe-area-inset-bottom))!important;
+}
+.stage7-study-body #deck-nav-links{
+  position:fixed!important;
+  left:50%!important;
+  bottom:0!important;
+  transform:translateX(-50%)!important;
+  z-index:85!important;
+  width:min(100%,760px)!important;
+  margin:0!important;
+  padding:7px 12px calc(7px + env(safe-area-inset-bottom))!important;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;
+  column-gap:8px!important;
+  align-items:center!important;
+  background:rgba(249,252,248,.94)!important;
+  border-top:1px solid rgba(199,218,204,.9)!important;
+  box-shadow:0 -8px 28px rgba(32,69,49,.08)!important;
+  backdrop-filter:blur(16px)!important;
+  -webkit-backdrop-filter:blur(16px)!important;
+}
+.stage7-study-body #deck-nav-links .deck-step-link,
+.stage7-study-body #deck-nav-links .deck-home-link{
+  min-height:44px!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:14px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#587064!important;
+  text-decoration:none!important;
+  font-family:var(--s7-serif)!important;
+  font-size:.84rem!important;
+  line-height:1.05!important;
+}
+.stage7-study-body #deck-nav-links .deck-step-link{
+  padding:6px 4px!important;
+}
+.stage7-study-body #deck-nav-links .deck-step-link:active,
+.stage7-study-body #deck-nav-links .deck-home-link:active{
+  background:#e9f1ea!important;
+}
+.stage7-study-body #deck-nav-links .deck-step-link[hidden]{display:none!important}
+.stage7-study-body #deck-nav-links > div:first-child{justify-self:start!important;text-align:left!important}
+.stage7-study-body #deck-nav-links > div:nth-child(2){justify-self:center!important;text-align:center!important}
+.stage7-study-body #deck-nav-links > div:last-child{justify-self:end!important;text-align:right!important}
+.stage7-study-body #deck-nav-links .deck-home-link{
+  display:inline-flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:1px!important;
+  min-width:54px!important;
+  padding:4px 7px!important;
+}
+.stage7-study-body #deck-nav-links .deck-home-icon{
+  width:18px;
+  height:18px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .study-toast,
+.stage7-study-body .study-progress-toast{
+  bottom:calc(76px + env(safe-area-inset-bottom))!important;
+}
+@media(max-width:390px){
+  .stage7-study-body #deck-nav-links{padding-left:8px!important;padding-right:8px!important;column-gap:4px!important}
+  .stage7-study-body #deck-nav-links .deck-step-link{font-size:.77rem!important;gap:3px!important;padding-left:2px!important;padding-right:2px!important}
+  .stage7-study-body #deck-nav-links .deck-home-link{font-size:.76rem!important;min-width:48px!important;padding-left:4px!important;padding-right:4px!important}
 }

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./progress.css?v=20260917-s7-progress-v172">
+  <link rel="stylesheet" href="./progress.css?v=20260917-s7-progress-v181">
   <style>
     .app-header{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap!important}
     .app-header>.brand{position:absolute;left:50%;transform:translateX(-50%);margin:0!important;z-index:1}
@@ -194,7 +194,7 @@
           <article class="progress-panel" data-panel="activity.snapshot">
             <div class="panel-heading">
               <div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M10 19V5M15 19v-7M20 19V8"/></svg></span><h2>Activity Snapshot</h2></div>
-              <button class="panel-info" type="button" data-toast="Activity describes recorded learning events in the selected time window. It is not a mastery score." aria-label="About Activity Snapshot"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4.1" r="1"/><path d="M8 7v5"/></svg></button>
+              <button class="panel-info" type="button" data-toast="Unique words means distinct Word IDs seen in the selected period; repeat encounters with the same word count once. The other numbers summarize recorded learning events. None are mastery scores." aria-label="About Activity Snapshot"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4.1" r="1"/><path d="M8 7v5"/></svg></button>
             </div>
             <div class="activity-summary-grid">
               <div><strong id="activity-unique-words">0</strong><span>Unique words</span></div>
@@ -310,7 +310,7 @@
   </section>
 
   <div class="toast" id="progress-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./progress.js?v=20260917-s7-progress-v172"></script>
+  <script src="./progress.js?v=20260917-s7-progress-v181"></script>
   <script src="./pwa-register.js?v=20260914-stage7-7"></script>
 </body>
 </html>
