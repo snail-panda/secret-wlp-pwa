@@ -348,6 +348,79 @@
   input.value = initialQ;
   input.addEventListener('input', scheduleSearch);
   $('global-search-clear').addEventListener('click', () => { input.value=''; renderResults(''); input.focus(); history.replaceState(null,'', safeReturn ? `./global-search.html?return=${encodeURIComponent(safeReturn)}` : './global-search.html'); });
+
+  // Voice search: only expose the control when this browser provides
+  // a SpeechRecognition implementation. The microphone icon matches
+  // the existing WLP recording control rather than using an emoji.
+  const voiceButton = $('global-search-voice');
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let voiceRecognition = null;
+  let voiceListening = false;
+
+  const setVoiceListening = listening => {
+    voiceListening = Boolean(listening);
+    if (!voiceButton) return;
+    voiceButton.classList.toggle('is-listening', voiceListening);
+    voiceButton.setAttribute('aria-pressed', String(voiceListening));
+    voiceButton.setAttribute('aria-label', voiceListening ? 'Stop voice search' : 'Search by voice');
+    voiceButton.setAttribute('title', voiceListening ? 'Stop voice search' : 'Search by voice');
+  };
+
+  if (voiceButton && SpeechRecognitionCtor) {
+    voiceButton.hidden = false;
+    voiceButton.setAttribute('aria-pressed', 'false');
+
+    voiceButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (voiceListening && voiceRecognition) {
+        voiceRecognition.stop();
+        return;
+      }
+
+      try {
+        const recognition = new SpeechRecognitionCtor();
+        voiceRecognition = recognition;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.continuous = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => setVoiceListening(true);
+        recognition.onend = () => {
+          setVoiceListening(false);
+          voiceRecognition = null;
+        };
+        recognition.onerror = event => {
+          setVoiceListening(false);
+          voiceRecognition = null;
+          if (event?.error === 'aborted' || event?.error === 'no-speech') return;
+          showToast(event?.error === 'not-allowed'
+            ? 'Microphone access is needed for voice search.'
+            : 'Voice search could not hear that. Try again.');
+        };
+        recognition.onresult = event => {
+          const transcript = String(event?.results?.[0]?.[0]?.transcript || '').trim();
+          if (!transcript) return;
+          input.value = transcript;
+          input.dispatchEvent(new Event('input', {bubbles:true}));
+          requestAnimationFrame(() => {
+            input.focus({preventScroll:true});
+            try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+          });
+        };
+
+        recognition.start();
+      } catch (error) {
+        console.error('Voice search could not start:', error);
+        setVoiceListening(false);
+        voiceRecognition = null;
+        showToast('Voice search is unavailable right now.');
+      }
+    });
+  }
+
   if (initialQ) setTimeout(() => input.setSelectionRange(input.value.length,input.value.length), 0);
 
   // Shared Stage 7 shell behavior.

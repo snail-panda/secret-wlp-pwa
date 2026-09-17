@@ -9,13 +9,18 @@
 .search-eyebrow{margin:0 0 5px;color:#668071;font-family:"EB Garamond",Georgia,serif;font-size:.82rem;letter-spacing:.03em}
 .search-hero h1{margin:0;font-family:"EB Garamond",Georgia,serif;font-size:clamp(2rem,8vw,2.75rem);font-weight:500;line-height:1.02;letter-spacing:-.015em}
 .search-intro{max-width:560px;margin:10px auto 17px;color:#6e8177;font-family:"EB Garamond",Georgia,serif;font-size:.96rem;line-height:1.4}
-.global-search-box{width:min(100%,600px);min-height:52px;margin:0 auto;display:grid;grid-template-columns:24px 1fr 34px;align-items:center;gap:7px;padding:0 10px 0 15px;border:1px solid #cfddd2;border-radius:999px;background:#fffefb;box-shadow:0 5px 15px rgba(40,70,55,.05)}
+.global-search-box{width:min(100%,600px);min-height:52px;margin:0 auto;display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:7px;padding:0 14px 0 15px;border:1px solid #cfddd2;border-radius:999px;background:#fffefb;box-shadow:0 5px 15px rgba(40,70,55,.05)}
 .global-search-box:focus-within{border-color:#89a992;box-shadow:0 0 0 3px rgba(108,149,119,.11)}
-.global-search-box>svg{width:21px;height:21px;fill:none;stroke:#547465;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.global-search-leading-icon{width:21px;height:21px;fill:none;stroke:#547465;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .global-search-box input{min-width:0;width:100%;height:48px;border:0;outline:0;background:transparent;color:var(--ink);font:16px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .global-search-box input::placeholder{color:#89958f}
-.global-search-box button{width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:#75867d;font-size:23px;line-height:1;cursor:pointer}
+.global-search-controls{display:flex;align-items:center;justify-content:flex-end;gap:2px;min-width:32px}
+.global-search-box button{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:#75867d;line-height:1;cursor:pointer;padding:0}
 .global-search-box button:active{background:#eef4ef}
+.global-search-voice svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.global-search-voice.is-listening{color:#365f4b;background:#e4efe7;box-shadow:0 0 0 2px rgba(75,116,92,.09)}
+.global-search-clear{font-size:23px;transform:translateX(-3px)}
+.global-search-box button[hidden]{display:none!important}
 .search-source-meta{margin-top:10px;color:#7a8b82;font-family:"EB Garamond",Georgia,serif;font-size:.78rem;line-height:1.35}
 .search-results-section{width:min(100%,680px);margin:14px auto 0}
 .search-results-head{display:flex;align-items:end;justify-content:space-between;padding:0 3px 8px}
@@ -57,3 +62,11 @@
 .search-add-draft:active{background:#e9f2ea}
 .search-quick-capture:active{background:#3f654f}
 @media(max-width:440px){.search-headword-gap{align-items:flex-start;flex-direction:column;gap:9px}.search-draft-actions{align-self:stretch}.search-add-draft,.search-quick-capture{flex:1}}
+
+
+/* Stage 7 v1.6.6 — Global Search voice input */
+@media(max-width:560px){
+  .global-search-box{padding-right:15px}
+  .global-search-controls{gap:1px}
+  .global-search-clear{transform:translateX(-4px)}
+}
