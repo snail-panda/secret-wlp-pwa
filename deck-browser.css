@@ -176,3 +176,22 @@
 }
 .deck-voice-permission-help strong{color:#315a47}
 .deck-voice-permission-help button{margin-top:6px;padding:0;border:0;background:transparent;color:#35644f;font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+
+
+/* Stage 7 v1.6.7.1 — make Choose a Deck listening stop icon match Global Search */
+.deck-search-voice.is-listening{
+  color:#fff!important;
+  background:#416b57!important;
+}
+.deck-search-voice.is-listening .voice-stop-icon{
+  display:block!important;
+  width:17px!important;
+  height:17px!important;
+  fill:#fff!important;
+  color:#fff!important;
+  stroke:none!important;
+}
+.deck-search-voice.is-listening .voice-stop-icon rect{
+  fill:#fff!important;
+  stroke:none!important;
+}
