@@ -17,6 +17,12 @@
       visible: true,
       accent: 'us'
     },
+    referenceTools: {
+      external: true,
+      google: true,
+      images: true,
+      jp: true
+    },
     swipe: true
   };
 
@@ -47,6 +53,12 @@
       youglish: {
         visible: typeof stored.youglish?.visible === 'boolean' ? stored.youglish.visible : DEFAULTS.youglish.visible,
         accent: ['us','uk','aus'].includes(stored.youglish?.accent) ? stored.youglish.accent : DEFAULTS.youglish.accent
+      },
+      referenceTools: {
+        external: typeof stored.referenceTools?.external === 'boolean' ? stored.referenceTools.external : DEFAULTS.referenceTools.external,
+        google: typeof stored.referenceTools?.google === 'boolean' ? stored.referenceTools.google : DEFAULTS.referenceTools.google,
+        images: typeof stored.referenceTools?.images === 'boolean' ? stored.referenceTools.images : DEFAULTS.referenceTools.images,
+        jp: typeof stored.referenceTools?.jp === 'boolean' ? stored.referenceTools.jp : DEFAULTS.referenceTools.jp
       },
       swipe: typeof stored.swipe === 'boolean' ? stored.swipe : DEFAULTS.swipe
     };
@@ -152,6 +164,42 @@
           <p class="s7-option-help">Shows WLP’s preferred English study voices available on this device. You can still cycle voices from the card.</p>
         </section>
 
+        <section class="s7-options-section s7-reference-tools-options">
+          <div class="s7-options-section-head">
+            <h3>Reference Tools</h3>
+            <small>Back side toolbar</small>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>External Reference</strong>
+              <small>Dictionary-style Google reference search.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-reference-tool="external"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>Google</strong>
+              <small>Open-web search for the current headword.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-reference-tool="google"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>Images</strong>
+              <small>Visual reference through Google Images.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-reference-tool="images"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>JP</strong>
+              <small>Japanese quick search; hold the JP tool for Full or Etymology.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-reference-tool="jp"><span class="s7-switch-track"></span></label>
+          </div>
+          <p class="s7-option-help">Turn off tools you do not want in the Study reference bar. Your choices stay on this device.</p>
+        </section>
+
         <section class="s7-options-section">
           <div class="s7-options-section-head">
             <h3>Pronunciation Reference</h3>
@@ -190,7 +238,7 @@
           </div>
         </section>
 
-        <p class="s7-options-autosave">Study Options v1.4 · saved on this device</p>
+        <p class="s7-options-autosave">Study Options v1.5 · saved on this device</p>
       </aside>`;
     document.body.appendChild(backdrop);
     return backdrop;
@@ -275,6 +323,10 @@
     panel.querySelectorAll('[data-s7-youglish-accent]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.s7YouglishAccent === prefs.youglish.accent));
       button.disabled = !prefs.youglish.visible;
+    });
+    panel.querySelectorAll('[data-s7-reference-tool]').forEach(input => {
+      const key = input.dataset.s7ReferenceTool;
+      input.checked = prefs.referenceTools?.[key] !== false;
     });
     updateOptionsVoiceLabel();
   };
@@ -408,6 +460,31 @@
         link.setAttribute('aria-label', `Hear ${word || 'this word'} in real speech on YouGlish (${accentLabel})`);
         link.title = `Hear it in real speech on YouGlish · ${accentLabel}`;
       });
+    });
+  };
+
+  const applyReferenceToolsState = () => {
+    const tools = prefs.referenceTools || DEFAULTS.referenceTools;
+    const selectors = {
+      external: '.external-link',
+      google: '.google-search-link',
+      images: '.image-search-link',
+      jp: '.jp-reference-wrap'
+    };
+
+    document.querySelectorAll('#cards .flashcard').forEach(card => {
+      Object.entries(selectors).forEach(([key, selector]) => {
+        card.querySelectorAll(selector).forEach(el => {
+          el.hidden = tools[key] === false;
+          el.setAttribute('aria-hidden', String(tools[key] === false));
+        });
+      });
+      const toolbar = card.querySelector('.back-reference-tools');
+      if (toolbar) {
+        const anyVisible = Object.keys(selectors).some(key => tools[key] !== false);
+        toolbar.hidden = !anyVisible;
+        toolbar.setAttribute('aria-hidden', String(!anyVisible));
+      }
     });
   };
 
@@ -564,6 +641,7 @@
     applyCardContent();
     applySwipeState();
     applyYouGlishState();
+    applyReferenceToolsState();
     updateVisibleVoiceLabels();
   };
 
@@ -617,6 +695,15 @@
     });
   });
 
+  panel.querySelectorAll('[data-s7-reference-tool]').forEach(input => {
+    input.addEventListener('change', () => {
+      const key = input.dataset.s7ReferenceTool;
+      prefs.referenceTools[key] = input.checked;
+      savePrefs();
+      applyReferenceToolsState();
+    });
+  });
+
   swipeInput?.addEventListener('change', () => {
     prefs.swipe = swipeInput.checked;
     savePrefs();
@@ -640,6 +727,7 @@
       applyQueued = false;
       applyCardContent();
       applyYouGlishState();
+      applyReferenceToolsState();
       updateVisibleVoiceLabels();
     });
   };

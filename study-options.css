@@ -447,3 +447,15 @@ body.s7-study-options-open{overflow:hidden}
 }
 .s7-reference-accent-grid button:disabled{opacity:.42}
 .s7-reference-accent-row.is-disabled > span{opacity:.52}
+
+
+/* Study Options v1.5 — Reference toolbar visibility */
+.s7-reference-tools-options .s7-switch-row{
+  min-height:48px;
+  padding:7px 0;
+  border-bottom:1px solid rgba(79,108,88,.075);
+}
+.s7-reference-tools-options .s7-switch-row:last-of-type{border-bottom:0}
+.s7-reference-tools-options .s7-option-help{
+  margin:9px 0 0;
+}
