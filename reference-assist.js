@@ -26,6 +26,15 @@
   controls.insertBefore(queryField, lookup);
   const queryInput = queryField.querySelector('#reference-lookup-term');
   const queryReset = queryField.querySelector('.reference-query-reset');
+
+  // Manual web research stays user-controlled: open Google with the current
+  // Lookup term, without scraping or importing anything automatically.
+  const googleSearch = document.createElement('button');
+  googleSearch.type = 'button';
+  googleSearch.className = 'reference-google-button';
+  googleSearch.textContent = 'Google Search';
+  lookup.insertAdjacentElement('afterend', googleSearch);
+
   let queryDirty = false;
 
   const syncQueryReset = () => {
@@ -48,6 +57,18 @@
     queryInput.value = String(word.value || '').trim();
     syncQueryReset();
     queryInput.focus();
+  });
+
+  googleSearch.addEventListener('click', () => {
+    const lookupTerm = String(queryInput.value || '').trim();
+    if (!lookupTerm) {
+      showStatus('Enter a Lookup term first, then search Google.');
+      queryInput.focus();
+      return;
+    }
+    const url = `https://www.google.com/search?q=${encodeURIComponent(lookupTerm)}`;
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) window.location.href = url;
   });
 
   const mode = form.id === 'new-card-form' ? 'new' : (form.id === 'draft-edit-form' ? 'draft-edit' : 'local-edit');
