@@ -67,8 +67,20 @@
       return;
     }
     const url = `https://www.google.com/search?q=${encodeURIComponent(lookupTerm)}`;
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!opened) window.location.href = url;
+
+    // Open manual web research in a separate tab without ever navigating the
+    // current WLP editor page. On iOS/Safari, window.open(..., 'noopener') can
+    // legitimately return null even when a new tab opened; using that return
+    // value as a fallback signal caused both a new Google tab AND the current
+    // editor tab to navigate away. A real target=_blank link avoids that race.
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   });
 
   const mode = form.id === 'new-card-form' ? 'new' : (form.id === 'draft-edit-form' ? 'draft-edit' : 'local-edit');
