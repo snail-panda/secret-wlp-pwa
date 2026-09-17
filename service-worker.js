@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-study-toggle-nav-polish-v1-8-3';
+const CACHE_NAME = 'wlp-stage7-local-data-safety-v1-8-4';
 const CORE = [
   './',
   './index.html',
@@ -34,6 +34,8 @@ const CORE = [
   './editor-backup.html',
   './editor-backup.css',
   './editor-backup.js',
+  './local-data-safety.css',
+  './local-data-safety.js',
   './study-options.css',
   './study-options.js',
   './legacy-home.html',

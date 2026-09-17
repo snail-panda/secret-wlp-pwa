@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
+  <link rel="stylesheet" href="./local-data-safety.css?v=20260917-s7-local-data-safety-v1-8-4">
 </head>
 <body class="app-body editor-page">
   <div class="app-shell">
@@ -60,6 +61,31 @@
       </section>
 
       <div class="editor-workspace" id="editor-workspace">
+        <section class="local-safety-card" data-local-safety aria-label="Local data safety">
+          <div class="local-safety-head">
+            <div class="local-safety-title">
+              <span class="local-safety-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/></svg></span>
+              <div class="local-safety-copy">
+                <span class="editor-tool-kicker">Local Data Safety</span>
+                <h2>Protect your browser-local work</h2>
+                <p>One backup file keeps Drafts, Local Edits, Progress, Activity and other WLP local data together.</p>
+                <span class="local-safety-status" data-safety-change-count>Checking backup status…</span>
+              </div>
+            </div>
+          </div>
+          <div class="local-safety-stats">
+            <div class="local-safety-stat"><strong data-safety-drafts>0</strong><span>Drafts</span></div>
+            <div class="local-safety-stat"><strong data-safety-edits>0</strong><span>Local Edits</span></div>
+            <div class="local-safety-stat"><strong data-safety-progress>0</strong><span>Progress cards</span></div>
+          </div>
+          <div class="local-safety-meta"><span>Last backup: <strong data-safety-last-backup>Never</strong></span><span>Backup is downloaded as a JSON file.</span></div>
+          <div class="local-safety-actions">
+            <button class="local-backup-now" type="button" data-local-backup-now>Back Up Now</button>
+            <a class="local-safety-link" href="./editor-backup.html">Backup Tools</a>
+          </div>
+          <p class="local-safety-action-status" data-safety-action-status hidden></p>
+        </section>
+
         <section class="editor-tool-card" id="create">
           <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg></span>
           <div class="editor-tool-copy">
@@ -155,6 +181,7 @@
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-1"></script>
+  <script src="./local-data-safety.js?v=20260917-s7-local-data-safety-v1-8-4"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
   <script src="./pwa-register.js?v=20260915-s7-editor-v1-1"></script>
 </body>
