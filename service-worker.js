@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-voice-search-v1-6-7-1';
+const CACHE_NAME = 'wlp-stage7-progress-three-views-v1-7-0';
 const CORE = [
   './',
   './index.html',
@@ -11,6 +11,9 @@ const CORE = [
   './deck-browser.html',
   './deck-browser.css',
   './deck-browser.js',
+  './progress.html',
+  './progress.css',
+  './progress.js',
   './drafts.html',
   './drafts.css',
   './drafts.js',
