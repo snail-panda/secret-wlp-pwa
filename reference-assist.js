@@ -14,7 +14,41 @@
   const fieldsMount = document.getElementById('reference-preview-fields');
   const apply = document.getElementById('reference-preview-apply');
   const cancel = document.getElementById('reference-preview-cancel');
-  if (!form || !word || !source || !lookup || !status || !preview || !fieldsMount) return;
+  const controls = document.querySelector('.reference-assist-controls');
+  if (!form || !word || !source || !lookup || !status || !preview || !fieldsMount || !controls) return;
+
+  // The WLP card headword and the dictionary lookup term are intentionally
+  // separate. Phrase cards can keep their WLP wording while looking up a
+  // lexical core such as "concord" for a card headed "in concord".
+  const queryField = document.createElement('label');
+  queryField.className = 'new-card-field reference-query-field';
+  queryField.innerHTML = '<span class="reference-query-label"><span>Lookup term</span><button type="button" class="reference-query-reset" hidden>Use Word</button></span><input id="reference-lookup-term" type="text" autocomplete="off" spellcheck="false" aria-label="Dictionary lookup term">';
+  controls.insertBefore(queryField, lookup);
+  const queryInput = queryField.querySelector('#reference-lookup-term');
+  const queryReset = queryField.querySelector('.reference-query-reset');
+  let queryDirty = false;
+
+  const syncQueryReset = () => {
+    const cardWord = String(word.value || '').trim();
+    const query = String(queryInput.value || '').trim();
+    queryReset.hidden = !cardWord || query === cardWord;
+  };
+  const syncQueryFromWord = () => {
+    if (!queryDirty) queryInput.value = String(word.value || '').trim();
+    syncQueryReset();
+  };
+  queryInput.value = String(word.value || '').trim();
+  word.addEventListener('input', syncQueryFromWord);
+  queryInput.addEventListener('input', () => {
+    queryDirty = String(queryInput.value || '').trim() !== String(word.value || '').trim();
+    syncQueryReset();
+  });
+  queryReset.addEventListener('click', () => {
+    queryDirty = false;
+    queryInput.value = String(word.value || '').trim();
+    syncQueryReset();
+    queryInput.focus();
+  });
 
   const mode = form.id === 'new-card-form' ? 'new' : (form.id === 'draft-edit-form' ? 'draft-edit' : 'local-edit');
   const noun = mode === 'new' ? 'Draft' : (mode === 'draft-edit' ? 'Draft' : 'Local Edit');
@@ -42,7 +76,55 @@
   };
 
   const showStatus = (message) => {
+    status.replaceChildren();
     status.textContent = message;
+    status.hidden = false;
+  };
+
+  const lookupCandidates = (cardWord, apiSuggestions = []) => {
+    const out = [];
+    const add = value => {
+      const clean = String(value || '').trim();
+      if (clean && clean.toLowerCase() !== String(cardWord || '').trim().toLowerCase() && !out.some(item => item.toLowerCase() === clean.toLowerCase())) out.push(clean);
+    };
+    apiSuggestions.slice(0, 4).forEach(add);
+    const parts = String(cardWord || '').trim().split(/\s+/).filter(Boolean);
+    const removable = new Set(['in','on','at','by','for','from','with','without','of','to','into','onto','over','under','through','across','around','about','after','before','between','among','against','within','beyond','upon','off','out','up','down','as','the','a','an']);
+    if (parts.length > 1 && removable.has(parts[0].toLowerCase())) add(parts.slice(1).join(' '));
+    return out.slice(0, 5);
+  };
+
+  const showNoResult = (cardWord, lookupTerm, suggestions = []) => {
+    status.replaceChildren();
+    const copy = document.createElement('div');
+    copy.textContent = `No exact Merriam-Webster entry was returned for “${lookupTerm}”. Your ${noun} has not been changed.`;
+    status.appendChild(copy);
+    const candidates = lookupCandidates(cardWord, suggestions);
+    if (candidates.length) {
+      const wrap = document.createElement('div');
+      wrap.className = 'reference-retry-options';
+      const label = document.createElement('span');
+      label.textContent = 'Try another lookup term:';
+      wrap.appendChild(label);
+      candidates.forEach(candidate => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'reference-retry-chip';
+        button.textContent = candidate;
+        button.addEventListener('click', () => {
+          queryDirty = true;
+          queryInput.value = candidate;
+          syncQueryReset();
+          lookup.click();
+        });
+        wrap.appendChild(button);
+      });
+      status.appendChild(wrap);
+    }
+    const hint = document.createElement('div');
+    hint.className = 'reference-query-hint';
+    hint.textContent = 'You can also edit Lookup term above and try again. The card Word will stay unchanged.';
+    status.appendChild(hint);
     status.hidden = false;
   };
 
@@ -60,10 +142,16 @@
 
   lookup.addEventListener('click', async () => {
     clearPreview();
-    const headword = String(word.value || '').trim();
-    if (!headword) {
+    const cardWord = String(word.value || '').trim();
+    const lookupTerm = String(queryInput.value || '').trim();
+    if (!cardWord) {
       showStatus('Enter a Word or phrase first, then look it up.');
       word.focus();
+      return;
+    }
+    if (!lookupTerm) {
+      showStatus('Enter a Lookup term first. The card Word can stay as it is.');
+      queryInput.focus();
       return;
     }
     const provider = providers[source.value];
@@ -72,15 +160,14 @@
       return;
     }
     setBusy(true);
-    showStatus(`Looking up “${headword}”…`);
+    showStatus(`Looking up “${lookupTerm}”…`);
     try {
-      const data = await provider.lookup(headword);
+      const data = await provider.lookup(lookupTerm);
       if (!data.found) {
-        const suffix = data.suggestions?.length ? ` Suggestions: ${data.suggestions.join(', ')}.` : '';
-        showStatus(`No exact Merriam-Webster entry was returned for “${headword}”.${suffix} Your ${noun} has not been changed.`);
+        showNoResult(cardWord, lookupTerm, data.suggestions || []);
         return;
       }
-      renderPreview(data);
+      renderPreview(data, { cardWord, lookupTerm });
     } catch (error) {
       const message = String(error?.message || '');
       showStatus(message.includes('API keys are not available')
@@ -99,7 +186,7 @@
     ['IPA', 'ipa']
   ];
 
-  function renderPreview(data = {}) {
+  function renderPreview(data = {}, context = {}) {
     fieldsMount.replaceChildren();
     clearConflict();
     mapping.forEach(([label, key]) => {
@@ -115,6 +202,15 @@
       row.dataset.formName = label;
       fieldsMount.appendChild(row);
     });
+    const cardWord = String(context.cardWord || '').trim();
+    const lookupTerm = String(context.lookupTerm || '').trim();
+    if (lookupTerm && cardWord && lookupTerm.toLowerCase() !== cardWord.toLowerCase()) {
+      const provenance = document.createElement('div');
+      provenance.className = 'reference-lookup-provenance';
+      provenance.innerHTML = '<strong>Looked up as</strong><span></span>';
+      provenance.querySelector('span').textContent = lookupTerm;
+      fieldsMount.appendChild(provenance);
+    }
     if (data.related) {
       const note = document.createElement('div');
       note.className = 'reference-related-note';
