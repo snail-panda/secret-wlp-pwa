@@ -2043,51 +2043,130 @@ body.stage7-study-body{
 
 
 /* =========================================================
-   WLP Stage 7 — Visual Reference v1.6.2
-   Keep image search beside External Reference without changing
-   the card's data model or storing third-party images.
+   WLP Stage 7 — Reference Toolbar v1.6.3
+   Compact, monochrome reference tools: external reference,
+   Google, image search, and Japanese quick/full/etymology.
    ========================================================= */
 .stage7-study-body .flashcard .back .back-reference-tools{
+  position:relative;
   min-width:0;
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:14px;
-  flex-wrap:wrap;
+  gap:8px;
+  flex-wrap:nowrap;
+  color:#466b53;
 }
-.stage7-study-body .flashcard .back .back-reference-tools .external-link,
-.stage7-study-body .flashcard .back .back-reference-tools .image-search-link{
+.stage7-study-body .flashcard .back .reference-tool{
+  appearance:none;
+  -webkit-appearance:none;
+  border:0;
+  background:transparent;
+  color:inherit;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:6px;
+  gap:5px;
+  min-width:30px;
+  min-height:30px;
   margin:0!important;
-  white-space:nowrap;
-  text-decoration:none;
-}
-.stage7-study-body .flashcard .back .image-search-link{
-  color:#53735f;
-  font-size:.91rem;
+  padding:3px 4px;
+  border-radius:8px;
+  text-decoration:none!important;
+  font-family:"EB Garamond", Georgia, serif;
+  font-size:.89rem;
   font-weight:600;
-  opacity:.94;
+  line-height:1;
+  opacity:.91;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 }
-.stage7-study-body .flashcard .back .image-search-link .ui-icon{
-  width:17px;
-  height:17px;
+.stage7-study-body .flashcard .back .reference-tool:hover{
+  background:rgba(74,105,80,.07);
+  color:#315c40;
+  opacity:1;
+}
+.stage7-study-body .flashcard .back .reference-tool:active{
+  transform:translateY(1px);
+  opacity:.72;
+}
+.stage7-study-body .flashcard .back .reference-tool-main{
+  padding-inline:5px 7px;
+  white-space:nowrap;
+  font-weight:500;
+}
+.stage7-study-body .flashcard .back .reference-icon{
+  width:18px;
+  height:18px;
   fill:none;
   stroke:currentColor;
-  stroke-width:1.65;
+  stroke-width:1.55;
   stroke-linecap:round;
   stroke-linejoin:round;
+  flex:none;
 }
-.stage7-study-body .flashcard .back .image-search-link:active{
-  opacity:.68;
+.stage7-study-body .flashcard .back .reference-icon-g{
+  width:19px;
+  height:19px;
+  stroke-width:1.65;
 }
+.stage7-study-body .flashcard .back .reference-icon-jp{
+  width:22px;
+  height:19px;
+  stroke-width:1.55;
+}
+.stage7-study-body .flashcard .back .reference-divider{
+  width:1px;
+  height:18px;
+  flex:none;
+  background:rgba(72,104,68,.22);
+}
+.stage7-study-body .flashcard .back .jp-reference-wrap{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+}
+.stage7-study-body .flashcard .back .jp-search-menu{
+  position:absolute;
+  left:50%;
+  bottom:calc(100% + 8px);
+  transform:translateX(-50%);
+  z-index:20;
+  width:180px;
+  padding:6px;
+  border:1px solid rgba(72,104,68,.22);
+  border-radius:12px;
+  background:rgba(255,254,249,.98);
+  box-shadow:0 8px 24px rgba(43,70,49,.14);
+}
+.stage7-study-body .flashcard .back .jp-search-menu[hidden]{display:none!important}
+.stage7-study-body .flashcard .back .jp-search-menu button{
+  width:100%;
+  min-height:0;
+  display:grid;
+  grid-template-columns:65px 1fr;
+  align-items:baseline;
+  gap:7px;
+  padding:7px 8px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:#315c40;
+  box-shadow:none;
+  text-align:left;
+  font-size:.86rem;
+}
+.stage7-study-body .flashcard .back .jp-search-menu button:hover{background:rgba(74,105,80,.07)}
+.stage7-study-body .flashcard .back .jp-search-menu strong{font-weight:600}
+.stage7-study-body .flashcard .back .jp-search-menu span{font-size:.75rem;opacity:.72}
 .stage7-study-body.s7-search-solo .flashcard .back .back-utility-row .back-reference-tools{
   grid-column:1!important;
   justify-self:center!important;
 }
 @media(max-width:390px){
-  .stage7-study-body .flashcard .back .back-reference-tools{gap:10px}
-  .stage7-study-body .flashcard .back .image-search-link{font-size:.87rem}
+  .stage7-study-body .flashcard .back .back-reference-tools{gap:5px}
+  .stage7-study-body .flashcard .back .reference-divider{height:16px}
+  .stage7-study-body .flashcard .back .reference-tool-main span{font-size:.84rem}
+  .stage7-study-body .flashcard .back .reference-tool{min-width:28px;padding-inline:3px}
 }
+

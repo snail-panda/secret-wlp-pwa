@@ -620,6 +620,91 @@ function installLocalOverrideEditor() {
   });
 }
 
+function openExternalSearch(url) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function japaneseSearchUrl(word, mode = "quick") {
+  const clean = String(word || "").trim();
+  const suffix =
+    mode === "full"
+      ? " 日本語 意味 使い方"
+      : mode === "etymology"
+        ? " 語源 日本語"
+        : " 日本語 一言で言うと";
+  return `https://www.google.com/search?q=${encodeURIComponent(clean + suffix)}`;
+}
+
+function installJapaneseReferenceTools(root, word) {
+  const wrap = root?.querySelector(".jp-reference-wrap");
+  const trigger = root?.querySelector(".jp-search-link");
+  const menu = root?.querySelector(".jp-search-menu");
+  if (!wrap || !trigger || !menu || trigger.dataset.bound === "1") return;
+  trigger.dataset.bound = "1";
+
+  let holdTimer = null;
+  let held = false;
+  const openMenu = () => {
+    held = true;
+    menu.hidden = false;
+    wrap.classList.add("is-open");
+  };
+  const closeMenu = () => {
+    menu.hidden = true;
+    wrap.classList.remove("is-open");
+  };
+  const clearHold = () => {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+  };
+
+  trigger.addEventListener("pointerdown", () => {
+    held = false;
+    clearHold();
+    holdTimer = setTimeout(openMenu, 520);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(type =>
+    trigger.addEventListener(type, clearHold)
+  );
+  trigger.addEventListener("contextmenu", event => {
+    event.preventDefault();
+    clearHold();
+    openMenu();
+  });
+  trigger.addEventListener("click", event => {
+    event.preventDefault();
+    if (held) {
+      held = false;
+      return;
+    }
+    if (!menu.hidden) {
+      closeMenu();
+      return;
+    }
+    openExternalSearch(japaneseSearchUrl(word, "quick"));
+  });
+
+  menu.querySelectorAll("[data-jp-mode]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const mode = button.dataset.jpMode || "quick";
+      closeMenu();
+      openExternalSearch(japaneseSearchUrl(word, mode));
+    });
+  });
+
+  document.addEventListener("click", event => {
+    if (!menu.hidden && !wrap.contains(event.target)) closeMenu();
+  });
+}
+
 // =============================================================
 // LOCAL DRAFT STUDY
 // =============================================================
@@ -1071,6 +1156,21 @@ function renderCards(
         imageSearch.href =
           `https://www.google.com/search?tbm=isch&q=${q}`;
       }
+
+      const googleSearch =
+        root.querySelector(
+          ".google-search-link"
+        );
+
+      if (googleSearch) {
+        googleSearch.href =
+          `https://www.google.com/search?q=${q}`;
+      }
+
+      installJapaneseReferenceTools(
+        root,
+        String(row["Word"] || "").trim()
+      );
 
       const cardTagText =
   IS_DRAFT_MODE
