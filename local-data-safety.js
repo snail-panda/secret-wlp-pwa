@@ -4,7 +4,9 @@
   const DRAFTS_KEY = 'wlp:local-additions:v1';
   const OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const BACKUP_META_KEY = 'wlp:local-data-backup-meta:v1';
+  const RESTORE_ROLLBACK_KEY = 'wlp:local-data-restore-rollback:v1';
   const ROLE_KEY = 'wlp:ui-role:v2';
+  const SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const ACTIVITY_KEY = 'wlp:stage7:activity-events:v1';
   const PRACTICE_KEY = 'wlp:stage7:practice-events:v1';
@@ -106,7 +108,7 @@
 
   function isBackupKey(key) {
     if (!key) return false;
-    if (key === BACKUP_META_KEY || key === ROLE_KEY) return false;
+    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY) return false;
     return key.startsWith('wlp:') || key.startsWith(PROGRESS_PREFIX);
   }
 
@@ -233,7 +235,7 @@
     }));
 
     render();
-    setInlineStatus(`Backup prepared for download · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · Progress included.`, 'success');
+    setInlineStatus(`Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · Progress included. If you cannot remember where it was saved, search this filename in Files.`, 'success');
 
     if (button) {
       const old = button.textContent;
@@ -246,6 +248,264 @@
     }
   }
 
+
+  function setRestoreStatus(text, tone = '') {
+    const node = document.getElementById('local-restore-status');
+    if (!node) return;
+    node.textContent = text;
+    node.hidden = false;
+    node.classList.toggle('is-error', tone === 'error');
+  }
+
+  function clearRestoreStatus() {
+    const node = document.getElementById('local-restore-status');
+    if (!node) return;
+    node.hidden = true;
+    node.textContent = '';
+    node.classList.remove('is-error');
+  }
+
+  function normalizeBackup(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('This file is not a valid WLP Local Data Backup.');
+    }
+    if (data.format !== BACKUP_FORMAT) {
+      throw new Error('This is not a WLP Local Data Backup file.');
+    }
+    if (Number(data.version) !== BACKUP_VERSION) {
+      throw new Error(`Unsupported backup version: ${data.version ?? 'unknown'}.`);
+    }
+    if (!data.storage || typeof data.storage !== 'object' || Array.isArray(data.storage)) {
+      throw new Error('The backup does not contain valid local-storage data.');
+    }
+
+    const storage = {};
+    Object.entries(data.storage).forEach(([key, value]) => {
+      if (!isBackupKey(key)) return;
+      if (typeof value !== 'string') {
+        throw new Error(`Invalid value for ${key}.`);
+      }
+      storage[key] = value;
+    });
+
+    return {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: typeof data.exportedAt === 'string' ? data.exportedAt : '',
+      origin: typeof data.origin === 'string' ? data.origin : '',
+      summary: data.summary && typeof data.summary === 'object' ? data.summary : {},
+      storage
+    };
+  }
+
+  function summaryFromStorage(storage) {
+    const drafts = parseJson(storage[DRAFTS_KEY], []);
+    const overrides = parseJson(storage[OVERRIDES_KEY], {});
+    const activity = parseJson(storage[ACTIVITY_KEY], []);
+    const practice = parseJson(storage[PRACTICE_KEY], []);
+    let progressRecords = 0;
+    Object.keys(storage).forEach(key => { if (key.startsWith(PROGRESS_PREFIX)) progressRecords += 1; });
+    return {
+      drafts: Array.isArray(drafts) ? drafts.filter(item => item && typeof item === 'object').length : 0,
+      localEdits: overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+        ? Object.values(overrides).filter(value => value && typeof value === 'object' && !Array.isArray(value)).length
+        : 0,
+      progressRecords,
+      activityEvents: Array.isArray(activity) ? activity.length : 0,
+      practiceEvents: Array.isArray(practice) ? practice.length : 0
+    };
+  }
+
+  function writeManagedSnapshot(backup) {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (isBackupKey(key)) keysToRemove.push(key);
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    Object.entries(backup.storage).forEach(([key, value]) => localStorage.setItem(key, value));
+  }
+
+  function restoreManagedStorage(backup, sourceFileName = '') {
+    const currentBackup = buildBackup();
+    localStorage.setItem(RESTORE_ROLLBACK_KEY, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      source: 'before-restore',
+      backup: currentBackup
+    }));
+
+    try {
+      writeManagedSnapshot(backup);
+    } catch (error) {
+      try { writeManagedSnapshot(currentBackup); } catch {}
+      throw new Error(`Restore could not be completed safely: ${error?.message || 'storage write failed'}`);
+    }
+
+    const restoredSummary = summaryFromStorage(backup.storage);
+    const restoredAt = backup.exportedAt || new Date().toISOString();
+    const editorState = currentEditorState();
+    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({
+      lastBackupAt: restoredAt,
+      fileName: sourceFileName || 'restored-local-data-backup.json',
+      editorState,
+      summary: restoredSummary,
+      restoredAt: new Date().toISOString()
+    }));
+    return restoredSummary;
+  }
+
+  function readRollback() {
+    const value = parseJson(localStorage.getItem(RESTORE_ROLLBACK_KEY), null);
+    if (!value || typeof value !== 'object' || !value.backup) return null;
+    try {
+      return { ...value, backup: normalizeBackup(value.backup) };
+    } catch {
+      return null;
+    }
+  }
+
+  function applyRollback() {
+    const rollback = readRollback();
+    if (!rollback) throw new Error('No valid rollback copy is available.');
+    const backup = rollback.backup;
+
+    writeManagedSnapshot(backup);
+
+    const restoredSummary = summaryFromStorage(backup.storage);
+    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({
+      lastBackupAt: backup.exportedAt || new Date().toISOString(),
+      fileName: 'rollback-before-restore',
+      editorState: currentEditorState(),
+      summary: restoredSummary,
+      restoredAt: new Date().toISOString()
+    }));
+    localStorage.removeItem(RESTORE_ROLLBACK_KEY);
+    return restoredSummary;
+  }
+
+  function installRestore() {
+    const fileInput = document.getElementById('local-restore-file');
+    const choose = document.getElementById('local-restore-choose');
+    const preview = document.getElementById('local-restore-preview');
+    if (!fileInput || !choose || !preview) return;
+
+    const fileName = document.getElementById('local-restore-file-name');
+    const dateNode = document.getElementById('local-restore-date');
+    const originNode = document.getElementById('local-restore-origin');
+    const draftsNode = document.getElementById('local-restore-drafts');
+    const editsNode = document.getElementById('local-restore-edits');
+    const progressNode = document.getElementById('local-restore-progress');
+    const activityNode = document.getElementById('local-restore-activity');
+    const warningNode = document.getElementById('local-restore-warning');
+    const clear = document.getElementById('local-restore-clear');
+    const chooseAnother = document.getElementById('local-restore-choose-another');
+    const start = document.getElementById('local-restore-start');
+    const confirmBox = document.getElementById('local-restore-confirm');
+    const cancel = document.getElementById('local-restore-cancel');
+    const confirmButton = document.getElementById('local-restore-confirm-button');
+    const undoWrap = document.getElementById('local-restore-undo');
+    const undoButton = document.getElementById('local-restore-undo-button');
+
+    let selectedBackup = null;
+    let selectedFileName = '';
+
+    function renderUndo() {
+      if (undoWrap) undoWrap.hidden = !readRollback();
+    }
+
+    function resetSelection() {
+      selectedBackup = null;
+      selectedFileName = '';
+      fileInput.value = '';
+      preview.hidden = true;
+      if (confirmBox) confirmBox.hidden = true;
+      clearRestoreStatus();
+    }
+
+    function showPreview(backup, name) {
+      selectedBackup = backup;
+      selectedFileName = name;
+      const counts = summaryFromStorage(backup.storage);
+      fileName.textContent = name || 'Selected backup';
+      dateNode.textContent = backup.exportedAt ? formatDate(backup.exportedAt) : 'Unknown';
+      originNode.textContent = backup.origin || 'Unknown';
+      draftsNode.textContent = String(counts.drafts);
+      editsNode.textContent = String(counts.localEdits);
+      progressNode.textContent = String(counts.progressRecords);
+      activityNode.textContent = String(counts.activityEvents);
+      const crossOrigin = backup.origin && backup.origin !== location.origin;
+      warningNode.textContent = crossOrigin
+        ? `This backup was created on ${backup.origin}. It can still be restored here. Current browser-local WLP data covered by the backup will be replaced, and one rollback copy will be kept locally.`
+        : 'Restore replaces the browser-local WLP data covered by this backup. A rollback copy of the current state will be kept on this device before anything is replaced.';
+      preview.hidden = false;
+      if (confirmBox) confirmBox.hidden = true;
+      clearRestoreStatus();
+    }
+
+    choose.addEventListener('click', () => fileInput.click());
+    chooseAnother?.addEventListener('click', () => fileInput.click());
+    clear?.addEventListener('click', resetSelection);
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        showPreview(normalizeBackup(parsed), file.name);
+      } catch (error) {
+        resetSelection();
+        setRestoreStatus(error?.message || 'Could not read this backup file.', 'error');
+      }
+    });
+
+    start?.addEventListener('click', () => {
+      if (!selectedBackup) return;
+      if (confirmBox) confirmBox.hidden = false;
+      confirmBox?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    cancel?.addEventListener('click', () => { if (confirmBox) confirmBox.hidden = true; });
+
+    confirmButton?.addEventListener('click', () => {
+      if (!selectedBackup) return;
+      try {
+        const restored = restoreManagedStorage(selectedBackup, selectedFileName);
+        setRestoreStatus(`Restore complete · ${restored.drafts} Drafts · ${restored.localEdits} Local Edits · ${restored.progressRecords} Progress cards. Reloading…`);
+        if (confirmBox) confirmBox.hidden = true;
+        render();
+        renderUndo();
+        setTimeout(() => location.reload(), 700);
+      } catch (error) {
+        setRestoreStatus(error?.message || 'Restore failed. No changes were applied.', 'error');
+      }
+    });
+
+    undoButton?.addEventListener('click', () => {
+      if (!readRollback()) return;
+      const firstLabel = undoButton.textContent;
+      if (undoButton.dataset.confirm !== 'yes') {
+        undoButton.dataset.confirm = 'yes';
+        undoButton.textContent = 'Confirm Undo Restore';
+        setTimeout(() => {
+          if (undoButton.dataset.confirm === 'yes') {
+            delete undoButton.dataset.confirm;
+            undoButton.textContent = firstLabel;
+          }
+        }, 5000);
+        return;
+      }
+      try {
+        const restored = applyRollback();
+        delete undoButton.dataset.confirm;
+        setRestoreStatus(`Previous local state restored · ${restored.drafts} Drafts · ${restored.localEdits} Local Edits · ${restored.progressRecords} Progress cards. Reloading…`);
+        setTimeout(() => location.reload(), 700);
+      } catch (error) {
+        setRestoreStatus(error?.message || 'Could not undo the restore.', 'error');
+      }
+    });
+
+    renderUndo();
+  }
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-local-backup-now]');
     if (!button) return;
@@ -262,5 +522,6 @@
   window.addEventListener('focus', render);
 
   render();
+  installRestore();
   window.WLPLocalDataSafety = { render, buildBackup };
 })();

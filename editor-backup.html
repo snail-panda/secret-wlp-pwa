@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="./editor-local-edits.css">
   <link rel="stylesheet" href="./editor-backup.css">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
-  <link rel="stylesheet" href="./local-data-safety.css?v=20260917-s7-local-data-safety-v1-8-4">
+  <link rel="stylesheet" href="./local-data-safety.css?v=20260917-s7-local-data-restore-v1-8-5">
 </head>
 <body class="app-body editor-page editor-backup-page">
   <div class="app-shell">
@@ -88,6 +88,73 @@
           </div>
           <p class="local-safety-action-status" data-safety-action-status hidden></p>
           <p class="local-safety-footnote">This is separate from Entire Deck TSV export. The JSON backup is the safety copy for browser-local WLP data.</p>
+        </section>
+
+        <section class="backup-panel local-restore-panel" id="local-data-restore" aria-label="Restore local data backup">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Restore</span>
+              <h2>Restore Local Data</h2>
+              <p>Choose a WLP Local Data Backup JSON to restore Drafts, Local Edits, Progress, Activity, Practice history, and local WLP settings.</p>
+            </div>
+          </div>
+
+          <div class="local-restore-rules" aria-label="Restore safety notes">
+            <span>Master TSV stays untouched</span>
+            <span>Admin login stays unchanged</span>
+            <span>One rollback copy is kept locally</span>
+          </div>
+
+          <input id="local-restore-file" type="file" accept=".json,application/json" hidden>
+          <button class="backup-import-button local-restore-choose" id="local-restore-choose" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 20h14"/></svg>
+            <span><strong>Choose Local Data Backup</strong><small>WLP Local Data Backup .json</small></span>
+          </button>
+
+          <section class="local-restore-preview" id="local-restore-preview" hidden aria-live="polite">
+            <div class="local-restore-preview-head">
+              <div>
+                <span class="editor-tool-kicker">Restore Preview</span>
+                <h3 id="local-restore-file-name">Selected backup</h3>
+              </div>
+              <button type="button" class="local-restore-clear" id="local-restore-clear">Clear</button>
+            </div>
+
+            <div class="local-restore-meta">
+              <span>Backup date <strong id="local-restore-date">—</strong></span>
+              <span>Created on <strong id="local-restore-origin">—</strong></span>
+            </div>
+
+            <div class="local-restore-counts">
+              <div><strong id="local-restore-drafts">0</strong><span>Drafts</span></div>
+              <div><strong id="local-restore-edits">0</strong><span>Local Edits</span></div>
+              <div><strong id="local-restore-progress">0</strong><span>Progress cards</span></div>
+              <div><strong id="local-restore-activity">0</strong><span>Activity events</span></div>
+            </div>
+
+            <p class="local-restore-warning" id="local-restore-warning">Restore replaces the browser-local WLP data covered by this backup. A rollback copy of the current state will be kept on this device before anything is replaced.</p>
+
+            <div class="local-restore-actions">
+              <button type="button" class="local-restore-secondary" id="local-restore-choose-another">Choose Another</button>
+              <button type="button" class="local-restore-primary" id="local-restore-start">Restore This Backup</button>
+            </div>
+
+            <div class="local-restore-confirm" id="local-restore-confirm" hidden>
+              <strong>Confirm restore?</strong>
+              <span>The selected backup will become the current local WLP state. Master data is not changed.</span>
+              <div>
+                <button type="button" class="local-restore-secondary" id="local-restore-cancel">Cancel</button>
+                <button type="button" class="local-restore-primary" id="local-restore-confirm-button">Confirm Restore</button>
+              </div>
+            </div>
+          </section>
+
+          <div class="local-restore-undo" id="local-restore-undo" hidden>
+            <div><strong>Rollback available</strong><span>You can restore the local state that existed immediately before the most recent restore.</span></div>
+            <button type="button" id="local-restore-undo-button">Undo Last Restore</button>
+          </div>
+
+          <section class="backup-status local-restore-status" id="local-restore-status" hidden aria-live="polite"></section>
         </section>
 
         <section class="backup-summary" aria-label="Current local data summary">
@@ -226,7 +293,7 @@
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
   <script src="./editor-backup.js?v=20260916-s7-editor-backup-v1-5-1"></script>
-  <script src="./local-data-safety.js?v=20260917-s7-local-data-safety-v1-8-4"></script>
+  <script src="./local-data-safety.js?v=20260917-s7-local-data-restore-v1-8-5"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
   <script src="./pwa-register.js?v=20260916-s7-editor-backup-v1-5-1"></script>
 </body>
