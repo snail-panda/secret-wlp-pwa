@@ -2040,3 +2040,54 @@ body.stage7-study-body{
 .stage7-study-body .flashcard .back .note.wlp-note-preserve-breaks{
   white-space:pre-wrap!important;
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Visual Reference v1.6.2
+   Keep image search beside External Reference without changing
+   the card's data model or storing third-party images.
+   ========================================================= */
+.stage7-study-body .flashcard .back .back-reference-tools{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.stage7-study-body .flashcard .back .back-reference-tools .external-link,
+.stage7-study-body .flashcard .back .back-reference-tools .image-search-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  margin:0!important;
+  white-space:nowrap;
+  text-decoration:none;
+}
+.stage7-study-body .flashcard .back .image-search-link{
+  color:#53735f;
+  font-size:.91rem;
+  font-weight:600;
+  opacity:.94;
+}
+.stage7-study-body .flashcard .back .image-search-link .ui-icon{
+  width:17px;
+  height:17px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.65;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .flashcard .back .image-search-link:active{
+  opacity:.68;
+}
+.stage7-study-body.s7-search-solo .flashcard .back .back-utility-row .back-reference-tools{
+  grid-column:1!important;
+  justify-self:center!important;
+}
+@media(max-width:390px){
+  .stage7-study-body .flashcard .back .back-reference-tools{gap:10px}
+  .stage7-study-body .flashcard .back .image-search-link{font-size:.87rem}
+}

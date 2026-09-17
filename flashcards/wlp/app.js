@@ -1062,6 +1062,16 @@ function renderCards(
       ext.href =
         `https://www.google.com/search?q=define+${q}`;
 
+      const imageSearch =
+        root.querySelector(
+          ".image-search-link"
+        );
+
+      if (imageSearch) {
+        imageSearch.href =
+          `https://www.google.com/search?tbm=isch&q=${q}`;
+      }
+
       const cardTagText =
   IS_DRAFT_MODE
     ? `#Draft${label}      ${index + 1}/${batchRows.length}`
