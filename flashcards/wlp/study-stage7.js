@@ -378,13 +378,25 @@
       const realReview = root.querySelector('.back .btn-review');
       const frontStudied = root.querySelector('.btn-studied-front');
       const frontReview = root.querySelector('.btn-review-front');
+      const realAttention = root.querySelector('.back .btn-review-attention');
+      const frontAttention = root.querySelector('.btn-review-attention-front');
       if (frontStudied && realStudied) {
         frontStudied.disabled = Boolean(realStudied.disabled);
         frontStudied.title = realStudied.title || 'Mark as studied';
+        frontStudied.textContent = realStudied.textContent;
+        frontStudied.classList.toggle('is-active', realStudied.classList.contains('is-active'));
+        frontStudied.setAttribute('aria-pressed', realStudied.getAttribute('aria-pressed') || 'false');
       }
       if (frontReview && realReview) {
         frontReview.disabled = Boolean(realReview.disabled);
         frontReview.title = realReview.title || 'Mark for review';
+        frontReview.textContent = realReview.textContent;
+        frontReview.classList.toggle('is-active', realReview.classList.contains('is-active'));
+        frontReview.setAttribute('aria-pressed', realReview.getAttribute('aria-pressed') || 'false');
+      }
+      if (frontAttention && realAttention) {
+        frontAttention.hidden = realAttention.hidden;
+        frontAttention.textContent = realAttention.textContent;
       }
     });
   };
@@ -592,6 +604,13 @@
     if (reviewProxy) {
       const real = reviewProxy.closest('.flashcard')?.querySelector('.back .btn-review');
       if (real && !real.disabled) real.click();
+      return;
+    }
+
+    const attentionProxy = event.target.closest('.btn-review-attention-front');
+    if (attentionProxy) {
+      const real = attentionProxy.closest('.flashcard')?.querySelector('.back .btn-review-attention');
+      if (real && !real.hidden) real.click();
     }
   });
 

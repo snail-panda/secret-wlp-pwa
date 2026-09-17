@@ -71,6 +71,86 @@ const LOCAL_OVERRIDE_FIELDS = [
   "Source"
 ];
 
+// Stage 7 Review v2 — keep cumulative progress compatible while also
+// recording timestamped activity and richer review-attention metadata.
+const ACTIVITY_EVENTS_KEY = "wlp:stage7:activity-events:v1";
+const INTERACTION_EVENTS_KEY = "wlp:stage7:interaction-events:v1";
+const EVENT_HISTORY_LIMIT = 5000;
+const ENCOUNTER_DEDUPE_MS = 90 * 1000;
+const cardRowMap = new WeakMap();
+const recentEncounterByWordId = new Map();
+
+function appendStage7Event(storageKey, event) {
+  try {
+    const current = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    const list = Array.isArray(current) ? current : [];
+    list.push(event);
+    if (list.length > EVENT_HISTORY_LIMIT) {
+      list.splice(0, list.length - EVENT_HISTORY_LIMIT);
+    }
+    localStorage.setItem(storageKey, JSON.stringify(list));
+  } catch (e) {
+    console.warn("Could not save Stage 7 event:", storageKey, e);
+  }
+}
+
+function progressWordId(row) {
+  return String(row?.["WordID"] || "").trim();
+}
+
+function studySource() {
+  if (IS_REVIEW_MODE) return "review-deck";
+  if (IS_SOLO_MODE) return "solo";
+  return "source-deck";
+}
+
+function activityEvent(type, row, extra = {}) {
+  const wordId = progressWordId(row);
+  if (!wordId || IS_DRAFT_MODE) return;
+  appendStage7Event(ACTIVITY_EVENTS_KEY, {
+    timestamp: Date.now(),
+    type,
+    wordId,
+    source: studySource(),
+    deck: String(row?.["Batch #"] || BATCH_PARAM || "").trim(),
+    ...extra
+  });
+}
+
+function interactionEvent(action, row, extra = {}) {
+  const wordId = progressWordId(row);
+  if (!wordId || IS_DRAFT_MODE) return;
+  appendStage7Event(INTERACTION_EVENTS_KEY, {
+    timestamp: Date.now(),
+    action,
+    wordId,
+    source: studySource(),
+    deck: String(row?.["Batch #"] || BATCH_PARAM || "").trim(),
+    ...extra
+  });
+}
+
+function recordEncounter(row) {
+  const wordId = progressWordId(row);
+  if (!wordId || IS_DRAFT_MODE) return;
+  const now = Date.now();
+  const last = recentEncounterByWordId.get(wordId) || 0;
+  if (now - last < ENCOUNTER_DEDUPE_MS) return;
+  recentEncounterByWordId.set(wordId, now);
+
+  const key = `fc:wordid:${wordId}`;
+  const cur = readProgress(key);
+  saveProgress(key, {
+    ...cur,
+    wordId,
+    firstSeen: cur.firstSeen || now,
+    lastSeen: now,
+    exposureCount: Number(cur.exposureCount || 0) + 1
+  });
+
+  activityEvent("study", row, { action: "encounter" });
+}
+
 // Stage 7 — Connected Headwords. Synonyms that exactly match an Effective
 // Deck headword can open that existing WLP card as a lightweight side path.
 let connectedHeadwordTargets = new Map();
@@ -1261,6 +1341,8 @@ function renderCards(
         root,
         row
       );
+
+      cardRowMap.set(root, row);
 
       const ext =
         root.querySelector(
@@ -2495,6 +2577,7 @@ function bindRecordingPractice(root, row) {
           status.textContent = "";
         }, { once: true });
         recorder.start();
+        interactionEvent("record_start", row, { kind });
         recordBtn.hidden = true;
         stopBtn.hidden = false;
         mineBtn.hidden = true;
@@ -2540,6 +2623,7 @@ function bindRecordingPractice(root, row) {
         deleteBtn.hidden = false;
         if (clearNote) clearNote.hidden = !currentBlob;
         status.textContent = "Saved on this device.";
+        interactionEvent("record_save", row, { kind });
       } catch (e) {
         status.textContent = "Could not save this take.";
         console.error("Saving take failed:", e);
@@ -2564,6 +2648,161 @@ function bindRecordingPractice(root, row) {
 }
 
 // =============================================================
+// REVIEW ATTENTION UI / STUDY TOAST
+// =============================================================
+
+const REVIEW_REASON_OPTIONS = [
+  ["recall", "Recall"],
+  ["usage", "Usage"],
+  ["context", "Context"],
+  ["nuance", "Nuance"],
+  ["collocation", "Collocation"],
+  ["pronunciation", "Pronunciation"],
+  ["more-exposure", "More exposure"]
+];
+
+let studyToastTimer = null;
+function showStudyToast(message) {
+  let toast = document.getElementById("study-progress-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "study-progress-toast";
+    toast.className = "study-progress-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(studyToastTimer);
+  studyToastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+function ensureReviewAttentionSheet() {
+  let backdrop = document.getElementById("review-attention-backdrop");
+  if (backdrop) return backdrop;
+
+  backdrop = document.createElement("div");
+  backdrop.id = "review-attention-backdrop";
+  backdrop.className = "review-attention-backdrop";
+  backdrop.hidden = true;
+  backdrop.innerHTML = `
+    <section class="review-attention-sheet" role="dialog" aria-modal="true" aria-labelledby="review-attention-title">
+      <div class="review-attention-handle" aria-hidden="true"></div>
+      <div class="review-attention-heading">
+        <div>
+          <p class="review-attention-kicker">REVIEW ATTENTION</p>
+          <h2 id="review-attention-title">Set attention</h2>
+          <p class="review-attention-word" id="review-attention-word"></p>
+        </div>
+        <button type="button" class="review-attention-close" aria-label="Close">×</button>
+      </div>
+      <p class="review-attention-intro">How much attention do you want to give this word? This is not a mastery score.</p>
+      <div class="review-attention-levels" role="group" aria-label="Attention level">
+        <button type="button" data-attention-level="light"><strong>Light</strong><span>Keep it in rotation.</span></button>
+        <button type="button" data-attention-level="medium"><strong>Medium</strong><span>Come back to this.</span></button>
+        <button type="button" data-attention-level="high"><strong>High</strong><span>Give this more attention.</span></button>
+      </div>
+      <div class="review-attention-why">
+        <div class="review-attention-why-head"><strong>Why?</strong><span>Optional · choose more than one</span></div>
+        <div class="review-attention-reasons">
+          ${REVIEW_REASON_OPTIONS.map(([value,label]) => `<button type="button" data-attention-reason="${value}">${label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="review-attention-actions">
+        <button type="button" class="review-attention-clear">Clear details</button>
+        <button type="button" class="review-attention-done">Done</button>
+      </div>
+    </section>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.addEventListener("click", event => {
+    if (event.target === backdrop) closeReviewAttentionSheet();
+  });
+  backdrop.querySelector(".review-attention-close").addEventListener("click", closeReviewAttentionSheet);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !backdrop.hidden) closeReviewAttentionSheet();
+  });
+  return backdrop;
+}
+
+function closeReviewAttentionSheet() {
+  const backdrop = document.getElementById("review-attention-backdrop");
+  if (!backdrop) return;
+  backdrop.hidden = true;
+  document.body.classList.remove("review-attention-open");
+}
+
+function openReviewAttentionSheet(row, stateKey, onSaved) {
+  const backdrop = ensureReviewAttentionSheet();
+  const sheet = backdrop.querySelector(".review-attention-sheet");
+  const cur = readProgress(stateKey);
+  let selectedLevel = String(cur.reviewLevel || "").toLowerCase();
+  let selectedReasons = new Set(Array.isArray(cur.reviewReasons) ? cur.reviewReasons : []);
+
+  backdrop.querySelector("#review-attention-word").textContent = String(row?.Word || "").trim();
+
+  const renderSelection = () => {
+    sheet.querySelectorAll("[data-attention-level]").forEach(button => {
+      const active = button.dataset.attentionLevel === selectedLevel;
+      button.classList.toggle("is-selected", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    sheet.querySelectorAll("[data-attention-reason]").forEach(button => {
+      const active = selectedReasons.has(button.dataset.attentionReason);
+      button.classList.toggle("is-selected", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  };
+
+  sheet.querySelectorAll("[data-attention-level]").forEach(button => {
+    button.onclick = () => {
+      const value = button.dataset.attentionLevel;
+      selectedLevel = selectedLevel === value ? "" : value;
+      renderSelection();
+    };
+  });
+  sheet.querySelectorAll("[data-attention-reason]").forEach(button => {
+    button.onclick = () => {
+      const value = button.dataset.attentionReason;
+      if (selectedReasons.has(value)) selectedReasons.delete(value);
+      else selectedReasons.add(value);
+      renderSelection();
+    };
+  });
+
+  sheet.querySelector(".review-attention-clear").onclick = () => {
+    selectedLevel = "";
+    selectedReasons = new Set();
+    renderSelection();
+  };
+
+  sheet.querySelector(".review-attention-done").onclick = () => {
+    const latest = readProgress(stateKey);
+    saveProgress(stateKey, {
+      ...latest,
+      review: true,
+      known: false,
+      reviewLevel: selectedLevel,
+      reviewReasons: Array.from(selectedReasons),
+      lastAttentionUpdated: Date.now()
+    });
+    interactionEvent("attention_set", row, {
+      level: selectedLevel,
+      reasons: Array.from(selectedReasons)
+    });
+    if (typeof onSaved === "function") onSaved();
+    closeReviewAttentionSheet();
+    showStudyToast(selectedLevel ? `${selectedLevel[0].toUpperCase()}${selectedLevel.slice(1)} attention saved.` : "Review attention details saved.");
+  };
+
+  renderSelection();
+  backdrop.hidden = false;
+  document.body.classList.add("review-attention-open");
+  requestAnimationFrame(() => sheet.querySelector("[data-attention-level]")?.focus({ preventScroll: true }));
+}
+
+// =============================================================
 // CARD EVENTS
 // =============================================================
 
@@ -2584,8 +2823,10 @@ function bindCardBehavior(
 
         btn.addEventListener(
           "click",
-          () =>
-            flip(root)
+          () => {
+            interactionEvent("flip", row);
+            flip(root);
+          }
         );
 
       }
@@ -2643,6 +2884,7 @@ function bindCardBehavior(
         ? (row["Definition"] || "").trim()
         : (row["Word"] || "").trim();
       if (text) {
+        interactionEvent("audio_play", row, { kind: cardMode === "definition" ? "definition-front" : "word" });
         toggleTtsButton(speakBtn, [text], { voiceName: getCurrentVoiceName() });
       }
     });
@@ -2651,14 +2893,20 @@ function bindCardBehavior(
   if (exBtn) {
     exBtn.addEventListener("click", () => {
       const chunks = splitSentences(row["Example Sentence"] || "");
-      if (chunks.length) toggleTtsButton(exBtn, chunks, { voiceName: getCurrentVoiceName() });
+      if (chunks.length) {
+        interactionEvent("audio_play", row, { kind: "example" });
+        toggleTtsButton(exBtn, chunks, { voiceName: getCurrentVoiceName() });
+      }
     });
   }
 
   if (defBtn) {
     defBtn.addEventListener("click", () => {
       const def = (row["Definition"] || "").replace(/\s+/g, " ").trim();
-      if (def) toggleTtsButton(defBtn, [def], { voiceName: getCurrentVoiceName() });
+      if (def) {
+        interactionEvent("audio_play", row, { kind: "definition" });
+        toggleTtsButton(defBtn, [def], { voiceName: getCurrentVoiceName() });
+      }
     });
   }
 
@@ -2675,7 +2923,10 @@ function bindCardBehavior(
         const spoken = copy.length ? `${copy.join(", ")}, and ${last}` : last;
         chunks.push(`Synonyms: ${spoken}.`);
       }
-      if (chunks.length) toggleTtsButton(allBtn, chunks, { voiceName: getCurrentVoiceName() });
+      if (chunks.length) {
+        interactionEvent("audio_play", row, { kind: "read-all" });
+        toggleTtsButton(allBtn, chunks, { voiceName: getCurrentVoiceName() });
+      }
     });
   }
 
@@ -2712,6 +2963,24 @@ function bindCardBehavior(
   }
 
 
+  root.addEventListener("click", event => {
+    const googleMode = event.target.closest("[data-google-mode]");
+    if (googleMode) {
+      interactionEvent("google_search", row, { mode: googleMode.dataset.googleMode || "normal" });
+      return;
+    }
+    const jpMode = event.target.closest("[data-jp-mode]");
+    if (jpMode) {
+      interactionEvent("jp_search", row, { mode: jpMode.dataset.jpMode || "quick" });
+      return;
+    }
+    if (event.target.closest(".google-search-link")) interactionEvent("google_search", row, { mode: "normal" });
+    else if (event.target.closest(".jp-search-link")) interactionEvent("jp_search", row, { mode: "quick" });
+    else if (event.target.closest(".image-search-link")) interactionEvent("image_search", row);
+    else if (event.target.closest(".external-link")) interactionEvent("external_reference", row);
+    else if (event.target.closest("[data-youglish]")) interactionEvent("youglish", row);
+  });
+
   if (IS_DRAFT_MODE) {
 
     const studiedButton =
@@ -2744,66 +3013,68 @@ function bindCardBehavior(
   }
 
   // -----------------------------------------------------------
-  // STUDIED
+  // STUDIED / REVIEW ATTENTION
   // -----------------------------------------------------------
 
-  root
-    .querySelector(
-      ".btn-studied"
-    )
-    .addEventListener(
-      "click",
-      () => {
+  const studiedButton = root.querySelector(".btn-studied");
+  const reviewButton = root.querySelector(".btn-review");
+  const attentionButton = root.querySelector(".btn-review-attention");
 
-        updateProgress(
-          stateKey,
-          row,
-          "studied"
-        );
+  const refreshProgressControls = () => {
+    const cur = readProgress(stateKey);
+    const isReview = Boolean(cur.review);
+    const isStudied = Boolean(cur.known) && !isReview;
 
-        if (
-          IS_REVIEW_MODE
-        ) {
+    if (studiedButton) {
+      studiedButton.textContent = isStudied ? "Studied ✓" : "Studied";
+      studiedButton.classList.toggle("is-active", isStudied);
+      studiedButton.setAttribute("aria-pressed", String(isStudied));
+    }
 
-          removeFromCurrentReviewDeck(
-            root
-          );
+    if (reviewButton) {
+      reviewButton.textContent = isReview ? "Review ✓" : "Review";
+      reviewButton.classList.toggle("is-active", isReview);
+      reviewButton.setAttribute("aria-pressed", String(isReview));
+    }
 
-        } else {
+    if (attentionButton) {
+      attentionButton.hidden = !isReview;
+      const level = String(cur.reviewLevel || "").toLowerCase();
+      attentionButton.textContent = level ? `${level[0].toUpperCase()}${level.slice(1)} attention` : "Set attention";
+    }
+  };
 
-          alert(
-            "✅ Marked as Studied."
-          );
+  refreshProgressControls();
 
-        }
+  studiedButton?.addEventListener("click", () => {
+    const before = readProgress(stateKey);
+    updateProgress(stateKey, row, "studied");
+    interactionEvent("studied", row, {
+      previousReviewLevel: before.reviewLevel || "",
+      previousReviewReasons: Array.isArray(before.reviewReasons) ? before.reviewReasons : []
+    });
+    refreshProgressControls();
+    showStudyToast("Marked Studied — no special attention for now.");
 
-      }
-    );
+    if (IS_REVIEW_MODE) removeFromCurrentReviewDeck(root);
+  });
 
-  // -----------------------------------------------------------
-  // REVIEW
-  // -----------------------------------------------------------
+  reviewButton?.addEventListener("click", () => {
+    const cur = readProgress(stateKey);
+    if (cur.review) {
+      openReviewAttentionSheet(row, stateKey, refreshProgressControls);
+      return;
+    }
 
-  root
-    .querySelector(
-      ".btn-review"
-    )
-    .addEventListener(
-      "click",
-      () => {
+    updateProgress(stateKey, row, "review");
+    interactionEvent("review", row, { action: "added-to-review" });
+    refreshProgressControls();
+    showStudyToast("Added to Review. Set attention only if you want to.");
+  });
 
-        updateProgress(
-          stateKey,
-          row,
-          "review"
-        );
-
-        alert(
-          "🔁 Added to Review List."
-        );
-
-      }
-    );
+  attentionButton?.addEventListener("click", () => {
+    openReviewAttentionSheet(row, stateKey, refreshProgressControls);
+  });
 
 }
 
@@ -2964,6 +3235,18 @@ function updateProgress(
       result ===
       "review",
 
+    reviewLevel:
+      result === "studied" ? "" : String(cur.reviewLevel || ""),
+
+    reviewReasons:
+      result === "studied" ? [] : (Array.isArray(cur.reviewReasons) ? cur.reviewReasons : []),
+
+    lastReviewed:
+      result === "review" ? now : Number(cur.lastReviewed || 0),
+
+    lastStudied:
+      result === "studied" ? now : Number(cur.lastStudied || 0),
+
     lastResult:
       result,
 
@@ -3120,6 +3403,9 @@ function showAt(idx) {
 
     back.style.display =
       "none";
+
+    const row = cardRowMap.get(cards[idx]);
+    if (row) recordEncounter(row);
 
   }
 
