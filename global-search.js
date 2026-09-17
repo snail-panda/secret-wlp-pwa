@@ -190,6 +190,35 @@
     next.set('return', searchReturnPath(query));
     return `./editor-new-card.html?${next.toString()}`;
   }
+  function makeLocalDraftId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `local-${crypto.randomUUID()}`;
+    return `local-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+  }
+  function quickCaptureDraft(query) {
+    const word = String(query || '').trim();
+    if (!word) return null;
+    if (hasExactHeadword(word)) return {existing:true, word};
+    const drafts = readArray(LOCAL_ADDITIONS_KEY);
+    if (drafts.some(draft => normalize(draft?.Word) === normalize(word))) return {existing:true, word};
+    const now = new Date().toISOString();
+    const draft = {
+      localId: makeLocalDraftId(), createdAt: now, updatedAt: now,
+      Word: word, IPA:'', 'Part of Speech':'', Definition:'', 'Synonym(s)':'',
+      'Example Sentence':'', 'Note(s)':'', Category:'', Source:''
+    };
+    const draftIndex = drafts.length;
+    drafts.push(draft);
+    localStorage.setItem(LOCAL_ADDITIONS_KEY, JSON.stringify(drafts, null, 2));
+    effectiveRows.push({
+      'Batch #':'', 'Guidance #':'', WordID:'',
+      Word:word, IPA:'', 'Part of Speech':'', Definition:'', 'Synonym(s)':'',
+      'Example Sentence':'', 'Note(s)':'', Category:'', Source:'',
+      __source:'draft', __localId:draft.localId, __draftIndex:draftIndex
+    });
+    draftCount = drafts.length;
+    $('search-source-meta').textContent = `${masterCount.toLocaleString()} Master cards · ${draftCount.toLocaleString()} local draft${draftCount === 1 ? '' : 's'} · ${overrideCount.toLocaleString()} local edit${overrideCount === 1 ? '' : 's'}`;
+    return {existing:false, word, draft};
+  }
   function appendNoHeadwordNotice(resultsNode, query) {
     if (!query || hasExactHeadword(query)) return;
     const notice = document.createElement('aside');
@@ -203,12 +232,32 @@
     copy.append(strong, small);
     notice.append(copy);
     if (isAdminMode()) {
+      const actions = document.createElement('div');
+      actions.className = 'search-draft-actions';
+
+      const quick = document.createElement('button');
+      quick.type = 'button';
+      quick.className = 'search-quick-capture';
+      quick.innerHTML = '<span aria-hidden="true">＋</span><span>Quick Save</span>';
+      quick.setAttribute('aria-label', `Quick save ${query} as a Draft`);
+      quick.addEventListener('click', () => {
+        const result = quickCaptureDraft(query);
+        if (!result) return;
+        if (result.existing) {
+          showToast(`“${query}” is already in WLP.`);
+        } else {
+          showToast(`Captured “${query}” as a Draft.`);
+        }
+        renderResults(query);
+      });
+
       const add = document.createElement('a');
       add.className = 'search-add-draft';
       add.href = addAsDraftHref(query);
-      add.innerHTML = '<span aria-hidden="true">＋</span><span>Add as Draft</span>';
-      add.setAttribute('aria-label', `Add ${query} as a Draft`);
-      notice.append(add);
+      add.textContent = 'Add Details';
+      add.setAttribute('aria-label', `Open the full New Card form for ${query}`);
+      actions.append(quick, add);
+      notice.append(actions);
     }
     resultsNode.append(notice);
   }
