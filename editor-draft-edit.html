@@ -85,25 +85,6 @@
               <label class="new-card-field"><span>Part of Speech</span><input name="Part of Speech" type="text" list="wlp-pos-options" autocomplete="off" placeholder="Choose or type…"></label>
             </div>
           </section>
-
-          <section class="new-card-panel reference-assist-panel" id="reference-assist-panel">
-            <div class="new-card-section-head reference-assist-head">
-              <div><span class="editor-tool-kicker">Drafting assistant</span><h2>Fill from Reference</h2></div>
-              <span class="reference-assist-beta">Live lookup</span>
-            </div>
-            <p class="reference-assist-copy">Look up this headword from a trusted dictionary source, review the suggested fields, then choose what to apply. Nothing is saved automatically.</p>
-            <div class="reference-assist-controls">
-              <label class="new-card-field reference-source-field"><span>Reference Source</span><select id="reference-source"><option value="merriam-webster">Merriam-Webster</option><option value="collins" disabled>Collins Dictionary · awaiting access</option></select></label>
-              <button type="button" class="reference-lookup-button" id="reference-lookup-button">Look Up</button>
-            </div>
-            <div class="reference-provider-credit" aria-label="Reference data provider"><img src="https://dictionaryapi.com/images/info/branding-guidelines/MWLogo_LightBG_120x120_2x.png" alt="Merriam-Webster"><span>Reference suggestions use Merriam-Webster's Learner's Dictionary and Merriam-Webster's Collegiate<sup>®</sup> Thesaurus.</span></div>
-            <div class="reference-assist-status" id="reference-assist-status" hidden></div>
-            <div class="reference-preview" id="reference-preview" hidden>
-              <div class="reference-preview-head"><strong>Suggested Card</strong><span>Choose the fields you want to apply.</span></div>
-              <div id="reference-preview-fields"></div>
-              <div class="reference-preview-actions"><button type="button" class="new-card-secondary" id="reference-preview-cancel">Cancel</button><button type="button" class="new-card-primary" id="reference-preview-apply">Apply Suggestions</button></div>
-            </div>
-          </section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div><label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
@@ -170,8 +151,8 @@
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
   <script src="./editor-drafts.js?v=20260915-s7-editor-v1-3"></script>
-  <script src="./reference-assist.js?v=20260916-s7-reference-v3"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
   <script src="./pwa-register.js?v=20260915-s7-editor-v1-3"></script>
+  <script src="./stage7-shell-v2.js?v=20260917-s7-shell-v1863"></script>
 </body>
 </html>

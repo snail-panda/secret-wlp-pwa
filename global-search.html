@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./global-search.css?v=20260917-s7-v166">
+  <link rel="stylesheet" href="./global-search.css?v=20260915-s7-v30">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
 <body class="app-body global-search-page">
@@ -45,20 +45,9 @@
         <h1 id="global-search-title">Find a word anywhere.</h1>
         <p class="search-intro">Search headwords, definitions, synonyms, examples, and notes across the Master plus your local edits and drafts.</p>
         <label class="global-search-box" for="global-search-input">
-          <svg class="global-search-leading-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
           <input id="global-search-input" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search words, meanings, examples…">
-          <span class="global-search-controls">
-            <button id="global-search-voice" class="global-search-voice" type="button" aria-label="Search by voice" title="Search by voice" hidden>
-              <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="9" y="3" width="6" height="11" rx="3"></rect>
-                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path>
-              </svg>
-              <svg class="voice-stop-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="7.5" y="7.5" width="9" height="9" rx="1.4"></rect>
-              </svg>
-            </button>
-            <button id="global-search-clear" class="global-search-clear" type="button" aria-label="Clear search" hidden>×</button>
-          </span>
+          <button id="global-search-clear" type="button" aria-label="Clear search" hidden>×</button>
         </label>
         <div class="search-source-meta" id="search-source-meta" aria-live="polite">Loading the garden…</div>
       </section>
@@ -158,5 +147,6 @@
   <script src="./global-search.js?v=20260915-s7-v30"></script>
   <script src="./pwa-register.js?v=20260915-s7-v30"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
+  <script src="./stage7-shell-v2.js?v=20260917-s7-shell-v1863"></script>
 </body>
 </html>
