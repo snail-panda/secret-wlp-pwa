@@ -254,8 +254,8 @@
       const add = document.createElement('a');
       add.className = 'search-add-draft';
       add.href = addAsDraftHref(query);
-      add.textContent = 'Add Details';
-      add.setAttribute('aria-label', `Open the full New Card form for ${query}`);
+      add.textContent = 'Create a Draft';
+      add.setAttribute('aria-label', `Open the full New Card form to create a Draft for ${query}`);
       actions.append(quick, add);
       notice.append(actions);
     }
