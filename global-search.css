@@ -70,3 +70,36 @@
   .global-search-controls{gap:1px}
   .global-search-clear{transform:translateX(-4px)}
 }
+
+
+/* Stage 7 v1.6.7 — clearer voice-search state */
+.global-search-voice{position:relative}
+.global-search-voice .voice-stop-icon{display:none}
+.global-search-voice.is-listening .voice-mic-icon{display:none}
+.global-search-voice.is-listening .voice-stop-icon{display:block;width:18px;height:18px;fill:currentColor;stroke:none}
+.global-search-voice.is-listening{
+  color:#fff;
+  background:#416b57;
+  box-shadow:
+    0 0 0 4px rgba(65,107,87,.10),
+    0 0 0 8px rgba(65,107,87,.055);
+}
+.voice-permission-help{
+  width:min(100%,600px);
+  margin:8px auto 0;
+  padding:10px 12px;
+  border:1px solid #d7e2da;
+  border-radius:13px;
+  background:#f8fbf8;
+  color:#53675d;
+  font:13px/1.42 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.voice-permission-help strong{color:#315a47}
+.voice-permission-help button{
+  margin-top:7px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#35644f;
+  font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}

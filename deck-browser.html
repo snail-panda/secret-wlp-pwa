@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./deck-browser.css">
+  <link rel="stylesheet" href="./deck-browser.css?v=20260917-s7-v167">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 <style>
     /* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
@@ -112,10 +112,22 @@
 
       <section class="finder-panel" aria-label="Find a deck">
         <div class="deck-search">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <svg class="deck-search-leading-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
           <input id="deck-search" type="search" autocomplete="off" placeholder="Search deck number, word, meaning…" aria-label="Search decks">
-          <button id="deck-search-clear" class="deck-search-clear" type="button" aria-label="Clear search" hidden>×</button>
+          <span class="deck-search-controls">
+            <button id="deck-search-voice" class="deck-search-voice" type="button" aria-label="Search by voice" title="Search by voice" hidden>
+              <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path>
+              </svg>
+              <svg class="voice-stop-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="7.5" y="7.5" width="9" height="9" rx="1.4"></rect>
+              </svg>
+            </button>
+            <button id="deck-search-clear" class="deck-search-clear" type="button" aria-label="Clear search" hidden>×</button>
+          </span>
         </div>
+        <div id="deck-voice-permission-help" class="deck-voice-permission-help" hidden></div>
         <form class="jump-form" id="jump-form">
           <label for="jump-input">Jump to deck #</label>
           <div class="jump-control">
@@ -240,7 +252,7 @@
   </div>
 
   <div class="toast" id="deck-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./deck-browser.js"></script>
+  <script src="./deck-browser.js?v=20260917-s7-v167"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
   <script src="./pwa-register.js?v=20260914-stage7-7"></script>
 </body>

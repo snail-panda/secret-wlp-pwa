@@ -332,6 +332,109 @@
   deckSearchClear.addEventListener('click', clearDeckSearch);
   $('clear-search').addEventListener('click', clearDeckSearch);
 
+  // Voice search for Choose a Deck.
+  const deckVoiceButton = $('deck-search-voice');
+  const deckVoiceHelp = $('deck-voice-permission-help');
+  const DeckSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let deckVoiceRecognition = null;
+  let deckVoiceListening = false;
+  let deckVoiceTimeout = 0;
+
+  const setDeckVoiceListening = listening => {
+    deckVoiceListening = Boolean(listening);
+    if (!deckVoiceListening && deckVoiceTimeout) {
+      clearTimeout(deckVoiceTimeout);
+      deckVoiceTimeout = 0;
+    }
+    if (!deckVoiceButton) return;
+    deckVoiceButton.classList.toggle('is-listening', deckVoiceListening);
+    deckVoiceButton.setAttribute('aria-pressed', String(deckVoiceListening));
+    deckVoiceButton.setAttribute('aria-label', deckVoiceListening ? 'Stop voice search' : 'Search by voice');
+    deckVoiceButton.setAttribute('title', deckVoiceListening ? 'Stop voice search' : 'Search by voice');
+  };
+
+  const hideDeckVoiceHelp = () => {
+    if (!deckVoiceHelp) return;
+    deckVoiceHelp.hidden = true;
+    deckVoiceHelp.innerHTML = '';
+  };
+
+  const showDeckVoiceHelp = () => {
+    if (!deckVoiceHelp) return;
+    deckVoiceHelp.innerHTML = `<strong>Microphone permission is blocked for this site.</strong><br>
+      In Chrome on iPhone, tap the microphone/camera icon at the left of the address bar and turn site Permissions on.
+      Also check iPhone Settings → Chrome → Microphone and Speech Recognition.
+      <br><button type="button">Dismiss</button>`;
+    deckVoiceHelp.hidden = false;
+    deckVoiceHelp.querySelector('button')?.addEventListener('click', hideDeckVoiceHelp);
+  };
+
+  const stopDeckVoice = () => {
+    if (!deckVoiceRecognition) return;
+    try { deckVoiceRecognition.abort(); } catch (_) {}
+    deckVoiceRecognition = null;
+    setDeckVoiceListening(false);
+  };
+
+  if (deckVoiceButton && DeckSpeechRecognition) {
+    deckVoiceButton.hidden = false;
+    deckVoiceButton.setAttribute('aria-pressed', 'false');
+    deckVoiceButton.addEventListener('click', e => {
+      e.preventDefault();
+      if (deckVoiceListening && deckVoiceRecognition) {
+        try { deckVoiceRecognition.stop(); } catch (_) {}
+        return;
+      }
+      try {
+        const recognition = new DeckSpeechRecognition();
+        deckVoiceRecognition = recognition;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.continuous = false;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => {
+          hideDeckVoiceHelp();
+          setDeckVoiceListening(true);
+          deckVoiceTimeout = window.setTimeout(() => {
+            try { recognition.stop(); } catch (_) {}
+          }, 10000);
+        };
+        recognition.onend = () => {
+          setDeckVoiceListening(false);
+          deckVoiceRecognition = null;
+        };
+        recognition.onerror = event => {
+          setDeckVoiceListening(false);
+          deckVoiceRecognition = null;
+          if (event?.error === 'aborted' || event?.error === 'no-speech') return;
+          if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+            showDeckVoiceHelp();
+            return;
+          }
+          showToast('Voice search could not hear that. Try again.');
+        };
+        recognition.onresult = event => {
+          const transcript = String(event?.results?.[0]?.[0]?.transcript || '').trim();
+          if (!transcript) return;
+          try { recognition.stop(); } catch (_) {}
+          deckSearchInput.value = transcript;
+          runDeckSearch({scroll: true});
+        };
+        recognition.start();
+      } catch (error) {
+        console.error('Deck voice search could not start:', error);
+        setDeckVoiceListening(false);
+        deckVoiceRecognition = null;
+        showToast('Voice search is unavailable right now.');
+      }
+    });
+
+    window.addEventListener('pagehide', stopDeckVoice);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopDeckVoice();
+    });
+  }
+
   $('pinned-toggle').addEventListener('click', () => {
     pinnedExpanded = !pinnedExpanded;
     renderShortcuts();

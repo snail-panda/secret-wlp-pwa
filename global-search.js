@@ -352,13 +352,41 @@
   // Voice search: only expose the control when this browser provides
   // a SpeechRecognition implementation. The microphone icon matches
   // the existing WLP recording control rather than using an emoji.
+  const searchBox = document.querySelector('.global-search-box');
+  let voicePermissionHelp = null;
+
+  const hideVoicePermissionHelp = () => {
+    if (voicePermissionHelp) {
+      voicePermissionHelp.remove();
+      voicePermissionHelp = null;
+    }
+  };
+
+  const showVoicePermissionHelp = () => {
+    hideVoicePermissionHelp();
+    const panel = document.createElement('div');
+    panel.className = 'voice-permission-help';
+    panel.innerHTML = `<strong>Microphone permission is blocked for this site.</strong><br>
+      In Chrome on iPhone, tap the microphone/camera icon at the left of the address bar and turn site Permissions on.
+      Also check iPhone Settings → Chrome → Microphone and Speech Recognition.
+      <br><button type="button">Dismiss</button>`;
+    panel.querySelector('button')?.addEventListener('click', hideVoicePermissionHelp);
+    searchBox?.insertAdjacentElement('afterend', panel);
+    voicePermissionHelp = panel;
+  };
+
   const voiceButton = $('global-search-voice');
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   let voiceRecognition = null;
   let voiceListening = false;
+  let voiceTimeout = 0;
 
   const setVoiceListening = listening => {
     voiceListening = Boolean(listening);
+    if (!voiceListening && voiceTimeout) {
+      clearTimeout(voiceTimeout);
+      voiceTimeout = 0;
+    }
     if (!voiceButton) return;
     voiceButton.classList.toggle('is-listening', voiceListening);
     voiceButton.setAttribute('aria-pressed', String(voiceListening));
@@ -387,7 +415,13 @@
         recognition.continuous = false;
         recognition.maxAlternatives = 1;
 
-        recognition.onstart = () => setVoiceListening(true);
+        recognition.onstart = () => {
+          hideVoicePermissionHelp();
+          setVoiceListening(true);
+          voiceTimeout = window.setTimeout(() => {
+            try { recognition.stop(); } catch (_) {}
+          }, 10000);
+        };
         recognition.onend = () => {
           setVoiceListening(false);
           voiceRecognition = null;
@@ -396,13 +430,16 @@
           setVoiceListening(false);
           voiceRecognition = null;
           if (event?.error === 'aborted' || event?.error === 'no-speech') return;
-          showToast(event?.error === 'not-allowed'
-            ? 'Microphone access is needed for voice search.'
-            : 'Voice search could not hear that. Try again.');
+          if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+            showVoicePermissionHelp();
+            return;
+          }
+          showToast('Voice search could not hear that. Try again.');
         };
         recognition.onresult = event => {
           const transcript = String(event?.results?.[0]?.[0]?.transcript || '').trim();
           if (!transcript) return;
+          try { recognition.stop(); } catch (_) {}
           input.value = transcript;
           input.dispatchEvent(new Event('input', {bubbles:true}));
           requestAnimationFrame(() => {
@@ -420,6 +457,17 @@
       }
     });
   }
+
+  const stopVoiceRecognition = () => {
+    if (!voiceRecognition) return;
+    try { voiceRecognition.abort(); } catch (_) {}
+    voiceRecognition = null;
+    setVoiceListening(false);
+  };
+  window.addEventListener('pagehide', stopVoiceRecognition);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopVoiceRecognition();
+  });
 
   if (initialQ) setTimeout(() => input.setSelectionRange(input.value.length,input.value.length), 0);
 
