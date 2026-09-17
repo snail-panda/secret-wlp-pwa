@@ -2600,3 +2600,37 @@ body.review-attention-open{overflow:hidden}
   .stage7-study-body #deck-nav-links .deck-step-icon,
   .stage7-study-body #deck-nav-links .deck-home-icon{width:23px!important;height:23px!important;flex-basis:23px!important}
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Study toggle + nav polish v1.8.3
+   Edge-weighted deck nav, lighter helper labels, calmer toasts.
+   ========================================================= */
+.stage7-study-body #deck-nav-links{
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
+.stage7-study-body #deck-nav-links > div:first-child .deck-step-link{
+  width:auto!important;
+  min-width:0!important;
+  align-items:flex-start!important;
+  padding-left:0!important;
+  padding-right:4px!important;
+}
+.stage7-study-body #deck-nav-links > div:last-child .deck-step-link{
+  width:auto!important;
+  min-width:0!important;
+  align-items:flex-end!important;
+  padding-left:4px!important;
+  padding-right:0!important;
+}
+.stage7-study-body #deck-nav-links .deck-nav-label{
+  font-weight:400!important;
+  letter-spacing:.005em!important;
+}
+.stage7-study-body .study-progress-toast{
+  border-radius:16px!important;
+}
+@media(max-width:390px){
+  .stage7-study-body #deck-nav-links{padding-left:6px!important;padding-right:6px!important}
+}

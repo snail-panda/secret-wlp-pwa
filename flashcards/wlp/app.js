@@ -3091,8 +3091,28 @@ function bindCardBehavior(
 
   reviewButton?.addEventListener("click", () => {
     const cur = readProgress(stateKey);
+
     if (cur.review) {
-      openReviewAttentionSheet(row, stateKey, refreshProgressControls);
+      saveProgress(stateKey, {
+        ...cur,
+        known: false,
+        review: false,
+        reviewLevel: "",
+        reviewReasons: [],
+        lastResult: "neutral",
+        lastSeen: Date.now()
+      });
+      activityEvent("review", row, { action: "removed-from-review" });
+      interactionEvent("review_removed", row, {
+        previousReviewLevel: cur.reviewLevel || "",
+        previousReviewReasons: Array.isArray(cur.reviewReasons) ? cur.reviewReasons : []
+      });
+      refreshProgressControls();
+      showStudyToast(
+        "Removed from Review. This card is neutral for now. Tap Review again whenever you want to bring it back.",
+        4800
+      );
+      if (IS_REVIEW_MODE) removeFromCurrentReviewDeck(root);
       return;
     }
 
@@ -3100,7 +3120,7 @@ function bindCardBehavior(
     activityEvent("review", row, { action: "added-to-review" });
     interactionEvent("review", row, { action: "added-to-review" });
     refreshProgressControls();
-    showStudyToast("Added to Review. Set attention only if you want to.");
+    showStudyToast("Added to Review. Set attention only if you want to.", 4600);
   });
 
   attentionButton?.addEventListener("click", () => {
