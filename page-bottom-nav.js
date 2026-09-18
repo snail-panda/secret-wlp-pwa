@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.11 — shared Bottom Nav behavior. */
+/* WLP Stage 7 — shared Bottom Nav behavior. */
 (() => {
   function initStage7BottomNav(){
     document.querySelectorAll('[data-stage7-history-back]').forEach((button) => {

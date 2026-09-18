@@ -1,5 +1,5 @@
-// WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-sticky-save-bar-restore-v1-8-6-12';
+// WLP Stage 7 — offline application shell and cache.
+const CACHE_NAME = 'wlp-stage7-runtime-label-cleanup-v1-8-6-13';
 const CORE = [
   './',
   './index.html',

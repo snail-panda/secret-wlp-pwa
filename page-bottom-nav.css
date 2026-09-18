@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.12 — shared fixed Bottom Nav.
+/* WLP Stage 7 — shared fixed Bottom Nav.
    Visual spec intentionally matches the approved Study Card / Choose a Deck nav. */
 .stage7-bottom-nav-page .app-shell{
   padding-bottom:calc(72px + env(safe-area-inset-bottom));
