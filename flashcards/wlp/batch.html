@@ -804,8 +804,8 @@
 
   <script>
     (() => {
-      // v1.8.6.9: escape the Study shell's iOS Safari containing block so
-      // position:fixed is anchored to the actual viewport during scrolling.
+      // Escape the Study shell's iOS browser-engine containing block so
+      // position:fixed stays anchored to the actual viewport in iPhone Chrome.
       const bottomNav = document.getElementById('deck-nav-links');
       if (bottomNav) {
         if (bottomNav.parentElement !== document.body) document.body.appendChild(bottomNav);
@@ -825,16 +825,20 @@
     (()=>{
       const lockStudyBottomNav=()=>{
         const nav=document.getElementById('deck-nav-links');
-        if(!nav)return;
+        if(!nav||!document.body)return;
         if(nav.parentElement!==document.body)document.body.appendChild(nav);
-        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};
+        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translate3d(-50%, 0, 0)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0',willChange:'transform'};
         Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));
+        nav.style.setProperty('-webkit-transform','translate3d(-50%, 0, 0)','important');
+        nav.dataset.stage7ViewportLocked='true';
       };
+      let raf=0;
+      const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lockStudyBottomNav();});};
       lockStudyBottomNav();
-      addEventListener('pageshow',lockStudyBottomNav);
-      addEventListener('resize',lockStudyBottomNav,{passive:true});
-      addEventListener('orientationchange',lockStudyBottomNav,{passive:true});
-      if(window.visualViewport)visualViewport.addEventListener('resize',lockStudyBottomNav,{passive:true});
+      ['pageshow','focus','resize','orientationchange','scroll','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
+      if(window.visualViewport){visualViewport.addEventListener('resize',schedule,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
+      setInterval(()=>{if(!document.hidden)lockStudyBottomNav();},1500);
     })();
   </script>
   <script src="../../learning-hooks.js?v=20260918-s7-learning-meta-v2-v18631"></script>
