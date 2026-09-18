@@ -83,12 +83,54 @@
 .reference-conflict-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;margin-top:5px}
 .reference-conflict-actions button{min-height:34px;padding:7px 10px;border-radius:999px;font:800 .66rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
 @media(max-width:520px){.reference-conflict-actions{justify-content:flex-start}}
-\n\n/* Stage 7 v1.5.8 — separate card Word from dictionary Lookup term */\n.reference-assist-controls{grid-template-columns:minmax(150px,.85fr) minmax(180px,1.15fr) auto}\n.reference-query-field{margin:0}\n.reference-query-label{display:flex!important;align-items:center;justify-content:space-between;gap:8px}\n.reference-query-reset{padding:0;border:0;background:none;color:#74857b;font:800 .61rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:underline;text-underline-offset:2px;cursor:pointer}\n.reference-query-reset[hidden]{display:none!important}\n.reference-retry-options{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px}\n.reference-retry-options>span{margin-right:1px;color:#746955;font-size:.65rem;font-weight:800}\n.reference-retry-chip{min-height:30px;padding:6px 9px;border:1px solid rgba(133,112,76,.19);border-radius:999px;background:rgba(255,255,255,.72);color:#665c4c;font:800 .65rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}\n.reference-query-hint{margin-top:7px;color:#8a7e69;font-size:.64rem;line-height:1.4}\n.reference-lookup-provenance{display:flex;align-items:baseline;gap:7px;padding:7px 0;border-top:1px solid rgba(74,104,87,.08);color:#65776d;font-size:.67rem;line-height:1.35}\n.reference-lookup-provenance strong{font-weight:800}.reference-lookup-provenance span{color:#40594b;font-weight:700}\n@media(max-width:640px){.reference-assist-controls{grid-template-columns:1fr}.reference-lookup-button{justify-self:start}}\n
+
+
+/* Stage 7 v1.5.8 — separate card Word from dictionary Lookup term */
+.reference-assist-controls{grid-template-columns:minmax(150px,.85fr) minmax(180px,1.15fr) auto}
+.reference-query-field{margin:0}
+.reference-query-label{display:flex!important;align-items:center;justify-content:space-between;gap:8px}
+.reference-query-reset{padding:0;border:0;background:none;color:#74857b;font:800 .61rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.reference-query-reset[hidden]{display:none!important}
+.reference-retry-options{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px}
+.reference-retry-options>span{margin-right:1px;color:#746955;font-size:.65rem;font-weight:800}
+.reference-retry-chip{min-height:30px;padding:6px 9px;border:1px solid rgba(133,112,76,.19);border-radius:999px;background:rgba(255,255,255,.72);color:#665c4c;font:800 .65rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.reference-query-hint{margin-top:7px;color:#8a7e69;font-size:.64rem;line-height:1.4}
+.reference-lookup-provenance{display:flex;align-items:baseline;gap:7px;padding:7px 0;border-top:1px solid rgba(74,104,87,.08);color:#65776d;font-size:.67rem;line-height:1.35}
+.reference-lookup-provenance strong{font-weight:800}.reference-lookup-provenance span{color:#40594b;font-weight:700}
+@media(max-width:640px){.reference-assist-controls{grid-template-columns:1fr}.reference-lookup-button{justify-self:start}}
+
 
 /* Stage 7 v1.6.1 — manual Google research from Reference Assist */
-.reference-google-button{min-height:42px;padding:9px 14px;border:1px solid rgba(74,104,87,.16);border-radius:999px;background:rgba(255,255,255,.82);color:#64766c;font:800 .72rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
-.reference-google-button:active{transform:translateY(1px)}
-@media(max-width:640px){.reference-google-button{justify-self:start}}
+/* Stage 7 v1.8.6.20 — intentional external-search secondary action */
+.reference-assist-controls{grid-template-columns:minmax(160px,.85fr) minmax(180px,1.15fr) auto auto;align-items:end}
+.reference-google-button{
+  min-height:36px;
+  padding:8px 12px;
+  border:1px solid rgba(58,117,201,.28);
+  border-radius:999px;
+  background:rgba(65,129,220,.08);
+  color:#3974c6;
+  font:800 .69rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  cursor:pointer;
+  white-space:nowrap;
+  justify-self:start;
+  box-shadow:0 1px 0 rgba(255,255,255,.72) inset;
+  transition:background .16s ease,border-color .16s ease,transform .12s ease;
+}
+.reference-google-button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.reference-google-button:hover{background:rgba(65,129,220,.12);border-color:rgba(58,117,201,.38)}
+.reference-google-button:focus-visible{outline:2px solid rgba(58,117,201,.30);outline-offset:2px}
+.reference-google-button:active{transform:translateY(1px);background:rgba(65,129,220,.15)}
+@media(max-width:640px){
+  .reference-assist-controls{grid-template-columns:auto auto;justify-content:start;align-items:end}
+  .reference-source-field,.reference-query-field{grid-column:1 / -1;width:100%}
+  .reference-lookup-button{grid-column:1;justify-self:start}
+  .reference-google-button{grid-column:2;justify-self:start;min-height:34px;padding:7px 11px;font-size:.68rem}
+}
 
 /* Stage 7 v1.8.6.19 — desktop editor workspace width.
    editor.css turns .editor-workspace into two columns on wider screens for the

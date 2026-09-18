@@ -32,7 +32,7 @@
   const googleSearch = document.createElement('button');
   googleSearch.type = 'button';
   googleSearch.className = 'reference-google-button';
-  googleSearch.textContent = 'Google Search';
+  googleSearch.innerHTML = '<span>Google Search</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5"></path><path d="M10 14 19 5"></path><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path></svg>';
   lookup.insertAdjacentElement('afterend', googleSearch);
 
   let queryDirty = false;
