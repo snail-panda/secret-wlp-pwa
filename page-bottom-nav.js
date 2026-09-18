@@ -1,6 +1,12 @@
-/* WLP Stage 7 — shared Bottom Nav behavior. */
+/* WLP Stage 7 v1.8.6.14 — shared Bottom Nav behavior. */
 (() => {
   function initStage7BottomNav(){
+    // Keep fixed navigation anchored to the actual viewport on iOS Safari.
+    // This mirrors the approved Study Card / Choose a Deck implementation.
+    document.querySelectorAll('.stage7-page-bottom-nav').forEach((nav) => {
+      if (nav.parentElement !== document.body) document.body.appendChild(nav);
+    });
+
     document.querySelectorAll('[data-stage7-history-back]').forEach((button) => {
       button.addEventListener('click', () => {
         const fallback = button.getAttribute('data-stage7-back-fallback') || './index.html';

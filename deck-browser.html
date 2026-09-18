@@ -112,10 +112,22 @@
 
       <section class="finder-panel" aria-label="Find a deck">
         <div class="deck-search">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <svg class="deck-search-leading-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
           <input id="deck-search" type="search" autocomplete="off" placeholder="Search deck number, word, meaning…" aria-label="Search decks">
-          <button id="deck-search-clear" class="deck-search-clear" type="button" aria-label="Clear search" hidden>×</button>
+          <span class="deck-search-controls">
+            <button id="deck-search-voice" class="deck-search-voice" type="button" aria-label="Search by voice" title="Search by voice" hidden>
+              <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path>
+              </svg>
+              <svg class="voice-stop-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="7.5" y="7.5" width="9" height="9" rx="1.4"></rect>
+              </svg>
+            </button>
+            <button id="deck-search-clear" class="deck-search-clear" type="button" aria-label="Clear search" hidden>×</button>
+          </span>
         </div>
+        <div id="deck-voice-permission-help" class="deck-voice-permission-help" hidden></div>
         <form class="jump-form" id="jump-form">
           <label for="jump-input">Jump to deck #</label>
           <div class="jump-control">

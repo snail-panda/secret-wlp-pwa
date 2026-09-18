@@ -1,5 +1,5 @@
 // WLP Stage 7 — offline application shell and cache.
-const CACHE_NAME = 'wlp-stage7-runtime-label-cleanup-v1-8-6-13';
+const CACHE_NAME = 'wlp-stage7-regression-repair-v1-8-6-14';
 const CORE = [
   './',
   './index.html',
