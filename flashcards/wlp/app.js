@@ -28,6 +28,12 @@ const BATCH_PARAM =
 const REVIEW_PARAM =
   PARAMS.get("review");
 
+const REVIEW_LEVEL_PARAM =
+  String(PARAMS.get("reviewlevel") || "").trim().toLowerCase();
+
+const REVIEW_REASON_PARAM =
+  String(PARAMS.get("reviewreason") || "").trim().toLowerCase();
+
 const DRAFT_PARAM =
   PARAMS.get("draft");
 
@@ -42,6 +48,9 @@ const FROM_PARAM =
 
 const IS_FROM_PROGRESS =
   FROM_PARAM === "progress";
+
+const IS_FROM_REVIEW_HUB =
+  FROM_PARAM === "review";
 
 const IS_SOLO_MODE =
   SOLO_PARAM === "1" &&
@@ -252,7 +261,7 @@ if (
 
 
 // ★ ここに追加
-if (IS_REVIEW_MODE) {
+if (IS_REVIEW_MODE || IS_FROM_REVIEW_HUB) {
 
   const reviewBackLink =
     document.getElementById(
@@ -1180,7 +1189,19 @@ function readAllReviewProgress() {
         lastSeen:
           Number(
             data.lastSeen || 0
+          ),
+
+        reviewLevel:
+          ["high", "medium", "light"].includes(
+            String(data.reviewLevel || "").toLowerCase()
           )
+            ? String(data.reviewLevel).toLowerCase()
+            : "",
+
+        reviewReasons:
+          Array.isArray(data.reviewReasons)
+            ? data.reviewReasons.map(value => String(value || "").toLowerCase())
+            : []
 
       });
 
@@ -1196,7 +1217,26 @@ function readAllReviewProgress() {
 
   }
 
-  records.sort(
+  const filteredRecords = records.filter(record => {
+    if (REVIEW_LEVEL_PARAM) {
+      if (REVIEW_LEVEL_PARAM === "unassigned") {
+        if (record.reviewLevel) return false;
+      } else if (record.reviewLevel !== REVIEW_LEVEL_PARAM) {
+        return false;
+      }
+    }
+
+    if (
+      REVIEW_REASON_PARAM &&
+      !record.reviewReasons.includes(REVIEW_REASON_PARAM)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  filteredRecords.sort(
     (a, b) => {
 
       if (
@@ -1219,7 +1259,7 @@ function readAllReviewProgress() {
     }
   );
 
-  return records;
+  return filteredRecords;
 
 }
 
