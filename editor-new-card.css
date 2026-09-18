@@ -18,7 +18,13 @@
 .new-card-field textarea{padding:9px 10px;resize:vertical;min-height:76px}
 .new-card-field input:focus,.new-card-field textarea:focus{border-color:rgba(85,114,100,.48);box-shadow:0 0 0 3px rgba(85,114,100,.08);background:#fff}
 .new-card-word-field input{font-family:"EB Garamond",Georgia,serif;font-size:1.17rem;font-weight:600;letter-spacing:.005em}
+/* Stage 7 v1.8.6.18 — keep grouped editor fields on one spacing rhythm.
+   Grid children must not add their own top margin; the Word -> IPA/POS grid
+   gets one explicit section gap instead. This keeps IPA/POS aligned on desktop
+   and evenly spaced when stacked on mobile. */
 .new-card-grid{display:grid;gap:10px}
+.new-card-grid>.new-card-field{margin-top:0}
+.new-card-word-field+.new-card-grid{margin-top:10px}
 .new-card-grid.two-col{grid-template-columns:1fr 1fr}
 .new-card-field-only{margin-top:0}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
