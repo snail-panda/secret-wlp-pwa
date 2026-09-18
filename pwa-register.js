@@ -1,37 +1,19 @@
-// WLP PWA registration + shared Stage 7 shell loader.
+// WLP PWA registration only.
+// UI chrome (hamburger / bottom navigation) must be defined by the page itself.
+// Do not inject shared shell CSS/JS from here: doing so can reintroduce stale
+// cached UI across otherwise unrelated pages.
 (() => {
-  // Resolve from THIS script, not from the current page. This matters on
-  // nested pages such as /flashcards/wlp/batch.html.
   const loaderScript = document.currentScript;
   const appRoot = new URL('./', loaderScript?.src || document.baseURI);
   const rootUrl = (path) => new URL(path, appRoot).href;
-
-  const addStyle = () => {
-    if (document.querySelector('link[data-stage7-shell]')) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = rootUrl('stage7-shell.css?v=20260917-s7-shell-v1862');
-    link.dataset.stage7Shell = 'true';
-    document.head.appendChild(link);
-  };
-
-  const addShell = () => {
-    if (document.querySelector('script[data-stage7-shell]')) return;
-    const script = document.createElement('script');
-    script.src = rootUrl('stage7-shell.js?v=20260917-s7-shell-v1862');
-    script.dataset.stage7Shell = 'true';
-    document.head.appendChild(script);
-  };
-
-  addStyle();
-  addShell();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register(rootUrl('service-worker.js'), {
         scope: appRoot.pathname,
         updateViaCache: 'none'
-      }).catch(error => console.warn('WLP service worker registration failed:', error));
+      }).then(registration => registration.update())
+        .catch(error => console.warn('WLP service worker registration failed:', error));
     });
   }
 })();
