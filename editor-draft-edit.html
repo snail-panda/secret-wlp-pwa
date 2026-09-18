@@ -85,25 +85,6 @@
               <label class="new-card-field"><span>Part of Speech</span><input name="Part of Speech" type="text" list="wlp-pos-options" autocomplete="off" placeholder="Choose or type…"></label>
             </div>
           </section>
-
-          <section class="new-card-panel reference-assist-panel" id="reference-assist-panel">
-            <div class="new-card-section-head reference-assist-head">
-              <div><span class="editor-tool-kicker">Drafting assistant</span><h2>Fill from Reference</h2></div>
-              <span class="reference-assist-beta">Live lookup</span>
-            </div>
-            <p class="reference-assist-copy">Look up this headword from a trusted dictionary source, review the suggested fields, then choose what to apply. Nothing is saved automatically.</p>
-            <div class="reference-assist-controls">
-              <label class="new-card-field reference-source-field"><span>Reference Source</span><select id="reference-source"><option value="merriam-webster">Merriam-Webster</option><option value="collins" disabled>Collins Dictionary · awaiting access</option></select></label>
-              <button type="button" class="reference-lookup-button" id="reference-lookup-button">Look Up</button>
-            </div>
-            <div class="reference-provider-credit" aria-label="Reference data provider"><img src="https://dictionaryapi.com/images/info/branding-guidelines/MWLogo_LightBG_120x120_2x.png" alt="Merriam-Webster"><span>Reference suggestions use Merriam-Webster's Learner's Dictionary and Merriam-Webster's Collegiate<sup>®</sup> Thesaurus.</span></div>
-            <div class="reference-assist-status" id="reference-assist-status" hidden></div>
-            <div class="reference-preview" id="reference-preview" hidden>
-              <div class="reference-preview-head"><strong>Suggested Card</strong><span>Choose the fields you want to apply.</span></div>
-              <div id="reference-preview-fields"></div>
-              <div class="reference-preview-actions"><button type="button" class="new-card-secondary" id="reference-preview-cancel">Cancel</button><button type="button" class="new-card-primary" id="reference-preview-apply">Apply Suggestions</button></div>
-            </div>
-          </section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div><label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
@@ -136,8 +117,9 @@
       <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
       <a class="drawer-item" href="./legacy-home.html#review"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
       <a class="drawer-item" href="./drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Drafts</span><small>Study your new local cards</small></span></a>
-      <a class="drawer-item" href="./legacy-home.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span></a>
+      <a class="drawer-item" href="./progress.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span></a>
       <a class="drawer-item drawer-admin-only is-current" href="./editor.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Editor</span><small><span>Create &amp; Edit: New Cards, Drafts &amp; Local Edits</span><span>Backup: Import &amp; Export</span></small></span></a>
+      <a class="drawer-item drawer-admin-only stage7-backup-restore-item" href="./editor-backup.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M5 13.5V20h14v-6.5"/><path d="M7 16.5h10"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Backup &amp; Restore</span><small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small></span></a>
       <hr>
       <button class="drawer-item drawer-action" id="drawer-settings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21H10v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span></button>
       <button class="drawer-item drawer-action" id="drawer-role-action" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span></button>
@@ -170,7 +152,6 @@
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
   <script src="./editor-drafts.js?v=20260915-s7-editor-v1-3"></script>
-  <script src="./reference-assist.js?v=20260916-s7-reference-v3"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
   <script src="./pwa-register.js?v=20260915-s7-editor-v1-3"></script>
 </body>
