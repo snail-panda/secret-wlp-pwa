@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.27 — shared Bottom Nav viewport lock. */
+/* WLP Stage 7 v1.8.6.29 — shared Bottom Nav viewport lock + semantic Back policy. */
 (() => {
   function lockNavToViewport(nav){
     if (!nav) return;
@@ -20,15 +20,14 @@
   function initStage7BottomNav(){
     document.querySelectorAll('.stage7-page-bottom-nav').forEach(lockNavToViewport);
 
-    document.querySelectorAll('[data-stage7-history-back]').forEach((button) => {
-      button.addEventListener('click', () => {
+    // Bottom Nav Back is app-level parent navigation, not browser history.
+    // Keep the legacy data-stage7-history-back hook as a compatibility alias so
+    // older cached HTML cannot reintroduce Back/parent ping-pong loops.
+    document.querySelectorAll('[data-stage7-parent-back], [data-stage7-history-back]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
         const fallback = button.getAttribute('data-stage7-back-fallback') || './index.html';
-        let sameOriginReferrer = false;
-        try {
-          sameOriginReferrer = !!document.referrer && new URL(document.referrer).origin === location.origin;
-        } catch (_) {}
-        if (sameOriginReferrer) history.back();
-        else location.href = fallback;
+        location.href = fallback;
       });
     });
 
