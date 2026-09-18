@@ -6,7 +6,7 @@
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260916-s7-editor-backup-v1-5-1';
   const WLP_EXPORT_COLUMNS = ['Batch #','Guidance #','WordID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const WLP_DRAFT_EXPORT_COLUMNS = [...WLP_EXPORT_COLUMNS,'Local Draft ID','Created At','Updated At'];
-  const WLP_HOOK_EXPORT_COLUMNS = ['Entry Kind','WordID','Local Draft ID','Word','Sense Hook','Memory Hook','Metadata ID','Status','Revision','Version ID','Parent Version ID','Updated At','Updated By Device'];
+  const WLP_HOOK_EXPORT_COLUMNS = ['Entry Kind','WordID','Local Draft ID','Word','Sense Hook','Memory Hook','Situation Count','Situation Anchors','Situation IDs','Situation Revisions','Metadata ID','Status','Revision','Version ID','Parent Version ID','Updated At','Updated By Device'];
   const LOCAL_OVERRIDE_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const $ = id => document.getElementById(id);
   const isAdmin = () => localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin';
@@ -41,6 +41,15 @@
     const masterByWid=new Map(masterRows.map(row=>{const effective=applyOverride(row,overrides);return[String(effective.WordID||'').trim(),effective];}));
     const draftById=new Map(drafts.map(d=>[String(d.localId||'').trim(),d]));
     const rows=entries.map(([key,hook])=>{
+      const situations=Array.isArray(hook.situations)?hook.situations.filter(item=>item&&!item.deletedAt&&String(item.anchor||'').trim()):[];
+      const learning={
+        'Sense Hook':String(hook.senseHook||''),
+        'Memory Hook':String(hook.memoryHook||''),
+        'Situation Count':String(situations.length),
+        'Situation Anchors':situations.map(item=>String(item.anchor||'').trim()).join('\n'),
+        'Situation IDs':situations.map(item=>String(item.situationId||'')).join('\n'),
+        'Situation Revisions':situations.map(item=>String(item.revision||'')).join('\n')
+      };
       const identity={
         'Metadata ID':String(hook.metadataId||''),
         Status:String(hook.status||'provisional'),
@@ -50,9 +59,9 @@
         'Updated At':String(hook.updatedAt||''),
         'Updated By Device':String(hook.updatedByDevice||'')
       };
-      if(key.startsWith('wid:')){const wid=key.slice(4),row=masterByWid.get(wid)||{};return{'Entry Kind':'Master',WordID:wid,'Local Draft ID':'',Word:String(row.Word||''),'Sense Hook':String(hook.senseHook||''),'Memory Hook':String(hook.memoryHook||''),...identity};}
-      if(key.startsWith('draft:')){const localId=key.slice(6),row=draftById.get(localId)||{};return{'Entry Kind':'Draft',WordID:'','Local Draft ID':localId,Word:String(row.Word||''),'Sense Hook':String(hook.senseHook||''),'Memory Hook':String(hook.memoryHook||''),...identity};}
-      return{'Entry Kind':'Local','WordID':'','Local Draft ID':'',Word:'','Sense Hook':String(hook.senseHook||''),'Memory Hook':String(hook.memoryHook||''),...identity};
+      if(key.startsWith('wid:')){const wid=key.slice(4),row=masterByWid.get(wid)||{};return{'Entry Kind':'Master',WordID:wid,'Local Draft ID':'',Word:String(row.Word||''),...learning,...identity};}
+      if(key.startsWith('draft:')){const localId=key.slice(6),row=draftById.get(localId)||{};return{'Entry Kind':'Draft',WordID:'','Local Draft ID':localId,Word:String(row.Word||''),...learning,...identity};}
+      return{'Entry Kind':'Local','WordID':'','Local Draft ID':'',Word:'',...learning,...identity};
     });
     rows.sort((a,b)=>{if(a['Entry Kind']!==b['Entry Kind'])return a['Entry Kind'].localeCompare(b['Entry Kind']);const aw=Number(a.WordID),bw=Number(b.WordID);if(Number.isFinite(aw)&&Number.isFinite(bw)&&aw!==bw)return aw-bw;return String(a.Word||'').localeCompare(String(b.Word||''));});
     return rows;
@@ -196,7 +205,7 @@
   $('deck-export-new-only')?.addEventListener('click',()=>{if(!isAdmin())return;const drafts=readDrafts();if(!drafts.length){showStatus('There are no local Draft cards to export.',true);return;}downloadTSV(buildTSV(drafts.map(localDraftToPortableRow),WLP_DRAFT_EXPORT_COLUMNS),`wlp-new-cards-${dateStamp()}.tsv`);showStatus(`New Cards Only · Prepared for download · ${drafts.length} Draft${drafts.length===1?'':'s'}.`);});
   $('learning-hooks-export')?.addEventListener('click',async()=>{
     if(!isAdmin())return;
-    try{if(!masterRows.length)await loadMaster();const rows=learningHookRows();if(!rows.length){showStatus('There is no local Sense / Memory metadata to export.',true);return;}downloadTSV(buildTSV(rows,WLP_HOOK_EXPORT_COLUMNS),`wlp-learning-metadata-v2-${dateStamp()}.tsv`);showStatus(`Learning Metadata v2 · Prepared for download · ${rows.length} card${rows.length===1?'':'s'}.`);}catch(error){showStatus(error?.message||String(error),true);}
+    try{if(!masterRows.length)await loadMaster();const rows=learningHookRows();if(!rows.length){showStatus('There is no local Learning Metadata to export.',true);return;}downloadTSV(buildTSV(rows,WLP_HOOK_EXPORT_COLUMNS),`wlp-learning-metadata-v2-${dateStamp()}.tsv`);showStatus(`Learning Metadata v2 · Prepared for download · ${rows.length} card${rows.length===1?'':'s'}.`);}catch(error){showStatus(error?.message||String(error),true);}
   });
   $('learning-metadata-export-json')?.addEventListener('click',()=>{
     if(!isAdmin())return;

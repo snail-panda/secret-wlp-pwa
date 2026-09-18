@@ -365,7 +365,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-learning-hooks-v18630" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-situation-v18633" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
 </head>
 <body class="stage7-study-body">
@@ -408,14 +408,15 @@
           <button type="button" class="btn-edit-local-front" aria-label="Edit Card" title="Edit Card" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11a2.1 2.1 0 0 0-3-3L5 17l-1 3Z"></path><path d="m14.5 7.5 3 3"></path></svg>
           </button>
-          <button type="button" class="btn-learning-hook" aria-label="Sense and Memory Hooks" title="Sense &amp; Memory Hooks" hidden>
+          <button type="button" class="btn-learning-hook" aria-label="Learning layer" title="Learning Layer" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"></path><path d="M8.2 14.4A6 6 0 1 1 15.8 14.4C14.8 15.2 14.3 16 14.2 17h-4.4c-.1-1-.6-1.8-1.6-2.6Z"></path></svg>
           </button>
           <aside class="learning-hook-popover" hidden aria-live="polite">
-            <div class="learning-hook-popover-head"><strong>Quick Hook</strong><button type="button" class="learning-hook-close" aria-label="Close hooks">×</button></div>
+            <div class="learning-hook-popover-head"><strong>Learning Layer</strong><button type="button" class="learning-hook-close" aria-label="Close learning layer">×</button></div>
             <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
             <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
-            <button type="button" class="learning-hook-edit" hidden>Edit hooks</button>
+            <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+            <button type="button" class="learning-hook-edit" hidden>Edit learning layer</button>
           </aside>
           <span class="card-tag"></span>
           <h2 class="word"></h2>
@@ -474,14 +475,15 @@
           <button type="button" class="btn-edit-local-back" aria-label="Edit Card" title="Edit Card" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11a2.1 2.1 0 0 0-3-3L5 17l-1 3Z"></path><path d="m14.5 7.5 3 3"></path></svg>
           </button>
-          <button type="button" class="btn-learning-hook" aria-label="Sense and Memory Hooks" title="Sense &amp; Memory Hooks" hidden>
+          <button type="button" class="btn-learning-hook" aria-label="Learning layer" title="Learning Layer" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"></path><path d="M8.2 14.4A6 6 0 1 1 15.8 14.4C14.8 15.2 14.3 16 14.2 17h-4.4c-.1-1-.6-1.8-1.6-2.6Z"></path></svg>
           </button>
           <aside class="learning-hook-popover" hidden aria-live="polite">
-            <div class="learning-hook-popover-head"><strong>Quick Hook</strong><button type="button" class="learning-hook-close" aria-label="Close hooks">×</button></div>
+            <div class="learning-hook-popover-head"><strong>Learning Layer</strong><button type="button" class="learning-hook-close" aria-label="Close learning layer">×</button></div>
             <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
             <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
-            <button type="button" class="learning-hook-edit" hidden>Edit hooks</button>
+            <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+            <button type="button" class="learning-hook-edit" hidden>Edit learning layer</button>
           </aside>
           <span class="card-tag"></span>
           <div class="back-answer" hidden>
@@ -841,8 +843,8 @@
       setInterval(()=>{if(!document.hidden)lockStudyBottomNav();},1500);
     })();
   </script>
-  <script src="../../learning-hooks.js?v=20260918-s7-learning-meta-v2-v18631"></script>
-  <script type="module" src="./app.js?v=20260918-s7-learning-hooks-v18630"></script>
+  <script src="../../learning-hooks.js?v=20260918-s7-situation-v18633"></script>
+  <script type="module" src="./app.js?v=20260918-s7-situation-v18633"></script>
   <script src="./study-stage7.js?v=20260917-s7-review-v180"></script>
   <script src="../../study-options.js?v=20260918-s7-options-v18624"></script>
 </body>

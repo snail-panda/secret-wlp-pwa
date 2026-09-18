@@ -1351,7 +1351,7 @@ function findWordIndex(
 }
 
 // =============================================================
-// SENSE / MEMORY HOOKS
+// LEARNING LAYER — SENSE / MEMORY / SITUATION
 // =============================================================
 
 function closeLearningHookPopovers(except = null) {
@@ -1381,13 +1381,17 @@ function installLearningHookUI(root, row, openEditor = null) {
   const key = api?.keyForRow?.(row) || "";
 
   const refresh = () => {
-    const hooks = key && api ? api.get(key) : { senseHook: "", memoryHook: "" };
+    const hooks = key && api ? api.get(key) : { senseHook: "", memoryHook: "", situations: [] };
     const hasSense = Boolean(String(hooks.senseHook || "").trim());
     const hasMemory = Boolean(String(hooks.memoryHook || "").trim());
-    const hasHooks = hasSense || hasMemory;
+    const situations = Array.isArray(hooks.situations)
+      ? hooks.situations.filter(item => item && !item.deletedAt && String(item.anchor || "").trim())
+      : [];
+    const hasSituations = situations.length > 0;
+    const hasLearningLayer = hasSense || hasMemory || hasSituations;
 
     buttons.forEach(button => {
-      button.hidden = !hasHooks;
+      button.hidden = !hasLearningLayer;
       button.setAttribute("aria-expanded", "false");
       const surface = button.closest(".study-card-surface");
       const panel = surface?.querySelector(".learning-hook-popover");
@@ -1395,6 +1399,7 @@ function installLearningHookUI(root, row, openEditor = null) {
       panel.hidden = true;
       const sense = panel.querySelector(".learning-hook-sense");
       const memory = panel.querySelector(".learning-hook-memory");
+      const situation = panel.querySelector(".learning-hook-situation");
       const edit = panel.querySelector(".learning-hook-edit");
       if (sense) {
         sense.hidden = !hasSense;
@@ -1405,6 +1410,19 @@ function installLearningHookUI(root, row, openEditor = null) {
         memory.hidden = !hasMemory;
         const copy = memory.querySelector("p");
         if (copy) copy.textContent = hasMemory ? hooks.memoryHook : "";
+      }
+      if (situation) {
+        situation.hidden = !hasSituations;
+        const list = situation.querySelector(".learning-situation-items");
+        if (list) {
+          list.innerHTML = "";
+          situations.forEach(item => {
+            const p = document.createElement("p");
+            p.className = "learning-situation-item";
+            p.textContent = String(item.anchor || "").trim();
+            list.appendChild(p);
+          });
+        }
       }
       if (edit) edit.hidden = !(isWlpAdminMode() && typeof openEditor === "function");
     });

@@ -16,7 +16,7 @@
   const LEGACY_STORAGE_KEY = 'wlp:learning-meta:v1';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
   const SCHEMA_VERSION = 2;
-  const KNOWN_FIELDS = ['senseHook', 'memoryHook'];
+  const KNOWN_FIELDS = ['senseHook', 'memoryHook', 'situations'];
 
   function clean(value) {
     return String(value ?? '').replace(/\r\n?/g, '\n').trim();
@@ -65,6 +65,54 @@
     return { entryKind: 'local', wordId: '', localDraftId: '' };
   }
 
+  function situationSnapshot(situation) {
+    return {
+      versionId: clean(situation?.versionId),
+      parentVersionId: clean(situation?.parentVersionId),
+      revision: Math.max(1, Number(situation?.revision) || 1),
+      changedAt: clean(situation?.updatedAt),
+      changedByDevice: clean(situation?.updatedByDevice),
+      status: clean(situation?.status) || 'provisional',
+      deletedAt: clean(situation?.deletedAt),
+      anchor: clean(situation?.anchor),
+      communicativeNeed: clean(situation?.communicativeNeed)
+    };
+  }
+
+  function normalizeSituation(value) {
+    const input = value && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : { anchor: typeof value === 'string' ? value : '' };
+    const now = new Date().toISOString();
+    const updatedAt = clean(input.updatedAt) || now;
+    const createdAt = clean(input.createdAt) || updatedAt;
+    const deviceId = ensureDeviceId();
+    return {
+      situationId: clean(input.situationId) || makeId('sit'),
+      status: clean(input.status) || 'provisional',
+      revision: Math.max(1, Number(input.revision) || 1),
+      versionId: clean(input.versionId) || makeId('sitver'),
+      parentVersionId: clean(input.parentVersionId),
+      createdAt,
+      updatedAt,
+      createdByDevice: clean(input.createdByDevice) || deviceId,
+      updatedByDevice: clean(input.updatedByDevice) || deviceId,
+      deletedAt: clean(input.deletedAt),
+      anchor: clean(input.anchor ?? input.situationAnchor ?? input.text),
+      communicativeNeed: clean(input.communicativeNeed),
+      history: Array.isArray(input.history) ? clone(input.history) : []
+    };
+  }
+
+  function normalizeSituations(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(normalizeSituation);
+  }
+
+  function activeSituations(value) {
+    return normalizeSituations(value).filter(item => !item.deletedAt && item.anchor);
+  }
+
   function emptyContent() {
     return {
       senseHook: '',
@@ -82,7 +130,7 @@
       senseHook: clean(input.senseHook),
       memoryHook: clean(input.memoryHook),
       entryType: clean(input.entryType),
-      situations: Array.isArray(input.situations) ? clone(input.situations) : [],
+      situations: normalizeSituations(input.situations),
       alternativeExpressions: Array.isArray(input.alternativeExpressions) ? clone(input.alternativeExpressions) : []
     };
   }
@@ -90,7 +138,7 @@
   function hasContentPayload(content) {
     const value = normalizeContent(content);
     if (value.senseHook || value.memoryHook || value.entryType) return true;
-    if (value.situations.length || value.alternativeExpressions.length) return true;
+    if (activeSituations(value.situations).length || value.alternativeExpressions.length) return true;
     return Object.entries(value).some(([key, item]) => {
       if (['senseHook','memoryHook','entryType','situations','alternativeExpressions'].includes(key)) return false;
       if (Array.isArray(item)) return item.length > 0;
@@ -255,6 +303,7 @@
     const content = normalizeContent(record.content);
     return {
       ...content,
+      situations: activeSituations(content.situations),
       metadataId: record.metadataId,
       entryKey: record.entryKey,
       entryKind: record.entryKind,
@@ -284,8 +333,90 @@
     return publicEntry(getRecord(key));
   }
 
-  function sameHooks(content, values) {
-    return clean(content?.senseHook) === clean(values?.senseHook) && clean(content?.memoryHook) === clean(values?.memoryHook);
+  function newSituation(value) {
+    const now = new Date().toISOString();
+    const deviceId = ensureDeviceId();
+    return normalizeSituation({
+      situationId: clean(value?.situationId) || makeId('sit'),
+      status: clean(value?.status) || 'provisional',
+      revision: 1,
+      versionId: makeId('sitver'),
+      parentVersionId: '',
+      createdAt: now,
+      updatedAt: now,
+      createdByDevice: deviceId,
+      updatedByDevice: deviceId,
+      deletedAt: '',
+      anchor: clean(value?.anchor),
+      communicativeNeed: clean(value?.communicativeNeed),
+      history: []
+    });
+  }
+
+  function reconcileSituations(existingValue, requestedValue) {
+    const existing = normalizeSituations(existingValue);
+    if (!Array.isArray(requestedValue)) return existing;
+
+    const currentById = new Map(existing.map(item => [item.situationId, item]));
+    const requested = requestedValue
+      .map(item => ({
+        situationId: clean(item?.situationId),
+        anchor: clean(item?.anchor ?? item?.situationAnchor ?? item?.text),
+        communicativeNeed: clean(item?.communicativeNeed)
+      }))
+      .filter(item => item.anchor);
+
+    const seen = new Set();
+    const nextActive = requested.map(item => {
+      let current = item.situationId ? currentById.get(item.situationId) : null;
+      if (!current) {
+        const created = newSituation(item);
+        seen.add(created.situationId);
+        return created;
+      }
+      seen.add(current.situationId);
+      const same = !current.deletedAt
+        && clean(current.anchor) === item.anchor
+        && clean(current.communicativeNeed) === item.communicativeNeed;
+      if (same) return current;
+      const now = new Date().toISOString();
+      return {
+        ...current,
+        status: current.status || 'provisional',
+        revision: current.revision + 1,
+        parentVersionId: current.versionId,
+        versionId: makeId('sitver'),
+        updatedAt: now,
+        updatedByDevice: ensureDeviceId(),
+        deletedAt: '',
+        anchor: item.anchor,
+        communicativeNeed: item.communicativeNeed,
+        history: [...current.history, situationSnapshot(current)]
+      };
+    });
+
+    const removed = existing
+      .filter(item => !item.deletedAt && !seen.has(item.situationId))
+      .map(current => {
+        const now = new Date().toISOString();
+        return {
+          ...current,
+          revision: current.revision + 1,
+          parentVersionId: current.versionId,
+          versionId: makeId('sitver'),
+          updatedAt: now,
+          updatedByDevice: ensureDeviceId(),
+          deletedAt: now,
+          history: [...current.history, situationSnapshot(current)]
+        };
+      });
+    const oldTombstones = existing.filter(item => item.deletedAt);
+    return [...nextActive, ...removed, ...oldTombstones];
+  }
+
+  function contentSignature(content) {
+    const value = normalizeContent(content);
+    return JSON.stringify(value);
   }
 
   function makeNewRecord(key, values) {
@@ -307,7 +438,12 @@
       createdByDevice: deviceId,
       updatedByDevice: deviceId,
       deletedAt: '',
-      content: normalizeContent({ ...emptyContent(), ...values }),
+      content: normalizeContent({
+        ...emptyContent(),
+        senseHook: clean(values?.senseHook),
+        memoryHook: clean(values?.memoryHook),
+        situations: reconcileSituations([], Array.isArray(values?.situations) ? values.situations : [])
+      }),
       history: []
     };
   }
@@ -318,10 +454,14 @@
     const store = readStore();
     const currentRaw = store.records[safeKey];
     const current = currentRaw ? normalizeRecord(currentRaw, safeKey) : null;
-    const hooks = { senseHook: clean(values.senseHook), memoryHook: clean(values.memoryHook) };
+    const requested = {
+      senseHook: Object.prototype.hasOwnProperty.call(values, 'senseHook') ? clean(values.senseHook) : undefined,
+      memoryHook: Object.prototype.hasOwnProperty.call(values, 'memoryHook') ? clean(values.memoryHook) : undefined,
+      situations: Array.isArray(values?.situations) ? values.situations : undefined
+    };
 
     if (!current) {
-      const record = makeNewRecord(safeKey, hooks);
+      const record = makeNewRecord(safeKey, requested);
       if (!hasContentPayload(record.content)) return publicEntry(null);
       store.records[safeKey] = record;
       writeStore(store);
@@ -330,12 +470,15 @@
 
     const nextContent = normalizeContent({
       ...current.content,
-      senseHook: hooks.senseHook,
-      memoryHook: hooks.memoryHook
+      senseHook: requested.senseHook === undefined ? current.content.senseHook : requested.senseHook,
+      memoryHook: requested.memoryHook === undefined ? current.content.memoryHook : requested.memoryHook,
+      situations: requested.situations === undefined
+        ? current.content.situations
+        : reconcileSituations(current.content.situations, requested.situations)
     });
     const willDelete = !hasContentPayload(nextContent);
     const alreadyDeleted = Boolean(current.deletedAt);
-    if (sameHooks(current.content, hooks) && willDelete === alreadyDeleted) return publicEntry(current);
+    if (contentSignature(current.content) === contentSignature(nextContent) && willDelete === alreadyDeleted) return publicEntry(current);
 
     const now = new Date().toISOString();
     const next = {
@@ -404,22 +547,126 @@
     return Object.keys(all()).length;
   }
 
+  function situationEditorParts(form) {
+    const block = form?.querySelector?.('[data-learning-situations]');
+    return {
+      block,
+      list: block?.querySelector?.('[data-situation-list]') || null,
+      add: block?.querySelector?.('[data-add-situation]') || null
+    };
+  }
+
+  function makeSituationRow(value = {}, index = 0) {
+    const row = document.createElement('div');
+    row.className = 'learning-situation-row';
+    row.dataset.situationRow = '';
+
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'Situation ID';
+    hidden.value = clean(value.situationId);
+    hidden.dataset.situationId = '';
+
+    const top = document.createElement('div');
+    top.className = 'learning-situation-row-head';
+    const label = document.createElement('span');
+    label.className = 'learning-situation-row-label';
+    label.textContent = `Situation ${index + 1}`;
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'learning-situation-remove';
+    removeButton.dataset.removeSituation = '';
+    removeButton.textContent = 'Remove';
+    top.append(label, removeButton);
+
+    const textarea = document.createElement('textarea');
+    textarea.name = 'Situation Anchor';
+    textarea.rows = 3;
+    textarea.dataset.situationAnchor = '';
+    textarea.placeholder = "e.g. You've asked them several times to fix the same problem. Nothing has changed.";
+    textarea.value = clean(value.anchor);
+    textarea.setAttribute('aria-label', `Situation Anchor ${index + 1}`);
+
+    row.append(hidden, top, textarea);
+    return row;
+  }
+
+  function refreshSituationRowLabels(list) {
+    if (!list) return;
+    const rows = Array.from(list.querySelectorAll('[data-situation-row]'));
+    rows.forEach((row, index) => {
+      const label = row.querySelector('.learning-situation-row-label');
+      const textarea = row.querySelector('[data-situation-anchor]');
+      if (label) label.textContent = `Situation ${index + 1}`;
+      if (textarea) textarea.setAttribute('aria-label', `Situation Anchor ${index + 1}`);
+    });
+  }
+
+  function renderSituationRows(form, situations = []) {
+    const { list } = situationEditorParts(form);
+    if (!list) return;
+    const active = Array.isArray(situations)
+      ? situations.filter(item => !item?.deletedAt && clean(item?.anchor))
+      : [];
+    list.innerHTML = '';
+    const rows = active.length ? active : [{}];
+    rows.forEach((item, index) => list.appendChild(makeSituationRow(item, index)));
+    refreshSituationRowLabels(list);
+  }
+
+  function installSituationEditor(form) {
+    const { block, list, add } = situationEditorParts(form);
+    if (!block || !list || block.dataset.situationEditorInstalled === 'true') return;
+    block.dataset.situationEditorInstalled = 'true';
+    if (!list.querySelector('[data-situation-row]')) renderSituationRows(form, []);
+
+    add?.addEventListener('click', () => {
+      const index = list.querySelectorAll('[data-situation-row]').length;
+      const row = makeSituationRow({}, index);
+      list.appendChild(row);
+      row.querySelector('[data-situation-anchor]')?.focus();
+    });
+    list.addEventListener('click', event => {
+      const button = event.target.closest?.('[data-remove-situation]');
+      if (!button) return;
+      button.closest('[data-situation-row]')?.remove();
+      if (!list.querySelector('[data-situation-row]')) list.appendChild(makeSituationRow({}, 0));
+      refreshSituationRowLabels(list);
+    });
+    form.addEventListener('reset', () => setTimeout(() => renderSituationRows(form, []), 0));
+  }
+
+  function situationsFromForm(form) {
+    installSituationEditor(form);
+    const { list } = situationEditorParts(form);
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('[data-situation-row]')).map(row => {
+      const anchor = clean(row.querySelector('[data-situation-anchor]')?.value);
+      const hidden = row.querySelector('[data-situation-id]');
+      if (anchor && hidden && !clean(hidden.value)) hidden.value = makeId('sit');
+      return { situationId: clean(hidden?.value), anchor, communicativeNeed: '' };
+    }).filter(item => item.anchor);
+  }
+
   function fromForm(form) {
-    if (!form) return { senseHook: '', memoryHook: '' };
+    if (!form) return { senseHook: '', memoryHook: '', situations: [] };
     const fd = new FormData(form);
     return {
       senseHook: clean(fd.get('Sense Hook')),
-      memoryHook: clean(fd.get('Memory Hook'))
+      memoryHook: clean(fd.get('Memory Hook')),
+      situations: situationsFromForm(form)
     };
   }
 
   function fillForm(form, entry) {
     if (!form) return;
+    installSituationEditor(form);
     const hooks = entry && typeof entry === 'object' ? entry : publicEntry(null);
     const sense = form.elements.namedItem('Sense Hook');
     const memory = form.elements.namedItem('Memory Hook');
     if (sense) sense.value = clean(hooks.senseHook);
     if (memory) memory.value = clean(hooks.memoryHook);
+    renderSituationRows(form, Array.isArray(hooks.situations) ? hooks.situations : []);
   }
 
   // Future Draft -> Master promotion can preserve metadata identity rather than
@@ -469,6 +716,15 @@
   // to know whether the browser still has v1 or already has v2.
   readStore();
 
+  const installSituationEditors = () => {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('form').forEach(form => installSituationEditor(form));
+  };
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installSituationEditors, { once: true });
+    else installSituationEditors();
+  }
+
   window.WLPLearningHooks = Object.freeze({
     STORAGE_KEY,
     LEGACY_STORAGE_KEY,
@@ -492,6 +748,8 @@
     count,
     fromForm,
     fillForm,
+    installSituationEditor,
+    activeSituations,
     promoteDraftToMaster,
     portableSnapshot,
     deviceId: ensureDeviceId

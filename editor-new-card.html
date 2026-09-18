@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
-  <link rel="stylesheet" href="./editor-new-card.css?v=20260918-s7-learning-hooks-v18630">
+  <link rel="stylesheet" href="./editor-new-card.css?v=20260918-s7-situation-v18633">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -130,12 +130,21 @@
 
           <section class="new-card-panel learning-hooks-panel">
             <div class="new-card-section-head learning-hooks-head">
-              <div><span class="editor-tool-kicker">Learning layer</span><h2>Sense &amp; Memory Hooks</h2></div>
+              <div><span class="editor-tool-kicker">Learning layer</span><h2>Sense, Memory &amp; Situation</h2></div>
               <span class="learning-hooks-badge">Local</span>
             </div>
-            <p class="learning-hooks-copy">Short recall bridges kept separate from Definition and Notes. They are included in WLP local backup and can be exported for later Master/TSV enrichment.</p>
+            <p class="learning-hooks-copy">Three distinct learning layers kept separate from Definition and Notes. They stay in Learning Metadata v2 and can later be reviewed, merged, or promoted without changing the canonical card.</p>
             <label class="new-card-field learning-hook-field"><span>Sense Hook</span><textarea name="Sense Hook" rows="2" placeholder="e.g. やりすぎでガチガチ／感情的にいっぱいいっぱい"></textarea><small>One-glance sense. Japanese or English is fine; this is not a fixed translation field.</small></label>
             <label class="new-card-field learning-hook-field"><span>Memory Hook</span><textarea name="Memory Hook" rows="2" placeholder="e.g. over + wrought (‘worked’) → over-worked → overdone / worked up"></textarea><small>A short recall scaffold: word parts, etymology, image, usage frame, or your own mnemonic.</small></label>
+
+            <div class="learning-situations-block" data-learning-situations>
+              <div class="learning-situations-head">
+                <div><strong>Situation Anchors</strong><span>Core conditions that naturally create a need for this expression.</span></div>
+                <button type="button" class="learning-situation-add" data-add-situation>+ Add situation</button>
+              </div>
+              <p class="learning-situations-copy">Specific enough to make the expression feel necessary, but no more elaborate than needed. This is not a long example sentence.</p>
+              <div class="learning-situation-list" data-situation-list></div>
+            </div>
           </section>
 
           <section class="new-card-panel">
@@ -247,11 +256,11 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./learning-hooks.js?v=20260918-s7-learning-meta-v2-v18631"></script>
+  <script src="./learning-hooks.js?v=20260918-s7-situation-v18633"></script>
   <script src="./editor.js?v=20260918-s7-learning-hooks-v18630"></script>
   <script src="./reference-assist.js?v=20260918-s7-google-action"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
-  <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
+  <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>
     (() => {
       // v1.8.6.24 fail-safe: keep Bottom Nav on the viewport even if a stale

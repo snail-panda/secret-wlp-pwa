@@ -208,7 +208,7 @@
           <article class="backup-action-card learning-hooks-export-card">
             <div class="backup-action-copy">
               <h3>Learning Metadata v2</h3>
-              <p>Human-readable TSV for Sense / Memory Hooks plus stable metadata identity, revision lineage, status, and source-device information. Master and Draft card content stay untouched.</p>
+              <p>Human-readable TSV for Sense / Memory Hooks and Situation Anchors, including stable metadata / Situation IDs, revision lineage, status, and source-device information. Master and Draft card content stay untouched.</p>
               <small id="learning-hooks-summary">Checking local Learning Metadata…</small>
             </div>
             <button class="backup-secondary-action" id="learning-hooks-export" type="button">Export Metadata <span>.tsv</span></button>
@@ -217,7 +217,7 @@
           <article class="backup-action-card">
             <div class="backup-action-copy">
               <h3>Portable Metadata v2</h3>
-              <p>Machine-readable JSON for the upcoming Import / Compare / Merge flow. Includes revision lineage and tombstones so later sync can distinguish edits from deletions.</p>
+              <p>Machine-readable JSON for the upcoming Import / Compare / Merge flow. Includes entry and Situation revision lineage plus tombstones so later sync can distinguish edits from deletions.</p>
               <small>Use TSV for inspection; use this JSON for lossless metadata transfer.</small>
             </div>
             <button class="backup-secondary-action" id="learning-metadata-export-json" type="button">Export Metadata <span>.json</span></button>
@@ -338,12 +338,12 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./learning-hooks.js?v=20260918-s7-learning-meta-v2-v18631"></script>
+  <script src="./learning-hooks.js?v=20260918-s7-situation-v18633"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-backup.js?v=20260918-s7-learning-meta-v2-v18631"></script>
+  <script src="./editor-backup.js?v=20260918-s7-situation-v18633"></script>
   <script src="./local-data-safety.js?v=20260918-s7-learning-meta-v2-v18631"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
-  <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
+  <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>
     (() => {
       // v1.8.6.24 fail-safe: keep Bottom Nav on the viewport even if a stale

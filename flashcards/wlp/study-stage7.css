@@ -2923,3 +2923,24 @@ body.review-attention-open{overflow:hidden}
   font-size:.76rem!important;
   line-height:1.2!important;
 }
+
+/* WLP Stage 7 — Situation Anchors v1.8.6.33 */
+.stage7-study-body .learning-hook-situation .learning-situation-items{
+  display:grid;
+  gap:7px;
+}
+.stage7-study-body .learning-hook-situation .learning-situation-item{
+  margin:0;
+  padding-top:7px;
+  border-top:1px solid rgba(70,107,83,.08);
+  color:#334b3d;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:1rem;
+  line-height:1.42;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+.stage7-study-body .learning-hook-situation .learning-situation-item:first-child{
+  padding-top:0;
+  border-top:0;
+}
