@@ -784,6 +784,16 @@
     <span>Search WLP</span>
   </button>
 
+  <script>
+    (() => {
+      // v1.8.6.9: escape the Study shell's iOS Safari containing block so
+      // position:fixed is anchored to the actual viewport during scrolling.
+      const bottomNav = document.getElementById('deck-nav-links');
+      if (bottomNav && bottomNav.parentElement !== document.body) {
+        document.body.appendChild(bottomNav);
+      }
+    })();
+  </script>
   <script type="module" src="./app.js?v=20260917-s7-read-v186"></script>
   <script src="./study-stage7.js?v=20260917-s7-review-v180"></script>
   <script src="../../study-options.js?v=20260917-s7-read-v186"></script>

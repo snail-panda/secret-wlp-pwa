@@ -252,6 +252,16 @@
   </div>
 
   <div class="toast" id="deck-toast" role="status" aria-live="polite" hidden></div>
+  <script>
+    (() => {
+      // v1.8.6.9: keep the bottom nav in the viewport, not inside the app-shell
+      // containing block used by iOS Safari while scrolling.
+      const bottomNav = document.querySelector('.deck-browser-bottom-nav');
+      if (bottomNav && bottomNav.parentElement !== document.body) {
+        document.body.appendChild(bottomNav);
+      }
+    })();
+  </script>
   <script src="./deck-browser.js"></script>
   <script>
     (() => {
