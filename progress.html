@@ -14,8 +14,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./progress.css?v=20260917-s7-progress-v181">
+  <link rel="stylesheet" href="./progress.css?v=20260918-s7-v18627">
   <style>
+    .deck-browser-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}
+
     .app-header{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap!important}
     .app-header>.brand{position:absolute;left:50%;transform:translateX(-50%);margin:0!important;z-index:1}
     .app-header>#menu-button{flex:0 0 auto;z-index:2}
@@ -311,7 +313,24 @@
   </section>
 
   <div class="toast" id="progress-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./progress.js?v=20260917-s7-progress-v181"></script>
-  <script src="./pwa-register.js?v=20260914-stage7-7"></script>
+
+  <script>
+    (()=>{
+      const lockBottomNav=()=>{
+        const nav=document.querySelector('.deck-browser-bottom-nav');
+        if(!nav)return;
+        if(nav.parentElement!==document.body)document.body.appendChild(nav);
+        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};
+        Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));
+      };
+      lockBottomNav();
+      addEventListener('pageshow',lockBottomNav);
+      addEventListener('resize',lockBottomNav,{passive:true});
+      addEventListener('orientationchange',lockBottomNav,{passive:true});
+      if(window.visualViewport)visualViewport.addEventListener('resize',lockBottomNav,{passive:true});
+    })();
+  </script>
+  <script src="./progress.js?v=20260918-s7-v18627"></script>
+  <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
 </body>
 </html>

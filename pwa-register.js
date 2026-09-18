@@ -1,4 +1,4 @@
-// WLP Stage 7 v1.8.6.24 — PWA registration with cache-bypass for SW updates.
+// WLP Stage 7 v1.8.6.27 — PWA registration with cache-bypass for SW updates.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js', {

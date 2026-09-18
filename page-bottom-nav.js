@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.24 — shared Bottom Nav viewport lock. */
+/* WLP Stage 7 v1.8.6.27 — shared Bottom Nav viewport lock. */
 (() => {
   function lockNavToViewport(nav){
     if (!nav) return;
@@ -47,4 +47,8 @@
   } else {
     initStage7BottomNav();
   }
+  addEventListener('pageshow', initStage7BottomNav);
+  addEventListener('resize', initStage7BottomNav, { passive:true });
+  addEventListener('orientationchange', initStage7BottomNav, { passive:true });
+  if (window.visualViewport) visualViewport.addEventListener('resize', initStage7BottomNav, { passive:true });
 })();

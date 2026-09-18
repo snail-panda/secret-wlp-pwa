@@ -365,7 +365,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-synline-v18617" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-v18627" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
 </head>
 <body class="stage7-study-body">
@@ -800,6 +800,23 @@
         ));
         bottomNav.dataset.stage7ViewportLocked = 'true';
       }
+    })();
+  </script>
+
+  <script>
+    (()=>{
+      const lockStudyBottomNav=()=>{
+        const nav=document.getElementById('deck-nav-links');
+        if(!nav)return;
+        if(nav.parentElement!==document.body)document.body.appendChild(nav);
+        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};
+        Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));
+      };
+      lockStudyBottomNav();
+      addEventListener('pageshow',lockStudyBottomNav);
+      addEventListener('resize',lockStudyBottomNav,{passive:true});
+      addEventListener('orientationchange',lockStudyBottomNav,{passive:true});
+      if(window.visualViewport)visualViewport.addEventListener('resize',lockStudyBottomNav,{passive:true});
     })();
   </script>
   <script type="module" src="./app.js?v=20260918-s7-reviewhub-v18626"></script>

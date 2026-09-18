@@ -173,7 +173,7 @@
   function showToast(text, options = {}) {
     const toast = $('progress-toast');
     const isInfo = options.info === true;
-    const duration = Number(options.duration || (isInfo ? 8500 : 2700));
+    const duration = Number(options.duration || (isInfo ? 6000 : 2700));
     toast.textContent = text;
     toast.classList.toggle('is-info', isInfo);
     toast.hidden = false;
@@ -725,7 +725,7 @@
   function installViewNavigation() {
     document.querySelectorAll('[data-progress-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.progressView, {scrollTop:true})));
     document.querySelectorAll('[data-open-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.openView, {scrollTop:true})));
-    document.querySelectorAll('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast, { info: true, duration: 8500 })));
+    document.querySelectorAll('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast, { info: true, duration: 6000 })));
     document.querySelectorAll('[data-practice-coming]').forEach(button => button.addEventListener('click', () => showToast('Context Practice is the next layer. This Progress foundation is ready to record it when we add it.')));
   }
 

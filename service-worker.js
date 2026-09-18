@@ -1,5 +1,5 @@
 // WLP Stage 7 — offline application shell and cache.
-const CACHE_NAME = 'wlp-stage7-bottom-nav-runtime-lock-v1-8-6-24';
+const CACHE_NAME = 'wlp-stage7-reviewhub-nav-lock-v1-8-6-27';
 const CORE = [
   './',
   './index.html',
@@ -16,6 +16,9 @@ const CORE = [
   './progress.html',
   './progress.css',
   './progress.js',
+  './review.html',
+  './review.css',
+  './review.js',
   './drafts.html',
   './drafts.css',
   './drafts.js',
