@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-shared-shell-cleanup-v1-8-6-6';
+const CACHE_NAME = 'wlp-stage7-global-search-markup-restore-v1-8-6-7';
 const CORE = [
   './',
   './index.html',
