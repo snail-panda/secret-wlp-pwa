@@ -459,3 +459,44 @@ body.s7-study-options-open{overflow:hidden}
   border-top:1px solid rgba(79,108,88,.075);
 }
 .s7-read-aloud-options .s7-option-help + .s7-switch-row{margin-top:5px}
+
+
+/* =========================================================
+   WLP Stage 7 — Study Card display controls v1.7
+   Visibility only. No card/progress/recording data is changed.
+   ========================================================= */
+body.s7-hide-helper-labels.stage7-study-body .s7-audio-caption,
+body.s7-hide-helper-labels.stage7-study-body .study-record-caption{
+  display:none!important;
+}
+body.s7-hide-helper-labels.stage7-study-body .s7-audio-utility{
+  gap:0!important;
+}
+body.s7-hide-shuffle.stage7-study-body .study-shuffle-control{
+  display:none!important;
+}
+body.s7-hide-recording.stage7-study-body .study-record-center{
+  display:none!important;
+}
+body.s7-hide-recording.stage7-study-body .study-learning-practice,
+body.s7-hide-recording.stage7-study-body .study-learning-practice.is-record-expanded{
+  width:min(100%,360px)!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  grid-template-rows:auto!important;
+  row-gap:0!important;
+}
+body.s7-hide-recording.stage7-study-body .study-learning-practice > .btn-studied,
+body.s7-hide-recording.stage7-study-body .study-learning-practice > .btn-studied-front{
+  grid-column:1!important;
+  grid-row:1!important;
+  justify-self:end!important;
+  width:100%!important;
+  max-width:160px!important;
+}
+body.s7-hide-recording.stage7-study-body .study-learning-practice > .study-review-center{
+  grid-column:2!important;
+  grid-row:1!important;
+  justify-self:start!important;
+  width:100%!important;
+  max-width:160px!important;
+}

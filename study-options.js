@@ -32,6 +32,11 @@
         notes: true
       }
     },
+    display: {
+      helperLabels: true,
+      shuffle: true,
+      recording: true
+    },
     swipe: true
   };
 
@@ -78,6 +83,11 @@
           synonyms: typeof stored.readAloud?.targets?.synonyms === 'boolean' ? stored.readAloud.targets.synonyms : DEFAULTS.readAloud.targets.synonyms,
           notes: typeof stored.readAloud?.targets?.notes === 'boolean' ? stored.readAloud.targets.notes : DEFAULTS.readAloud.targets.notes
         }
+      },
+      display: {
+        helperLabels: typeof stored.display?.helperLabels === 'boolean' ? stored.display.helperLabels : DEFAULTS.display.helperLabels,
+        shuffle: typeof stored.display?.shuffle === 'boolean' ? stored.display.shuffle : DEFAULTS.display.shuffle,
+        recording: typeof stored.display?.recording === 'boolean' ? stored.display.recording : DEFAULTS.display.recording
       },
       swipe: typeof stored.swipe === 'boolean' ? stored.swipe : DEFAULTS.swipe
     };
@@ -165,6 +175,35 @@
             <button class="s7-side-button" type="button" data-s7-side="word">Word First</button>
             <button class="s7-side-button" type="button" data-s7-side="definition">Definition First</button>
           </div>
+        </section>
+
+        <section class="s7-options-section s7-card-controls-options">
+          <div class="s7-options-section-head">
+            <h3>Study Card Controls</h3>
+            <small>Display only</small>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>Helper labels</strong>
+              <small>Show captions such as Listen, Voice, and Record your pronunciation.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-display="helperLabels"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>Shuffle</strong>
+              <small>Show the Shuffle control above the card.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-display="shuffle"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy">
+              <strong>Recording</strong>
+              <small>Show pronunciation recording controls on the front and back.</small>
+            </div>
+            <label class="s7-switch"><input type="checkbox" data-s7-display="recording"><span class="s7-switch-track"></span></label>
+          </div>
+          <p class="s7-option-help">These switches only change what Study shows. Your cards, progress, and saved recordings are untouched. YouGlish has its own switch below.</p>
         </section>
 
         <section class="s7-options-section">
@@ -288,7 +327,7 @@
           </div>
         </section>
 
-        <p class="s7-options-autosave">Study Options v1.6 · saved on this device</p>
+        <p class="s7-options-autosave">Study Options v1.7 · saved on this device</p>
       </aside>`;
     document.body.appendChild(backdrop);
     return backdrop;
@@ -377,6 +416,10 @@
     panel.querySelectorAll('[data-s7-reference-tool]').forEach(input => {
       const key = input.dataset.s7ReferenceTool;
       input.checked = prefs.referenceTools?.[key] !== false;
+    });
+    panel.querySelectorAll('[data-s7-display]').forEach(input => {
+      const key = input.dataset.s7Display;
+      input.checked = prefs.display?.[key] !== false;
     });
 
     const readKeys = ['definition','example','synonyms','notes'];
@@ -498,6 +541,13 @@
 
   const applySwipeState = () => {
     document.body.classList.toggle('s7-swipe-enabled', Boolean(prefs.swipe));
+  };
+
+  const applyDisplayState = () => {
+    const display = prefs.display || DEFAULTS.display;
+    document.body.classList.toggle('s7-hide-helper-labels', display.helperLabels === false);
+    document.body.classList.toggle('s7-hide-shuffle', display.shuffle === false);
+    document.body.classList.toggle('s7-hide-recording', display.recording === false);
   };
 
   const YOUGLISH_ACCENT_LABELS = { us:'US', uk:'UK', aus:'AU' };
@@ -715,6 +765,7 @@
   const applyAll = () => {
     applyCardContent();
     applySwipeState();
+    applyDisplayState();
     applyYouGlishState();
     applyReferenceToolsState();
     updateVisibleVoiceLabels();
@@ -804,6 +855,15 @@
       prefs.referenceTools[key] = input.checked;
       savePrefs();
       applyReferenceToolsState();
+    });
+  });
+
+  panel.querySelectorAll('[data-s7-display]').forEach(input => {
+    input.addEventListener('change', () => {
+      const key = input.dataset.s7Display;
+      prefs.display[key] = input.checked;
+      savePrefs();
+      applyDisplayState();
     });
   });
 
