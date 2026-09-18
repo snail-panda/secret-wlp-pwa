@@ -101,7 +101,7 @@
 
 
 /* Stage 7 v1.6.1 — manual Google research from Reference Assist */
-/* Stage 7 v1.8.6.21 — align external-search action with Look Up */
+/* Stage 7 v1.8.6.22 — compact external-search action on mobile */
 .reference-assist-controls{grid-template-columns:minmax(160px,.85fr) minmax(180px,1.15fr) auto auto;align-items:end}
 .reference-google-button{
   min-height:42px;
@@ -129,7 +129,8 @@
   .reference-assist-controls{grid-template-columns:auto auto;justify-content:start;align-items:end}
   .reference-source-field,.reference-query-field{grid-column:1 / -1;width:100%}
   .reference-lookup-button{grid-column:1;justify-self:start}
-  .reference-google-button{grid-column:2;justify-self:start;min-height:42px;padding:9px 11px;font-size:.68rem}
+  .reference-google-button{grid-column:2;justify-self:start;min-height:42px;padding:9px 7px;font-size:.66rem;gap:4px}
+  .reference-google-button svg{width:13px;height:13px}
 }
 
 /* Stage 7 v1.8.6.19 — desktop editor workspace width.
