@@ -149,8 +149,8 @@
 }
 
 
-/* WLP Stage 7 v1.8.6.9 — viewport-fixed, Study-density bottom navigation */
-.deck-browser-page .deck-content{padding-bottom:calc(92px + env(safe-area-inset-bottom));}
+/* WLP Stage 7 v1.8.6.10 — Choose a Deck uses the Study Card bottom-nav visual spec. */
+.deck-browser-page .deck-content{padding-bottom:calc(96px + env(safe-area-inset-bottom));}
 .deck-browser-bottom-nav{
   position:fixed;
   z-index:85;
@@ -158,28 +158,30 @@
   bottom:0;
   transform:translateX(-50%);
   width:min(100%,760px);
-  min-height:58px;
-  padding:5px 12px calc(5px + env(safe-area-inset-bottom));
+  margin:0;
+  padding:5px 8px calc(5px + env(safe-area-inset-bottom));
   display:grid;
-  grid-template-columns:1fr 1fr;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  column-gap:4px;
   align-items:center;
-  border-top:1px solid rgba(117,132,125,.18);
-  background:rgba(249,252,248,.95);
-  backdrop-filter:blur(14px);
-  -webkit-backdrop-filter:blur(14px);
-  box-shadow:0 -8px 24px rgba(40,70,55,.055);
+  border-top:1px solid rgba(199,218,204,.9);
+  background:rgba(249,252,248,.94);
+  box-shadow:0 -8px 28px rgba(32,69,49,.08);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
 }
 .deck-browser-bottom-nav .page-bottom-nav-item{
+  width:100%;
   min-width:0;
   min-height:48px;
   margin:0;
-  padding:2px 8px;
+  padding:4px 3px;
   border:0;
   border-radius:14px;
   background:transparent;
-  color:#315a48;
+  color:#587064;
   text-decoration:none;
-  display:flex;
+  display:inline-flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
@@ -188,19 +190,41 @@
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
 }
-.deck-browser-bottom-nav .page-bottom-nav-item:active{background:#e8f0e9;}
+.deck-browser-bottom-nav .page-bottom-nav-item:first-child{
+  width:auto;
+  justify-self:start;
+  align-items:flex-start;
+  padding-left:0;
+  padding-right:4px;
+}
+.deck-browser-bottom-nav .page-bottom-nav-item:nth-child(2){
+  justify-self:stretch;
+  align-items:center;
+}
+.deck-browser-bottom-nav .page-bottom-nav-item:active{background:#e9f1ea;}
 .deck-browser-bottom-nav .page-bottom-nav-item svg{
   width:24px;
   height:24px;
+  flex:0 0 24px;
   fill:none;
   stroke:currentColor;
-  stroke-width:1.8;
+  stroke-width:1.7;
   stroke-linecap:round;
   stroke-linejoin:round;
 }
 .deck-browser-bottom-nav .page-bottom-nav-item span{
+  display:block;
+  max-width:100%;
+  color:#73857a;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   font-size:.58rem;
-  line-height:1.05;
   font-weight:400;
+  line-height:1.05;
   letter-spacing:.005em;
+  white-space:nowrap;
+}
+@media(max-width:390px){
+  .deck-browser-bottom-nav{padding-left:6px;padding-right:6px;}
+  .deck-browser-bottom-nav .page-bottom-nav-item span{font-size:.54rem;}
+  .deck-browser-bottom-nav .page-bottom-nav-item svg{width:23px;height:23px;flex-basis:23px;}
 }
