@@ -228,3 +228,99 @@
   .deck-browser-bottom-nav .page-bottom-nav-item span{font-size:.54rem;}
   .deck-browser-bottom-nav .page-bottom-nav-item svg{width:23px;height:23px;flex-basis:23px;}
 }
+
+/* Choose a Deck voice search — restored known-good UI aligned with Global Search. */
+.deck-search{
+  display:grid;
+  grid-template-columns:20px minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+}
+.deck-search-leading-icon{
+  width:20px;
+  height:20px;
+  flex:none;
+  color:#667870;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.deck-search-controls{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:1px;
+}
+.deck-search-voice,
+.deck-search-clear{
+  width:30px;
+  height:30px;
+  flex:0 0 30px;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  color:#71837a;
+  display:grid;
+  place-items:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.deck-search-voice svg{
+  width:19px;
+  height:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.deck-search-voice .voice-stop-icon{display:none}
+.deck-search-voice.is-listening .voice-mic-icon{display:none}
+.deck-search-voice.is-listening .voice-stop-icon{
+  display:block!important;
+  width:17px!important;
+  height:17px!important;
+  fill:#fff!important;
+  color:#fff!important;
+  stroke:none!important;
+}
+.deck-search-voice.is-listening{
+  color:#fff!important;
+  background:#416b57!important;
+  box-shadow:
+    0 0 0 4px rgba(65,107,87,.10),
+    0 0 0 8px rgba(65,107,87,.055);
+}
+.deck-search-voice.is-listening .voice-stop-icon rect{
+  fill:#fff!important;
+  stroke:none!important;
+}
+.deck-search-clear{
+  font:400 24px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  transform:translateX(-2px);
+}
+.deck-search-voice[hidden],
+.deck-search-clear[hidden]{display:none!important}
+.deck-search-voice:active,
+.deck-search-clear:active{background:#edf3ee}
+.deck-voice-permission-help{
+  margin:8px 4px 0;
+  padding:9px 10px;
+  border:1px solid #d7e2da;
+  border-radius:12px;
+  background:#f8fbf8;
+  color:#53675d;
+  font:12px/1.42 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.deck-voice-permission-help strong{color:#315a47}
+.deck-voice-permission-help button{
+  margin-top:6px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#35644f;
+  font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
