@@ -1,11 +1,24 @@
-/* WLP Stage 7 — shared Bottom Nav behavior. */
+/* WLP Stage 7 v1.8.6.24 — shared Bottom Nav viewport lock. */
 (() => {
+  function lockNavToViewport(nav){
+    if (!nav) return;
+    if (nav.parentElement !== document.body) document.body.appendChild(nav);
+
+    // Critical geometry is duplicated as inline !important styles on purpose.
+    // The full visual design still lives in page-bottom-nav.css; this only makes
+    // viewport anchoring resilient to stale cached CSS on installed PWAs.
+    const lock = {
+      position:'fixed', zIndex:'85', left:'50%', right:'auto', top:'auto', bottom:'0',
+      transform:'translateX(-50%)', width:'min(100%, 760px)', maxWidth:'100vw', margin:'0'
+    };
+    Object.entries(lock).forEach(([key, value]) => nav.style.setProperty(
+      key.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), value, 'important'
+    ));
+    nav.dataset.stage7ViewportLocked = 'true';
+  }
+
   function initStage7BottomNav(){
-    // Keep fixed navigation anchored to the actual viewport on iOS Safari.
-    // This mirrors the approved Study Card / Choose a Deck implementation.
-    document.querySelectorAll('.stage7-page-bottom-nav').forEach((nav) => {
-      if (nav.parentElement !== document.body) document.body.appendChild(nav);
-    });
+    document.querySelectorAll('.stage7-page-bottom-nav').forEach(lockNavToViewport);
 
     document.querySelectorAll('[data-stage7-history-back]').forEach((button) => {
       button.addEventListener('click', () => {

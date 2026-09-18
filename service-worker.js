@@ -1,5 +1,5 @@
 // WLP Stage 7 — offline application shell and cache.
-const CACHE_NAME = 'wlp-stage7-cache-consistency-v1-8-6-16';
+const CACHE_NAME = 'wlp-stage7-bottom-nav-runtime-lock-v1-8-6-24';
 const CORE = [
   './',
   './index.html',
@@ -91,7 +91,7 @@ self.addEventListener('fetch', event => {
 
   // Keep the registration script fresh so service-worker updates are detected
   // promptly. UI shell code is intentionally NOT injected from pwa-register.js.
-  if (url.pathname === '/pwa-register.js') {
+  if (url.pathname.endsWith('/pwa-register.js')) {
     event.respondWith(
       fetch(request, { cache: 'no-store' })
         .then(response => {
@@ -105,10 +105,10 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Navigation: prefer current network version, fall back to cached app pages offline.
+  // Navigation: bypass browser HTTP cache, then fall back to the current SW cache offline.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then(response => {
           const copy = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(request, copy));

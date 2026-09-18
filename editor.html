@@ -15,9 +15,24 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
-  <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
+  <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./local-data-safety.css?v=20260917-s7-local-data-safety-v1-8-4">
-  <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18616">
+  <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18624">
+  <style id="stage7-bottom-nav-critical-lock">
+    /* v1.8.6.24 fail-safe: viewport anchoring must not depend on cached shared CSS. */
+    .stage7-page-bottom-nav{
+      position:fixed!important;
+      z-index:85!important;
+      left:50%!important;
+      right:auto!important;
+      top:auto!important;
+      bottom:0!important;
+      transform:translateX(-50%)!important;
+      width:min(100%,760px)!important;
+      max-width:100vw!important;
+      margin:0!important;
+    }
+  </style>
 </head>
 <body class="app-body editor-page stage7-bottom-nav-page">
   <div class="app-shell">
@@ -196,8 +211,25 @@
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-1"></script>
   <script src="./local-data-safety.js?v=20260917-s7-local-data-safety-v1-8-4"></script>
-  <script src="./study-options.js?v=20260915-s7-options-v12"></script>
+  <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260915-s7-editor-v1-1"></script>
-  <script src="./page-bottom-nav.js?v=20260918-s7-v18616"></script>
+  <script>
+    (() => {
+      // v1.8.6.24 fail-safe: keep Bottom Nav on the viewport even if a stale
+      // shared stylesheet/script is temporarily returned by the installed PWA.
+      const nav = document.querySelector('.stage7-page-bottom-nav');
+      if (!nav) return;
+      if (nav.parentElement !== document.body) document.body.appendChild(nav);
+      const lock = {
+        position:'fixed', zIndex:'85', left:'50%', right:'auto', top:'auto', bottom:'0',
+        transform:'translateX(-50%)', width:'min(100%, 760px)', maxWidth:'100vw', margin:'0'
+      };
+      Object.entries(lock).forEach(([key, value]) => nav.style.setProperty(
+        key.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), value, 'important'
+      ));
+    })();
+  </script>
+
+  <script src="./page-bottom-nav.js?v=20260918-s7-v18624"></script>
 </body>
 </html>

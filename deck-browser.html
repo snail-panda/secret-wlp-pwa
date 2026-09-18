@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./deck-browser.css?v=20260918-s7-v18616">
-  <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
+  <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
 <style>
     /* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
     .app-header{
@@ -269,8 +269,16 @@
       // v1.8.6.9: keep the bottom nav in the viewport, not inside the app-shell
       // containing block used by iOS Safari while scrolling.
       const bottomNav = document.querySelector('.deck-browser-bottom-nav');
-      if (bottomNav && bottomNav.parentElement !== document.body) {
-        document.body.appendChild(bottomNav);
+      if (bottomNav) {
+        if (bottomNav.parentElement !== document.body) document.body.appendChild(bottomNav);
+        const lock = {
+          position:'fixed', zIndex:'85', left:'50%', right:'auto', top:'auto', bottom:'0',
+          transform:'translateX(-50%)', width:'min(100%, 760px)', maxWidth:'100vw', margin:'0'
+        };
+        Object.entries(lock).forEach(([key, value]) => bottomNav.style.setProperty(
+          key.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), value, 'important'
+        ));
+        bottomNav.dataset.stage7ViewportLocked = 'true';
       }
     })();
   </script>
@@ -289,7 +297,7 @@
       });
     })();
   </script>
-  <script src="./study-options.js?v=20260915-s7-options-v12"></script>
+  <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260914-stage7-7"></script>
 </body>
 </html>
