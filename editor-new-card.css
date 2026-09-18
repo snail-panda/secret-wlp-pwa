@@ -143,3 +143,42 @@
   .new-card-content .new-card-form,
   .new-card-content .new-card-success{grid-column:1}
 }
+
+/* =========================================================
+   WLP Stage 7 — Sense / Memory Hooks v1.8.6.30
+   Provisional learning layer: deliberately separate from
+   Definition, Notes, Category and Source.
+   ========================================================= */
+.learning-hooks-panel{border-color:rgba(137,119,73,.14)}
+.learning-hooks-head{align-items:center}
+.learning-hooks-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:24px;
+  padding:3px 9px;
+  border:1px solid rgba(137,119,73,.16);
+  border-radius:999px;
+  background:rgba(250,246,232,.78);
+  color:#806f45;
+  font-size:.74rem;
+  font-weight:600;
+  letter-spacing:.02em;
+  white-space:nowrap;
+}
+.learning-hooks-copy{
+  margin:2px 0 12px;
+  color:#68766d;
+  font-size:.9rem;
+  line-height:1.5;
+}
+.learning-hook-field textarea{min-height:72px}
+.learning-hook-field small{
+  display:block;
+  margin-top:5px;
+  color:#7b867e;
+  font-size:.78rem;
+  line-height:1.35;
+  font-weight:400;
+}
+.learning-hook-field + .learning-hook-field{margin-top:12px}

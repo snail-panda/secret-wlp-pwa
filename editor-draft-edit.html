@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
-  <link rel="stylesheet" href="./editor-new-card.css?v=20260918-s7-google-mobile-compact">
+  <link rel="stylesheet" href="./editor-new-card.css?v=20260918-s7-learning-hooks-v18630">
   <link rel="stylesheet" href="./editor-drafts.css">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
@@ -120,6 +120,16 @@
             </div>
           </section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div><label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4"></textarea></label></section>
+
+          <section class="new-card-panel learning-hooks-panel">
+            <div class="new-card-section-head learning-hooks-head">
+              <div><span class="editor-tool-kicker">Learning layer</span><h2>Sense &amp; Memory Hooks</h2></div>
+              <span class="learning-hooks-badge">Local</span>
+            </div>
+            <p class="learning-hooks-copy">Short recall bridges kept separate from Definition and Notes. They are included in WLP local backup and can be exported for later Master/TSV enrichment.</p>
+            <label class="new-card-field learning-hook-field"><span>Sense Hook</span><textarea name="Sense Hook" rows="2" placeholder="e.g. やりすぎでガチガチ／感情的にいっぱいいっぱい"></textarea><small>One-glance sense. Japanese or English is fine; this is not a fixed translation field.</small></label>
+            <label class="new-card-field learning-hook-field"><span>Memory Hook</span><textarea name="Memory Hook" rows="2" placeholder="e.g. over + wrought (‘worked’) → over-worked → overdone / worked up"></textarea><small>A short recall scaffold: word parts, etymology, image, usage frame, or your own mnemonic.</small></label>
+          </section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
           <div class="new-card-save-bar draft-edit-save-bar">
@@ -196,8 +206,9 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
+  <script src="./learning-hooks.js?v=20260918-s7-learning-hooks-v18630"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-drafts.js?v=20260915-s7-editor-v1-3"></script>
+  <script src="./editor-drafts.js?v=20260918-s7-learning-hooks-v18630"></script>
   <script src="./reference-assist.js?v=20260918-s7-google-action"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>

@@ -236,7 +236,6 @@
     const now = new Date().toISOString();
     const draft = { localId: makeLocalDraftId(), createdAt: now, updatedAt: now };
     NEW_CARD_FIELDS.forEach(field => { draft[field] = String(data.get(field) || '').trim(); });
-    draft.__noteLineBreaks = /[\r\n]/.test(draft['Note(s)'] || '');
     const drafts = readLocalDrafts();
     drafts.push(draft);
     localStorage.setItem(LOCAL_ADDITIONS_KEY, JSON.stringify(drafts, null, 2));
@@ -248,6 +247,9 @@
     if (getRole() !== 'admin') { openAdminGate(); return; }
     const draft = saveNewCardDraft(newCardForm);
     if (!draft) return;
+    if (window.WLPLearningHooks) {
+      window.WLPLearningHooks.saveForDraft(draft.localId, window.WLPLearningHooks.fromForm(newCardForm));
+    }
     newCardForm.reset();
     renderCounts();
     const success = $('new-card-success');

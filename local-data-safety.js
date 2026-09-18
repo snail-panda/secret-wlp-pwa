@@ -3,6 +3,7 @@
 
   const DRAFTS_KEY = 'wlp:local-additions:v1';
   const OVERRIDES_KEY = 'wlp:local-overrides:v1';
+  const LEARNING_META_KEY = 'wlp:learning-meta:v1';
   const BACKUP_META_KEY = 'wlp:local-data-backup-meta:v1';
   const RESTORE_ROLLBACK_KEY = 'wlp:local-data-restore-rollback:v1';
   const ROLE_KEY = 'wlp:ui-role:v2';
@@ -34,6 +35,11 @@
 
   function readOverrides() {
     const value = parseJson(localStorage.getItem(OVERRIDES_KEY), {});
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+
+  function readLearningMeta() {
+    const value = parseJson(localStorage.getItem(LEARNING_META_KEY), {});
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   }
 
@@ -69,7 +75,16 @@
       overrides[String(wordId)] = stableStringify(content);
     });
 
-    return { drafts, overrides };
+    const learningHooks = {};
+    Object.entries(readLearningMeta()).forEach(([key, value]) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+      const sense = String(value.senseHook ?? '').trim();
+      const memory = String(value.memoryHook ?? '').trim();
+      if (!sense && !memory) return;
+      learningHooks[String(key)] = stableStringify(value);
+    });
+
+    return { drafts, overrides, learningHooks };
   }
 
   function changedRecordCount(before, after) {
@@ -84,7 +99,8 @@
   function changesSinceBackup(meta, current) {
     if (!meta?.editorState) return null;
     return changedRecordCount(meta.editorState.drafts, current.drafts) +
-      changedRecordCount(meta.editorState.overrides, current.overrides);
+      changedRecordCount(meta.editorState.overrides, current.overrides) +
+      changedRecordCount(meta.editorState.learningHooks || {}, current.learningHooks || {});
   }
 
   function readMeta() {
@@ -145,9 +161,11 @@
   function summary() {
     const drafts = readDrafts();
     const overrides = readOverrides();
+    const learningHooks = Object.values(readLearningMeta()).filter(value => value && typeof value === 'object' && !Array.isArray(value) && (String(value.senseHook ?? '').trim() || String(value.memoryHook ?? '').trim())).length;
     return {
       drafts: drafts.length,
       localEdits: Object.values(overrides).filter(value => value && typeof value === 'object' && !Array.isArray(value)).length,
+      learningHooks,
       progressRecords: countProgressRecords(),
       activityEvents: eventCount(ACTIVITY_KEY),
       practiceEvents: eventCount(PRACTICE_KEY)
@@ -206,10 +224,10 @@
         node.textContent = 'Not backed up yet';
         node.dataset.state = 'warning';
       } else if (changes === 0) {
-        node.textContent = 'No Draft / Local Edit changes since backup';
+        node.textContent = 'No Draft / Local Edit / Hook changes since backup';
         node.dataset.state = 'safe';
       } else {
-        node.textContent = `${changes} Draft / Local Edit change${changes === 1 ? '' : 's'} since backup`;
+        node.textContent = `${changes} local content change${changes === 1 ? '' : 's'} since backup`;
         node.dataset.state = changes >= 10 ? 'urgent' : 'warning';
       }
     });
@@ -235,7 +253,7 @@
     }));
 
     render();
-    setInlineStatus(`Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · Progress included. If you cannot remember where it was saved, search this filename in Files.`, 'success');
+    setInlineStatus(`Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · ${backup.summary.learningHooks || 0} Learning Hooks · Progress included. If you cannot remember where it was saved, search this filename in Files.`, 'success');
 
     if (button) {
       const old = button.textContent;
@@ -303,12 +321,16 @@
     const overrides = parseJson(storage[OVERRIDES_KEY], {});
     const activity = parseJson(storage[ACTIVITY_KEY], []);
     const practice = parseJson(storage[PRACTICE_KEY], []);
+    const learningMeta = parseJson(storage[LEARNING_META_KEY], {});
     let progressRecords = 0;
     Object.keys(storage).forEach(key => { if (key.startsWith(PROGRESS_PREFIX)) progressRecords += 1; });
     return {
       drafts: Array.isArray(drafts) ? drafts.filter(item => item && typeof item === 'object').length : 0,
       localEdits: overrides && typeof overrides === 'object' && !Array.isArray(overrides)
         ? Object.values(overrides).filter(value => value && typeof value === 'object' && !Array.isArray(value)).length
+        : 0,
+      learningHooks: learningMeta && typeof learningMeta === 'object' && !Array.isArray(learningMeta)
+        ? Object.values(learningMeta).filter(value => value && typeof value === 'object' && !Array.isArray(value) && (String(value.senseHook ?? '').trim() || String(value.memoryHook ?? '').trim())).length
         : 0,
       progressRecords,
       activityEvents: Array.isArray(activity) ? activity.length : 0,

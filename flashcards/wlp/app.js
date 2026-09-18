@@ -1351,6 +1351,102 @@ function findWordIndex(
 }
 
 // =============================================================
+// SENSE / MEMORY HOOKS
+// =============================================================
+
+function closeLearningHookPopovers(except = null) {
+  document.querySelectorAll(".learning-hook-popover:not([hidden])").forEach(panel => {
+    if (panel === except) return;
+    panel.hidden = true;
+    const surface = panel.closest(".study-card-surface");
+    const button = surface?.querySelector(".btn-learning-hook");
+    if (button) button.setAttribute("aria-expanded", "false");
+  });
+}
+
+let learningHookOutsideClickBound = false;
+function ensureLearningHookOutsideClick() {
+  if (learningHookOutsideClickBound) return;
+  learningHookOutsideClickBound = true;
+  document.addEventListener("click", event => {
+    if (event.target.closest?.(".btn-learning-hook,.learning-hook-popover")) return;
+    closeLearningHookPopovers();
+  });
+}
+
+function installLearningHookUI(root, row, openEditor = null) {
+  const api = window.WLPLearningHooks;
+  const buttons = Array.from(root.querySelectorAll(".btn-learning-hook"));
+  if (!buttons.length) return;
+  const key = api?.keyForRow?.(row) || "";
+
+  const refresh = () => {
+    const hooks = key && api ? api.get(key) : { senseHook: "", memoryHook: "" };
+    const hasSense = Boolean(String(hooks.senseHook || "").trim());
+    const hasMemory = Boolean(String(hooks.memoryHook || "").trim());
+    const hasHooks = hasSense || hasMemory;
+
+    buttons.forEach(button => {
+      button.hidden = !hasHooks;
+      button.setAttribute("aria-expanded", "false");
+      const surface = button.closest(".study-card-surface");
+      const panel = surface?.querySelector(".learning-hook-popover");
+      if (!panel) return;
+      panel.hidden = true;
+      const sense = panel.querySelector(".learning-hook-sense");
+      const memory = panel.querySelector(".learning-hook-memory");
+      const edit = panel.querySelector(".learning-hook-edit");
+      if (sense) {
+        sense.hidden = !hasSense;
+        const copy = sense.querySelector("p");
+        if (copy) copy.textContent = hasSense ? hooks.senseHook : "";
+      }
+      if (memory) {
+        memory.hidden = !hasMemory;
+        const copy = memory.querySelector("p");
+        if (copy) copy.textContent = hasMemory ? hooks.memoryHook : "";
+      }
+      if (edit) edit.hidden = !(isWlpAdminMode() && typeof openEditor === "function");
+    });
+  };
+
+  buttons.forEach(button => {
+    const surface = button.closest(".study-card-surface");
+    const panel = surface?.querySelector(".learning-hook-popover");
+    if (!panel) return;
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const opening = panel.hidden;
+      closeLearningHookPopovers(opening ? panel : null);
+      panel.hidden = !opening;
+      button.setAttribute("aria-expanded", opening ? "true" : "false");
+    });
+    panel.querySelector(".learning-hook-close")?.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      panel.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+    });
+    panel.querySelector(".learning-hook-edit")?.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      panel.hidden = true;
+      if (typeof openEditor === "function") openEditor();
+    });
+  });
+
+  root.addEventListener("click", event => {
+    if (event.target.closest?.(".btn-prev,.btn-next,.btn-flip,.btn-flip-back")) {
+      closeLearningHookPopovers();
+    }
+  });
+
+  ensureLearningHookOutsideClick();
+  refresh();
+}
+
+// =============================================================
 // CARD RENDERING
 // =============================================================
 
@@ -1526,6 +1622,12 @@ root
           });
         }
       }
+
+      installLearningHookUI(
+        root,
+        row,
+        IS_DRAFT_MODE ? openDraftEdit : openLocalEdit
+      );
 
       return root;
 

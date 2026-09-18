@@ -6,6 +6,7 @@
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260916-s7-editor-backup-v1-5-1';
   const WLP_EXPORT_COLUMNS = ['Batch #','Guidance #','WordID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const WLP_DRAFT_EXPORT_COLUMNS = [...WLP_EXPORT_COLUMNS,'Local Draft ID','Created At','Updated At'];
+  const WLP_HOOK_EXPORT_COLUMNS = ['Entry Kind','WordID','Local Draft ID','Word','Sense Hook','Memory Hook','Updated At'];
   const LOCAL_OVERRIDE_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const $ = id => document.getElementById(id);
   const isAdmin = () => localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin';
@@ -17,8 +18,7 @@
   }
   function normalizeDraft(value){
     const d=value&&typeof value==='object'?value:{}; const now=new Date().toISOString();
-    const note=String(d['Note(s)']||'').trim();
-    return {localId:String(d.localId||makeLocalDraftId()),createdAt:String(d.createdAt||now),updatedAt:String(d.updatedAt||d.createdAt||now),Word:String(d.Word||'').trim(),IPA:String(d.IPA||'').trim(),'Part of Speech':String(d['Part of Speech']||'').trim(),Definition:String(d.Definition||'').trim(),'Synonym(s)':String(d['Synonym(s)']||'').trim(),'Example Sentence':String(d['Example Sentence']||'').trim(),'Note(s)':note,Category:String(d.Category||'').trim(),Source:String(d.Source||'').trim(),__noteLineBreaks:Boolean(d.__noteLineBreaks)||/[\r\n]/.test(note)};
+    return {localId:String(d.localId||makeLocalDraftId()),createdAt:String(d.createdAt||now),updatedAt:String(d.updatedAt||d.createdAt||now),Word:String(d.Word||'').trim(),IPA:String(d.IPA||'').trim(),'Part of Speech':String(d['Part of Speech']||'').trim(),Definition:String(d.Definition||'').trim(),'Synonym(s)':String(d['Synonym(s)']||'').trim(),'Example Sentence':String(d['Example Sentence']||'').trim(),'Note(s)':String(d['Note(s)']||'').trim(),Category:String(d.Category||'').trim(),Source:String(d.Source||'').trim()};
   }
   function readDrafts(){try{const v=JSON.parse(localStorage.getItem(LOCAL_ADDITIONS_KEY)||'[]');return Array.isArray(v)?v.map(normalizeDraft).filter(d=>d.Word):[];}catch{return[];}}
   function writeDrafts(value){localStorage.setItem(LOCAL_ADDITIONS_KEY,JSON.stringify(value,null,2));}
@@ -30,14 +30,26 @@
     const headers=table[0].map(v=>String(v||'').trim()); const rows=table.slice(1).map(cols=>Object.fromEntries(headers.map((h,i)=>[h,String(cols[i]??'').trim()]))); return{headers,rows};
   }
   async function loadMaster(){const r=await fetch(TSV_URL,{cache:'no-store'});if(!r.ok)throw new Error(`Could not load Master TSV (${r.status}).`);masterRows=parseTSVText(await r.text()).rows;return masterRows;}
-  function localDraftToWlpRow(d){return {'Batch #':'','Guidance #':'',WordID:'',Word:d.Word||'',IPA:d.IPA||'','Part of Speech':d['Part of Speech']||'',Definition:d.Definition||'','Synonym(s)':d['Synonym(s)']||'','Example Sentence':d['Example Sentence']||'','Note(s)':d['Note(s)']||'',Category:d.Category||'',Source:d.Source||'',__noteLineBreaks:Boolean(d.__noteLineBreaks)||/[\r\n]/.test(String(d['Note(s)']||''))};}
+  function localDraftToWlpRow(d){return {'Batch #':'','Guidance #':'',WordID:'',Word:d.Word||'',IPA:d.IPA||'','Part of Speech':d['Part of Speech']||'',Definition:d.Definition||'','Synonym(s)':d['Synonym(s)']||'','Example Sentence':d['Example Sentence']||'','Note(s)':d['Note(s)']||'',Category:d.Category||'',Source:d.Source||''};}
   function localDraftToPortableRow(d){return {...localDraftToWlpRow(d),'Local Draft ID':d.localId||'','Created At':d.createdAt||'','Updated At':d.updatedAt||''};}
-  function applyOverride(row,overrides){const wid=String(row.WordID||'').trim(),edit=wid?overrides[wid]:null;if(!edit||typeof edit!=='object')return{...row};const next={...row};LOCAL_OVERRIDE_FIELDS.forEach(f=>{if(Object.prototype.hasOwnProperty.call(edit,f))next[f]=String(edit[f]??'');});next.__noteLineBreaks=Boolean(edit.__noteLineBreaks);return next;}
-  function encodeEditorNoteBreaks(value){return String(value??'').replaceAll('\\','\\\\').replace(/\r\n?|\n/g,'\\n');}
-  function decodeEditorNoteBreaks(value){const text=String(value??'');let out='';for(let i=0;i<text.length;i++){if(text[i]==='\\'&&i+1<text.length){const next=text[i+1];if(next==='n'){out+='\n';i++;continue;}if(next==='\\'){out+='\\';i++;continue;}}out+=text[i];}return out;}
-  function exportCellValue(row,column){const value=row[column]??'';return column==='Note(s)'&&row.__noteLineBreaks?encodeEditorNoteBreaks(value):value;}
+  function applyOverride(row,overrides){const wid=String(row.WordID||'').trim(),edit=wid?overrides[wid]:null;if(!edit||typeof edit!=='object')return{...row};const next={...row};LOCAL_OVERRIDE_FIELDS.forEach(f=>{if(Object.prototype.hasOwnProperty.call(edit,f))next[f]=String(edit[f]??'');});return next;}
+  function learningHookRows(){
+    const api=window.WLPLearningHooks;
+    if(!api)return[];
+    const entries=Object.entries(api.all());
+    const overrides=readOverrides(),drafts=readDrafts();
+    const masterByWid=new Map(masterRows.map(row=>{const effective=applyOverride(row,overrides);return[String(effective.WordID||'').trim(),effective];}));
+    const draftById=new Map(drafts.map(d=>[String(d.localId||'').trim(),d]));
+    const rows=entries.map(([key,hook])=>{
+      if(key.startsWith('wid:')){const wid=key.slice(4),row=masterByWid.get(wid)||{};return{'Entry Kind':'Master',WordID:wid,'Local Draft ID':'',Word:String(row.Word||''),'Sense Hook':String(hook.senseHook||''),'Memory Hook':String(hook.memoryHook||''),'Updated At':String(hook.updatedAt||'')};}
+      if(key.startsWith('draft:')){const localId=key.slice(6),row=draftById.get(localId)||{};return{'Entry Kind':'Draft',WordID:'','Local Draft ID':localId,Word:String(row.Word||''),'Sense Hook':String(hook.senseHook||''),'Memory Hook':String(hook.memoryHook||''),'Updated At':String(hook.updatedAt||'')};}
+      return{'Entry Kind':'Local','WordID':'','Local Draft ID':'',Word:'','Sense Hook':String(hook.senseHook||''),'Memory Hook':String(hook.memoryHook||''),'Updated At':String(hook.updatedAt||'')};
+    });
+    rows.sort((a,b)=>{if(a['Entry Kind']!==b['Entry Kind'])return a['Entry Kind'].localeCompare(b['Entry Kind']);const aw=Number(a.WordID),bw=Number(b.WordID);if(Number.isFinite(aw)&&Number.isFinite(bw)&&aw!==bw)return aw-bw;return String(a.Word||'').localeCompare(String(b.Word||''));});
+    return rows;
+  }
   function tsvEscape(value){const t=String(value??'');return /[\t\n\r"]/.test(t)?`"${t.replaceAll('"','""')}"`:t;}
-  function buildTSV(rows,columns){return [columns.join('\t'),...rows.map(row=>columns.map(c=>tsvEscape(exportCellValue(row,c))).join('\t'))].join('\n')+'\n';}
+  function buildTSV(rows,columns){return [columns.join('\t'),...rows.map(row=>columns.map(c=>tsvEscape(row[c]??'')).join('\t'))].join('\n')+'\n';}
   function dateStamp(){const n=new Date();return [n.getFullYear(),String(n.getMonth()+1).padStart(2,'0'),String(n.getDate()).padStart(2,'0')].join('-');}
   function downloadTSV(text,name){const blob=new Blob(['\uFEFF',text],{type:'text/tab-separated-values;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
   const DRAFT_COMPARE_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
@@ -48,7 +60,7 @@
       localId:String(row['Local Draft ID']||'').trim()||existing?.localId||makeLocalDraftId(),
       createdAt:String(row['Created At']||'').trim()||existing?.createdAt||now,
       updatedAt:String(row['Updated At']||'').trim()||now,
-      Word:row.Word,IPA:row.IPA,'Part of Speech':row['Part of Speech'],Definition:row.Definition,'Synonym(s)':row['Synonym(s)'],'Example Sentence':row['Example Sentence'],'Note(s)':decodeEditorNoteBreaks(row['Note(s)']),Category:row.Category,Source:row.Source
+      Word:row.Word,IPA:row.IPA,'Part of Speech':row['Part of Speech'],Definition:row.Definition,'Synonym(s)':row['Synonym(s)'],'Example Sentence':row['Example Sentence'],'Note(s)':row['Note(s)'],Category:row.Category,Source:row.Source
     });
   }
   function parseDraftDate(value){const raw=String(value||'').trim();if(!raw)return null;const ms=Date.parse(raw);return Number.isFinite(ms)?ms:null;}
@@ -123,7 +135,7 @@
     return `${escapeHtml(p.prefix)}${changed?`<mark class="${mode==='current'?'import-diff-current':'import-diff-incoming'}">${escapeHtml(changed)}</mark>`:''}${escapeHtml(p.suffix)}`||'<span class="import-empty">Empty</span>';
   }
   function showStatus(message,error=false){const el=$('draft-import-status');if(!el)return;el.hidden=false;el.classList.toggle('is-error',error);el.textContent=message;}
-  function syncSummary(){const drafts=readDrafts(),overrides=readOverrides(),edits=Object.values(overrides).filter(v=>v&&typeof v==='object'&&!Array.isArray(v)).length;const pill=$('editor-count-pill');if(pill)pill.textContent=`${drafts.length} Draft${drafts.length===1?'':'s'} · ${edits} Local Edit${edits===1?'':'s'}`;if($('backup-master-count'))$('backup-master-count').textContent=masterRows.length?String(masterRows.length):'—';if($('backup-draft-count'))$('backup-draft-count').textContent=String(drafts.length);if($('backup-edit-count'))$('backup-edit-count').textContent=String(edits);if($('entire-deck-summary'))$('entire-deck-summary').textContent=masterRows.length?`${masterRows.length+drafts.length} cards total · ${edits} Local Edit${edits===1?'':'s'} applied`:'Master deck is still loading…';if($('new-cards-summary'))$('new-cards-summary').textContent=drafts.length?`${drafts.length} Draft${drafts.length===1?'':'s'} ready to export`:'No local Drafts yet';if($('deck-export-new-only'))$('deck-export-new-only').disabled=!drafts.length;}
+  function syncSummary(){const drafts=readDrafts(),overrides=readOverrides(),edits=Object.values(overrides).filter(v=>v&&typeof v==='object'&&!Array.isArray(v)).length,hooks=window.WLPLearningHooks?.count?.()||0;const pill=$('editor-count-pill');if(pill)pill.textContent=`${drafts.length} Draft${drafts.length===1?'':'s'} · ${edits} Local Edit${edits===1?'':'s'}`;if($('backup-master-count'))$('backup-master-count').textContent=masterRows.length?String(masterRows.length):'—';if($('backup-draft-count'))$('backup-draft-count').textContent=String(drafts.length);if($('backup-edit-count'))$('backup-edit-count').textContent=String(edits);if($('entire-deck-summary'))$('entire-deck-summary').textContent=masterRows.length?`${masterRows.length+drafts.length} cards total · ${edits} Local Edit${edits===1?'':'s'} applied`:'Master deck is still loading…';if($('new-cards-summary'))$('new-cards-summary').textContent=drafts.length?`${drafts.length} Draft${drafts.length===1?'':'s'} ready to export`:'No local Drafts yet';if($('deck-export-new-only'))$('deck-export-new-only').disabled=!drafts.length;if($('learning-hooks-summary'))$('learning-hooks-summary').textContent=hooks?`${hooks} card${hooks===1?'':'s'} with local Sense / Memory Hooks`:'No local Learning Hooks yet';if($('learning-hooks-export'))$('learning-hooks-export').disabled=!hooks;}
   function ensureConfirm(){let overlay=$('wlp-backup-confirm');if(overlay)return overlay;overlay=document.createElement('div');overlay.id='wlp-backup-confirm';overlay.className='wlp-backup-confirm';overlay.hidden=true;overlay.innerHTML=`<div class="wlp-backup-confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="wlp-backup-confirm-title" aria-describedby="wlp-backup-confirm-message"><h2 id="wlp-backup-confirm-title">Import Draft changes?</h2><p id="wlp-backup-confirm-message">This updates browser-local Drafts only. The Master TSV will not be changed.</p><span id="wlp-backup-confirm-detail" class="wlp-backup-confirm-detail"></span><div class="wlp-backup-confirm-actions"><button type="button" class="wlp-backup-confirm-cancel" id="wlp-backup-confirm-cancel">Cancel</button><button type="button" class="wlp-backup-confirm-do" id="wlp-backup-confirm-do">Import</button></div></div>`;document.body.appendChild(overlay);return overlay;}
   function askImport(plan){const overlay=ensureConfirm(),detail=$('wlp-backup-confirm-detail'),cancel=$('wlp-backup-confirm-cancel'),confirm=$('wlp-backup-confirm-do');if(detail)detail.textContent=importSummary(plan);return new Promise(resolve=>{let done=false;const finish=v=>{if(done)return;done=true;overlay.hidden=true;cancel?.removeEventListener('click',onCancel);confirm?.removeEventListener('click',onConfirm);overlay.removeEventListener('click',onBackdrop);document.removeEventListener('keydown',onKey);resolve(v);};const onCancel=()=>finish(false),onConfirm=()=>finish(true),onBackdrop=e=>{if(e.target===overlay)finish(false);},onKey=e=>{if(e.key==='Escape'){e.preventDefault();finish(false);}};cancel?.addEventListener('click',onCancel);confirm?.addEventListener('click',onConfirm);overlay.addEventListener('click',onBackdrop);document.addEventListener('keydown',onKey);overlay.hidden=false;requestAnimationFrame(()=>cancel?.focus());});}
   function relationLabel(change){
@@ -172,6 +184,10 @@
     try{if(!masterRows.length)await loadMaster();const overrides=readOverrides(),drafts=readDrafts();const rows=[...masterRows.map(row=>applyOverride(row,overrides)),...drafts.map(localDraftToWlpRow)];downloadTSV(buildTSV(rows,WLP_EXPORT_COLUMNS),`wlp-effective-deck-${dateStamp()}.tsv`);showStatus(`Entire Deck · Prepared for download · ${rows.length} cards.`);}catch(error){showStatus(error?.message||String(error),true);}
   });
   $('deck-export-new-only')?.addEventListener('click',()=>{if(!isAdmin())return;const drafts=readDrafts();if(!drafts.length){showStatus('There are no local Draft cards to export.',true);return;}downloadTSV(buildTSV(drafts.map(localDraftToPortableRow),WLP_DRAFT_EXPORT_COLUMNS),`wlp-new-cards-${dateStamp()}.tsv`);showStatus(`New Cards Only · Prepared for download · ${drafts.length} Draft${drafts.length===1?'':'s'}.`);});
+  $('learning-hooks-export')?.addEventListener('click',async()=>{
+    if(!isAdmin())return;
+    try{if(!masterRows.length)await loadMaster();const rows=learningHookRows();if(!rows.length){showStatus('There are no local Sense / Memory Hooks to export.',true);return;}downloadTSV(buildTSV(rows,WLP_HOOK_EXPORT_COLUMNS),`wlp-learning-hooks-${dateStamp()}.tsv`);showStatus(`Learning Hooks · Prepared for download · ${rows.length} card${rows.length===1?'':'s'}.`);}catch(error){showStatus(error?.message||String(error),true);}
+  });
   const importButton=$('draft-import-button'),importFile=$('draft-import-file');
   importButton?.addEventListener('click',()=>{if(!isAdmin())return;importFile?.click();});
   importFile?.addEventListener('change',async()=>{
@@ -197,6 +213,6 @@
   });
 
   async function init(){syncSummary();try{await loadMaster();syncSummary();}catch(error){showStatus(error?.message||String(error),true);const button=$('deck-export-entire');if(button)button.disabled=true;}}
-  window.addEventListener('pageshow',()=>{syncSummary();});window.addEventListener('focus',syncSummary);window.addEventListener('storage',event=>{if([LOCAL_ADDITIONS_KEY,LOCAL_OVERRIDES_KEY].includes(event.key))syncSummary();});
+  window.addEventListener('pageshow',()=>{syncSummary();});window.addEventListener('focus',syncSummary);window.addEventListener('storage',event=>{if([LOCAL_ADDITIONS_KEY,LOCAL_OVERRIDES_KEY,window.WLPLearningHooks?.STORAGE_KEY].includes(event.key))syncSummary();});window.addEventListener('wlp-learning-hooks-changed',syncSummary);
   init();
 })();

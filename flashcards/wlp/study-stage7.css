@@ -2772,3 +2772,154 @@ body.review-attention-open{overflow:hidden}
     gap:5px!important;
   }
 }
+
+/* =========================================================
+   WLP Stage 7 — Sense / Memory Hooks v1.8.6.30
+   A small, optional recall bridge. Hooks are local learning
+   metadata, not a permanent translation layer on the card.
+   ========================================================= */
+.stage7-study-body .study-front-card .btn-learning-hook,
+.stage7-study-body .study-back-card .btn-learning-hook{
+  position:absolute;
+  top:12px;
+  left:12px;
+  z-index:7;
+  width:32px;
+  min-width:32px;
+  height:32px;
+  min-height:32px;
+  padding:0;
+  margin:0;
+  border:1px solid rgba(150,121,58,.17);
+  border-radius:50%;
+  background:rgba(255,250,233,.82);
+  color:#94752f;
+  box-shadow:none;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  opacity:.84;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage7-study-body .study-front-card .btn-learning-hook[hidden],
+.stage7-study-body .study-back-card .btn-learning-hook[hidden]{display:none!important}
+.stage7-study-body .study-front-card .btn-edit-local-front:not([hidden]) ~ .btn-learning-hook,
+.stage7-study-body .study-back-card .btn-edit-local-back:not([hidden]) ~ .btn-learning-hook{left:50px}
+.stage7-study-body .btn-learning-hook svg{
+  width:17px;
+  height:17px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.55;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.stage7-study-body .btn-learning-hook:hover,
+.stage7-study-body .btn-learning-hook[aria-expanded="true"]{
+  background:rgba(255,247,217,.98);
+  color:#765a20;
+  opacity:1;
+}
+.stage7-study-body .btn-learning-hook:active{transform:translateY(1px)}
+.stage7-study-body .btn-learning-hook:focus-visible{
+  outline:2px solid rgba(148,117,47,.36);
+  outline-offset:2px;
+}
+.stage7-study-body .learning-hook-popover{
+  position:absolute;
+  top:52px;
+  left:12px;
+  z-index:20;
+  width:min(330px,calc(100% - 24px));
+  padding:13px 14px 12px;
+  border:1px solid rgba(125,112,73,.18);
+  border-radius:15px;
+  background:rgba(255,255,250,.985);
+  color:#344b3b;
+  box-shadow:0 13px 32px rgba(45,61,48,.14),0 2px 6px rgba(45,61,48,.06);
+  text-align:left;
+}
+.stage7-study-body .learning-hook-popover[hidden]{display:none!important}
+.stage7-study-body .learning-hook-popover-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-bottom:7px;
+  border-bottom:1px solid rgba(70,107,83,.09);
+}
+.stage7-study-body .learning-hook-popover-head strong{
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:.92rem;
+  font-weight:600;
+  color:#5d654a;
+}
+.stage7-study-body .learning-hook-close{
+  appearance:none;
+  -webkit-appearance:none;
+  border:0;
+  background:transparent;
+  color:#819086;
+  min-width:26px;
+  min-height:26px;
+  padding:0;
+  margin:-4px -4px -4px 0;
+  font:400 1.25rem/1 system-ui,sans-serif;
+  cursor:pointer;
+}
+.stage7-study-body .learning-hook-section{padding-top:9px}
+.stage7-study-body .learning-hook-section[hidden]{display:none!important}
+.stage7-study-body .learning-hook-section span{
+  display:block;
+  margin-bottom:2px;
+  color:#839087;
+  font:600 .69rem/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+.stage7-study-body .learning-hook-section p{
+  margin:0;
+  color:#31483a;
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:1.03rem;
+  line-height:1.38;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+.stage7-study-body .learning-hook-memory p{color:#4d5c53;font-size:.98rem}
+.stage7-study-body .learning-hook-edit{
+  appearance:none;
+  -webkit-appearance:none;
+  border:0;
+  background:transparent;
+  color:#587363;
+  padding:8px 0 0;
+  margin:4px 0 0;
+  font:600 .76rem/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  cursor:pointer;
+}
+.stage7-study-body .learning-hook-edit:hover{text-decoration:underline}
+@media(max-width:390px){
+  .stage7-study-body .learning-hook-popover{width:calc(100% - 24px)}
+}
+/* Keep hook-popover actions out of the legacy .back button sizing rules. */
+.stage7-study-body .flashcard .back .learning-hook-close,
+.stage7-study-body .flashcard .front .learning-hook-close{
+  min-width:26px!important;
+  min-height:26px!important;
+  height:26px!important;
+  padding:0!important;
+  margin:-4px -4px -4px 0!important;
+  font-size:1.25rem!important;
+  line-height:1!important;
+}
+.stage7-study-body .flashcard .back .learning-hook-edit,
+.stage7-study-body .flashcard .front .learning-hook-edit{
+  min-width:0!important;
+  min-height:0!important;
+  height:auto!important;
+  padding:8px 0 0!important;
+  margin:4px 0 0!important;
+  font-size:.76rem!important;
+  line-height:1.2!important;
+}

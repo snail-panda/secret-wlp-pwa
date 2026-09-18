@@ -113,7 +113,9 @@
         confirmLabel:'Delete'
       });
       if(!ok) return;
-      writeDrafts(rows.filter(d=>String(d.localId||'')!==id)); renderManage();
+      writeDrafts(rows.filter(d=>String(d.localId||'')!==id));
+      window.WLPLearningHooks?.removeForDraft(id);
+      renderManage();
     }));
   }
 
@@ -125,6 +127,7 @@
     if(!draft){ form.hidden=true; if(missing) missing.hidden=false; return; }
     if(missing) missing.hidden=true; form.hidden=false;
     FIELDS.forEach(field=>{ const el=form.elements.namedItem(field); if(el) el.value=String(draft[field]||''); });
+    window.WLPLearningHooks?.fillForm(form, window.WLPLearningHooks.getForDraft(id));
     const badge=$('draft-edit-badge'); if(badge) badge.textContent=`Draft ${String(index+1).padStart(3,'0')}`;
     const study=$('draft-edit-study'); if(study) study.href=studyHref(drafts,index);
     syncEditNavigation(drafts,index);
@@ -132,7 +135,8 @@
       event.preventDefault(); if(!isAdmin()) return;
       const latest=readDrafts(); const at=latest.findIndex(d=>String(d.localId||'')===id); if(at<0){ location.reload(); return; }
       const fd=new FormData(form); const word=String(fd.get('Word')||'').trim(); if(!word){ $('draft-edit-word')?.focus(); return; }
-      const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); next.__noteLineBreaks=/[\r\n]/.test(next['Note(s)']||''); latest[at]=next; writeDrafts(latest);
+      const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); latest[at]=next; writeDrafts(latest);
+      if (window.WLPLearningHooks) window.WLPLearningHooks.saveForDraft(id, window.WLPLearningHooks.fromForm(form));
       const success=$('draft-edit-success'); if(success) success.hidden=false; if(study) study.href=studyHref(latest,at); syncEditNavigation(latest,at);
     });
     $('draft-edit-delete')?.addEventListener('click',async()=>{
@@ -144,7 +148,9 @@
         confirmLabel:'Delete'
       });
       if(!ok) return;
-      writeDrafts(latest.filter(d=>String(d.localId||'')!==id)); location.href='./editor-drafts.html';
+      writeDrafts(latest.filter(d=>String(d.localId||'')!==id));
+      window.WLPLearningHooks?.removeForDraft(id);
+      location.href='./editor-drafts.html';
     });
   }
 
