@@ -2745,11 +2745,15 @@ function bindRecordingPractice(root, row) {
 
 const REVIEW_REASON_OPTIONS = [
   ["recall", "Recall"],
+  ["meaning-hook", "Meaning Hook"],
   ["usage", "Usage"],
   ["context", "Context"],
+  ["real-life-use", "Real-life use"],
   ["nuance", "Nuance"],
   ["collocation", "Collocation"],
+  ["pattern", "Pattern"],
   ["pronunciation", "Pronunciation"],
+  ["better-example", "Better Example"],
   ["more-exposure", "More exposure"]
 ];
 
