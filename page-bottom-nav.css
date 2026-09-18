@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.11 — shared fixed Bottom Nav.
+/* WLP Stage 7 v1.8.6.12 — shared fixed Bottom Nav.
    Visual spec intentionally matches the approved Study Card / Choose a Deck nav. */
 .stage7-bottom-nav-page .app-shell{
   padding-bottom:calc(72px + env(safe-area-inset-bottom));
@@ -80,6 +80,11 @@
 }
 .stage7-bottom-nav-page .toast{
   bottom:calc(76px + env(safe-area-inset-bottom));
+}
+/* Keep editor action bars sticky and visible above the fixed Bottom Nav.
+   58px nav + ~8px breathing room; restores the pre-expansion behavior. */
+.stage7-bottom-nav-page .new-card-save-bar{
+  bottom:calc(66px + env(safe-area-inset-bottom))!important;
 }
 @media(max-width:390px){
   .stage7-page-bottom-nav{padding-left:6px;padding-right:6px;}

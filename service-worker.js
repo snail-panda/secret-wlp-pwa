@@ -1,5 +1,5 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-bottom-nav-expansion-v1-8-6-11';
+const CACHE_NAME = 'wlp-stage7-sticky-save-bar-restore-v1-8-6-12';
 const CORE = [
   './',
   './index.html',
