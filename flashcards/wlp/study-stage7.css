@@ -2026,16 +2026,22 @@ body.stage7-study-body{
 .stage7-study-body .flashcard .back .syn .syn-headword-link{
   appearance:none;
   -webkit-appearance:none;
-  display:inline;
-  margin:0;
-  padding:0;
+  display:inline!important;
+  box-sizing:content-box;
+  min-width:0!important;
+  min-height:0!important;
+  width:auto!important;
+  height:auto!important;
+  margin:0!important;
+  padding:0!important;
   border:0;
   background:none;
   color:#426b57;
-  font:inherit;
-  font-weight:560;
-  line-height:inherit;
+  font:inherit!important;
+  font-weight:560!important;
+  line-height:inherit!important;
   letter-spacing:inherit;
+  vertical-align:baseline!important;
   text-align:inherit;
   cursor:pointer;
 }
