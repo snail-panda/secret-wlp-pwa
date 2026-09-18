@@ -89,3 +89,14 @@
 .reference-google-button{min-height:42px;padding:9px 14px;border:1px solid rgba(74,104,87,.16);border-radius:999px;background:rgba(255,255,255,.82);color:#64766c;font:800 .72rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
 .reference-google-button:active{transform:translateY(1px)}
 @media(max-width:640px){.reference-google-button{justify-self:start}}
+
+/* Stage 7 v1.8.6.19 — desktop editor workspace width.
+   editor.css turns .editor-workspace into two columns on wider screens for the
+   Editor dashboard cards. New Card / Draft Edit / Local Edit use the same
+   workspace wrapper, but their form is one continuous document and should
+   occupy the full editor content width. Keep mobile/tablet behavior unchanged. */
+@media (min-width:720px){
+  .new-card-content .editor-workspace{grid-template-columns:minmax(0,1fr)}
+  .new-card-content .new-card-form,
+  .new-card-content .new-card-success{grid-column:1}
+}
