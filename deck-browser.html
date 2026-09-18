@@ -163,6 +163,17 @@
         <div id="range-decks" class="deck-list range-decks" hidden></div>
       </section>
     </main>
+
+    <nav class="page-bottom-nav deck-browser-bottom-nav" aria-label="Page navigation">
+      <button class="page-bottom-nav-item" id="deck-page-back" type="button" aria-label="Back">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg>
+        <span>Back</span>
+      </button>
+      <a class="page-bottom-nav-item" href="./index.html" aria-label="Home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg>
+        <span>Home</span>
+      </a>
+    </nav>
   </div>
 
   <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
@@ -242,6 +253,20 @@
 
   <div class="toast" id="deck-toast" role="status" aria-live="polite" hidden></div>
   <script src="./deck-browser.js"></script>
+  <script>
+    (() => {
+      const back = document.getElementById('deck-page-back');
+      if (!back) return;
+      back.addEventListener('click', () => {
+        let sameOriginReferrer = false;
+        try {
+          sameOriginReferrer = !!document.referrer && new URL(document.referrer).origin === location.origin;
+        } catch (_) {}
+        if (sameOriginReferrer) history.back();
+        else location.href = './index.html';
+      });
+    })();
+  </script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
   <script src="./pwa-register.js?v=20260914-stage7-7"></script>
 </body>
