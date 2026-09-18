@@ -1,5 +1,5 @@
 // WLP Stage 7 — offline application shell and cache.
-const CACHE_NAME = 'wlp-stage7-deck-voice-ui-v1-8-6-15';
+const CACHE_NAME = 'wlp-stage7-cache-consistency-v1-8-6-16';
 const CORE = [
   './',
   './index.html',
@@ -123,10 +123,32 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Local assets/data: cached immediately for offline use; refresh cache in background.
+  // Mutable app code must prefer the deployed network version whenever online.
+  // Cache is used only as an offline fallback. This prevents an older unversioned
+  // JS/CSS entry from winning over a newer query-versioned request.
+  const isMutableCode = /\.(?:js|css|webmanifest)$/i.test(url.pathname);
+  if (isMutableCode) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async cache => {
+        try {
+          const response = await fetch(request, { cache: 'no-store' });
+          if (response && response.ok) await cache.put(request, response.clone());
+          return response;
+        } catch (_) {
+          const exact = await cache.match(request);
+          if (exact) return exact;
+          // Offline compatibility only: fall back to the unversioned cached copy.
+          return cache.match(request, { ignoreSearch: true });
+        }
+      })
+    );
+    return;
+  }
+
+  // Stable local assets/data: exact cache key first, refresh in background.
   event.respondWith(
     caches.open(CACHE_NAME).then(async cache => {
-      const cached = await cache.match(request, { ignoreSearch: true });
+      const cached = await cache.match(request);
       const network = fetch(request).then(response => {
         if (response && response.ok) {
           cache.put(request, response.clone());

@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.14 — shared Bottom Nav behavior. */
+/* WLP Stage 7 — shared Bottom Nav behavior. */
 (() => {
   function initStage7BottomNav(){
     // Keep fixed navigation anchored to the actual viewport on iOS Safari.
