@@ -127,7 +127,7 @@
   display:inline-flex;
   align-items:center;
   gap:2px;
-  color:#4f6b5d;
+  color:#466456;
   text-decoration:none;
   font-weight:500;
 }
@@ -140,6 +140,7 @@
   stroke-linecap:round;
   stroke-linejoin:round;
   transform:translateY(1px);
+  color:#587888;
 }
 .range-jump-link:active{
   opacity:.7;
