@@ -2840,6 +2840,34 @@ body.review-attention-open{overflow:hidden}
   text-align:left;
 }
 .stage7-study-body .learning-hook-popover[hidden]{display:none!important}
+.learning-layer-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:108;
+  background:rgba(238,244,237,.18);
+  touch-action:none;
+}
+.learning-layer-backdrop[hidden]{display:none!important}
+.stage7-study-body .learning-hook-popover.is-viewport-layer{
+  position:fixed!important;
+  z-index:109!important;
+  top:var(--learning-layer-top,12px)!important;
+  left:var(--learning-layer-left,50%)!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translate3d(-50%,0,0)!important;
+  -webkit-transform:translate3d(-50%,0,0)!important;
+  width:min(390px,calc(100vw - 24px))!important;
+  max-width:calc(100vw - 24px)!important;
+  max-height:var(--learning-layer-max-height,calc(100dvh - 108px))!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overscroll-behavior:contain;
+  will-change:transform;
+}
 .stage7-study-body .learning-hook-popover-head{
   display:flex;
   align-items:center;
@@ -2847,6 +2875,24 @@ body.review-attention-open{overflow:hidden}
   gap:12px;
   padding-bottom:7px;
   border-bottom:1px solid rgba(70,107,83,.09);
+}
+.stage7-study-body .learning-hook-popover.is-viewport-layer .learning-hook-popover-head{
+  flex:0 0 auto;
+  padding:13px 14px 9px;
+  background:rgba(255,255,250,.995);
+}
+.stage7-study-body .learning-hook-scroll{
+  min-height:0;
+}
+.stage7-study-body .learning-hook-popover.is-viewport-layer .learning-hook-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:0 14px 8px;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
 }
 .stage7-study-body .learning-hook-popover-head strong{
   font-family:"EB Garamond",Georgia,serif;
@@ -2899,8 +2945,27 @@ body.review-attention-open{overflow:hidden}
   cursor:pointer;
 }
 .stage7-study-body .learning-hook-edit:hover{text-decoration:underline}
+.stage7-study-body .learning-hook-edit[hidden]{display:none!important}
+.stage7-study-body .learning-hook-popover.is-viewport-layer .learning-hook-edit:not([hidden]){
+  flex:0 0 auto;
+  display:block;
+  width:100%;
+  padding:10px 14px 12px!important;
+  margin:0!important;
+  border-top:1px solid rgba(70,107,83,.09)!important;
+  background:rgba(255,255,250,.995)!important;
+  text-align:left;
+}
 @media(max-width:390px){
   .stage7-study-body .learning-hook-popover{width:calc(100% - 24px)}
+}
+@media(orientation:landscape) and (max-height:500px){
+  .stage7-study-body .learning-hook-popover.is-viewport-layer{
+    width:min(520px,calc(100vw - 28px))!important;
+    max-width:calc(100vw - 28px)!important;
+  }
+  .stage7-study-body .learning-hook-popover.is-viewport-layer .learning-hook-popover-head{padding-top:9px;padding-bottom:7px}
+  .stage7-study-body .learning-hook-popover.is-viewport-layer .learning-hook-edit:not([hidden]){padding-top:8px!important;padding-bottom:9px!important}
 }
 /* Keep hook-popover actions out of the legacy .back button sizing rules. */
 .stage7-study-body .flashcard .back .learning-hook-close,
@@ -2944,3 +3009,5 @@ body.review-attention-open{overflow:hidden}
   padding-top:0;
   border-top:0;
 }
+
+/* WLP Stage 7 — Viewport-safe Learning Layer + orientation hardening v1.8.6.34 */

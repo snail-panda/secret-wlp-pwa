@@ -365,7 +365,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-situation-v18633" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-layer-modal-v18634" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
 </head>
 <body class="stage7-study-body">
@@ -411,11 +411,13 @@
           <button type="button" class="btn-learning-hook" aria-label="Learning layer" title="Learning Layer" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"></path><path d="M8.2 14.4A6 6 0 1 1 15.8 14.4C14.8 15.2 14.3 16 14.2 17h-4.4c-.1-1-.6-1.8-1.6-2.6Z"></path></svg>
           </button>
-          <aside class="learning-hook-popover" hidden aria-live="polite">
+          <aside class="learning-hook-popover" hidden aria-live="polite" role="dialog" aria-modal="true" aria-label="Learning Layer">
             <div class="learning-hook-popover-head"><strong>Learning Layer</strong><button type="button" class="learning-hook-close" aria-label="Close learning layer">×</button></div>
-            <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
-            <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
-            <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+            <div class="learning-hook-scroll">
+              <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
+              <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
+              <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+            </div>
             <button type="button" class="learning-hook-edit" hidden>Edit learning layer</button>
           </aside>
           <span class="card-tag"></span>
@@ -478,11 +480,13 @@
           <button type="button" class="btn-learning-hook" aria-label="Learning layer" title="Learning Layer" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"></path><path d="M8.2 14.4A6 6 0 1 1 15.8 14.4C14.8 15.2 14.3 16 14.2 17h-4.4c-.1-1-.6-1.8-1.6-2.6Z"></path></svg>
           </button>
-          <aside class="learning-hook-popover" hidden aria-live="polite">
+          <aside class="learning-hook-popover" hidden aria-live="polite" role="dialog" aria-modal="true" aria-label="Learning Layer">
             <div class="learning-hook-popover-head"><strong>Learning Layer</strong><button type="button" class="learning-hook-close" aria-label="Close learning layer">×</button></div>
-            <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
-            <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
-            <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+            <div class="learning-hook-scroll">
+              <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
+              <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
+              <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+            </div>
             <button type="button" class="learning-hook-edit" hidden>Edit learning layer</button>
           </aside>
           <span class="card-tag"></span>
@@ -834,17 +838,49 @@
         nav.style.setProperty('-webkit-transform','translate3d(-50%, 0, 0)','important');
         nav.dataset.stage7ViewportLocked='true';
       };
+      const hardResetStudyBottomNav=()=>{
+        const nav=document.getElementById('deck-nav-links');
+        if(!nav||!document.body)return;
+        const next=nav.parentElement===document.body?nav.nextSibling:null;
+        if(nav.parentElement)nav.parentElement.removeChild(nav);
+        void document.documentElement.offsetHeight;
+        if(next&&next.parentNode===document.body)document.body.insertBefore(nav,next);else document.body.appendChild(nav);
+        lockStudyBottomNav();
+        void nav.getBoundingClientRect();
+      };
       let raf=0;
       const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lockStudyBottomNav();});};
+      let recoveryTimers=[];
+      const recoverAfterOrientation=()=>{
+        recoveryTimers.forEach(clearTimeout);
+        recoveryTimers=[];
+        [0,70,170,330,650,1100].forEach((delay,index)=>{
+          recoveryTimers.push(setTimeout(()=>{
+            if(index===2||index===4)hardResetStudyBottomNav();else lockStudyBottomNav();
+            requestAnimationFrame(lockStudyBottomNav);
+          },delay));
+        });
+      };
+      let lastOrientation=innerWidth>innerHeight?'landscape':'portrait';
+      const detectOrientation=()=>{
+        const next=innerWidth>innerHeight?'landscape':'portrait';
+        if(next!==lastOrientation){lastOrientation=next;recoverAfterOrientation();}
+        else schedule();
+      };
       lockStudyBottomNav();
-      ['pageshow','focus','resize','orientationchange','scroll','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
-      if(window.visualViewport){visualViewport.addEventListener('resize',schedule,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
+      ['pageshow','focus','scroll','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
+      addEventListener('resize',detectOrientation,{passive:true});
+      addEventListener('orientationchange',recoverAfterOrientation,{passive:true});
+      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recoverAfterOrientation);
+      const orientationQuery=matchMedia('(orientation: portrait)');
+      if(orientationQuery.addEventListener)orientationQuery.addEventListener('change',recoverAfterOrientation);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden){schedule();setTimeout(lockStudyBottomNav,120);}});
+      if(window.visualViewport){visualViewport.addEventListener('resize',detectOrientation,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
       setInterval(()=>{if(!document.hidden)lockStudyBottomNav();},1500);
     })();
   </script>
   <script src="../../learning-hooks.js?v=20260918-s7-situation-v18633"></script>
-  <script type="module" src="./app.js?v=20260918-s7-situation-v18633"></script>
+  <script type="module" src="./app.js?v=20260918-s7-layer-modal-v18634"></script>
   <script src="./study-stage7.js?v=20260917-s7-review-v180"></script>
   <script src="../../study-options.js?v=20260918-s7-options-v18624"></script>
 </body>

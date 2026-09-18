@@ -1354,14 +1354,123 @@ function findWordIndex(
 // LEARNING LAYER — SENSE / MEMORY / SITUATION
 // =============================================================
 
+let learningLayerBackdrop = null;
+let learningLayerViewportBound = false;
+
+function ensureLearningLayerBackdrop() {
+  if (learningLayerBackdrop?.isConnected) return learningLayerBackdrop;
+  const backdrop = document.createElement("div");
+  backdrop.className = "learning-layer-backdrop";
+  backdrop.hidden = true;
+  backdrop.setAttribute("aria-hidden", "true");
+  backdrop.addEventListener("click", () => closeLearningHookPopovers());
+  document.body.appendChild(backdrop);
+  learningLayerBackdrop = backdrop;
+  return backdrop;
+}
+
+function fitLearningHookPanel(panel) {
+  if (!panel || panel.hidden || !panel.classList.contains("is-viewport-layer")) return;
+  const vv = window.visualViewport;
+  const viewportHeight = Math.max(1, vv?.height || window.innerHeight || document.documentElement.clientHeight || 1);
+  const viewportWidth = Math.max(1, vv?.width || window.innerWidth || document.documentElement.clientWidth || 1);
+  const offsetTop = vv?.offsetTop || 0;
+  const offsetLeft = vv?.offsetLeft || 0;
+  const topGap = viewportHeight < 430 ? 8 : 12;
+  const bottomNav = document.getElementById("deck-nav-links");
+  let bottomReserve = viewportHeight < 430 ? 66 : 82;
+  if (bottomNav) {
+    const rect = bottomNav.getBoundingClientRect();
+    const viewportBottom = offsetTop + viewportHeight;
+    if (Number.isFinite(rect.top) && rect.top < viewportBottom) {
+      bottomReserve = Math.max(bottomReserve, viewportBottom - rect.top + 10);
+    }
+  }
+  const maxHeight = Math.max(150, viewportHeight - topGap - bottomReserve);
+  panel.style.setProperty("--learning-layer-top", `${Math.round(offsetTop + topGap)}px`);
+  panel.style.setProperty("--learning-layer-left", `${Math.round(offsetLeft + viewportWidth / 2)}px`);
+  panel.style.setProperty("--learning-layer-max-height", `${Math.round(maxHeight)}px`);
+}
+
+function restoreLearningHookPanel(panel) {
+  if (!panel) return;
+  panel.classList.remove("is-viewport-layer");
+  panel.style.removeProperty("--learning-layer-top");
+  panel.style.removeProperty("--learning-layer-left");
+  panel.style.removeProperty("--learning-layer-max-height");
+  const parent = panel.__wlpLearningLayerParent;
+  const next = panel.__wlpLearningLayerNext;
+  if (parent) {
+    if (next && next.parentNode === parent) parent.insertBefore(panel, next);
+    else parent.appendChild(panel);
+  }
+  panel.__wlpLearningLayerParent = null;
+  panel.__wlpLearningLayerNext = null;
+}
+
+function syncLearningLayerBackdrop() {
+  const hasOpen = Boolean(document.querySelector(".learning-hook-popover.is-viewport-layer:not([hidden])"));
+  const backdrop = ensureLearningLayerBackdrop();
+  backdrop.hidden = !hasOpen;
+  document.documentElement.classList.toggle("learning-layer-is-open", hasOpen);
+}
+
+function closeLearningHookPanel(panel) {
+  if (!panel) return;
+  panel.hidden = true;
+  const button = panel.__wlpLearningLayerButton;
+  if (button) button.setAttribute("aria-expanded", "false");
+  restoreLearningHookPanel(panel);
+  syncLearningLayerBackdrop();
+}
+
+function openLearningHookPanel(panel, button) {
+  if (!panel || !document.body) return;
+  if (!panel.__wlpLearningLayerParent) {
+    panel.__wlpLearningLayerParent = panel.parentNode;
+    panel.__wlpLearningLayerNext = panel.nextSibling;
+  }
+  panel.__wlpLearningLayerButton = button || null;
+  document.body.appendChild(panel);
+  panel.classList.add("is-viewport-layer");
+  panel.hidden = false;
+  if (button) button.setAttribute("aria-expanded", "true");
+  ensureLearningLayerBackdrop().hidden = false;
+  document.documentElement.classList.add("learning-layer-is-open");
+  fitLearningHookPanel(panel);
+  requestAnimationFrame(() => fitLearningHookPanel(panel));
+  setTimeout(() => fitLearningHookPanel(panel), 120);
+}
+
 function closeLearningHookPopovers(except = null) {
   document.querySelectorAll(".learning-hook-popover:not([hidden])").forEach(panel => {
     if (panel === except) return;
-    panel.hidden = true;
-    const surface = panel.closest(".study-card-surface");
-    const button = surface?.querySelector(".btn-learning-hook");
-    if (button) button.setAttribute("aria-expanded", "false");
+    closeLearningHookPanel(panel);
   });
+}
+
+function resizeOpenLearningLayer() {
+  document.querySelectorAll(".learning-hook-popover.is-viewport-layer:not([hidden])").forEach(fitLearningHookPanel);
+}
+
+function ensureLearningLayerViewportBinding() {
+  if (learningLayerViewportBound) return;
+  learningLayerViewportBound = true;
+  const refit = () => {
+    resizeOpenLearningLayer();
+    requestAnimationFrame(resizeOpenLearningLayer);
+  };
+  window.addEventListener("resize", refit, { passive: true });
+  window.addEventListener("orientationchange", () => {
+    refit();
+    setTimeout(refit, 120);
+    setTimeout(refit, 360);
+  }, { passive: true });
+  if (window.visualViewport) {
+    visualViewport.addEventListener("resize", refit, { passive: true });
+    visualViewport.addEventListener("scroll", refit, { passive: true });
+  }
+  window.addEventListener("pagehide", () => closeLearningHookPopovers());
 }
 
 let learningHookOutsideClickBound = false;
@@ -1437,19 +1546,18 @@ function installLearningHookUI(root, row, openEditor = null) {
       event.stopPropagation();
       const opening = panel.hidden;
       closeLearningHookPopovers(opening ? panel : null);
-      panel.hidden = !opening;
-      button.setAttribute("aria-expanded", opening ? "true" : "false");
+      if (opening) openLearningHookPanel(panel, button);
+      else closeLearningHookPanel(panel);
     });
     panel.querySelector(".learning-hook-close")?.addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
-      panel.hidden = true;
-      button.setAttribute("aria-expanded", "false");
+      closeLearningHookPanel(panel);
     });
     panel.querySelector(".learning-hook-edit")?.addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
-      panel.hidden = true;
+      closeLearningHookPanel(panel);
       if (typeof openEditor === "function") openEditor();
     });
   });
@@ -1461,6 +1569,7 @@ function installLearningHookUI(root, row, openEditor = null) {
   });
 
   ensureLearningHookOutsideClick();
+  ensureLearningLayerViewportBinding();
   refresh();
 }
 

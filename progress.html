@@ -325,19 +325,46 @@
         nav.style.setProperty('-webkit-transform','translate3d(-50%, 0, 0)','important');
         nav.style.setProperty('will-change','transform','important');
       };
+      const hardResetBottomNav=()=>{
+        const nav=document.querySelector('.progress-bottom-nav');
+        if(!nav||!document.body)return;
+        const next=nav.parentElement===document.body?nav.nextSibling:null;
+        if(nav.parentElement)nav.parentElement.removeChild(nav);
+        void document.documentElement.offsetHeight;
+        if(next&&next.parentNode===document.body)document.body.insertBefore(nav,next);else document.body.appendChild(nav);
+        lockBottomNav();
+        void nav.getBoundingClientRect();
+      };
+      let orientationTimers=[];
+      const recoverAfterOrientation=()=>{
+        orientationTimers.forEach(clearTimeout);
+        orientationTimers=[];
+        [0,70,170,330,650,1100].forEach((delay,index)=>orientationTimers.push(setTimeout(()=>{
+          if(index===2||index===4)hardResetBottomNav();else lockBottomNav();
+          requestAnimationFrame(lockBottomNav);
+        },delay)));
+      };
+      let lastOrientation=innerWidth>innerHeight?'landscape':'portrait';
+      const detectOrientation=()=>{
+        const next=innerWidth>innerHeight?'landscape':'portrait';
+        if(next!==lastOrientation){lastOrientation=next;recoverAfterOrientation();}else lockBottomNav();
+      };
       lockBottomNav();
       addEventListener('pageshow',lockBottomNav);
-      addEventListener('resize',lockBottomNav,{passive:true});
-      addEventListener('orientationchange',lockBottomNav,{passive:true});
+      addEventListener('resize',detectOrientation,{passive:true});
+      addEventListener('orientationchange',recoverAfterOrientation,{passive:true});
+      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recoverAfterOrientation);
+      const orientationQuery=matchMedia('(orientation: portrait)');
+      if(orientationQuery.addEventListener)orientationQuery.addEventListener('change',recoverAfterOrientation);
       addEventListener('focus',lockBottomNav,{passive:true});
       addEventListener('scroll',lockBottomNav,{passive:true});
       addEventListener('touchend',lockBottomNav,{passive:true});
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden)lockBottomNav();});
-      if(window.visualViewport){visualViewport.addEventListener('resize',lockBottomNav,{passive:true});visualViewport.addEventListener('scroll',lockBottomNav,{passive:true});}
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden){lockBottomNav();setTimeout(lockBottomNav,120);}});
+      if(window.visualViewport){visualViewport.addEventListener('resize',detectOrientation,{passive:true});visualViewport.addEventListener('scroll',lockBottomNav,{passive:true});}
       setInterval(()=>{if(!document.hidden)lockBottomNav();},1500);
     })();
   </script>
   <script src="./progress.js?v=20260918-s7-v18627"></script>
-  <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
+  <script src="./pwa-register.js?v=20260918-s7-orientation-v18634"></script>
 </body>
 </html>
