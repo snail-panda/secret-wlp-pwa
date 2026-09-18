@@ -88,7 +88,7 @@
               <div class="local-safety-copy">
                 <span class="editor-tool-kicker">Full Local Backup</span>
                 <h2>Back up WLP local data now</h2>
-                <p>Downloads Drafts, Local Edits, Learning Hooks, Progress, Activity and WLP local settings together in one JSON file.</p>
+                <p>Downloads Drafts, Local Edits, Learning Metadata, Progress, Activity and WLP local settings together in one JSON file.</p>
                 <span class="local-safety-status" data-safety-change-count>Checking backup status…</span>
               </div>
             </div>
@@ -98,7 +98,7 @@
             <div class="local-safety-stat"><strong data-safety-edits>0</strong><span>Local Edits</span></div>
             <div class="local-safety-stat"><strong data-safety-progress>0</strong><span>Progress cards</span></div>
           </div>
-          <div class="local-safety-meta"><span>Last backup: <strong data-safety-last-backup>Never</strong></span><span>Draft / Local Edit / Learning Hook changes are tracked against the last backup.</span></div>
+          <div class="local-safety-meta"><span>Last backup: <strong data-safety-last-backup>Never</strong></span><span>Draft / Local Edit / Learning Metadata changes are tracked against the last backup.</span></div>
           <div class="local-safety-actions">
             <button class="local-backup-now" type="button" data-local-backup-now>Back Up Now</button>
           </div>
@@ -111,7 +111,7 @@
             <div>
               <span class="editor-tool-kicker">Restore</span>
               <h2>Restore Local Data</h2>
-              <p>Choose a WLP Local Data Backup JSON to restore Drafts, Local Edits, Learning Hooks, Progress, Activity, Practice history, and local WLP settings.</p>
+              <p>Choose a WLP Local Data Backup JSON to restore Drafts, Local Edits, Learning Metadata, Progress, Activity, Practice history, and local WLP settings.</p>
             </div>
           </div>
 
@@ -207,11 +207,20 @@
 
           <article class="backup-action-card learning-hooks-export-card">
             <div class="backup-action-copy">
-              <h3>Sense / Memory Hooks</h3>
-              <p>Exports only the provisional learning hooks you added locally. Master and Draft card content stay untouched.</p>
-              <small id="learning-hooks-summary">Checking local learning hooks…</small>
+              <h3>Learning Metadata v2</h3>
+              <p>Human-readable TSV for Sense / Memory Hooks plus stable metadata identity, revision lineage, status, and source-device information. Master and Draft card content stay untouched.</p>
+              <small id="learning-hooks-summary">Checking local Learning Metadata…</small>
             </div>
-            <button class="backup-secondary-action" id="learning-hooks-export" type="button">Export Learning Hooks <span>.tsv</span></button>
+            <button class="backup-secondary-action" id="learning-hooks-export" type="button">Export Metadata <span>.tsv</span></button>
+          </article>
+
+          <article class="backup-action-card">
+            <div class="backup-action-copy">
+              <h3>Portable Metadata v2</h3>
+              <p>Machine-readable JSON for the upcoming Import / Compare / Merge flow. Includes revision lineage and tombstones so later sync can distinguish edits from deletions.</p>
+              <small>Use TSV for inspection; use this JSON for lossless metadata transfer.</small>
+            </div>
+            <button class="backup-secondary-action" id="learning-metadata-export-json" type="button">Export Metadata <span>.json</span></button>
           </article>
         </section>
 
@@ -329,10 +338,10 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./learning-hooks.js?v=20260918-s7-learning-hooks-v18630"></script>
+  <script src="./learning-hooks.js?v=20260918-s7-learning-meta-v2-v18631"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-backup.js?v=20260918-s7-learning-hooks-v18630"></script>
-  <script src="./local-data-safety.js?v=20260918-s7-learning-hooks-v18630"></script>
+  <script src="./editor-backup.js?v=20260918-s7-learning-meta-v2-v18631"></script>
+  <script src="./local-data-safety.js?v=20260918-s7-learning-meta-v2-v18631"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
