@@ -1,9 +1,11 @@
 // WLP Stage 6A.1 — minimal offline shell.
-const CACHE_NAME = 'wlp-stage7-bottom-nav-unify-progress-fix-v1-8-6-10';
+const CACHE_NAME = 'wlp-stage7-bottom-nav-expansion-v1-8-6-11';
 const CORE = [
   './',
   './index.html',
   './style.css',
+  './page-bottom-nav.css',
+  './page-bottom-nav.js',
   './stage7-home.js',
   './global-search.html',
   './global-search.css',

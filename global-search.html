@@ -16,8 +16,9 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./global-search.css?v=20260917-s7-v166">
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
+  <link rel="stylesheet" href="./page-bottom-nav.css?v=20260917-s7-v18611">
 </head>
-<body class="app-body global-search-page">
+<body class="app-body global-search-page stage7-bottom-nav-page">
   <div class="app-shell search-shell">
     <header class="app-header">
       <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
@@ -79,6 +80,18 @@
       </section>
     </main>
   </div>
+
+
+  <nav class="stage7-page-bottom-nav" aria-label="Page navigation">
+      <a class="stage7-page-bottom-nav-item" href="./index.html" data-stage7-back-source=".search-back-link" aria-label="Back">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg>
+        <span>Back</span>
+      </a>
+      <a class="stage7-page-bottom-nav-item" href="./index.html" aria-label="Home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg>
+        <span>Home</span>
+      </a>
+  </nav>
 
   <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
   <aside class="app-drawer" id="app-drawer" aria-hidden="true">
@@ -159,5 +172,6 @@
   <script src="./global-search.js?v=20260915-s7-v30"></script>
   <script src="./pwa-register.js?v=20260915-s7-v30"></script>
   <script src="./study-options.js?v=20260915-s7-options-v12"></script>
+  <script src="./page-bottom-nav.js?v=20260917-s7-v18611"></script>
 </body>
 </html>
