@@ -3,6 +3,8 @@
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const RECENT_KEY = 'wlp:stage7:recent-decks:v1';
+  const STUDYQ_EVENT_KEY = 'wlp:studyq-events:v1';
+  const STUDYQ_EVENT_LIMIT = 1200;
   const $ = id => document.getElementById(id);
 
   let rows = [];
@@ -15,8 +17,11 @@
   let sessionQueue = [];
   let sessionIndex = 0;
   let lastSessionSpec = null;
+  let sessionAttempts = [];
+  let currentAttempt = null;
 
   const clean = value => String(value ?? '').trim();
+  const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
   const clampDeck = value => Math.max(1, Math.min(maxDeck, Math.round(Number(value) || 1)));
 
   function parseTSV(text) {
@@ -97,15 +102,18 @@
   }
 
   function targetVariants(target) {
-    const raw = clean(target).replace(/\s+/g, ' ');
+    const raw = stripInvisible(clean(target)).normalize('NFKC').replace(/\s+/g, ' ');
     const values = new Set();
     const add = value => {
-      const normalized = clean(value).replace(/\s+/g, ' ');
+      const normalized = stripInvisible(clean(value)).normalize('NFKC').replace(/\s+/g, ' ');
       if (normalized.length >= 2) values.add(normalized);
     };
     add(raw);
     const withoutParens = raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
     add(withoutParens);
+    if (/^(?:to|be)\s+/i.test(withoutParens) && withoutParens.split(/\s+/).length > 1) {
+      add(withoutParens.replace(/^(?:to|be)\s+/i, ''));
+    }
     if (raw.includes('/')) {
       raw.split('/').forEach(part => {
         const normalized = clean(part);
@@ -124,10 +132,11 @@
   }
 
   function redactTarget(value, target) {
-    let text = clean(value);
+    let text = stripInvisible(clean(value)).normalize('NFKC');
     let changed = false;
-    if (!text || !clean(target)) return { text, changed };
-    targetVariants(target).forEach(variant => {
+    const safeTarget = stripInvisible(clean(target)).normalize('NFKC');
+    if (!text || !safeTarget) return { text, changed };
+    targetVariants(safeTarget).forEach(variant => {
       const pattern = variantPattern(variant);
       if (!pattern) return;
       const regex = new RegExp(`(^|[^A-Za-z0-9])(${pattern})(?=$|[^A-Za-z0-9])`, 'giu');
@@ -137,6 +146,37 @@
       });
     });
     return { text: text.replace(/\s{2,}/g, ' ').trim(), changed };
+  }
+
+  function hasTargetLeak(value, target) {
+    return redactTarget(value, target).changed;
+  }
+
+  function safePrompt(value, target) {
+    const redacted = redactTarget(value, target);
+    if (!meaningfulPrompt(redacted.text)) return { text: '', changed: redacted.changed };
+    if (hasTargetLeak(redacted.text, target)) return { text: '', changed: true };
+    return redacted;
+  }
+
+  function definitionCue(value, target) {
+    const redacted = safePrompt(value, target);
+    let prompt = redacted.text;
+    if (!prompt || !redacted.changed) return prompt;
+
+    let match = prompt.match(/^(Depending on context,\s*)?(?:an?\s+|the\s+)?_+\s+(?:may|can)\s+be\s+(.+)$/i);
+    if (match) {
+      const lead = match[1] ? 'Depending on context, ' : '';
+      prompt = `${lead}possible senses include ${match[2]}`;
+      return prompt.charAt(0).toUpperCase() + prompt.slice(1);
+    }
+
+    match = prompt.match(/^(?:an?\s+|the\s+)?_+\s+(?:means?|refers? to|is|are)\s+(.+)$/i);
+    if (match && meaningfulPrompt(match[1])) {
+      const rest = match[1].trim();
+      return rest.charAt(0).toUpperCase() + rest.slice(1);
+    }
+    return prompt;
   }
 
   function meaningfulPrompt(value) {
@@ -165,7 +205,7 @@
       }
     }
 
-    return redactTarget(text, target).text;
+    return safePrompt(text, target).text;
   }
 
   function splitExamples(value) {
@@ -203,8 +243,8 @@
     situations.forEach(situation => {
       const anchor = sanitizeSituationPrompt(situation?.anchor, target);
       if (!meaningfulPrompt(anchor)) return;
-      const title = redactTarget(situation?.title, target).text;
-      const need = redactTarget(situation?.communicativeNeed, target).text;
+      const title = safePrompt(situation?.title, target).text;
+      const need = safePrompt(situation?.communicativeNeed, target).text;
       out.push({
         ...base,
         kind: 'situation',
@@ -224,7 +264,7 @@
     const target = clean(row.Word);
     const base = baseExperience(row, meta, review);
     return splitExamples(row['Example Sentence']).map(example => {
-      const redacted = redactTarget(example, target);
+      const redacted = safePrompt(example, target);
       if (!redacted.changed || !meaningfulPrompt(redacted.text)) return null;
       return {
         ...base,
@@ -242,7 +282,7 @@
 
   function definitionExperience(row, meta, review) {
     const target = clean(row.Word);
-    const prompt = redactTarget(row.Definition, target).text;
+    const prompt = definitionCue(row.Definition, target);
     if (!meaningfulPrompt(prompt)) return null;
     return {
       ...baseExperience(row, meta, review),
@@ -259,7 +299,7 @@
 
   function noteExperience(row, meta, review) {
     const target = clean(row.Word);
-    const prompt = redactTarget(noteExcerpt(row['Note(s)']), target).text;
+    const prompt = safePrompt(noteExcerpt(row['Note(s)']), target).text;
     if (!meaningfulPrompt(prompt)) return null;
     return {
       ...baseExperience(row, meta, review),
@@ -333,12 +373,14 @@
     }
     const savedSituations = currentPool.filter(item => item.kind === 'situation').length;
     const cardCues = experiences - savedSituations;
+    const requested = Math.max(1, Number($('study-session-size').value) || 10);
+    const sessionLength = Math.min(entries, requested);
     let detail = '';
-    if (coverageMode === 'situations') detail = `${savedSituations} saved ${savedSituations === 1 ? 'situation' : 'situations'} · target leakage is masked`;
-    else if (savedSituations && cardCues) detail = `${savedSituations} saved situations + ${cardCues} card-based cues`;
-    else if (savedSituations) detail = `${savedSituations} saved ${savedSituations === 1 ? 'situation' : 'situations'}`;
-    else detail = `${cardCues} card-based ${cardCues === 1 ? 'cue' : 'cues'}`;
-    box.innerHTML = `<strong>${entries} ${entries === 1 ? 'entry' : 'entries'} · ${experiences} ${experiences === 1 ? 'experience' : 'experiences'}</strong><span>${detail}</span>`;
+    if (coverageMode === 'situations') detail = `${savedSituations} saved ${savedSituations === 1 ? 'situation' : 'situations'} available · one target appears once per session`;
+    else if (savedSituations && cardCues) detail = `${savedSituations} saved situations + ${cardCues} card-based cues · one target appears once per session`;
+    else if (savedSituations) detail = `${savedSituations} saved ${savedSituations === 1 ? 'situation' : 'situations'} · one target appears once per session`;
+    else detail = `${cardCues} card-based ${cardCues === 1 ? 'cue' : 'cues'} · one target appears once per session`;
+    box.innerHTML = `<strong>${entries} eligible ${entries === 1 ? 'entry' : 'entries'} · ${sessionLength} this session</strong><span>${detail}</span>`;
     $('study-start').disabled = false;
   }
 
@@ -387,7 +429,7 @@
   }
 
   function normalizeAnswer(value) {
-    return clean(value).toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\s-]+/g, ' ').replace(/\s+/g, ' ');
+    return stripInvisible(clean(value)).normalize('NFKC').toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\s-]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   function normalizedContains(haystack, needle) {
@@ -396,11 +438,138 @@
     return Boolean(text && target && (` ${text} `).includes(` ${target} `));
   }
 
+  function editDistance(a, b) {
+    const left = String(a || ''), right = String(b || '');
+    if (!left) return right.length;
+    if (!right) return left.length;
+    const row = Array.from({ length: right.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= left.length; i++) {
+      let previous = row[0];
+      row[0] = i;
+      for (let j = 1; j <= right.length; j++) {
+        const old = row[j];
+        row[j] = left[i - 1] === right[j - 1]
+          ? previous
+          : Math.min(previous + 1, row[j] + 1, row[j - 1] + 1);
+        previous = old;
+      }
+    }
+    return row[right.length];
+  }
+
+  function responseMatch(item, answerValue = $('study-response').value) {
+    const answer = clean(answerValue);
+    if (!answer) return { kind: 'blank', alternative: '' };
+    const target = clean(item.row?.Word);
+    if (normalizeAnswer(answer) === normalizeAnswer(target)) return { kind: 'target-exact', alternative: '' };
+    if (normalizedContains(answer, target)) return { kind: 'target-contained', alternative: '' };
+    const matchedAlternative = relevantAlternatives(item).find(alt => normalizedContains(answer, alt.expression));
+    if (matchedAlternative) return { kind: 'alternative', alternative: clean(matchedAlternative.expression) };
+    const normalizedTarget = normalizeAnswer(target);
+    if (/^[a-z][a-z'-]{3,}$/.test(normalizedTarget)) {
+      const closeToken = normalizeAnswer(answer).split(/\s+/).find(token => Math.abs(token.length - normalizedTarget.length) <= 1 && editDistance(token, normalizedTarget) <= 1);
+      if (closeToken) return { kind: 'near-target', alternative: '' };
+    }
+    return { kind: 'other', alternative: '' };
+  }
+
+  function makeEventId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    return `studyq-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function readStudyEvents() {
+    try {
+      const value = JSON.parse(localStorage.getItem(STUDYQ_EVENT_KEY) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch { return []; }
+  }
+
+  function persistAttempt(attempt, completed = false) {
+    if (!attempt) return;
+    try {
+      const now = new Date().toISOString();
+      attempt.updatedAt = now;
+      if (completed && !attempt.completedAt) attempt.completedAt = now;
+      const serializable = { ...attempt };
+      delete serializable._startedMs;
+      const events = readStudyEvents();
+      const index = events.findIndex(event => event?.eventId === serializable.eventId);
+      if (index >= 0) events[index] = serializable;
+      else events.push(serializable);
+      localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
+    } catch (error) {
+      console.warn('Could not save Study Q activity', error);
+    }
+  }
+
+  function beginAttempt(item) {
+    const now = new Date().toISOString();
+    currentAttempt = {
+      schemaVersion: 1,
+      eventId: makeEventId(),
+      startedAt: now,
+      updatedAt: now,
+      completedAt: '',
+      wordId: item.wordId,
+      batch: Number(item.row?.['Batch #']) || 0,
+      target: clean(item.row?.Word),
+      entryType: clean(item.meta?.entryType),
+      sourceMode: lastSessionSpec?.mode || sourceMode,
+      sourceLabel: sourceLabel(lastSessionSpec?.mode || sourceMode),
+      coverageMode: lastSessionSpec?.coverage || coverageMode,
+      promptKind: item.kind,
+      situationId: clean(item.situation?.situationId),
+      communicativeNeedShown: false,
+      hintShown: false,
+      targetShown: false,
+      responseText: '',
+      autoMatch: 'blank',
+      matchedAlternative: '',
+      selfRating: '',
+      elapsedMs: 0,
+      _startedMs: Date.now()
+    };
+    sessionAttempts[sessionIndex] = currentAttempt;
+  }
+
+  function snapshotResponse(item) {
+    if (!currentAttempt || !item) return;
+    const answer = clean($('study-response').value).slice(0, 800);
+    const match = responseMatch(item, answer);
+    currentAttempt.responseText = answer;
+    currentAttempt.autoMatch = match.kind;
+    currentAttempt.matchedAlternative = match.alternative || '';
+    currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
+  }
+
+  function setSelfRating(rating) {
+    if (!currentAttempt || !['got-it', 'almost', 'not-yet'].includes(rating)) return;
+    currentAttempt.selfRating = rating;
+    currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
+    document.querySelectorAll('[data-study-rating]').forEach(button => {
+      const selected = button.dataset.studyRating === rating;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    const labels = { 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet' };
+    $('study-self-check-status').textContent = `Saved locally · self-check: ${labels[rating]}.`;
+    persistAttempt(currentAttempt, false);
+  }
+
+  function finalizeCurrentAttempt() {
+    const item = sessionQueue[sessionIndex];
+    if (!currentAttempt || !item) return;
+    if (!currentAttempt.targetShown) snapshotResponse(item);
+    currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
+    persistAttempt(currentAttempt, true);
+  }
+
   function hintFor(item) {
     const target = clean(item.row?.Word);
-    const sense = redactTarget(item.meta?.senseHook, target).text;
+    const sense = safePrompt(item.meta?.senseHook, target).text;
     if (meaningfulPrompt(sense)) return sense;
-    const synonyms = redactTarget(item.row?.['Synonym(s)'], target).text;
+    const synonyms = safePrompt(item.row?.['Synonym(s)'], target).text;
     if (meaningfulPrompt(synonyms)) return `Related expression(s): ${synonyms}`;
     const first = Array.from(target)[0] || '';
     const words = target.split(/\s+/).filter(Boolean).length;
@@ -416,14 +585,13 @@
   }
 
   function responseNote(item) {
-    const answer = clean($('study-response').value);
-    if (!answer) return '';
-    const target = clean(item.row?.Word);
-    if (normalizeAnswer(answer) === normalizeAnswer(target)) return 'You produced the target expression.';
-    if (normalizedContains(answer, target)) return 'Your response includes the target expression.';
-    const matchedAlternative = relevantAlternatives(item).find(alt => normalizedContains(answer, alt.expression));
-    if (matchedAlternative) return 'Your response includes a linked alternative for this experience.';
-    return 'Keep your response as a comparison point. This version does not grade open-ended answers.';
+    const match = responseMatch(item);
+    if (match.kind === 'blank') return 'No typed response to compare. You can still self-check based on what you said or thought.';
+    if (match.kind === 'target-exact') return 'Target match — exact form.';
+    if (match.kind === 'target-contained') return 'Target found in your response.';
+    if (match.kind === 'alternative') return `Linked natural alternative found: ${match.alternative}.`;
+    if (match.kind === 'near-target') return 'Very close to the target form. You decide whether this counts for you.';
+    return 'No automatic target match. You decide how well your response worked.';
   }
 
   function renderExperience() {
@@ -457,6 +625,11 @@
     $('study-target-type').textContent = entryType ? `type: ${entryType === 'conversational frame' ? 'conv. frame' : entryType}` : '';
     $('study-response-note').hidden = true;
     $('study-response-note').textContent = '';
+    document.querySelectorAll('[data-study-rating]').forEach(button => {
+      button.classList.remove('is-selected');
+      button.setAttribute('aria-pressed', 'false');
+    });
+    $('study-self-check-status').textContent = 'Not rated yet · activity is still saved locally.';
 
     const deck = Number(item.row?.['Batch #']) || 0;
     const batch = deck ? String(deck).padStart(3, '0') : '';
@@ -472,6 +645,7 @@
       return `<div class="study-alternative-item"><strong>${escapeHtml(alt.expression)}</strong>${note ? `<p>${escapeHtml(note)}</p>` : ''}</div>`;
     }).join('');
 
+    beginAttempt(item);
     $('study-experience').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -482,6 +656,17 @@
   function showTarget() {
     const item = sessionQueue[sessionIndex];
     if (!item) return;
+    if (currentAttempt?.targetShown) {
+      $('study-target-reveal').hidden = false;
+      $('study-target-reveal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    snapshotResponse(item);
+    if (currentAttempt) {
+      currentAttempt.targetShown = true;
+      currentAttempt.targetShownAt = new Date().toISOString();
+      persistAttempt(currentAttempt, false);
+    }
     const note = responseNote(item);
     $('study-response-note').hidden = !note;
     $('study-response-note').textContent = note;
@@ -490,16 +675,31 @@
   }
 
   function nextExperience() {
-    if (sessionIndex >= sessionQueue.length - 1) return finishSession();
+    finalizeCurrentAttempt();
+    if (sessionIndex >= sessionQueue.length - 1) return finishSession(false);
     sessionIndex++;
     renderExperience();
   }
 
-  function finishSession() {
+  function finishSession(finalize = true) {
+    if (finalize) finalizeCurrentAttempt();
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = true;
     $('study-finished').hidden = false;
     $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} ${sessionQueue.length === 1 ? 'experience' : 'experiences'} from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
+    const counts = { 'got-it': 0, almost: 0, 'not-yet': 0, unrated: 0 };
+    sessionAttempts.forEach(attempt => {
+      const rating = attempt?.selfRating;
+      if (rating && Object.prototype.hasOwnProperty.call(counts, rating)) counts[rating]++;
+      else counts.unrated++;
+    });
+    const pieces = [];
+    if (counts['got-it']) pieces.push(`${counts['got-it']} Got it`);
+    if (counts.almost) pieces.push(`${counts.almost} Almost`);
+    if (counts['not-yet']) pieces.push(`${counts['not-yet']} Not yet`);
+    if (counts.unrated) pieces.push(`${counts.unrated} not rated`);
+    $('study-finished-summary').hidden = !pieces.length;
+    $('study-finished-summary').textContent = pieces.length ? `Your self-check: ${pieces.join(' · ')}. Saved on this device.` : '';
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -517,6 +717,8 @@
     };
     sessionQueue = buildQueue(currentPool, size, sourceMode);
     sessionIndex = 0;
+    sessionAttempts = [];
+    currentAttempt = null;
     renderExperience();
   }
 
@@ -546,9 +748,16 @@
     ['study-deck', 'study-range-start', 'study-range-end', 'study-session-size'].forEach(id => $(id).addEventListener('change', updateEligibility));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => $(id).addEventListener('input', updateEligibility));
     $('study-start').addEventListener('click', startSession);
-    $('study-show-need').addEventListener('click', () => { $('study-need-block').hidden = false; });
-    $('study-show-hint').addEventListener('click', () => { $('study-hint-block').hidden = false; });
+    $('study-show-need').addEventListener('click', () => {
+      $('study-need-block').hidden = false;
+      if (currentAttempt) { currentAttempt.communicativeNeedShown = true; currentAttempt.communicativeNeedShownAt = new Date().toISOString(); }
+    });
+    $('study-show-hint').addEventListener('click', () => {
+      $('study-hint-block').hidden = false;
+      if (currentAttempt) { currentAttempt.hintShown = true; currentAttempt.hintShownAt = new Date().toISOString(); }
+    });
     $('study-show-target').addEventListener('click', showTarget);
+    document.querySelectorAll('[data-study-rating]').forEach(button => button.addEventListener('click', () => setSelfRating(button.dataset.studyRating)));
     $('study-next').addEventListener('click', nextExperience);
     $('study-again').addEventListener('click', restoreSessionSpecAndRestart);
     $('study-change-set').addEventListener('click', changeSet);
