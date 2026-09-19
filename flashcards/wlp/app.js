@@ -1439,18 +1439,25 @@ function setLearningAlternativesExpanded(panel, expanded) {
   requestAnimationFrame(() => fitLearningHookPanel(panel));
 }
 
+function learningEntryTypeDisplay(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.toLowerCase() === "conversational frame") return "conv. frame";
+  return raw;
+}
+
 function ensureLearningArchitectureSections(panel) {
   if (!panel) return {};
   const scroll = panel.querySelector(".learning-hook-scroll");
   if (!scroll) return {};
-  let entryType = scroll.querySelector(".learning-hook-entry-type");
-  if (!entryType) {
-    entryType = document.createElement("div");
+  const head = panel.querySelector(".learning-hook-popover-head");
+  let entryType = head?.querySelector(".learning-hook-entry-type") || null;
+  if (!entryType && head) {
+    entryType = document.createElement("span");
     entryType.className = "learning-hook-entry-type";
     entryType.hidden = true;
-    entryType.innerHTML = '<span>Entry Type</span><strong></strong>';
-    const sense = scroll.querySelector(".learning-hook-sense");
-    scroll.insertBefore(entryType, sense || scroll.firstChild);
+    const close = head.querySelector(".learning-hook-close");
+    head.insertBefore(entryType, close || null);
   }
   let alternatives = scroll.querySelector(".learning-hook-alternatives");
   if (!alternatives) {
@@ -1571,8 +1578,7 @@ function installLearningHookUI(root, row, openEditor = null) {
       const edit = panel.querySelector(".learning-hook-edit");
       if (entryType) {
         entryType.hidden = !hasEntryType;
-        const value = entryType.querySelector("strong");
-        if (value) value.textContent = hasEntryType ? entryTypeValue : "";
+        entryType.textContent = hasEntryType ? `type: ${learningEntryTypeDisplay(entryTypeValue)}` : "";
       }
       if (sense) {
         sense.hidden = !hasSense;
@@ -1608,7 +1614,7 @@ function installLearningHookUI(root, row, openEditor = null) {
               const need = document.createElement("div");
               need.className = "learning-communicative-need";
               const needLabel = document.createElement("span");
-              needLabel.textContent = "Communicative Need";
+              needLabel.textContent = "Need";
               const needCopy = document.createElement("p");
               needCopy.textContent = needValue;
               need.append(needLabel, needCopy);

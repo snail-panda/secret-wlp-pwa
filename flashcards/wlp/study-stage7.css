@@ -3255,3 +3255,121 @@ body.review-attention-open{overflow:hidden}
   font-size:.73rem;
   line-height:1.4;
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer visual hierarchy v1.8.6.41
+   Sense/Memory stay primary; architecture metadata is quiet.
+   ========================================================= */
+.stage7-study-body .learning-hook-popover-head{
+  justify-content:flex-start;
+  gap:8px;
+}
+.stage7-study-body .learning-hook-popover-head strong{flex:0 0 auto}
+.stage7-study-body .learning-hook-popover-head .learning-hook-entry-type{
+  display:inline-flex;
+  align-items:center;
+  min-width:0;
+  margin-left:auto;
+  color:#88938c;
+  font:500 .66rem/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  letter-spacing:0;
+  text-transform:none;
+  white-space:nowrap;
+}
+.stage7-study-body .learning-hook-popover-head .learning-hook-entry-type[hidden]{display:none!important}
+.stage7-study-body .learning-hook-close{flex:0 0 auto;margin-left:2px}
+
+/* Old v40 in-scroll Entry Type card must never render if stale markup survives. */
+.stage7-study-body .learning-hook-scroll > .learning-hook-entry-type{display:none!important}
+
+/* Situations and Alternatives share one quiet collapsed-row language. */
+.stage7-study-body .learning-hook-situation,
+.stage7-study-body .learning-hook-alternatives{
+  margin-top:7px;
+  padding-top:4px;
+  border-top:1px solid rgba(83,111,92,.08);
+}
+.stage7-study-body .learning-situation-toggle,
+.stage7-study-body .learning-alternative-toggle{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:34px!important;
+  height:auto!important;
+  margin:0!important;
+  padding:6px 2px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#5e7065!important;
+  text-align:left!important;
+  cursor:pointer;
+}
+.stage7-study-body .learning-situation-toggle .learning-situation-toggle-label,
+.stage7-study-body .learning-alternative-toggle-label{
+  display:inline!important;
+  margin:0!important;
+  color:#6f7f75!important;
+  font:650 .70rem/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+  letter-spacing:.045em!important;
+  text-transform:uppercase!important;
+}
+.stage7-study-body .learning-situation-toggle .learning-situation-count,
+.stage7-study-body .learning-alternative-count{
+  display:inline!important;
+  margin:0!important;
+  color:#929c95!important;
+  font:600 .67rem/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+  letter-spacing:0!important;
+  text-transform:none!important;
+}
+.stage7-study-body .learning-situation-toggle .learning-situation-chevron,
+.stage7-study-body .learning-alternative-chevron{
+  display:inline!important;
+  margin-left:auto!important;
+  color:#8a978e!important;
+  font:500 .88rem/1 system-ui,sans-serif!important;
+  letter-spacing:0!important;
+  text-transform:none!important;
+  transition:transform .16s ease;
+}
+.stage7-study-body .learning-hook-situation .learning-situation-items,
+.stage7-study-body .learning-alternative-items{
+  padding-top:5px;
+}
+
+/* Communicative Need reads as supporting context, not a nested card. */
+.stage7-study-body .learning-communicative-need{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  margin-top:7px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.stage7-study-body .learning-communicative-need span{
+  flex:0 0 auto;
+  display:inline;
+  margin:0;
+  color:#87928b;
+  font-size:.63rem;
+  font-weight:700;
+  letter-spacing:.025em;
+  text-transform:none;
+}
+.stage7-study-body .learning-communicative-need span::after{content:" —"}
+.stage7-study-body .learning-communicative-need p{
+  margin:0;
+  color:#68766e;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:.72rem;
+  line-height:1.42;
+}

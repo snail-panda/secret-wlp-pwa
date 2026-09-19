@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
-  <link rel="stylesheet" href="./editor-new-card.css?v=20260918-s7-language-architecture-v18640">
+  <link rel="stylesheet" href="./editor-new-card.css?v=20260918-s7-learning-layer-polish-v18641">
   <link rel="stylesheet" href="./editor-drafts.css">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
@@ -121,34 +121,43 @@
           </section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Meaning</span><h2>Definition</h2></div></div><label class="new-card-field new-card-field-only"><span class="sr-only">Definition</span><textarea name="Definition" rows="4"></textarea></label></section>
 
-          <section class="new-card-panel learning-hooks-panel">
-            <div class="new-card-section-head learning-hooks-head">
-              <div><span class="editor-tool-kicker">Learning layer</span><h2>Sense, Memory &amp; Situation</h2></div>
-              <span class="learning-hooks-badge">Local</span>
-            </div>
-            <p class="learning-hooks-copy">Learning Metadata stays separate from Definition and Notes. Use Entry Type for what kind of expression this is; Sense / Memory for fast recall; Situations, Communicative Needs, and Alternatives for how it lives in real language.</p>
-            <label class="new-card-field learning-hook-field learning-entry-type-field"><span>Entry Type</span><input name="Entry Type" type="text" list="wlp-entry-type-options" autocomplete="off" placeholder="e.g. construction"><small>Separate from POS: word, phrase, idiom, phrasal verb, collocation, construction, conversational frame…</small></label>
-            <label class="new-card-field learning-hook-field"><span>Sense Hook</span><textarea name="Sense Hook" rows="2" placeholder="e.g. やりすぎでガチガチ／感情的にいっぱいいっぱい"></textarea><small>One-glance sense. Japanese or English is fine; this is not a fixed translation field.</small></label>
-            <label class="new-card-field learning-hook-field"><span>Memory Hook</span><textarea name="Memory Hook" rows="2" placeholder="e.g. over + wrought (‘worked’) → over-worked → overdone / worked up"></textarea><small>A short recall scaffold: word parts, etymology, image, usage frame, or your own mnemonic.</small></label>
+          <details class="new-card-panel learning-hooks-panel learning-hooks-details">
+            <summary class="learning-hooks-summary">
+              <span class="learning-hooks-summary-copy">
+                <span class="editor-tool-kicker">Learning layer</span>
+                <strong>Sense, Memory &amp; Situation</strong>
+                <small>Optional · open to add or edit learning metadata</small>
+              </span>
+              <span class="learning-hooks-summary-actions">
+                <span class="learning-hooks-badge">Local</span>
+                <span class="learning-hooks-summary-chevron" aria-hidden="true">⌄</span>
+              </span>
+            </summary>
+            <div class="learning-hooks-details-body">
+              <p class="learning-hooks-copy">Learning Metadata stays separate from Definition and Notes. Use Entry Type for what kind of expression this is; Sense / Memory for fast recall; Situations, Communicative Needs, and Alternatives for how it lives in real language.</p>
+              <label class="new-card-field learning-hook-field learning-entry-type-field"><span>Entry Type</span><input name="Entry Type" type="text" list="wlp-entry-type-options" autocomplete="off" placeholder="e.g. construction"><small>Separate from POS: word, phrase, idiom, phrasal verb, collocation, construction, conversational frame…</small></label>
+              <label class="new-card-field learning-hook-field"><span>Sense Hook</span><textarea name="Sense Hook" rows="2" placeholder="e.g. やりすぎでガチガチ／感情的にいっぱいいっぱい"></textarea><small>One-glance sense. Japanese or English is fine; this is not a fixed translation field.</small></label>
+              <label class="new-card-field learning-hook-field"><span>Memory Hook</span><textarea name="Memory Hook" rows="2" placeholder="e.g. over + wrought (‘worked’) → over-worked → overdone / worked up"></textarea><small>A short recall scaffold: word parts, etymology, image, usage frame, or your own mnemonic.</small></label>
 
-            <div class="learning-situations-block" data-learning-situations>
-              <div class="learning-situations-head">
-                <div><strong>Situation Anchors</strong><span>Core conditions that naturally create a need for this expression.</span></div>
-                <button type="button" class="learning-situation-add" data-add-situation>+ Add situation</button>
+              <div class="learning-situations-block" data-learning-situations>
+                <div class="learning-situations-head">
+                  <div><strong>Situation Anchors</strong><span>Core conditions that naturally create a need for this expression.</span></div>
+                  <button type="button" class="learning-situation-add" data-add-situation>+ Add situation</button>
+                </div>
+                <p class="learning-situations-copy">Specific enough to make the expression feel necessary, but no more elaborate than needed. This is not a long example sentence.</p>
+                <div class="learning-situation-list" data-situation-list></div>
               </div>
-              <p class="learning-situations-copy">Specific enough to make the expression feel necessary, but no more elaborate than needed. This is not a long example sentence.</p>
-              <div class="learning-situation-list" data-situation-list></div>
-            </div>
 
-            <div class="learning-situations-block learning-alternatives-block" data-learning-alternatives>
-              <div class="learning-situations-head">
-                <div><strong>Alternative Expressions</strong><span>Other natural expressions that can answer the same or a nearby communicative need.</span></div>
-                <button type="button" class="learning-situation-add" data-add-alternative>+ Add alternative</button>
+              <div class="learning-situations-block learning-alternatives-block" data-learning-alternatives>
+                <div class="learning-situations-head">
+                  <div><strong>Alternative Expressions</strong><span>Other natural expressions that can answer the same or a nearby communicative need.</span></div>
+                  <button type="button" class="learning-situation-add" data-add-alternative>+ Add alternative</button>
+                </div>
+                <p class="learning-situations-copy">Not dictionary synonyms. Link an alternative to a Situation when its naturalness depends on that context; leave it General when it belongs to the wider expression family.</p>
+                <div class="learning-alternative-list" data-alternative-list></div>
               </div>
-              <p class="learning-situations-copy">Not dictionary synonyms. Link an alternative to a Situation when its naturalness depends on that context; leave it General when it belongs to the wider expression family.</p>
-              <div class="learning-alternative-list" data-alternative-list></div>
             </div>
-          </section>
+          </details>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
           <div class="new-card-save-bar draft-edit-save-bar">
