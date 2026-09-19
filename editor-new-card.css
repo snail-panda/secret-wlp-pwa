@@ -486,3 +486,19 @@
   .learning-hooks-summary{padding-bottom:16px}
   .learning-hooks-summary-chevron{bottom:0}
 }
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer disclosure spacing v1.8.6.45
+   Pull the cue upward from the lower edge while tightening
+   only the space above it. Preserve the v1.8.6.44 cue style.
+   ========================================================= */
+.learning-hooks-summary{
+  padding-bottom:18px;
+}
+.learning-hooks-summary-chevron{
+  bottom:4px;
+}
+@media(max-width:520px){
+  .learning-hooks-summary{padding-bottom:18px}
+  .learning-hooks-summary-chevron{bottom:4px}
+}
