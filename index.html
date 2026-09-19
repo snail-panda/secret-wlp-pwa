@@ -80,6 +80,44 @@
       outline-offset:3px;
     }
 
+    /* Stage 7 v1.8.6.47 — independent Practice / Study Q entry. */
+    .practice-hub-card{
+      margin-top:10px;
+      display:grid;
+      grid-template-columns:46px minmax(0,1fr) 36px;
+      align-items:center;
+      gap:11px;
+      min-height:78px;
+      padding:11px 12px;
+      border:1px solid rgba(94,128,105,.16);
+      border-radius:17px;
+      background:linear-gradient(135deg,#fbfdf9 0%,#edf5eb 100%);
+      color:var(--ink);
+      text-decoration:none;
+      box-shadow:0 5px 16px rgba(44,74,55,.045);
+    }
+    .practice-hub-card:active{transform:translateY(1px);background:#eaf3e8}
+    .practice-hub-icon{
+      width:42px;height:42px;display:grid;place-items:center;border-radius:14px;
+      background:rgba(255,255,255,.78);color:#416a56;
+    }
+    .practice-hub-icon svg,.practice-hub-arrow svg{
+      fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;
+    }
+    .practice-hub-icon svg{width:23px;height:23px}
+    .practice-hub-copy{display:grid;min-width:0;text-align:left}
+    .practice-hub-copy .section-kicker{
+      margin:0 0 1px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      font-size:.61rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#708b78;
+    }
+    .practice-hub-copy strong{font-family:"EB Garamond",Georgia,serif;font-size:1.22rem;line-height:1.05;font-weight:600}
+    .practice-hub-copy small{margin-top:2px;color:#6b7e71;font-size:.73rem;line-height:1.2}
+    .practice-hub-arrow{width:32px;height:32px;display:grid;place-items:center;color:#718579}
+    .practice-hub-arrow svg{width:19px;height:19px}
+    @media(max-width:390px){
+      .practice-hub-card{grid-template-columns:42px minmax(0,1fr) 32px;min-height:73px;padding:10px 11px;gap:9px}
+    }
+
 </style>
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
@@ -137,6 +175,20 @@
           <strong>Progress</strong><span>Track your learning</span>
         </a>
       </section>
+
+      <a class="practice-hub-card" href="./study-hub.html">
+        <span class="practice-hub-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/><path d="m18.5 3 .45 1.05L20 4.5l-1.05.45L18.5 6l-.45-1.05L17 4.5l1.05-.45L18.5 3Z"/></svg>
+        </span>
+        <span class="practice-hub-copy">
+          <span class="section-kicker">Language experiences</span>
+          <strong>Practice</strong>
+          <small>Study Q · Situations, Review &amp; deck ranges</small>
+        </span>
+        <span class="practice-hub-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+        </span>
+      </a>
 
       <a class="admin-editor-card" id="home-editor-card" href="./editor.html" hidden>
         <span class="admin-editor-icon" aria-hidden="true">

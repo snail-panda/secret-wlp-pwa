@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Practice — WLP</title>
+  <meta name="theme-color" content="#eef6ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WLP Garden">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647">
+  <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
+  <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
+  <style id="stage7-bottom-nav-critical-lock">
+    .stage7-page-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}
+  </style>
+</head>
+<body class="app-body study-hub-page stage7-bottom-nav-page">
+  <div class="app-shell study-hub-shell">
+    <header class="app-header">
+      <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="brand" href="./index.html" aria-label="WLP home">
+        <svg class="brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
+        <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
+      </a>
+      <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
+        <span class="role-dot" aria-hidden="true"></span><span id="role-label">Guest</span>
+      </button>
+    </header>
+
+    <main class="study-hub-main">
+      <a class="study-hub-back-link" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Back to Home</span></a>
+
+      <section class="study-hub-hero">
+        <span class="section-kicker">Study Q · Micro Experiences</span>
+        <h1>Practice language, not just cards.</h1>
+        <p>Choose the words you want to work with, then meet them through a real communicative situation. This first experience starts with <strong>Situation → Expression</strong>.</p>
+      </section>
+
+      <section class="study-hub-panel" aria-labelledby="study-source-title">
+        <div class="study-hub-panel-head">
+          <div><span class="section-kicker">Step 1</span><h2 id="study-source-title">What do you want to study?</h2></div>
+        </div>
+        <div class="study-source-tabs" role="group" aria-label="Study source">
+          <button type="button" class="study-source-tab is-active" data-source-mode="review"><strong>Review</strong><span>Cards asking for attention</span></button>
+          <button type="button" class="study-source-tab" data-source-mode="deck"><strong>One deck</strong><span>A single WLP deck</span></button>
+          <button type="button" class="study-source-tab" data-source-mode="range"><strong>Deck range</strong><span>Mix several decks</span></button>
+        </div>
+
+        <div class="study-source-config" data-source-config="review">
+          <p>Uses cards currently marked <strong>Review</strong>. High attention is prioritized before Medium and Light. Only entries with Situation metadata can enter this experience.</p>
+        </div>
+        <div class="study-source-config" data-source-config="deck" hidden>
+          <label class="study-number-field"><span>Deck</span><span class="study-deck-input"><b>WLP</b><input id="study-deck" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
+        </div>
+        <div class="study-source-config study-range-config" data-source-config="range" hidden>
+          <label class="study-number-field"><span>From</span><span class="study-deck-input"><b>WLP</b><input id="study-range-start" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
+          <span class="study-range-dash" aria-hidden="true">→</span>
+          <label class="study-number-field"><span>To</span><span class="study-deck-input"><b>WLP</b><input id="study-range-end" type="number" inputmode="numeric" min="1" step="1" value="5"></span></label>
+        </div>
+
+        <div class="study-source-footer">
+          <label class="study-session-size"><span>Session size</span><select id="study-session-size"><option value="5">5 experiences</option><option value="10" selected>10 experiences</option><option value="20">20 experiences</option></select></label>
+          <div class="study-eligibility" id="study-eligibility" aria-live="polite"><strong>Loading…</strong><span>Checking your Learning Layer.</span></div>
+        </div>
+      </section>
+
+      <section class="study-hub-panel" aria-labelledby="study-method-title">
+        <div class="study-hub-panel-head">
+          <div><span class="section-kicker">Step 2</span><h2 id="study-method-title">How do you want to practice?</h2></div>
+        </div>
+        <article class="study-method-card is-selected">
+          <div class="study-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5h7M13 8.5h7M8 5l3.5 3.5L8 12"/><path d="M16 14v5M13.5 16.5H18.5"/></svg></div>
+          <div class="study-method-copy"><span class="study-method-status">Available now</span><strong>Situation → Expression</strong><p>See the situation first. Produce whatever feels natural, then reveal the communicative need, a hint, the target expression, and linked alternatives.</p></div>
+        </article>
+        <p class="study-method-note">Dialogue, short story, fit / not fit, register shifts, and other experience types can plug into this same Study Hub later.</p>
+      </section>
+
+      <section class="study-start-panel" id="study-start-panel">
+        <button type="button" class="study-start-button" id="study-start" disabled>Start Experience</button>
+        <p id="study-start-note">Your typed response is not graded or saved in this first version.</p>
+      </section>
+
+      <section class="study-experience" id="study-experience" hidden aria-live="polite">
+        <div class="study-experience-topline">
+          <span class="study-experience-source" id="study-experience-source">Review</span>
+          <span class="study-experience-progress" id="study-experience-progress">1 / 1</span>
+        </div>
+        <div class="study-situation-card">
+          <span class="section-kicker">Situation</span>
+          <h2 id="study-situation-title" hidden></h2>
+          <p id="study-situation-anchor"></p>
+        </div>
+
+        <label class="study-response-field" for="study-response">
+          <span>What might you naturally say?</span>
+          <textarea id="study-response" rows="3" placeholder="Type an expression or sentence — or just think it through first."></textarea>
+          <small>Multiple answers can be natural. WLP is not treating this as a one-answer quiz.</small>
+        </label>
+
+        <div class="study-reveal-actions" id="study-reveal-actions">
+          <button type="button" id="study-show-need">Show communicative need</button>
+          <button type="button" id="study-show-hint">Give me a hint</button>
+          <button type="button" class="study-target-button" id="study-show-target">Show target</button>
+        </div>
+
+        <div class="study-reveal-block study-need-block" id="study-need-block" hidden>
+          <span>Communicative need</span><p id="study-need"></p>
+        </div>
+        <div class="study-reveal-block study-hint-block" id="study-hint-block" hidden>
+          <span>Hint</span><p id="study-hint"></p>
+        </div>
+
+        <section class="study-target-reveal" id="study-target-reveal" hidden>
+          <span class="section-kicker">Target expression</span>
+          <div class="study-target-head"><strong id="study-target"></strong><span id="study-target-type" hidden></span></div>
+          <p class="study-response-note" id="study-response-note" hidden></p>
+
+          <div class="study-alternatives" id="study-alternatives" hidden>
+            <h3>Other natural options</h3>
+            <div id="study-alternative-list"></div>
+          </div>
+
+          <div class="study-target-actions">
+            <a id="study-open-card" href="./deck-browser.html">Open Card</a>
+            <button type="button" id="study-next">Next Experience</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="study-finished" id="study-finished" hidden>
+        <span class="section-kicker">Session complete</span>
+        <h2>You finished this set.</h2>
+        <p id="study-finished-copy">You worked through the selected situations.</p>
+        <div class="study-finished-actions"><button type="button" id="study-again">Practice this set again</button><button type="button" id="study-change-set">Change study set</button></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="stage7-page-bottom-nav" aria-label="Page navigation">
+    <a class="stage7-page-bottom-nav-item" href="./index.html" data-stage7-back-source=".study-hub-back-link" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg><span>Back</span>
+    </a>
+    <a class="stage7-page-bottom-nav-item" href="./index.html" aria-label="Home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span>
+    </a>
+  </nav>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="app-drawer" id="app-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <a class="drawer-brand" href="./index.html" aria-label="WLP home"><svg class="drawer-brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a>
+      <button id="drawer-close" class="icon-button" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <nav class="drawer-nav">
+      <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
+      <a class="drawer-item" href="./global-search.html?return=study-hub.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
+      <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
+      <a class="drawer-item is-current" href="./study-hub.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice (Study Q)</span></a>
+      <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
+      <a class="drawer-item" href="./review.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
+      <a class="drawer-item" href="./drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Drafts</span><small>Study your new local cards</small></span></a>
+      <a class="drawer-item" href="./progress.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span></a>
+      <a class="drawer-item drawer-admin-only" href="./editor.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Editor</span><small><span>Create &amp; Edit: New Cards, Drafts &amp; Local Edits</span><span>Backup: Import &amp; Export</span></small></span></a>
+      <a class="drawer-item drawer-admin-only stage7-backup-restore-item" href="./editor-backup.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M5 13.5V20h14v-6.5"/><path d="M7 16.5h10"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Backup &amp; Restore</span><small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small></span></a>
+      <hr>
+      <button class="drawer-item drawer-action" id="drawer-settings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21H10v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span></button>
+      <button class="drawer-item drawer-action" id="drawer-role-action" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span></button>
+      <hr>
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="Help is coming to the Stage 7 menu."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.9.5-1.2 1-1.2 2M12 17h.01"/></svg><span>Help</span></button>
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="About WLP will live here."><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>About</span></button>
+      <p class="drawer-motto">“More words.<br>A wider world.”</p>
+    </nav>
+  </aside>
+
+  <div class="role-menu" id="role-menu" role="menu" hidden><strong id="role-menu-title">Guest mode</strong><small id="role-menu-copy">Study normally without editing tools.</small><button id="role-menu-action" type="button" role="menuitem">Admin Login</button></div>
+  <div class="admin-gate" id="admin-gate" hidden>
+    <form class="admin-card" id="admin-form" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+      <button class="admin-close" id="admin-close" type="button" aria-label="Close admin login">×</button>
+      <span class="section-kicker">WLP access</span><h2 id="admin-title">Admin Login</h2><p>Enter the existing WLP admin password to unlock editing and import/export tools.</p>
+      <label class="admin-password-label"><span>Password</span><span class="admin-password-wrap"><input id="admin-password" type="password" autocomplete="current-password" required><button class="admin-password-toggle" id="admin-password-toggle" type="button" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.8 12s3.3-5.2 9.2-5.2S21.2 12 21.2 12 17.9 17.2 12 17.2 2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.2 4.2 20.8 19.8M9.7 7.1A8.7 8.7 0 0 1 12 6.8c5.9 0 9.2 5.2 9.2 5.2a16 16 0 0 1-2.2 2.8M14.2 16.9a8.9 8.9 0 0 1-2.2.3C6.1 17.2 2.8 12 2.8 12a15.4 15.4 0 0 1 3-3.5M10.1 10.1a2.7 2.7 0 0 0 3.8 3.8"/></svg></button></span></label>
+      <label class="remember-admin"><input id="remember-admin" type="checkbox"><span>Remember Admin on this device</span></label>
+      <p class="admin-error" id="admin-error" hidden>Incorrect admin password.</p>
+      <div class="admin-actions"><button id="admin-cancel" type="button">Cancel</button><button type="submit">Login as Admin</button></div>
+    </form>
+  </div>
+
+  <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
+  <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
+  <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647"></script>
+  <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
+  <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
+  <script>
+    (()=>{const nav=document.querySelector('.stage7-page-bottom-nav');if(!nav)return;if(nav.parentElement!==document.body)document.body.appendChild(nav);const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));})();
+  </script>
+  <script src="./page-bottom-nav.js?v=20260918-s7-v18627"></script>
+</body>
+</html>
