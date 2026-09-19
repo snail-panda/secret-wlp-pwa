@@ -15,6 +15,7 @@
   const STORAGE_KEY = 'wlp:learning-meta:v2';
   const LEGACY_STORAGE_KEY = 'wlp:learning-meta:v1';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
+  const MERGE_ROLLBACK_KEY = 'wlp:learning-meta:merge-rollback:v1';
   const SCHEMA_VERSION = 2;
   const KNOWN_FIELDS = ['senseHook', 'memoryHook', 'situations'];
 
@@ -701,6 +702,201 @@
     return true;
   }
 
+  function recordSemanticSignature(record) {
+    const value = normalizeRecord(record, clean(record?.entryKey));
+    return JSON.stringify({
+      status: clean(value.status) || 'provisional',
+      deleted: Boolean(value.deletedAt),
+      content: normalizeContent(value.content)
+    });
+  }
+
+  function versionIds(record) {
+    const ids = new Set();
+    const current = clean(record?.versionId);
+    if (current) ids.add(current);
+    (Array.isArray(record?.history) ? record.history : []).forEach(item => {
+      const id = clean(item?.versionId);
+      if (id) ids.add(id);
+    });
+    return ids;
+  }
+
+  function isDescendant(candidate, ancestor) {
+    const ancestorVersion = clean(ancestor?.versionId);
+    if (!ancestorVersion) return false;
+    if (clean(candidate?.parentVersionId) === ancestorVersion) return true;
+    const history = versionIds(candidate);
+    return history.has(ancestorVersion) && clean(candidate?.versionId) !== ancestorVersion;
+  }
+
+  function validatePortableSnapshot(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('This file is not a WLP Learning Metadata JSON.');
+    if (clean(payload.format) !== 'WLP_LEARNING_METADATA') throw new Error('This JSON is not a WLP Learning Metadata export.');
+    if (Number(payload.schemaVersion) !== SCHEMA_VERSION) throw new Error(`Learning Metadata schema v${payload.schemaVersion ?? '?'} cannot be merged into v${SCHEMA_VERSION}.`);
+    if (!payload.records || typeof payload.records !== 'object' || Array.isArray(payload.records)) throw new Error('This metadata file has no records object.');
+    const normalized = {};
+    Object.entries(payload.records).forEach(([rawKey, rawRecord]) => {
+      const key = clean(rawKey);
+      if (!key || !rawRecord || typeof rawRecord !== 'object' || Array.isArray(rawRecord)) throw new Error('This metadata file contains an invalid record.');
+      if (!clean(rawRecord.metadataId) || !clean(rawRecord.versionId)) throw new Error(`Metadata record ${key} is missing stable identity/version data.`);
+      const record = normalizeRecord({ ...rawRecord, entryKey: key }, key);
+      normalized[key] = record;
+    });
+    return {
+      format: 'WLP_LEARNING_METADATA',
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: clean(payload.exportedAt),
+      sourceDeviceId: clean(payload.sourceDeviceId),
+      records: normalized
+    };
+  }
+
+  function comparePortableSnapshot(payload) {
+    const incoming = validatePortableSnapshot(payload);
+    const localStore = readStore();
+    const localRecords = {};
+    Object.entries(localStore.records).forEach(([key, raw]) => { localRecords[key] = normalizeRecord(raw, key); });
+    const localByMetadataId = new Map();
+    Object.entries(localRecords).forEach(([key, record]) => {
+      if (record.metadataId && !localByMetadataId.has(record.metadataId)) localByMetadataId.set(record.metadataId, { key, record });
+    });
+
+    const items = [];
+    Object.entries(incoming.records).forEach(([incomingKey, incomingRecord]) => {
+      const sameKey = localRecords[incomingKey] ? { key: incomingKey, record: localRecords[incomingKey] } : null;
+      const sameId = incomingRecord.metadataId ? localByMetadataId.get(incomingRecord.metadataId) || null : null;
+      let match = sameKey || sameId;
+      let kind = 'new';
+      let reason = 'No matching metadata record exists on this device.';
+      let collision = false;
+
+      if (sameKey && sameId && sameKey.key !== sameId.key) {
+        collision = true;
+        match = sameKey;
+        kind = 'conflict';
+        reason = 'The incoming entry key and Metadata ID point to different local records.';
+      } else if (sameKey && clean(sameKey.record.metadataId) !== clean(incomingRecord.metadataId)) {
+        kind = 'conflict';
+        reason = 'The same entry has a different Metadata ID on each side.';
+      } else if (match) {
+        const localRecord = match.record;
+        const sameVersion = clean(localRecord.versionId) === clean(incomingRecord.versionId);
+        const sameSemantic = recordSemanticSignature(localRecord) === recordSemanticSignature(incomingRecord);
+        if (sameVersion && sameSemantic && match.key === incomingKey) {
+          kind = 'same';
+          reason = 'Same metadata version.';
+        } else if (clean(localRecord.metadataId) === clean(incomingRecord.metadataId) && isDescendant(incomingRecord, localRecord)) {
+          kind = 'incoming-newer';
+          reason = match.key === incomingKey ? 'Incoming version descends from this device copy.' : 'Incoming version descends from this device copy and moves the same Metadata ID to a new entry key.';
+        } else if (clean(localRecord.metadataId) === clean(incomingRecord.metadataId) && isDescendant(localRecord, incomingRecord)) {
+          kind = 'local-newer';
+          reason = 'This device already has a descendant of the incoming version.';
+        } else {
+          kind = 'conflict';
+          reason = match.key !== incomingKey
+            ? 'The same Metadata ID exists under a different entry key, but neither version descends from the other.'
+            : 'Both sides changed from different version branches.';
+        }
+      }
+
+      items.push({
+        id: `${incomingRecord.metadataId}::${incomingKey}`,
+        kind,
+        reason,
+        incomingKey,
+        localKey: match?.key || '',
+        collision,
+        incoming: clone(incomingRecord),
+        local: match ? clone(match.record) : null
+      });
+    });
+
+    const counts = { new: 0, incomingNewer: 0, same: 0, localNewer: 0, conflict: 0 };
+    items.forEach(item => {
+      if (item.kind === 'new') counts.new++;
+      else if (item.kind === 'incoming-newer') counts.incomingNewer++;
+      else if (item.kind === 'same') counts.same++;
+      else if (item.kind === 'local-newer') counts.localNewer++;
+      else if (item.kind === 'conflict') counts.conflict++;
+    });
+
+    return {
+      format: incoming.format,
+      schemaVersion: incoming.schemaVersion,
+      exportedAt: incoming.exportedAt,
+      sourceDeviceId: incoming.sourceDeviceId,
+      baseStoreUpdatedAt: clean(localStore.updatedAt),
+      currentDeviceId: ensureDeviceId(),
+      counts,
+      items
+    };
+  }
+
+  function saveMergeRollback(store, plan) {
+    const payload = {
+      savedAt: new Date().toISOString(),
+      sourceDeviceId: clean(plan?.sourceDeviceId),
+      sourceExportedAt: clean(plan?.exportedAt),
+      store: clone(store)
+    };
+    localStorage.setItem(MERGE_ROLLBACK_KEY, JSON.stringify(payload, null, 2));
+  }
+
+  function hasMergeRollback() {
+    const parsed = parseJson(localStorage.getItem(MERGE_ROLLBACK_KEY), null);
+    return Boolean(parsed && parsed.store && typeof parsed.store === 'object');
+  }
+
+  function applyPortableMerge(plan, resolutions = {}) {
+    if (!plan || !Array.isArray(plan.items)) throw new Error('Merge preview is missing. Please choose the metadata file again.');
+    const current = readStore();
+    if (clean(current.updatedAt) !== clean(plan.baseStoreUpdatedAt)) throw new Error('Learning Metadata changed after this preview was created. Compare the file again before merging.');
+
+    const next = normalizeStore(current);
+    let added = 0, updated = 0, conflictIncoming = 0, conflictLocal = 0, skippedSame = 0, skippedLocalNewer = 0;
+    const applyIncoming = item => {
+      const incomingKey = clean(item.incomingKey);
+      const localKey = clean(item.localKey);
+      if (!incomingKey) return;
+      if (localKey && localKey !== incomingKey) delete next.records[localKey];
+      next.records[incomingKey] = normalizeRecord(item.incoming, incomingKey);
+    };
+
+    plan.items.forEach(item => {
+      if (item.kind === 'new') {
+        applyIncoming(item); added++; return;
+      }
+      if (item.kind === 'incoming-newer') {
+        applyIncoming(item); updated++; return;
+      }
+      if (item.kind === 'same') { skippedSame++; return; }
+      if (item.kind === 'local-newer') { skippedLocalNewer++; return; }
+      if (item.kind === 'conflict') {
+        const choice = clean(resolutions[item.id] || 'local').toLowerCase();
+        if (choice === 'incoming' && !item.collision) {
+          applyIncoming(item); conflictIncoming++;
+        } else {
+          conflictLocal++;
+        }
+      }
+    });
+
+    const changed = added + updated + conflictIncoming;
+    if (!changed) return { changed: 0, added, updated, conflictIncoming, conflictLocal, skippedSame, skippedLocalNewer };
+    saveMergeRollback(current, plan);
+    writeStore(next);
+    return { changed, added, updated, conflictIncoming, conflictLocal, skippedSame, skippedLocalNewer };
+  }
+
+  function undoLastPortableMerge() {
+    const rollback = parseJson(localStorage.getItem(MERGE_ROLLBACK_KEY), null);
+    if (!rollback || !rollback.store || typeof rollback.store !== 'object') return false;
+    writeStore(rollback.store);
+    localStorage.removeItem(MERGE_ROLLBACK_KEY);
+    return true;
+  }
+
   function portableSnapshot() {
     const store = readStore();
     return {
@@ -752,6 +948,12 @@
     activeSituations,
     promoteDraftToMaster,
     portableSnapshot,
+    validatePortableSnapshot,
+    comparePortableSnapshot,
+    applyPortableMerge,
+    undoLastPortableMerge,
+    hasMergeRollback,
+    MERGE_ROLLBACK_KEY,
     deviceId: ensureDeviceId
   });
 })();

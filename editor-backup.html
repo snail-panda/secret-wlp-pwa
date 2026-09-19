@@ -37,6 +37,15 @@
       margin:0!important;
     }
   </style>
+  <style id="learning-metadata-merge-styles">
+    .metadata-import-meta{display:flex;flex-wrap:wrap;gap:.55rem 1rem;margin:.8rem 0;color:var(--ink-muted,#66736b);font-size:.88rem}.metadata-import-meta strong{color:var(--ink,#26342c);font-weight:600;overflow-wrap:anywhere}
+    .metadata-import-counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin:1rem 0}.metadata-import-counts>div{min-width:0;padding:.7rem .45rem;border:1px solid rgba(71,101,79,.16);border-radius:14px;background:rgba(255,255,255,.58);text-align:center}.metadata-import-counts strong{display:block;font-size:1.15rem}.metadata-import-counts span{display:block;margin-top:.15rem;font-size:.72rem;line-height:1.2;color:var(--ink-muted,#66736b)}
+    .metadata-import-note{margin:.75rem 0;font-size:.88rem;line-height:1.45;color:var(--ink-muted,#66736b)}
+    .metadata-record-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin:.7rem 0}.metadata-record-side{min-width:0;padding:.7rem;border:1px solid rgba(71,101,79,.14);border-radius:12px;background:rgba(255,255,255,.54)}.metadata-record-side>strong{display:block;margin-bottom:.35rem;font-size:.82rem}.metadata-record-side small{display:block;margin:.16rem 0;color:var(--ink-muted,#66736b);overflow-wrap:anywhere}.metadata-record-field{margin:.55rem 0 0}.metadata-record-field span{display:block;margin-bottom:.12rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted,#66736b)}.metadata-record-field p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.86rem;line-height:1.4}
+    .metadata-conflict-choice{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;padding-top:.7rem;border-top:1px solid rgba(71,101,79,.14)}.metadata-conflict-choice label{display:flex;align-items:center;gap:.35rem;padding:.48rem .65rem;border:1px solid rgba(71,101,79,.2);border-radius:999px;background:rgba(255,255,255,.72);font-size:.8rem;font-weight:600;cursor:pointer}.metadata-conflict-choice input{accent-color:#52765b}.metadata-collision-warning{margin:.65rem 0 0;padding:.55rem .65rem;border-radius:10px;background:rgba(179,116,47,.1);font-size:.78rem;line-height:1.35;color:#795023}
+    .metadata-undo-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.85rem;padding:.75rem .85rem;border:1px dashed rgba(71,101,79,.24);border-radius:14px}.metadata-undo-row span{font-size:.82rem;color:var(--ink-muted,#66736b)}.metadata-undo-row button{white-space:nowrap}
+    @media(max-width:700px){.metadata-import-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.metadata-record-grid{grid-template-columns:1fr}.metadata-undo-row{align-items:flex-start;flex-direction:column}}
+  </style>
 </head>
 <body class="app-body editor-page editor-backup-page stage7-bottom-nav-page">
   <div class="app-shell">
@@ -217,11 +226,67 @@
           <article class="backup-action-card">
             <div class="backup-action-copy">
               <h3>Portable Metadata v2</h3>
-              <p>Machine-readable JSON for the upcoming Import / Compare / Merge flow. Includes entry and Situation revision lineage plus tombstones so later sync can distinguish edits from deletions.</p>
+              <p>Machine-readable JSON for lossless Import / Compare / Merge between browsers or devices. Includes entry and Situation revision lineage plus tombstones so WLP can distinguish newer edits, older copies, conflicts, and deletions.</p>
               <small>Use TSV for inspection; use this JSON for lossless metadata transfer.</small>
             </div>
             <button class="backup-secondary-action" id="learning-metadata-export-json" type="button">Export Metadata <span>.json</span></button>
           </article>
+        </section>
+
+        <section class="backup-panel import-panel" id="learning-metadata-merge">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Import · Compare · Merge</span>
+              <h2>Learning Metadata v2</h2>
+              <p>Merge Sense / Memory Hooks and Situation Anchors from another WLP browser or device without replacing the rest of local WLP data.</p>
+            </div>
+          </div>
+
+          <div class="backup-import-rules">
+            <span>Incoming descendant → merge</span>
+            <span>This device newer → keep</span>
+            <span>Diverged version → ask</span>
+            <span>Master / Draft card content → untouched</span>
+          </div>
+
+          <input id="metadata-import-file" type="file" accept=".json,application/json" hidden>
+          <button class="backup-import-button" id="metadata-import-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M5 4h14v4"/></svg>
+            <span><strong>Choose Metadata JSON</strong><small>Portable Learning Metadata v2</small></span>
+          </button>
+
+          <section class="backup-import-preview" id="metadata-import-preview" hidden aria-live="polite">
+            <div class="import-preview-head">
+              <div><span class="editor-tool-kicker">Merge Preview</span><h3 id="metadata-import-file-name">Selected Metadata JSON</h3></div>
+              <button type="button" class="import-preview-clear" id="metadata-import-clear">Clear</button>
+            </div>
+            <div class="metadata-import-meta">
+              <span>Exported <strong id="metadata-import-exported">—</strong></span>
+              <span>Source device <strong id="metadata-import-source-device">—</strong></span>
+            </div>
+            <div class="metadata-import-counts">
+              <div><strong id="metadata-import-new">0</strong><span>New</span></div>
+              <div><strong id="metadata-import-newer">0</strong><span>Incoming newer</span></div>
+              <div><strong id="metadata-import-same">0</strong><span>Same</span></div>
+              <div><strong id="metadata-import-local-newer">0</strong><span>This device newer</span></div>
+              <div><strong id="metadata-import-conflicts">0</strong><span>Conflicts</span></div>
+            </div>
+            <p class="metadata-import-note" id="metadata-import-note">Safe changes can merge automatically. Conflicts default to keeping this device until you choose otherwise.</p>
+            <div class="import-preview-actions">
+              <button type="button" class="import-review-button" id="metadata-import-review" aria-expanded="false">Review Changes</button>
+              <button type="button" class="import-continue-button" id="metadata-import-continue">Merge Metadata</button>
+            </div>
+            <div class="import-change-details" id="metadata-import-change-details" hidden>
+              <p class="import-review-help">Newer incoming records merge automatically. Older incoming records never overwrite this device. For a diverged record, choose which branch to keep.</p>
+              <div id="metadata-import-change-list"></div>
+            </div>
+          </section>
+
+          <div class="metadata-undo-row" id="metadata-import-undo" hidden>
+            <span>A rollback copy exists from the most recent Learning Metadata merge on this browser.</span>
+            <button type="button" class="local-restore-secondary" id="metadata-import-undo-button">Undo Last Metadata Merge</button>
+          </div>
+          <section class="backup-status" id="metadata-import-status" hidden aria-live="polite"></section>
         </section>
 
         <section class="backup-panel import-panel">
@@ -271,7 +336,7 @@
 
         <section class="backup-note">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>
-          <div><strong>Master stays untouched.</strong><span>Draft import only changes browser-local Drafts. Progress has its own separate backup.</span></div>
+          <div><strong>Master stays untouched.</strong><span>Metadata merge changes only browser-local Learning Metadata; Draft TSV import changes only browser-local Drafts. Full Local Backup remains the safety snapshot for the whole browser state.</span></div>
         </section>
       </div>
     </main>
@@ -338,10 +403,10 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./learning-hooks.js?v=20260918-s7-situation-v18633"></script>
+  <script src="./learning-hooks.js?v=20260918-s7-meta-merge-v18639"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-backup.js?v=20260918-s7-situation-v18633"></script>
-  <script src="./local-data-safety.js?v=20260918-s7-learning-meta-v2-v18631"></script>
+  <script src="./editor-backup.js?v=20260918-s7-meta-merge-v18639"></script>
+  <script src="./local-data-safety.js?v=20260918-s7-meta-merge-v18639"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>

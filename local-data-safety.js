@@ -6,6 +6,7 @@
   const LEARNING_META_KEY = 'wlp:learning-meta:v2';
   const LEGACY_LEARNING_META_KEY = 'wlp:learning-meta:v1';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
+  const METADATA_MERGE_ROLLBACK_KEY = 'wlp:learning-meta:merge-rollback:v1';
   const BACKUP_META_KEY = 'wlp:local-data-backup-meta:v1';
   const RESTORE_ROLLBACK_KEY = 'wlp:local-data-restore-rollback:v1';
   const ROLE_KEY = 'wlp:ui-role:v2';
@@ -140,7 +141,7 @@
 
   function isBackupKey(key) {
     if (!key) return false;
-    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY || key === DEVICE_ID_KEY) return false;
+    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY || key === DEVICE_ID_KEY || key === METADATA_MERGE_ROLLBACK_KEY) return false;
     return key.startsWith('wlp:') || key.startsWith(PROGRESS_PREFIX);
   }
 
@@ -376,6 +377,9 @@
 
     try {
       writeManagedSnapshot(backup);
+      // A full snapshot restore replaces the metadata state, so an older
+      // metadata-merge rollback would no longer describe the active branch.
+      localStorage.removeItem(METADATA_MERGE_ROLLBACK_KEY);
     } catch (error) {
       try { writeManagedSnapshot(currentBackup); } catch {}
       throw new Error(`Restore could not be completed safely: ${error?.message || 'storage write failed'}`);
