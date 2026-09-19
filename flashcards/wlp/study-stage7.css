@@ -3373,3 +3373,48 @@ body.review-attention-open{overflow:hidden}
   font-size:.72rem;
   line-height:1.42;
 }
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer refinement v1.8.6.42
+   Metadata stays quiet; semantic relationships stay readable.
+   ========================================================= */
+.stage7-study-body .learning-hook-popover-head .learning-hook-entry-type{
+  padding:5px 9px!important;
+  border:1px solid rgba(92,111,99,.13)!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  align-self:center!important;
+}
+.stage7-study-body .learning-communicative-need{
+  display:block;
+  margin-top:8px;
+  padding:2px 0 2px 9px;
+  border:0;
+  border-left:2px solid rgba(95,122,104,.24);
+  border-radius:0;
+  background:transparent;
+}
+.stage7-study-body .learning-communicative-need span{
+  display:block;
+  margin:0 0 3px;
+  color:#7c8981;
+  font-size:.61rem;
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:.035em;
+  text-transform:none;
+}
+.stage7-study-body .learning-communicative-need span::after{content:""}
+.stage7-study-body .learning-communicative-need p{
+  margin:0;
+  color:#68766e;
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:.77rem;
+  line-height:1.45;
+}
+.stage7-study-body .learning-alternative-item{
+  background:transparent!important;
+  box-shadow:none!important;
+  border-color:rgba(95,114,101,.13)!important;
+}

@@ -415,3 +415,33 @@
   .learning-hooks-details-body{padding:12px}
   .learning-hooks-summary-copy small{max-width:230px}
 }
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer refinement v1.8.6.42
+   Keep the compact collapsed card, but make disclosure
+   unmistakably belong to the whole Learning Layer panel.
+   ========================================================= */
+.learning-hooks-summary{
+  position:relative;
+  padding-bottom:27px;
+}
+.learning-hooks-summary-actions{
+  align-self:center;
+}
+.learning-hooks-summary-chevron{
+  position:absolute;
+  left:50%;
+  bottom:6px;
+  transform:translateX(-50%);
+  color:#89968e;
+  font-size:.86rem;
+  line-height:1;
+  opacity:.9;
+}
+.learning-hooks-details[open] .learning-hooks-summary-chevron{
+  transform:translateX(-50%) rotate(180deg);
+}
+@media(max-width:520px){
+  .learning-hooks-summary{padding-bottom:25px}
+  .learning-hooks-summary-chevron{bottom:5px}
+}

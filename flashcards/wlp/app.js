@@ -1614,7 +1614,7 @@ function installLearningHookUI(root, row, openEditor = null) {
               const need = document.createElement("div");
               need.className = "learning-communicative-need";
               const needLabel = document.createElement("span");
-              needLabel.textContent = "Need";
+              needLabel.textContent = "Communicative Need";
               const needCopy = document.createElement("p");
               needCopy.textContent = needValue;
               need.append(needLabel, needCopy);
