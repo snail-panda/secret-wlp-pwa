@@ -158,3 +158,22 @@
 .study-quick-card-actions button{border-color:#adc3b3;background:#edf5ed;color:#315f49}
 body.study-quick-card-open{overflow:hidden}
 @media(max-width:560px){.study-answer-review{align-items:flex-start}.study-answer-review-action{justify-content:flex-start}.study-session-review-target{align-items:flex-start}.study-quick-card-modal{padding:10px}.study-quick-card-panel{max-height:84dvh;border-radius:18px}.study-quick-card-head{display:block}.study-quick-card-head>span{display:block;margin-top:5px}}
+
+/* v1.8.6.47 R5 — reversible session navigation, progressive hints, direct deck return. */
+.study-experience-topline-right{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0}
+.study-previous-button{border:0;background:transparent;color:#71867a;padding:4px 2px;font:600 .66rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
+.study-previous-button:hover,.study-previous-button:focus-visible{color:#315f49;text-decoration:underline;text-underline-offset:3px}
+.study-hint-list{display:grid;gap:8px;margin-top:5px}
+.study-hint-item{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:8px;padding-top:7px;border-top:1px solid #e6ede8}
+.study-hint-item:first-child{padding-top:0;border-top:0}
+.study-hint-item b{color:#819087;font:800 .58rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;padding-top:3px}
+.study-hint-item p{margin:0;color:#365b49;font-family:"EB Garamond",Georgia,serif;font-size:.96rem;line-height:1.36;overflow-wrap:anywhere}
+.study-help-actions button:disabled{opacity:.5;cursor:default;background:#f7f9f7;color:#819087}
+.study-finished-decks{margin-top:13px;padding:12px;border:1px solid #dce7df;border-radius:15px;background:#fbfdfb;text-align:left}
+.study-finished-decks-head{display:grid;gap:2px}
+.study-finished-decks-head>span{color:#526f5f;font-size:.68rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.study-finished-decks-head small{color:#87948c;font-size:.64rem;line-height:1.35}
+.study-finished-deck-links{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.study-finished-deck-links a{border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#5b7365;padding:7px 11px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:none}
+.study-finished-deck-links a.is-primary{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+@media(max-width:420px){.study-experience-topline{align-items:flex-start}.study-experience-topline-right{gap:7px}.study-previous-button{font-size:.63rem}.study-hint-item{grid-template-columns:1fr;gap:2px}.study-hint-item b{padding-top:0}}

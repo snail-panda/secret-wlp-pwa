@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r3">
+  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r5">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -100,7 +100,10 @@
       <section class="study-experience" id="study-experience" hidden aria-live="polite">
         <div class="study-experience-topline">
           <span class="study-experience-source" id="study-experience-source">Review</span>
-          <span class="study-experience-progress" id="study-experience-progress">1 / 1</span>
+          <div class="study-experience-topline-right">
+            <button class="study-previous-button" type="button" id="study-previous" hidden>← Previous</button>
+            <span class="study-experience-progress" id="study-experience-progress">1 / 1</span>
+          </div>
         </div>
         <div class="study-situation-card">
           <span class="section-kicker" id="study-prompt-label">Situation</span>
@@ -126,7 +129,8 @@
           <span>Communicative need</span><p id="study-need"></p>
         </div>
         <div class="study-reveal-block study-hint-block" id="study-hint-block" hidden>
-          <span>Hint</span><p id="study-hint"></p>
+          <span id="study-hint-heading">Hints</span>
+          <div class="study-hint-list" id="study-hint-list"></div>
         </div>
 
         <section class="study-target-reveal" id="study-target-reveal" hidden>
@@ -169,6 +173,10 @@
         <h2>You finished this set.</h2>
         <p id="study-finished-copy">You worked through the selected experiences.</p>
         <p class="study-finished-summary" id="study-finished-summary" hidden></p>
+        <section class="study-finished-decks" id="study-finished-decks" hidden>
+          <div class="study-finished-decks-head"><span>Continue with cards</span><small id="study-finished-decks-copy">Open a deck from this session directly.</small></div>
+          <div class="study-finished-deck-links" id="study-finished-deck-links"></div>
+        </section>
         <section class="study-session-review" id="study-session-review" hidden>
           <div class="study-session-review-head"><span>Session answers</span><small>Compare what you wrote with the WLP target. Open any card without leaving this session.</small></div>
           <div class="study-session-review-list" id="study-session-review-list"></div>
@@ -247,7 +255,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r4"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r5"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

@@ -493,6 +493,8 @@
       if (completed && !attempt.completedAt) attempt.completedAt = now;
       const serializable = { ...attempt };
       delete serializable._startedMs;
+      delete serializable._elapsedBaseMs;
+      delete serializable._visitStartedMs;
       const events = readStudyEvents();
       const index = events.findIndex(event => event?.eventId === serializable.eventId);
       if (index >= 0) events[index] = serializable;
@@ -522,15 +524,32 @@
       situationId: clean(item.situation?.situationId),
       communicativeNeedShown: false,
       hintShown: false,
+      hintCount: 0,
+      hintTypes: [],
       targetShown: false,
       responseText: '',
       autoMatch: 'blank',
       matchedAlternative: '',
       selfRating: '',
       elapsedMs: 0,
-      _startedMs: Date.now()
+      _elapsedBaseMs: 0,
+      _visitStartedMs: Date.now()
     };
     sessionAttempts[sessionIndex] = currentAttempt;
+  }
+
+  function activateAttempt(item) {
+    const existing = sessionAttempts[sessionIndex];
+    if (!existing) {
+      beginAttempt(item);
+      return currentAttempt;
+    }
+    currentAttempt = existing;
+    currentAttempt._elapsedBaseMs = Number(currentAttempt.elapsedMs) || 0;
+    currentAttempt._visitStartedMs = Date.now();
+    if (!Number.isFinite(Number(currentAttempt.hintCount))) currentAttempt.hintCount = currentAttempt.hintShown ? 1 : 0;
+    if (!Array.isArray(currentAttempt.hintTypes)) currentAttempt.hintTypes = [];
+    return currentAttempt;
   }
 
   function snapshotResponse(item) {
@@ -540,7 +559,7 @@
     currentAttempt.responseText = answer;
     currentAttempt.autoMatch = match.kind;
     currentAttempt.matchedAlternative = match.alternative || '';
-    currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
+    currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
   }
 
   function setSelfRating(rating) {
@@ -548,7 +567,7 @@
     const item = sessionQueue[sessionIndex];
     if (item) { snapshotResponse(item); renderCurrentAnswerReview(item); }
     currentAttempt.selfRating = rating;
-    currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
+    currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
     document.querySelectorAll('[data-study-rating]').forEach(button => {
       const selected = button.dataset.studyRating === rating;
       button.classList.toggle('is-selected', selected);
@@ -563,19 +582,83 @@
     const item = sessionQueue[sessionIndex];
     if (!currentAttempt || !item) return;
     snapshotResponse(item);
-    currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
+    currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
     persistAttempt(currentAttempt, true);
   }
 
-  function hintFor(item) {
+  function hintStepsFor(item) {
     const target = clean(item.row?.Word);
-    const sense = safePrompt(item.meta?.senseHook, target).text;
-    if (meaningfulPrompt(sense)) return sense;
+    const hints = [];
+    const seen = new Set();
+    const add = (type, text) => {
+      const value = clean(text);
+      const key = normalizeAnswer(value);
+      if (!value || !key || seen.has(key)) return;
+      seen.add(key);
+      hints.push({ type, text: value });
+    };
+
     const synonyms = safePrompt(item.row?.['Synonym(s)'], target).text;
-    if (meaningfulPrompt(synonyms)) return `Related expression(s): ${synonyms}`;
-    const first = Array.from(target)[0] || '';
-    const words = target.split(/\s+/).filter(Boolean).length;
-    return first ? `Starts with “${first}”${words > 1 ? ` · ${words} words in the headword` : ''}.` : 'No extra hint is stored for this entry yet.';
+    if (meaningfulPrompt(synonyms)) add('related', `Related expression(s): ${synonyms}`);
+
+    const entryTypeRaw = clean(item.meta?.entryType);
+    const entryType = entryTypeRaw === 'conversational frame' ? 'conversational frame' : entryTypeRaw;
+    const pos = clean(item.row?.['Part of Speech']);
+    const wordCount = target.split(/\s+/).filter(Boolean).length;
+    const formBits = [];
+    if (entryType) formBits.push(entryType);
+    if (pos && normalizeAnswer(pos) !== normalizeAnswer(entryType)) formBits.push(pos);
+    formBits.push(wordCount === 1 ? 'one word' : `${wordCount}-word expression`);
+    add('form', `Form: ${formBits.join(' · ')}.`);
+
+    if (item.kind !== 'example') {
+      const example = splitExamples(item.row?.['Example Sentence']).map(value => safePrompt(value, target)).find(value => value.changed && meaningfulPrompt(value.text));
+      if (example) add('example', `Example frame: ${example.text}`);
+    }
+
+    const first = Array.from(target.trim())[0] || '';
+    if (first) add('first-letter', `Starts with “${first}”.`);
+
+    const sense = safePrompt(item.meta?.senseHook, target).text;
+    if (meaningfulPrompt(sense)) add('sense-hook', `Sense hook: ${sense}`);
+
+    return hints;
+  }
+
+  function renderHintState(item) {
+    const hints = hintStepsFor(item);
+    const count = Math.max(0, Math.min(Number(currentAttempt?.hintCount) || 0, hints.length));
+    $('study-hint-list').replaceChildren();
+    hints.slice(0, count).forEach((hint, index) => {
+      const row = document.createElement('div');
+      row.className = 'study-hint-item';
+      const label = document.createElement('b');
+      label.textContent = `Hint ${index + 1}`;
+      const copy = document.createElement('p');
+      copy.textContent = hint.text;
+      row.append(label, copy);
+      $('study-hint-list').append(row);
+    });
+    $('study-hint-block').hidden = count === 0;
+    $('study-show-hint').hidden = hints.length === 0;
+    $('study-show-hint').disabled = Boolean(hints.length && count >= hints.length);
+    $('study-show-hint').textContent = count === 0 ? 'Give me a hint' : (count < hints.length ? 'Give me another hint' : 'No more hints');
+  }
+
+  function showNextHint() {
+    const item = sessionQueue[sessionIndex];
+    if (!item || !currentAttempt) return;
+    const hints = hintStepsFor(item);
+    const current = Math.max(0, Number(currentAttempt.hintCount) || 0);
+    if (!hints.length || current >= hints.length) return;
+    const next = current + 1;
+    currentAttempt.hintShown = true;
+    currentAttempt.hintCount = next;
+    currentAttempt.hintTypes = hints.slice(0, next).map(hint => hint.type);
+    currentAttempt.hintShownAt = new Date().toISOString();
+    renderHintState(item);
+    persistAttempt(currentAttempt, false);
+    $('study-hint-block').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function relevantAlternatives(item) {
@@ -604,6 +687,7 @@
     $('study-experience').hidden = false;
     $('study-experience-source').textContent = sourceLabel(lastSessionSpec?.mode || sourceMode);
     $('study-experience-progress').textContent = `${sessionIndex + 1} / ${sessionQueue.length}`;
+    $('study-previous').hidden = sessionIndex <= 0;
 
     $('study-prompt-label').textContent = item.promptLabel || 'Situation';
     const title = clean(item.promptTitle);
@@ -612,15 +696,16 @@
     $('study-situation-anchor').textContent = clean(item.promptText);
     $('study-response-question').textContent = item.question || 'What might you naturally say?';
     $('study-response-help').textContent = item.responseHelp || 'Multiple answers can be natural.';
-    $('study-response').value = '';
+
+    const attempt = activateAttempt(item);
+    $('study-response').value = clean(attempt?.responseText);
 
     const need = clean(item.communicativeNeed);
     $('study-show-need').hidden = !need;
-    $('study-need-block').hidden = true;
     $('study-need').textContent = need;
-    $('study-hint-block').hidden = true;
-    $('study-hint').textContent = hintFor(item);
-    $('study-target-reveal').hidden = true;
+    $('study-need-block').hidden = !(need && attempt?.communicativeNeedShown);
+    renderHintState(item);
+
     $('study-target').textContent = clean(item.row?.Word) || `WID ${item.wordId}`;
     const entryType = clean(item.meta?.entryType);
     $('study-target-type').hidden = !entryType;
@@ -630,11 +715,15 @@
     $('study-answer-review').hidden = true;
     $('study-answer-text').textContent = '';
     $('study-answer-review-action').replaceChildren();
+
     document.querySelectorAll('[data-study-rating]').forEach(button => {
-      button.classList.remove('is-selected');
-      button.setAttribute('aria-pressed', 'false');
+      const selected = button.dataset.studyRating === clean(attempt?.selfRating);
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
-    $('study-self-check-status').textContent = 'Not rated yet · activity is still saved locally.';
+    $('study-self-check-status').textContent = attempt?.selfRating
+      ? `Saved locally · self-check: ${ratingLabel(attempt.selfRating)}.`
+      : 'Not rated yet · activity is still saved locally.';
 
     $('study-open-card').dataset.wordId = item.wordId;
     $('study-next').textContent = sessionIndex === sessionQueue.length - 1 ? 'Finish Session' : 'Next Experience';
@@ -646,7 +735,15 @@
       return `<div class="study-alternative-item"><strong>${escapeHtml(alt.expression)}</strong>${note ? `<p>${escapeHtml(note)}</p>` : ''}</div>`;
     }).join('');
 
-    beginAttempt(item);
+    const targetShown = Boolean(attempt?.targetShown);
+    $('study-target-reveal').hidden = !targetShown;
+    if (targetShown) {
+      const note = responseNote(item);
+      $('study-response-note').hidden = !note;
+      $('study-response-note').textContent = note;
+      renderCurrentAnswerReview(item);
+    }
+
     $('study-experience').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -676,6 +773,39 @@
   function searchHrefFor(answer) {
     const query = clean(answer);
     return `./global-search.html?q=${encodeURIComponent(query)}&return=${encodeURIComponent('study-hub.html')}`;
+  }
+
+  function deckHref(deck) {
+    const value = Number(deck) || 0;
+    return value ? `./flashcards/wlp/batch.html?batch=${encodeURIComponent(padDeck(value))}` : './deck-browser.html';
+  }
+
+  function renderFinishedDeckLinks() {
+    const decks = [];
+    const seen = new Set();
+    sessionQueue.forEach(item => {
+      const deck = Number(item.row?.['Batch #']) || 0;
+      if (!deck || seen.has(deck)) return;
+      seen.add(deck);
+      decks.push(deck);
+    });
+    const holder = $('study-finished-deck-links');
+    holder.replaceChildren();
+    if (!decks.length) {
+      $('study-finished-decks').hidden = true;
+      return;
+    }
+    $('study-finished-decks').hidden = false;
+    $('study-finished-decks-copy').textContent = decks.length === 1
+      ? 'Go straight to the deck you just practiced.'
+      : 'Open any deck that appeared in this session — no need to choose it again.';
+    decks.forEach((deck, index) => {
+      const link = document.createElement('a');
+      link.href = deckHref(deck);
+      link.textContent = decks.length === 1 ? `Study WLP${padDeck(deck)}` : `WLP${padDeck(deck)}`;
+      if (decks.length === 1 || index === 0) link.classList.add('is-primary');
+      holder.append(link);
+    });
   }
 
   function ratingLabel(rating) {
@@ -841,8 +971,23 @@
     $('study-target-reveal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  function saveCurrentAttempt(completed = false) {
+    const item = sessionQueue[sessionIndex];
+    if (!currentAttempt || !item) return;
+    snapshotResponse(item);
+    currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
+    persistAttempt(currentAttempt, completed);
+  }
+
+  function previousExperience() {
+    if (sessionIndex <= 0) return;
+    saveCurrentAttempt(false);
+    sessionIndex--;
+    renderExperience();
+  }
+
   function nextExperience() {
-    finalizeCurrentAttempt();
+    saveCurrentAttempt(true);
     if (sessionIndex >= sessionQueue.length - 1) return finishSession(false);
     sessionIndex++;
     renderExperience();
@@ -868,6 +1013,7 @@
     if (counts.unrated) pieces.push(`${counts.unrated} not rated`);
     $('study-finished-summary').hidden = !pieces.length;
     $('study-finished-summary').textContent = pieces.length ? `Your self-check: ${pieces.join(' · ')}. Saved on this device.` : '';
+    renderFinishedDeckLinks();
     renderSessionReview();
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -906,6 +1052,7 @@
 
   function changeSet() {
     $('study-finished').hidden = true;
+    $('study-finished-decks').hidden = true;
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = false;
     document.querySelector('.study-hub-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -921,13 +1068,11 @@
       $('study-need-block').hidden = false;
       if (currentAttempt) { currentAttempt.communicativeNeedShown = true; currentAttempt.communicativeNeedShownAt = new Date().toISOString(); }
     });
-    $('study-show-hint').addEventListener('click', () => {
-      $('study-hint-block').hidden = false;
-      if (currentAttempt) { currentAttempt.hintShown = true; currentAttempt.hintShownAt = new Date().toISOString(); }
-    });
+    $('study-show-hint').addEventListener('click', showNextHint);
     $('study-show-target').addEventListener('click', showTarget);
     $('study-open-card').addEventListener('click', () => openQuickCard($('study-open-card').dataset.wordId));
     document.querySelectorAll('[data-study-rating]').forEach(button => button.addEventListener('click', () => setSelfRating(button.dataset.studyRating)));
+    $('study-previous').addEventListener('click', previousExperience);
     $('study-next').addEventListener('click', nextExperience);
     $('study-again').addEventListener('click', restoreSessionSpecAndRestart);
     $('study-change-set').addEventListener('click', changeSet);
