@@ -468,3 +468,21 @@
   .learning-hooks-summary{padding-bottom:20px}
   .learning-hooks-summary-chevron{bottom:2px}
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer alignment polish v1.8.6.44
+   Clearer compact disclosure without adding visual weight.
+   ========================================================= */
+.learning-hooks-summary{
+  padding-bottom:17px;
+}
+.learning-hooks-summary-chevron{
+  bottom:1px;
+  color:#6f7e75;
+  opacity:.92;
+}
+@media(max-width:520px){
+  .learning-hooks-summary{padding-bottom:16px}
+  .learning-hooks-summary-chevron{bottom:0}
+}

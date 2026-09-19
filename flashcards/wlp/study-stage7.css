@@ -3433,3 +3433,16 @@ body.review-attention-open{overflow:hidden}
   color:#818d85!important;
   box-shadow:none!important;
 }
+
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer header alignment v1.8.6.44
+   Hairline Entry Type badge + optical close-button alignment.
+   ========================================================= */
+.stage7-study-body .learning-hook-popover-head .learning-hook-entry-type{
+  border:.5px solid rgba(82,101,89,.42)!important;
+}
+.stage7-study-body .learning-hook-popover-head .learning-hook-close{
+  position:relative;
+  top:-2px;
+}
