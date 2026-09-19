@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const MODE_KEY = 'wlp:ai-transport-mode:v1';
   const DEFAULT_MODE = 'mock';
   const ENDPOINT = '/.netlify/functions/wlp-ai-study';
@@ -173,6 +173,34 @@
     }, Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 10000);
   }
 
+
+  async function previewOutbound(kind, payload, options = {}) {
+    const normalizedKind = clean(kind).toLowerCase();
+    if (!['planner', 'interpreter'].includes(normalizedKind)) throw new Error(`Unsupported preview kind: ${kind}`);
+    const contract = requireContract();
+    if (normalizedKind === 'planner') assertValidation('Planner request', contract.validatePlannerRequest(payload));
+    else assertValidation('Interpreter request', contract.validateInterpreterRequest(payload));
+    const endpoint = clean(options.endpoint) || ENDPOINT;
+    const body = {
+      schemaVersion: 1,
+      kind: 'preview',
+      previewKind: normalizedKind,
+      payload: clone(payload)
+    };
+    if (normalizedKind === 'interpreter' && clean(options.eventId)) body.eventId = clean(options.eventId);
+    return fetchJSON(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body),
+      credentials: 'same-origin',
+      cache: 'no-store'
+    }, Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 10000);
+  }
+
+  async function getProviderInfo(options = {}) {
+    return probeRealEndpoint(options);
+  }
+
   async function runTransportSelfTest() {
     const data = window.WLPAIStudyData;
     const contract = requireContract();
@@ -240,6 +268,8 @@
     callPlannerWriter,
     callInterpreterRouter,
     probeRealEndpoint,
+    getProviderInfo,
+    previewOutbound,
     runTransportSelfTest
   });
 })();
