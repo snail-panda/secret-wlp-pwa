@@ -956,7 +956,7 @@
       shellCss.dataset.wlpDrawerShell = '1';
       document.head.appendChild(shellCss);
     }
-    shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-order-r11', scriptUrl).href;
+    shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-order-r12', scriptUrl).href;
 
     const nav = document.querySelector('.drawer-nav');
     if (!nav) return;
@@ -1015,8 +1015,31 @@
     const review = findLink('review.html') || makeLink('review.html', 'Review', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg>');
     const progress = findLink('progress.html') || makeLink('progress.html', 'Progress', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg>');
     const drafts = findLink('drafts.html') || makeLink('drafts.html', 'Drafts', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>');
-    const editor = findLink('editor.html');
-    const backup = findLink('editor-backup.html');
+    let editor = findLink('editor.html');
+    if (!editor) {
+      editor = document.createElement('a');
+      editor.className = 'drawer-item drawer-admin-only';
+      editor.href = new URL('./editor.html', scriptUrl).href;
+      editor.hidden = true;
+      editor.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Editor</span><small><span>Create &amp; Edit: New Cards, Drafts &amp; Local Edits</span><span>Backup: Import &amp; Export</span></small></span>';
+    }
+    editor.classList.add('drawer-admin-only');
+
+    let backup = findLink('editor-backup.html');
+    if (!backup) {
+      backup = document.createElement('a');
+      backup.className = 'drawer-item drawer-admin-only stage7-backup-restore-item';
+      backup.href = new URL('./editor-backup.html', scriptUrl).href;
+      backup.hidden = true;
+      backup.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M5 13.5V20h14v-6.5"/><path d="M7 16.5h10"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Backup &amp; Restore</span><small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small></span>';
+    }
+    backup.classList.add('drawer-admin-only', 'stage7-backup-restore-item');
+    const syncSharedAdminItems = () => {
+      const admin = localStorage.getItem('wlp:ui-role:v2') === 'admin' || sessionStorage.getItem('wlp:session-admin:v1') === 'admin';
+      [editor, backup].forEach(item => { if (item) item.hidden = !admin; });
+    };
+    syncSharedAdminItems();
+
     const settings = nav.querySelector('#drawer-settings') || findByLabel('Settings');
     const role = nav.querySelector('#drawer-role-action') || findByLabel('Switch to Guest') || findByLabel('Admin Login');
     const help = Array.from(nav.querySelectorAll('.drawer-placeholder')).find(item => item.textContent.trim().startsWith('Help')) || findByLabel('Help');
@@ -1064,6 +1087,16 @@
     const fragment = document.createDocumentFragment();
     ordered.forEach(node => fragment.appendChild(node));
     nav.replaceChildren(fragment);
+    syncSharedAdminItems();
+
+    // Keep dynamically-created admin links in sync when the existing role UI changes.
+    const roleStateNodes = [document.getElementById('role-label'), role?.querySelector('.drawer-role-label')].filter(Boolean);
+    if (roleStateNodes.length) {
+      const roleObserver = new MutationObserver(syncSharedAdminItems);
+      roleStateNodes.forEach(node => roleObserver.observe(node, { childList:true, characterData:true, subtree:true }));
+    }
+    document.getElementById('role-menu-action')?.addEventListener('click', () => setTimeout(syncSharedAdminItems, 0));
+    role?.addEventListener('click', () => setTimeout(syncSharedAdminItems, 0));
 
     // Internal-scroll drawers should always reopen at the true top (Home/Search visible).
     const drawer = document.getElementById('app-drawer');
