@@ -1,4 +1,4 @@
-/* WLP Stage 7 R9 — drawer viewport + internal scrolling.
+/* WLP Stage 7 R10 — drawer viewport, internal scrolling, and menu grouping.
    Keep the WLP brand/header visible while only the menu body scrolls. */
 .app-drawer{
   display:flex!important;
@@ -28,3 +28,25 @@
 .app-drawer .drawer-nav::-webkit-scrollbar-track{background:transparent}
 .app-drawer .drawer-nav::-webkit-scrollbar-thumb{background:rgba(91,122,103,.25);border-radius:999px}
 body:has(.app-drawer.open){overflow:hidden}
+
+/* R10 menu hierarchy: keep separators quiet, but give Settings and support links
+   enough breathing room to read as separate groups. */
+.app-drawer .drawer-nav > .drawer-group-divider{
+  border:0!important;
+  border-top:1px solid rgba(91,122,103,.20)!important;
+  height:0!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+.app-drawer .drawer-nav > .drawer-management-divider{
+  margin-top:18px!important;
+  margin-bottom:12px!important;
+}
+.app-drawer .drawer-nav > .drawer-support-divider{
+  margin-top:14px!important;
+  margin-bottom:8px!important;
+}
+.app-drawer .drawer-nav > #drawer-settings{
+  margin-top:2px!important;
+}
+

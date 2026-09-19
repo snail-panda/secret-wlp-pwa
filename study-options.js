@@ -936,10 +936,9 @@
   applyAll();
 
 
-  /* Stage 7 R9 — shared drawer enhancement.
-     Most Stage 7 pages already load study-options.js, so keep the new Links
-     entry and internal-scroll stylesheet synchronized without replacing each
-     page's otherwise-stable shell markup. */
+  /* Stage 7 R10 — shared drawer synchronizer.
+     Keep the drawer order consistent on Stage 7 pages that load this file,
+     while preserving each page's current-state classes and admin visibility. */
   const installSharedDrawerEnhancements = () => {
     const scriptUrl = (() => {
       try {
@@ -950,33 +949,94 @@
       }
     })();
 
-    if (!document.querySelector('link[data-wlp-drawer-shell]')) {
-      const shellCss = document.createElement('link');
+    let shellCss = document.querySelector('link[data-wlp-drawer-shell]');
+    if (!shellCss) {
+      shellCss = document.createElement('link');
       shellCss.rel = 'stylesheet';
-      shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-links-r9', scriptUrl).href;
       shellCss.dataset.wlpDrawerShell = '1';
       document.head.appendChild(shellCss);
     }
+    shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-order-r10', scriptUrl).href;
 
     const nav = document.querySelector('.drawer-nav');
-    if (!nav || nav.querySelector('.wlp-links-menu-item, a[href$="/links.html"], a[href="./links.html"]')) return;
+    if (!nav) return;
 
-    const item = document.createElement('a');
-    item.className = 'drawer-item wlp-links-menu-item';
-    item.href = new URL('./links.html', scriptUrl).href;
-    if (location.pathname.endsWith('/links.html') || location.pathname === '/links.html') {
-      item.classList.add('is-current');
+    const pathEnds = (link, suffix) => {
+      try { return new URL(link.href, location.href).pathname.endsWith('/' + suffix); }
+      catch (_) { return false; }
+    };
+    const findLink = suffix => Array.from(nav.querySelectorAll('a.drawer-item')).find(link => pathEnds(link, suffix));
+    const findByLabel = label => Array.from(nav.querySelectorAll('.drawer-item')).find(item => item.textContent.trim().startsWith(label));
+
+    let practice = findLink('study-hub.html');
+    if (!practice) {
+      practice = document.createElement('a');
+      practice.className = 'drawer-item';
+      practice.href = new URL('./study-hub.html', scriptUrl).href;
+      if (location.pathname.endsWith('/study-hub.html') || location.pathname === '/study-hub.html') practice.classList.add('is-current');
+      practice.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice (Study Q)</span>';
     }
-    item.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9L10.9 5"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg><span>Links</span>';
 
-    const progress = Array.from(nav.querySelectorAll('a.drawer-item')).find(link => {
-      try { return new URL(link.href, location.href).pathname.endsWith('/progress.html'); }
+    let studyOptions = nav.querySelector('[data-study-options-launch]');
+    if (!studyOptions) {
+      studyOptions = document.createElement('button');
+      studyOptions.className = 'drawer-item drawer-study-options';
+      studyOptions.type = 'button';
+      studyOptions.dataset.studyOptionsLaunch = '';
+      studyOptions.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span>';
+      studyOptions.addEventListener('click', openPanel);
+    }
+
+    let links = findLink('links.html');
+    if (!links) {
+      links = document.createElement('a');
+      links.className = 'drawer-item wlp-links-menu-item';
+      links.href = new URL('./links.html', scriptUrl).href;
+      if (location.pathname.endsWith('/links.html') || location.pathname === '/links.html') links.classList.add('is-current');
+      links.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9L10.9 5"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg><span>Links</span>';
+    }
+    links.classList.add('wlp-links-menu-item');
+
+    const home = findLink('index.html');
+    const search = Array.from(nav.querySelectorAll('a.drawer-item')).find(link => {
+      try { return new URL(link.href, location.href).pathname.endsWith('/global-search.html'); }
       catch (_) { return false; }
     });
-    const firstDivider = nav.querySelector('hr');
-    if (progress) progress.insertAdjacentElement('afterend', item);
-    else if (firstDivider) nav.insertBefore(item, firstDivider);
-    else nav.appendChild(item);
+    const study = findLink('deck-browser.html');
+    const review = findLink('review.html');
+    const progress = findLink('progress.html');
+    const drafts = findLink('drafts.html');
+    const editor = findLink('editor.html');
+    const backup = findLink('editor-backup.html');
+    const settings = nav.querySelector('#drawer-settings') || findByLabel('Settings');
+    const role = nav.querySelector('#drawer-role-action') || findByLabel('Switch to Guest') || findByLabel('Admin Login');
+    const help = Array.from(nav.querySelectorAll('.drawer-placeholder')).find(item => item.textContent.trim().startsWith('Help')) || findByLabel('Help');
+    const about = Array.from(nav.querySelectorAll('.drawer-placeholder')).find(item => item.textContent.trim().startsWith('About')) || findByLabel('About');
+    const motto = nav.querySelector('.drawer-motto');
+
+    const known = new Set([home, search, study, studyOptions, practice, review, progress, drafts, editor, backup, settings, role, links, help, about, motto].filter(Boolean));
+    const extras = Array.from(nav.children).filter(node => node.tagName !== 'HR' && !known.has(node));
+    nav.querySelectorAll(':scope > hr').forEach(hr => hr.remove());
+
+    const divider = className => {
+      const hr = document.createElement('hr');
+      hr.className = 'drawer-group-divider ' + className;
+      return hr;
+    };
+
+    const ordered = [
+      home, search,
+      study, studyOptions, practice, review, progress,
+      drafts, editor, backup,
+      ...extras,
+      divider('drawer-management-divider'),
+      settings, role,
+      divider('drawer-support-divider'),
+      links, help, about, motto
+    ];
+    const fragment = document.createDocumentFragment();
+    ordered.filter(Boolean).forEach(node => fragment.appendChild(node));
+    nav.appendChild(fragment);
   };
 
   installSharedDrawerEnhancements();
