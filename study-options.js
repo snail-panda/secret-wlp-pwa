@@ -936,7 +936,7 @@
   applyAll();
 
 
-  /* Stage 7 R10 — shared drawer synchronizer.
+  /* Stage 7 R11 — exact shared drawer synchronizer.
      Keep the drawer order consistent on Stage 7 pages that load this file,
      while preserving each page's current-state classes and admin visibility. */
   const installSharedDrawerEnhancements = () => {
@@ -956,7 +956,7 @@
       shellCss.dataset.wlpDrawerShell = '1';
       document.head.appendChild(shellCss);
     }
-    shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-order-r10', scriptUrl).href;
+    shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-order-r11', scriptUrl).href;
 
     const nav = document.querySelector('.drawer-nav');
     if (!nav) return;
@@ -997,15 +997,24 @@
     }
     links.classList.add('wlp-links-menu-item');
 
-    const home = findLink('index.html');
+    const makeLink = (suffix, label, svg) => {
+      const link = document.createElement('a');
+      link.className = 'drawer-item';
+      link.href = new URL('./' + suffix, scriptUrl).href;
+      if (location.pathname.endsWith('/' + suffix) || location.pathname === '/' + suffix) link.classList.add('is-current');
+      link.innerHTML = svg + '<span>' + label + '</span>';
+      return link;
+    };
+
+    const home = findLink('index.html') || makeLink('index.html', 'Home', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg>');
     const search = Array.from(nav.querySelectorAll('a.drawer-item')).find(link => {
       try { return new URL(link.href, location.href).pathname.endsWith('/global-search.html'); }
       catch (_) { return false; }
-    });
-    const study = findLink('deck-browser.html');
-    const review = findLink('review.html');
-    const progress = findLink('progress.html');
-    const drafts = findLink('drafts.html');
+    }) || makeLink('global-search.html', 'Search', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>');
+    const study = findLink('deck-browser.html') || makeLink('deck-browser.html', 'Study (Deck Browser)', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg>');
+    const review = findLink('review.html') || makeLink('review.html', 'Review', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg>');
+    const progress = findLink('progress.html') || makeLink('progress.html', 'Progress', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg>');
+    const drafts = findLink('drafts.html') || makeLink('drafts.html', 'Drafts', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>');
     const editor = findLink('editor.html');
     const backup = findLink('editor-backup.html');
     const settings = nav.querySelector('#drawer-settings') || findByLabel('Settings');
@@ -1014,29 +1023,59 @@
     const about = Array.from(nav.querySelectorAll('.drawer-placeholder')).find(item => item.textContent.trim().startsWith('About')) || findByLabel('About');
     const motto = nav.querySelector('.drawer-motto');
 
-    const known = new Set([home, search, study, studyOptions, practice, review, progress, drafts, editor, backup, settings, role, links, help, about, motto].filter(Boolean));
-    const extras = Array.from(nav.children).filter(node => node.tagName !== 'HR' && !known.has(node));
-    nav.querySelectorAll(':scope > hr').forEach(hr => hr.remove());
+    // Normalize the current-page highlight too; older static menus may carry a stale class.
+    [home, search, study, practice, review, progress, drafts, editor, backup, links].filter(Boolean).forEach(item => item.classList.remove('is-current'));
+    const currentPath = location.pathname.replace(/\/+$/, '') || '/';
+    const currentItem = [home, search, study, practice, review, progress, drafts, editor, backup, links].filter(Boolean).find(item => {
+      try { return new URL(item.href, location.href).pathname.replace(/\/+$/, '') === currentPath; }
+      catch (_) { return false; }
+    });
+    currentItem?.classList.add('is-current');
 
+    nav.querySelectorAll(':scope > hr').forEach(hr => hr.remove());
     const divider = className => {
       const hr = document.createElement('hr');
       hr.className = 'drawer-group-divider ' + className;
       return hr;
     };
 
+    // Exact requested order. Do not let legacy/extra nodes slip between these items.
     const ordered = [
-      home, search,
-      study, studyOptions, practice, review, progress,
-      drafts, editor, backup,
-      ...extras,
+      home,
+      search,
+      study,
+      studyOptions,
+      practice,
+      review,
+      progress,
+      drafts,
+      editor,
+      backup,
       divider('drawer-management-divider'),
-      settings, role,
+      settings,
+      role,
       divider('drawer-support-divider'),
-      links, help, about, motto
-    ];
+      links,
+      help,
+      about,
+      motto
+    ].filter(Boolean);
+
     const fragment = document.createDocumentFragment();
-    ordered.filter(Boolean).forEach(node => fragment.appendChild(node));
-    nav.appendChild(fragment);
+    ordered.forEach(node => fragment.appendChild(node));
+    nav.replaceChildren(fragment);
+
+    // Internal-scroll drawers should always reopen at the true top (Home/Search visible).
+    const drawer = document.getElementById('app-drawer');
+    const resetDrawerScroll = () => requestAnimationFrame(() => { nav.scrollTop = 0; });
+    document.getElementById('menu-button')?.addEventListener('click', resetDrawerScroll, { capture:true });
+    if (drawer) {
+      const observer = new MutationObserver(() => {
+        const open = drawer.getAttribute('aria-hidden') === 'false' || drawer.classList.contains('open') || drawer.classList.contains('is-open') || drawer.classList.contains('active');
+        if (open) resetDrawerScroll();
+      });
+      observer.observe(drawer, { attributes:true, attributeFilter:['aria-hidden','class'] });
+    }
   };
 
   installSharedDrawerEnhancements();
