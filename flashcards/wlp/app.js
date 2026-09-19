@@ -1415,6 +1415,18 @@ function syncLearningLayerBackdrop() {
   document.documentElement.classList.toggle("learning-layer-is-open", hasOpen);
 }
 
+function setLearningSituationsExpanded(panel, expanded) {
+  if (!panel) return;
+  const toggle = panel.querySelector(".learning-situation-toggle");
+  const list = panel.querySelector(".learning-situation-items");
+  if (!toggle || !list) return;
+  const next = Boolean(expanded);
+  toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  list.hidden = !next;
+  panel.classList.toggle("situations-expanded", next);
+  requestAnimationFrame(() => fitLearningHookPanel(panel));
+}
+
 function closeLearningHookPanel(panel) {
   if (!panel) return;
   panel.hidden = true;
@@ -1434,6 +1446,7 @@ function openLearningHookPanel(panel, button) {
   document.body.appendChild(panel);
   panel.classList.add("is-viewport-layer");
   panel.hidden = false;
+  setLearningSituationsExpanded(panel, false);
   if (button) button.setAttribute("aria-expanded", "true");
   ensureLearningLayerBackdrop().hidden = false;
   document.documentElement.classList.add("learning-layer-is-open");
@@ -1522,16 +1535,28 @@ function installLearningHookUI(root, row, openEditor = null) {
       }
       if (situation) {
         situation.hidden = !hasSituations;
+        const toggle = situation.querySelector(".learning-situation-toggle");
+        const count = situation.querySelector(".learning-situation-count");
         const list = situation.querySelector(".learning-situation-items");
+        if (count) count.textContent = hasSituations ? `(${situations.length})` : "";
+        if (toggle) toggle.setAttribute("aria-label", hasSituations ? `Show ${situations.length} situation ${situations.length === 1 ? "anchor" : "anchors"}` : "Show situations");
         if (list) {
           list.innerHTML = "";
-          situations.forEach(item => {
-            const p = document.createElement("p");
-            p.className = "learning-situation-item";
-            p.textContent = String(item.anchor || "").trim();
-            list.appendChild(p);
+          situations.forEach((item, index) => {
+            const article = document.createElement("div");
+            article.className = "learning-situation-item";
+            const label = document.createElement("div");
+            label.className = "learning-situation-index";
+            label.textContent = `Situation ${index + 1}`;
+            const copy = document.createElement("p");
+            copy.textContent = String(item.anchor || "").trim();
+            article.append(label, copy);
+            list.appendChild(article);
           });
+          list.hidden = true;
         }
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+        panel.classList.remove("situations-expanded");
       }
       if (edit) edit.hidden = !(isWlpAdminMode() && typeof openEditor === "function");
     });
@@ -1548,6 +1573,13 @@ function installLearningHookUI(root, row, openEditor = null) {
       closeLearningHookPopovers(opening ? panel : null);
       if (opening) openLearningHookPanel(panel, button);
       else closeLearningHookPanel(panel);
+    });
+    panel.querySelector(".learning-situation-toggle")?.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const toggle = event.currentTarget;
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      setLearningSituationsExpanded(panel, !expanded);
     });
     panel.querySelector(".learning-hook-close")?.addEventListener("click", event => {
       event.preventDefault();

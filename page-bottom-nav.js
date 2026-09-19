@@ -1,29 +1,20 @@
-/* WLP Stage 7 v1.8.6.29 — shared Bottom Nav viewport lock + semantic Back policy. */
+/* WLP Stage 7 v1.8.6.35 — semantic Back + shared Bottom Nav anchor handoff. */
 (() => {
-  function lockNavToViewport(nav){
+  function handoffNav(nav){
     if (!nav) return;
     if (nav.parentElement !== document.body) document.body.appendChild(nav);
-
-    // Critical geometry is duplicated as inline !important styles on purpose.
-    // The full visual design still lives in page-bottom-nav.css; this only makes
-    // viewport anchoring resilient to stale cached CSS on installed PWAs.
-    const lock = {
-      position:'fixed', zIndex:'85', left:'50%', right:'auto', top:'auto', bottom:'0',
-      transform:'translateX(-50%)', width:'min(100%, 760px)', maxWidth:'100vw', margin:'0'
-    };
-    Object.entries(lock).forEach(([key, value]) => nav.style.setProperty(
-      key.replace(/[A-Z]/g, m => '-' + m.toLowerCase()), value, 'important'
-    ));
-    nav.dataset.stage7ViewportLocked = 'true';
+    // pwa-register owns viewport anchoring. Calling it here is important because
+    // several Editor pages still contain an older one-shot fixed-position fail-safe.
+    window.WLPBottomNavGuard?.lockAll?.();
   }
 
   function initStage7BottomNav(){
-    document.querySelectorAll('.stage7-page-bottom-nav').forEach(lockNavToViewport);
+    document.querySelectorAll('.stage7-page-bottom-nav').forEach(handoffNav);
 
     // Bottom Nav Back is app-level parent navigation, not browser history.
-    // Keep the legacy data-stage7-history-back hook as a compatibility alias so
-    // older cached HTML cannot reintroduce Back/parent ping-pong loops.
     document.querySelectorAll('[data-stage7-parent-back], [data-stage7-history-back]').forEach((button) => {
+      if (button.dataset.stage7SemanticBackBound === 'true') return;
+      button.dataset.stage7SemanticBackBound = 'true';
       button.addEventListener('click', (event) => {
         event.preventDefault();
         const fallback = button.getAttribute('data-stage7-back-fallback') || './index.html';
@@ -47,7 +38,7 @@
     initStage7BottomNav();
   }
   addEventListener('pageshow', initStage7BottomNav);
-  addEventListener('resize', initStage7BottomNav, { passive:true });
-  addEventListener('orientationchange', initStage7BottomNav, { passive:true });
-  if (window.visualViewport) visualViewport.addEventListener('resize', initStage7BottomNav, { passive:true });
+  addEventListener('resize', () => window.WLPBottomNavGuard?.schedule?.(), { passive:true });
+  addEventListener('orientationchange', () => window.WLPBottomNavGuard?.recover?.(), { passive:true });
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => window.WLPBottomNavGuard?.schedule?.(), { passive:true });
 })();

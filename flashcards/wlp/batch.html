@@ -365,7 +365,7 @@
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-layer-modal-v18634" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-layer-hierarchy-v18635" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
 </head>
 <body class="stage7-study-body">
@@ -416,7 +416,14 @@
             <div class="learning-hook-scroll">
               <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
               <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
-              <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+              <div class="learning-hook-section learning-hook-situation" hidden>
+                <button type="button" class="learning-situation-toggle" aria-expanded="false">
+                  <span class="learning-situation-toggle-label">Situations</span>
+                  <span class="learning-situation-count" aria-hidden="true"></span>
+                  <span class="learning-situation-chevron" aria-hidden="true">⌄</span>
+                </button>
+                <div class="learning-situation-items" hidden></div>
+              </div>
             </div>
             <button type="button" class="learning-hook-edit" hidden>Edit learning layer</button>
           </aside>
@@ -485,7 +492,14 @@
             <div class="learning-hook-scroll">
               <div class="learning-hook-section learning-hook-sense" hidden><span>Sense</span><p></p></div>
               <div class="learning-hook-section learning-hook-memory" hidden><span>Memory</span><p></p></div>
-              <div class="learning-hook-section learning-hook-situation" hidden><span>Situation</span><div class="learning-situation-items"></div></div>
+              <div class="learning-hook-section learning-hook-situation" hidden>
+                <button type="button" class="learning-situation-toggle" aria-expanded="false">
+                  <span class="learning-situation-toggle-label">Situations</span>
+                  <span class="learning-situation-count" aria-hidden="true"></span>
+                  <span class="learning-situation-chevron" aria-hidden="true">⌄</span>
+                </button>
+                <div class="learning-situation-items" hidden></div>
+              </div>
             </div>
             <button type="button" class="learning-hook-edit" hidden>Edit learning layer</button>
           </aside>
@@ -829,58 +843,50 @@
 
   <script>
     (()=>{
-      const lockStudyBottomNav=()=>{
-        const nav=document.getElementById('deck-nav-links');
-        if(!nav||!document.body)return;
-        if(nav.parentElement!==document.body)document.body.appendChild(nav);
-        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translate3d(-50%, 0, 0)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0',willChange:'transform'};
-        Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));
-        nav.style.setProperty('-webkit-transform','translate3d(-50%, 0, 0)','important');
-        nav.dataset.stage7ViewportLocked='true';
-      };
-      const hardResetStudyBottomNav=()=>{
-        const nav=document.getElementById('deck-nav-links');
-        if(!nav||!document.body)return;
-        const next=nav.parentElement===document.body?nav.nextSibling:null;
-        if(nav.parentElement)nav.parentElement.removeChild(nav);
-        void document.documentElement.offsetHeight;
-        if(next&&next.parentNode===document.body)document.body.insertBefore(nav,next);else document.body.appendChild(nav);
-        lockStudyBottomNav();
-        void nav.getBoundingClientRect();
-      };
+      const nav=()=>document.getElementById('deck-nav-links');
+      let tracked=innerWidth>innerHeight;
       let raf=0;
-      const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lockStudyBottomNav();});};
-      let recoveryTimers=[];
-      const recoverAfterOrientation=()=>{
-        recoveryTimers.forEach(clearTimeout);
-        recoveryTimers=[];
-        [0,70,170,330,650,1100].forEach((delay,index)=>{
-          recoveryTimers.push(setTimeout(()=>{
-            if(index===2||index===4)hardResetStudyBottomNav();else lockStudyBottomNav();
-            requestAnimationFrame(lockStudyBottomNav);
-          },delay));
-        });
+      const view=()=>{
+        const vv=visualViewport;
+        const width=Math.max(1,vv?.width||innerWidth||document.documentElement.clientWidth||1);
+        const height=Math.max(1,vv?.height||innerHeight||document.documentElement.clientHeight||1);
+        const pageTop=Number.isFinite(vv?.pageTop)?vv.pageTop:(scrollY||pageYOffset||0)+(vv?.offsetTop||0);
+        const pageLeft=Number.isFinite(vv?.pageLeft)?vv.pageLeft:(scrollX||pageXOffset||0)+(vv?.offsetLeft||0);
+        return{width,height,pageTop,pageLeft};
       };
-      let lastOrientation=innerWidth>innerHeight?'landscape':'portrait';
-      const detectOrientation=()=>{
-        const next=innerWidth>innerHeight?'landscape':'portrait';
-        if(next!==lastOrientation){lastOrientation=next;recoverAfterOrientation();}
-        else schedule();
+      const set=(el,key,value)=>el.style.setProperty(key,value,'important');
+      const lock=()=>{
+        const el=nav();if(!el||!document.body)return;
+        if(el.parentElement!==document.body)document.body.appendChild(el);
+        if(!tracked){
+          [['position','fixed'],['z-index','85'],['left','50%'],['right','auto'],['top','auto'],['bottom','0'],['transform','translateX(-50%)'],['width','min(100%, 760px)'],['max-width','100vw'],['margin','0'],['will-change','auto']].forEach(([k,v])=>set(el,k,v));
+          el.style.removeProperty('backdrop-filter');el.style.removeProperty('-webkit-backdrop-filter');
+          el.dataset.stage7ViewportLocked='fixed';return;
+        }
+        const v=view();
+        [['position','absolute'],['z-index','85'],['right','auto'],['bottom','auto'],['width','min(100%, 760px)'],['max-width',`${Math.round(v.width)}px`],['margin','0'],['transform','translateX(-50%)'],['will-change','auto'],['backdrop-filter','none'],['-webkit-backdrop-filter','none']].forEach(([k,val])=>set(el,k,val));
+        const h=Math.max(1,el.getBoundingClientRect().height||el.offsetHeight||1);
+        set(el,'top',`${Math.round(Math.max(v.pageTop,v.pageTop+v.height-h))}px`);
+        set(el,'left',`${Math.round(v.pageLeft+v.width/2)}px`);
+        el.dataset.stage7ViewportLocked='tracked';
       };
-      lockStudyBottomNav();
-      ['pageshow','focus','scroll','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
-      addEventListener('resize',detectOrientation,{passive:true});
-      addEventListener('orientationchange',recoverAfterOrientation,{passive:true});
-      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recoverAfterOrientation);
-      const orientationQuery=matchMedia('(orientation: portrait)');
-      if(orientationQuery.addEventListener)orientationQuery.addEventListener('change',recoverAfterOrientation);
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden){schedule();setTimeout(lockStudyBottomNav,120);}});
-      if(window.visualViewport){visualViewport.addEventListener('resize',detectOrientation,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
-      setInterval(()=>{if(!document.hidden)lockStudyBottomNav();},1500);
+      const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lock();});};
+      const recover=()=>{tracked=true;[0,40,120,260,520,900,1500].forEach(ms=>setTimeout(schedule,ms));};
+      let last=innerWidth>innerHeight?'landscape':'portrait';
+      const detect=()=>{const next=innerWidth>innerHeight?'landscape':'portrait';if(next!==last){last=next;recover();}else schedule();};
+      if(tracked)recover();else lock();
+      ['pageshow','focus','scroll','touchmove','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
+      addEventListener('resize',detect,{passive:true});
+      addEventListener('orientationchange',recover,{passive:true});
+      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recover);
+      const mq=matchMedia('(orientation: portrait)');if(mq.addEventListener)mq.addEventListener('change',recover);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover();});
+      if(window.visualViewport){visualViewport.addEventListener('resize',detect,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
+      setInterval(()=>{if(!document.hidden)lock();},1000);
     })();
   </script>
   <script src="../../learning-hooks.js?v=20260918-s7-situation-v18633"></script>
-  <script type="module" src="./app.js?v=20260918-s7-layer-modal-v18634"></script>
+  <script type="module" src="./app.js?v=20260918-s7-layer-hierarchy-v18635"></script>
   <script src="./study-stage7.js?v=20260917-s7-review-v180"></script>
   <script src="../../study-options.js?v=20260918-s7-options-v18624"></script>
 </body>

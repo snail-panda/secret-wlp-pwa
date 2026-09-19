@@ -316,55 +316,49 @@
 
   <script>
     (()=>{
-      const lockBottomNav=()=>{
-        const nav=document.querySelector('.progress-bottom-nav');
-        if(!nav)return;
-        if(nav.parentElement!==document.body)document.body.appendChild(nav);
-        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translate3d(-50%, 0, 0)',width:'min(100%, 700px)',maxWidth:'100vw',margin:'0'};
-        Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));
-        nav.style.setProperty('-webkit-transform','translate3d(-50%, 0, 0)','important');
-        nav.style.setProperty('will-change','transform','important');
+      const nav=()=>document.querySelector('.progress-bottom-nav');
+      let tracked=innerWidth>innerHeight;
+      let raf=0;
+      const view=()=>{
+        const vv=visualViewport;
+        const width=Math.max(1,vv?.width||innerWidth||document.documentElement.clientWidth||1);
+        const height=Math.max(1,vv?.height||innerHeight||document.documentElement.clientHeight||1);
+        const pageTop=Number.isFinite(vv?.pageTop)?vv.pageTop:(scrollY||pageYOffset||0)+(vv?.offsetTop||0);
+        const pageLeft=Number.isFinite(vv?.pageLeft)?vv.pageLeft:(scrollX||pageXOffset||0)+(vv?.offsetLeft||0);
+        return{width,height,pageTop,pageLeft};
       };
-      const hardResetBottomNav=()=>{
-        const nav=document.querySelector('.progress-bottom-nav');
-        if(!nav||!document.body)return;
-        const next=nav.parentElement===document.body?nav.nextSibling:null;
-        if(nav.parentElement)nav.parentElement.removeChild(nav);
-        void document.documentElement.offsetHeight;
-        if(next&&next.parentNode===document.body)document.body.insertBefore(nav,next);else document.body.appendChild(nav);
-        lockBottomNav();
-        void nav.getBoundingClientRect();
+      const set=(el,key,value)=>el.style.setProperty(key,value,'important');
+      const lock=()=>{
+        const el=nav();if(!el||!document.body)return;
+        if(el.parentElement!==document.body)document.body.appendChild(el);
+        if(!tracked){
+          [['position','fixed'],['z-index','85'],['left','50%'],['right','auto'],['top','auto'],['bottom','0'],['transform','translateX(-50%)'],['width','min(100%, 700px)'],['max-width','100vw'],['margin','0'],['will-change','auto']].forEach(([k,v])=>set(el,k,v));
+          el.style.removeProperty('backdrop-filter');el.style.removeProperty('-webkit-backdrop-filter');
+          el.dataset.stage7ViewportLocked='fixed';return;
+        }
+        const v=view();
+        [['position','absolute'],['z-index','85'],['right','auto'],['bottom','auto'],['width','min(100%, 700px)'],['max-width',`${Math.round(v.width)}px`],['margin','0'],['transform','translateX(-50%)'],['will-change','auto'],['backdrop-filter','none'],['-webkit-backdrop-filter','none']].forEach(([k,val])=>set(el,k,val));
+        const h=Math.max(1,el.getBoundingClientRect().height||el.offsetHeight||1);
+        set(el,'top',`${Math.round(Math.max(v.pageTop,v.pageTop+v.height-h))}px`);
+        set(el,'left',`${Math.round(v.pageLeft+v.width/2)}px`);
+        el.dataset.stage7ViewportLocked='tracked';
       };
-      let orientationTimers=[];
-      const recoverAfterOrientation=()=>{
-        orientationTimers.forEach(clearTimeout);
-        orientationTimers=[];
-        [0,70,170,330,650,1100].forEach((delay,index)=>orientationTimers.push(setTimeout(()=>{
-          if(index===2||index===4)hardResetBottomNav();else lockBottomNav();
-          requestAnimationFrame(lockBottomNav);
-        },delay)));
-      };
-      let lastOrientation=innerWidth>innerHeight?'landscape':'portrait';
-      const detectOrientation=()=>{
-        const next=innerWidth>innerHeight?'landscape':'portrait';
-        if(next!==lastOrientation){lastOrientation=next;recoverAfterOrientation();}else lockBottomNav();
-      };
-      lockBottomNav();
-      addEventListener('pageshow',lockBottomNav);
-      addEventListener('resize',detectOrientation,{passive:true});
-      addEventListener('orientationchange',recoverAfterOrientation,{passive:true});
-      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recoverAfterOrientation);
-      const orientationQuery=matchMedia('(orientation: portrait)');
-      if(orientationQuery.addEventListener)orientationQuery.addEventListener('change',recoverAfterOrientation);
-      addEventListener('focus',lockBottomNav,{passive:true});
-      addEventListener('scroll',lockBottomNav,{passive:true});
-      addEventListener('touchend',lockBottomNav,{passive:true});
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden){lockBottomNav();setTimeout(lockBottomNav,120);}});
-      if(window.visualViewport){visualViewport.addEventListener('resize',detectOrientation,{passive:true});visualViewport.addEventListener('scroll',lockBottomNav,{passive:true});}
-      setInterval(()=>{if(!document.hidden)lockBottomNav();},1500);
+      const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lock();});};
+      const recover=()=>{tracked=true;[0,40,120,260,520,900,1500].forEach(ms=>setTimeout(schedule,ms));};
+      let last=innerWidth>innerHeight?'landscape':'portrait';
+      const detect=()=>{const next=innerWidth>innerHeight?'landscape':'portrait';if(next!==last){last=next;recover();}else schedule();};
+      if(tracked)recover();else lock();
+      ['pageshow','focus','scroll','touchmove','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
+      addEventListener('resize',detect,{passive:true});
+      addEventListener('orientationchange',recover,{passive:true});
+      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recover);
+      const mq=matchMedia('(orientation: portrait)');if(mq.addEventListener)mq.addEventListener('change',recover);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover();});
+      if(window.visualViewport){visualViewport.addEventListener('resize',detect,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
+      setInterval(()=>{if(!document.hidden)lock();},1000);
     })();
   </script>
   <script src="./progress.js?v=20260918-s7-v18627"></script>
-  <script src="./pwa-register.js?v=20260918-s7-orientation-v18634"></script>
+  <script src="./pwa-register.js?v=20260918-s7-visual-anchor-v18635"></script>
 </body>
 </html>
