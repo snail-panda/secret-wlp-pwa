@@ -133,6 +133,10 @@
           <span class="section-kicker">Target expression</span>
           <div class="study-target-head"><strong id="study-target"></strong><span id="study-target-type" hidden></span></div>
           <p class="study-response-note" id="study-response-note" hidden></p>
+          <div class="study-answer-review" id="study-answer-review" hidden>
+            <div class="study-answer-review-copy"><span>Your answer</span><strong id="study-answer-text"></strong></div>
+            <div class="study-answer-review-action" id="study-answer-review-action"></div>
+          </div>
 
           <div class="study-self-check" id="study-self-check">
             <div class="study-self-check-copy">
@@ -143,6 +147,7 @@
               <button type="button" data-study-rating="got-it" aria-pressed="false">Got it</button>
               <button type="button" data-study-rating="almost" aria-pressed="false">Almost</button>
               <button type="button" data-study-rating="not-yet" aria-pressed="false">Not yet</button>
+              <button type="button" data-study-rating="no-idea" aria-pressed="false">No idea</button>
             </div>
             <p class="study-self-check-status" id="study-self-check-status" role="status" aria-live="polite">Not rated yet · activity is still saved locally.</p>
           </div>
@@ -153,7 +158,7 @@
           </div>
 
           <div class="study-target-actions">
-            <a id="study-open-card" href="./deck-browser.html">Open Card</a>
+            <button type="button" id="study-open-card">Open Card</button>
             <button type="button" id="study-next">Next Experience</button>
           </div>
         </section>
@@ -164,6 +169,10 @@
         <h2>You finished this set.</h2>
         <p id="study-finished-copy">You worked through the selected experiences.</p>
         <p class="study-finished-summary" id="study-finished-summary" hidden></p>
+        <section class="study-session-review" id="study-session-review" hidden>
+          <div class="study-session-review-head"><span>Session answers</span><small>Compare what you wrote with the WLP target. Open any card without leaving this session.</small></div>
+          <div class="study-session-review-list" id="study-session-review-list"></div>
+        </section>
         <div class="study-finished-actions"><button type="button" id="study-again">Practice this set again</button><button type="button" id="study-change-set">Change study set</button></div>
       </section>
     </main>
@@ -217,10 +226,28 @@
     </form>
   </div>
 
+
+  <div class="study-quick-card-modal" id="study-quick-card-modal" hidden>
+    <div class="study-quick-card-panel" role="dialog" aria-modal="true" aria-labelledby="study-quick-card-title">
+      <button class="study-quick-card-close" id="study-quick-card-close" type="button" aria-label="Close card preview">×</button>
+      <span class="section-kicker">Quick card check</span>
+      <div class="study-quick-card-head">
+        <h2 id="study-quick-card-title"></h2>
+        <span id="study-quick-card-location"></span>
+      </div>
+      <div class="study-quick-card-meta" id="study-quick-card-meta"></div>
+      <div class="study-quick-card-fields" id="study-quick-card-fields"></div>
+      <div class="study-quick-card-actions">
+        <a id="study-quick-card-full" href="./deck-browser.html" target="_blank" rel="noopener">Open full card ↗</a>
+        <button type="button" id="study-quick-card-done">Back to question</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r3"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r4"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

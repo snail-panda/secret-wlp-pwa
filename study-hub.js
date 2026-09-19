@@ -544,7 +544,9 @@
   }
 
   function setSelfRating(rating) {
-    if (!currentAttempt || !['got-it', 'almost', 'not-yet'].includes(rating)) return;
+    if (!currentAttempt || !['got-it', 'almost', 'not-yet', 'no-idea'].includes(rating)) return;
+    const item = sessionQueue[sessionIndex];
+    if (item) { snapshotResponse(item); renderCurrentAnswerReview(item); }
     currentAttempt.selfRating = rating;
     currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
     document.querySelectorAll('[data-study-rating]').forEach(button => {
@@ -552,7 +554,7 @@
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
-    const labels = { 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet' };
+    const labels = { 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet', 'no-idea': 'No idea' };
     $('study-self-check-status').textContent = `Saved locally · self-check: ${labels[rating]}.`;
     persistAttempt(currentAttempt, false);
   }
@@ -560,7 +562,7 @@
   function finalizeCurrentAttempt() {
     const item = sessionQueue[sessionIndex];
     if (!currentAttempt || !item) return;
-    if (!currentAttempt.targetShown) snapshotResponse(item);
+    snapshotResponse(item);
     currentAttempt.elapsedMs = Math.max(0, Date.now() - (currentAttempt._startedMs || Date.now()));
     persistAttempt(currentAttempt, true);
   }
@@ -587,11 +589,11 @@
   function responseNote(item) {
     const match = responseMatch(item);
     if (match.kind === 'blank') return 'No typed response to compare. You can still self-check based on what you said or thought.';
-    if (match.kind === 'target-exact') return 'Target match — exact form.';
-    if (match.kind === 'target-contained') return 'Target found in your response.';
-    if (match.kind === 'alternative') return `Linked natural alternative found: ${match.alternative}.`;
-    if (match.kind === 'near-target') return 'Very close to the target form. You decide whether this counts for you.';
-    return 'No automatic target match. You decide how well your response worked.';
+    if (match.kind === 'target-exact') return 'Matches the stored WLP target — exact form.';
+    if (match.kind === 'target-contained') return 'Your response includes the stored WLP target.';
+    if (match.kind === 'alternative') return `Matches a linked natural alternative: ${match.alternative}.`;
+    if (match.kind === 'near-target') return 'Very close to the stored WLP target form. You decide whether this counts for you.';
+    return 'Different from the stored WLP target. Compare them, then make your own self-check.';
   }
 
   function renderExperience() {
@@ -625,17 +627,16 @@
     $('study-target-type').textContent = entryType ? `type: ${entryType === 'conversational frame' ? 'conv. frame' : entryType}` : '';
     $('study-response-note').hidden = true;
     $('study-response-note').textContent = '';
+    $('study-answer-review').hidden = true;
+    $('study-answer-text').textContent = '';
+    $('study-answer-review-action').replaceChildren();
     document.querySelectorAll('[data-study-rating]').forEach(button => {
       button.classList.remove('is-selected');
       button.setAttribute('aria-pressed', 'false');
     });
     $('study-self-check-status').textContent = 'Not rated yet · activity is still saved locally.';
 
-    const deck = Number(item.row?.['Batch #']) || 0;
-    const batch = deck ? String(deck).padStart(3, '0') : '';
-    $('study-open-card').href = batch
-      ? `./flashcards/wlp/batch.html?batch=${encodeURIComponent(batch)}&wordid=${encodeURIComponent(item.wordId)}&solo=1&from=studyq`
-      : './deck-browser.html';
+    $('study-open-card').dataset.wordId = item.wordId;
     $('study-next').textContent = sessionIndex === sessionQueue.length - 1 ? 'Finish Session' : 'Next Experience';
 
     const alternatives = relevantAlternatives(item);
@@ -651,6 +652,171 @@
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+
+
+  function padDeck(value) {
+    return String(Math.max(0, Number(value) || 0)).padStart(3, '0');
+  }
+
+  function cardHrefForRow(row) {
+    const deck = Number(row?.['Batch #']) || 0;
+    const wordId = clean(row?.WordID);
+    return deck && wordId
+      ? `./flashcards/wlp/batch.html?batch=${encodeURIComponent(padDeck(deck))}&wordid=${encodeURIComponent(wordId)}&solo=1`
+      : './deck-browser.html';
+  }
+
+  function exactHeadwordRows(answer) {
+    const normalized = normalizeAnswer(answer);
+    if (!normalized) return [];
+    return rows.filter(row => normalizeAnswer(row?.Word) === normalized);
+  }
+
+  function searchHrefFor(answer) {
+    const query = clean(answer);
+    return `./global-search.html?q=${encodeURIComponent(query)}&return=${encodeURIComponent('study-hub.html')}`;
+  }
+
+  function ratingLabel(rating) {
+    return ({ 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet', 'no-idea': 'No idea' })[rating] || 'Not rated';
+  }
+
+  function matchLabel(attempt) {
+    const kind = clean(attempt?.autoMatch);
+    if (kind === 'target-exact') return 'Matches target · exact form';
+    if (kind === 'target-contained') return 'Includes the WLP target';
+    if (kind === 'alternative') return attempt?.matchedAlternative ? `Linked alternative · ${attempt.matchedAlternative}` : 'Linked alternative';
+    if (kind === 'near-target') return 'Very close to target form';
+    if (kind === 'other') return 'Different from stored target';
+    return 'No typed answer';
+  }
+
+  function appendAnswerAction(container, answer, compact = false) {
+    container.replaceChildren();
+    const value = clean(answer);
+    if (!value) return;
+    const matches = exactHeadwordRows(value);
+    if (matches.length === 1) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.quickCardWordId = clean(matches[0].WordID);
+      button.textContent = compact ? 'Open answer card' : 'Check answer card';
+      container.append(button);
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = searchHrefFor(value);
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = matches.length > 1 ? 'Search matching cards ↗' : 'Search WLP ↗';
+    container.append(link);
+  }
+
+  function renderCurrentAnswerReview(item) {
+    const answer = clean($('study-response').value);
+    if (!answer) {
+      $('study-answer-review').hidden = true;
+      $('study-answer-text').textContent = '';
+      $('study-answer-review-action').replaceChildren();
+      return;
+    }
+    $('study-answer-review').hidden = false;
+    $('study-answer-text').textContent = answer;
+    appendAnswerAction($('study-answer-review-action'), answer);
+  }
+
+  function quickCardField(label, value) {
+    const text = clean(value);
+    if (!text) return null;
+    const field = document.createElement('div');
+    field.className = 'study-quick-card-field';
+    const title = document.createElement('span');
+    title.textContent = label;
+    const copy = document.createElement('p');
+    copy.textContent = text;
+    field.append(title, copy);
+    return field;
+  }
+
+  function openQuickCard(wordId) {
+    const row = rowByWordId.get(clean(wordId));
+    if (!row) return;
+    const meta = metadataFor(clean(wordId)) || {};
+    $('study-quick-card-title').textContent = clean(row.Word) || `WID ${wordId}`;
+    const deck = Number(row['Batch #']) || 0;
+    $('study-quick-card-location').textContent = `${deck ? `WLP${padDeck(deck)} · ` : ''}WID${clean(row.WordID)}`;
+    const metaBits = [clean(row.IPA), clean(row['Part of Speech']), clean(meta.entryType) ? `type: ${meta.entryType}` : ''].filter(Boolean);
+    $('study-quick-card-meta').textContent = metaBits.join(' · ');
+    const fields = [
+      quickCardField('Definition', row.Definition),
+      quickCardField('Synonyms', row['Synonym(s)']),
+      quickCardField('Example', row['Example Sentence']),
+      quickCardField('Notes', row['Note(s)']),
+      quickCardField('Sense Hook', meta.senseHook),
+      quickCardField('Memory Hook', meta.memoryHook)
+    ].filter(Boolean);
+    $('study-quick-card-fields').replaceChildren(...fields);
+    $('study-quick-card-full').href = cardHrefForRow(row);
+    $('study-quick-card-modal').hidden = false;
+    document.body.classList.add('study-quick-card-open');
+    setTimeout(() => $('study-quick-card-close').focus({ preventScroll: true }), 0);
+  }
+
+  function closeQuickCard() {
+    $('study-quick-card-modal').hidden = true;
+    document.body.classList.remove('study-quick-card-open');
+  }
+
+  function renderSessionReview() {
+    const list = $('study-session-review-list');
+    list.replaceChildren();
+    sessionQueue.forEach((item, index) => {
+      const attempt = sessionAttempts[index] || {};
+      const article = document.createElement('article');
+      article.className = 'study-session-review-item';
+
+      const top = document.createElement('div');
+      top.className = 'study-session-review-top';
+      const idx = document.createElement('span');
+      idx.className = 'study-session-review-index';
+      idx.textContent = `${index + 1} · ${item.promptLabel || item.kind || 'Experience'}`;
+      const rating = document.createElement('span');
+      rating.className = 'study-session-review-rating';
+      rating.textContent = ratingLabel(attempt.selfRating);
+      top.append(idx, rating);
+
+      const target = document.createElement('div');
+      target.className = 'study-session-review-target';
+      const targetWord = document.createElement('strong');
+      targetWord.textContent = clean(item.row?.Word) || `WID ${item.wordId}`;
+      const targetButton = document.createElement('button');
+      targetButton.type = 'button';
+      targetButton.dataset.quickCardWordId = item.wordId;
+      targetButton.textContent = 'Open Card';
+      target.append(targetWord, targetButton);
+
+      const answerBox = document.createElement('div');
+      answerBox.className = 'study-session-review-answer';
+      const answerLabel = document.createElement('span');
+      answerLabel.textContent = 'Your answer';
+      const answerRow = document.createElement('div');
+      answerRow.className = 'study-session-review-answer-row';
+      const answerText = document.createElement('p');
+      answerText.textContent = clean(attempt.responseText) || '—';
+      const answerActions = document.createElement('div');
+      answerActions.className = 'study-session-review-answer-actions';
+      appendAnswerAction(answerActions, attempt.responseText, true);
+      answerRow.append(answerText, answerActions);
+      const match = document.createElement('div');
+      match.className = 'study-session-review-match';
+      match.textContent = matchLabel(attempt);
+      answerBox.append(answerLabel, answerRow, match);
+
+      article.append(top, target, answerBox);
+      list.append(article);
+    });
+    $('study-session-review').hidden = !sessionQueue.length;
   }
 
   function showTarget() {
@@ -670,6 +836,7 @@
     const note = responseNote(item);
     $('study-response-note').hidden = !note;
     $('study-response-note').textContent = note;
+    renderCurrentAnswerReview(item);
     $('study-target-reveal').hidden = false;
     $('study-target-reveal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -687,7 +854,7 @@
     $('study-start-panel').hidden = true;
     $('study-finished').hidden = false;
     $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} ${sessionQueue.length === 1 ? 'experience' : 'experiences'} from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
-    const counts = { 'got-it': 0, almost: 0, 'not-yet': 0, unrated: 0 };
+    const counts = { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0, unrated: 0 };
     sessionAttempts.forEach(attempt => {
       const rating = attempt?.selfRating;
       if (rating && Object.prototype.hasOwnProperty.call(counts, rating)) counts[rating]++;
@@ -697,9 +864,11 @@
     if (counts['got-it']) pieces.push(`${counts['got-it']} Got it`);
     if (counts.almost) pieces.push(`${counts.almost} Almost`);
     if (counts['not-yet']) pieces.push(`${counts['not-yet']} Not yet`);
+    if (counts['no-idea']) pieces.push(`${counts['no-idea']} No idea`);
     if (counts.unrated) pieces.push(`${counts.unrated} not rated`);
     $('study-finished-summary').hidden = !pieces.length;
     $('study-finished-summary').textContent = pieces.length ? `Your self-check: ${pieces.join(' · ')}. Saved on this device.` : '';
+    renderSessionReview();
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -757,10 +926,19 @@
       if (currentAttempt) { currentAttempt.hintShown = true; currentAttempt.hintShownAt = new Date().toISOString(); }
     });
     $('study-show-target').addEventListener('click', showTarget);
+    $('study-open-card').addEventListener('click', () => openQuickCard($('study-open-card').dataset.wordId));
     document.querySelectorAll('[data-study-rating]').forEach(button => button.addEventListener('click', () => setSelfRating(button.dataset.studyRating)));
     $('study-next').addEventListener('click', nextExperience);
     $('study-again').addEventListener('click', restoreSessionSpecAndRestart);
     $('study-change-set').addEventListener('click', changeSet);
+    $('study-quick-card-close').addEventListener('click', closeQuickCard);
+    $('study-quick-card-done').addEventListener('click', closeQuickCard);
+    $('study-quick-card-modal').addEventListener('click', event => { if (event.target === $('study-quick-card-modal')) closeQuickCard(); });
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-quick-card-word-id]');
+      if (button) openQuickCard(button.dataset.quickCardWordId);
+    });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('study-quick-card-modal').hidden) closeQuickCard(); });
   }
 
   function setDefaults() {
