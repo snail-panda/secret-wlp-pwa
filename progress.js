@@ -7,6 +7,7 @@
   const ACTIVITY_EVENTS_KEY = 'wlp:stage7:activity-events:v1';
   const ACTIVITY_PERIOD_KEY = 'wlp:stage7:activity-period:v1';
   const PROGRESS_OPTIONS_KEY = 'wlp:stage7:progress-options:v1';
+  const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
   const WLP_ADMIN_PASSWORD_SHA256 = 'd199aa3ab28923618bab089d78e8faa5e5004d0bc37c22ae5589454d575d192c';
@@ -42,6 +43,7 @@
     Activity: [
       ['activity.period', 'Time Window'],
       ['activity.snapshot', 'Activity Snapshot'],
+      ['activity.studyq', 'Study Q Sessions'],
       ['activity.trend', 'Activity Over Time'],
       ['activity.mix', 'Activity Mix'],
       ['activity.timeline', 'Timeline']
@@ -52,6 +54,7 @@
   let progressRecords = [];
   let practiceEvents = [];
   let activityEvents = [];
+  let studyQSessions = [];
   let rowByWordId = new Map();
   let activeView = 'overview';
   let activeActivityPeriod = localStorage.getItem(ACTIVITY_PERIOD_KEY) || '30d';
@@ -138,6 +141,16 @@
       return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
     } catch (error) {
       console.warn('Could not read activity events:', error);
+      return [];
+    }
+  }
+
+  function readStudyQSessions() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STUDYQ_SESSION_KEY) || '[]');
+      return Array.isArray(data) ? data.filter(session => session && typeof session === 'object' && session.sessionId) : [];
+    } catch (error) {
+      console.warn('Could not read Study Q sessions:', error);
       return [];
     }
   }
@@ -432,6 +445,7 @@
       const candidates = [];
       activityEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
       practiceEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
+      studyQSessions.forEach(session => { const t = Date.parse(session.completedAt || session.startedAt || '') || 0; if (t) candidates.push(t); });
       progressRecords.forEach(record => { if (record.firstSeen) candidates.push(record.firstSeen); if (record.lastSeen) candidates.push(record.lastSeen); });
       const start = candidates.length ? Math.min(...candidates) : startOfToday();
       return { ...config, start, end };
@@ -589,6 +603,59 @@
     target.innerHTML = items.map(event => `<div class="timeline-row"><span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study')}</span></div>`).join('');
   }
 
+  function studyQRatingSummary(counts = {}) {
+    const parts = [];
+    if (counts['got-it']) parts.push(`${counts['got-it']} Got it`);
+    if (counts.almost) parts.push(`${counts.almost} Almost`);
+    if (counts['not-yet']) parts.push(`${counts['not-yet']} Not yet`);
+    if (counts['no-idea']) parts.push(`${counts['no-idea']} No idea`);
+    if (counts.unrated) parts.push(`${counts.unrated} not rated`);
+    return parts.join(' · ');
+  }
+
+  function sessionTimestamp(session) {
+    return Date.parse(session?.completedAt || session?.startedAt || '') || 0;
+  }
+
+  function renderStudyQSessions(range) {
+    const sessions = studyQSessions
+      .filter(session => { const timestamp = sessionTimestamp(session); return timestamp && inRange(timestamp, range); })
+      .sort((a,b) => sessionTimestamp(b) - sessionTimestamp(a));
+    const totalExperiences = sessions.reduce((sum, session) => sum + (Number(session.experienceCount) || (Array.isArray(session.experiences) ? session.experiences.length : 0)), 0);
+    const totalHints = sessions.reduce((sum, session) => sum + (Number(session.hintCount) || 0), 0);
+    const ratings = { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0, unrated: 0 };
+    sessions.forEach(session => {
+      const counts = session.counts || {};
+      Object.keys(ratings).forEach(key => { ratings[key] += Number(counts[key]) || 0; });
+    });
+    $('studyq-got-it').textContent = fmt(ratings['got-it']);
+    $('studyq-almost').textContent = fmt(ratings.almost);
+    $('studyq-not-yet').textContent = fmt(ratings['not-yet']);
+    $('studyq-no-idea').textContent = fmt(ratings['no-idea']);
+    $('studyq-summary-line').textContent = sessions.length
+      ? `${fmt(sessions.length)} saved session${sessions.length === 1 ? '' : 's'} · ${fmt(totalExperiences)} experience${totalExperiences === 1 ? '' : 's'} · ${fmt(totalHints)} hint${totalHints === 1 ? '' : 's'} used.`
+      : 'No Study Q sessions recorded in this time window yet.';
+
+    const target = $('studyq-session-list');
+    const recent = sessions.slice(0, 8);
+    if (!recent.length) {
+      target.innerHTML = '<p class="empty-progress">Finish a Study Q set and it will appear here automatically.</p>';
+      return;
+    }
+    target.innerHTML = recent.map(session => {
+      const timestamp = sessionTimestamp(session);
+      const count = Number(session.experienceCount) || (Array.isArray(session.experiences) ? session.experiences.length : 0);
+      const source = String(session.sourceLabel || 'Study Q').trim();
+      const ratingsText = studyQRatingSummary(session.counts || {});
+      const deckText = Array.isArray(session.decks) && session.decks.length
+        ? (session.decks.length === 1 ? `WLP${pad3(session.decks[0])}` : `${session.decks.length} decks`)
+        : '';
+      const copy = [ `${count} experience${count === 1 ? '' : 's'}`, deckText, ratingsText ].filter(Boolean).join(' · ');
+      const href = `./study-hub.html?session=${encodeURIComponent(String(session.sessionId || ''))}`;
+      return `<a class="studyq-session-row" href="${href}"><span class="studyq-session-time">${escapeHtml(formatWhen(timestamp))}</span><span class="studyq-session-main"><strong>${escapeHtml(source)}</strong><small>${escapeHtml(copy)}</small></span><span class="studyq-session-tag">Open</span></a>`;
+    }).join('');
+  }
+
   function renderActivity() {
     if (!ACTIVITY_PERIODS[activeActivityPeriod]) activeActivityPeriod = '30d';
     const range = selectedActivityRange();
@@ -604,6 +671,7 @@
     $('activity-data-quality').textContent = activityEvents.length
       ? 'Full event history is available for recorded card activity in this period.'
       : 'Legacy mode: older WLP data stores cumulative counts and the latest touch per card, so this view does not pretend to reconstruct interactions that were never timestamped. Review v2 will record each new event from here forward.';
+    renderStudyQSessions(range);
     renderActivityTrend(range, stream);
     renderActivityMix(stream);
     renderActivityTimeline(stream);
@@ -623,6 +691,7 @@
     progressRecords = readProgressRecords();
     practiceEvents = readPracticeEvents();
     activityEvents = readActivityEvents();
+    studyQSessions = readStudyQSessions();
     const s = stats();
     $('progress-data-note').textContent = `${fmt(s.total)} cards · local progress`;
     renderOverview();
@@ -841,6 +910,7 @@
       progressRecords = readProgressRecords();
       practiceEvents = readPracticeEvents();
       activityEvents = readActivityEvents();
+      studyQSessions = readStudyQSessions();
       $('progress-data-note').textContent = 'Deck data unavailable';
       renderOverview();
       renderLandscape();

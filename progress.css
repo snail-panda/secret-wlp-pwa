@@ -48,3 +48,21 @@
   text-align:left;
   line-height:1.38;
 }
+
+
+/* v1.8.6.47 R6 — Study Q session history foundation. */
+.studyq-history-open{margin-top:0!important;white-space:nowrap}
+.studyq-summary-line{margin:0 0 10px;padding:9px 10px;border-radius:11px;background:#f5f8f5;color:#6f8076;font-family:var(--serif);font-size:11px;line-height:1.4}
+.studyq-rating-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:10px}
+.studyq-rating-grid>div{text-align:center;background:#f8fbf8;border:1px solid #e1e9e3;border-radius:12px;padding:9px 4px 8px;min-width:0}
+.studyq-rating-grid strong{display:block;font-family:var(--serif);font-size:20px;color:#315f4b;font-weight:600}
+.studyq-rating-grid span{display:block;font-family:var(--serif);font-size:9px;color:#7b8981;margin-top:2px}
+.studyq-session-list{display:grid;border-top:1px solid #e5ece6}
+.studyq-session-row{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:10px 2px;border-bottom:1px solid #e5ece6;color:inherit;text-decoration:none}
+.studyq-session-row:last-child{border-bottom:0}
+.studyq-session-time{font-family:var(--serif);font-size:10px;color:#87938d}
+.studyq-session-main{min-width:0}
+.studyq-session-main strong{display:block;font-family:var(--serif);font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.studyq-session-main small{display:block;font-size:10px;color:#839087;margin-top:2px;line-height:1.35}
+.studyq-session-tag{border-radius:999px;padding:4px 7px;background:#edf5ef;color:#4b765f;font-size:9px;white-space:nowrap}
+@media(max-width:520px){.studyq-session-row{grid-template-columns:58px 1fr auto}.studyq-rating-grid{gap:5px}.studyq-rating-grid strong{font-size:18px}}

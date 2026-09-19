@@ -5,6 +5,8 @@
   const RECENT_KEY = 'wlp:stage7:recent-decks:v1';
   const STUDYQ_EVENT_KEY = 'wlp:studyq-events:v1';
   const STUDYQ_EVENT_LIMIT = 1200;
+  const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
+  const STUDYQ_SESSION_LIMIT = 80;
   const $ = id => document.getElementById(id);
 
   let rows = [];
@@ -19,6 +21,9 @@
   let lastSessionSpec = null;
   let sessionAttempts = [];
   let currentAttempt = null;
+  let currentSessionId = '';
+  let currentSessionStartedAt = '';
+  let viewingSavedSession = false;
 
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
@@ -101,26 +106,175 @@
     return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  function targetVariants(target) {
-    const raw = stripInvisible(clean(target)).normalize('NFKC').replace(/\s+/g, ' ');
-    const values = new Set();
-    const add = value => {
-      const normalized = stripInvisible(clean(value)).normalize('NFKC').replace(/\s+/g, ' ');
-      if (normalized.length >= 2) values.add(normalized);
+  function normalizeTargetText(value) {
+    return stripInvisible(clean(value)).normalize('NFKC').replace(/\s+/g, ' ');
+  }
+
+  function simpleWordForms(value, options = {}) {
+    const word = normalizeTargetText(value);
+    const out = new Set([word]);
+    if (!/^[A-Za-z][A-Za-z'-]{2,}$/.test(word)) return Array.from(out);
+    const lower = word.toLowerCase();
+    const verb = options.verb === true;
+    const noun = options.noun === true;
+    if (noun && !/ing$/i.test(lower)) {
+      if (/(?:s|x|z|ch|sh)$/i.test(word)) out.add(`${word}es`);
+      else if (/[^aeiou]y$/i.test(word)) out.add(`${word.slice(0, -1)}ies`);
+      else out.add(`${word}s`);
+    }
+    if (verb && !/(?:ing|ed)$/i.test(lower)) {
+      if (/[^aeiou]y$/i.test(word)) {
+        out.add(`${word.slice(0, -1)}ies`);
+        out.add(`${word.slice(0, -1)}ied`);
+        out.add(`${word}ing`);
+      } else {
+        if (/(?:s|x|z|ch|sh|o)$/i.test(word)) out.add(`${word}es`);
+        else out.add(`${word}s`);
+        if (lower.endsWith('e')) {
+          out.add(`${word}d`);
+          out.add(`${word.slice(0, -1)}ing`);
+        } else {
+          out.add(`${word}ed`);
+          out.add(`${word}ing`);
+          if (/[^aeiou][aeiou][^aeiouwxy]$/i.test(word) && word.length <= 5) {
+            out.add(`${word}${word.slice(-1)}ed`);
+            out.add(`${word}${word.slice(-1)}ing`);
+          }
+        }
+      }
+    }
+    return Array.from(out);
+  }
+
+  function thirdPersonForm(value) {
+    const word = normalizeTargetText(value);
+    if (!/^[A-Za-z][A-Za-z'-]{2,}$/.test(word)) return '';
+    if (/[^aeiou]y$/i.test(word)) return `${word.slice(0, -1)}ies`;
+    if (/(?:s|x|z|ch|sh|o)$/i.test(word)) return `${word}es`;
+    return `${word}s`;
+  }
+
+  function targetProfile(input) {
+    const row = input && typeof input === 'object' && !Array.isArray(input) && ('Word' in input || 'Part of Speech' in input) ? input : null;
+    const raw = normalizeTargetText(row ? row.Word : input);
+    const pos = clean(row?.['Part of Speech']);
+    const profile = {
+      raw,
+      pos,
+      kind: 'simple',
+      label: '',
+      parts: [],
+      accepted: [],
+      leakVariants: [],
+      practiceTarget: raw,
+      displayTarget: raw,
+      patternDisplay: '',
+      genericDefinitionSafe: true
     };
-    add(raw);
-    const withoutParens = raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
-    add(withoutParens);
-    if (/^(?:to|be)\s+/i.test(withoutParens) && withoutParens.split(/\s+/).length > 1) {
-      add(withoutParens.replace(/^(?:to|be)\s+/i, ''));
+    if (!raw) return profile;
+
+    let base = raw;
+    const labelMatch = raw.match(/^(.+?)\s*:\s*(synonyms?(?:\s*(?:and|&|\/)\s*near[- ]synonyms?)?|near[- ]synonyms?|usage(?:\s+notes?)?|contrast(?:s)?|related expressions?)$/i);
+    if (labelMatch) {
+      base = normalizeTargetText(labelMatch[1]);
+      profile.kind = 'labeled';
+      profile.label = normalizeTargetText(labelMatch[2]);
     }
-    if (raw.includes('/')) {
-      raw.split('/').forEach(part => {
-        const normalized = clean(part);
-        if (normalized.length >= 4) add(normalized);
-      });
+
+    let rawParts = [base];
+    if (/\s+(?:vs\.?|versus)\s+/i.test(base)) {
+      rawParts = base.split(/\s+(?:vs\.?|versus)\s+/i).map(normalizeTargetText).filter(Boolean);
+      profile.kind = 'contrast';
+      profile.genericDefinitionSafe = false;
+    } else if (/\s+\/\s+/.test(base)) {
+      rawParts = base.split(/\s+\/\s+/).map(normalizeTargetText).filter(Boolean);
+      profile.kind = 'family';
     }
-    return Array.from(values).sort((a, b) => b.length - a.length);
+
+    const accepted = new Set();
+    const leaks = new Set();
+    const posParts = pos.split(/\s*\/\s*/).map(clean).filter(Boolean);
+    const partProfiles = rawParts.map((part, partIndex) => {
+      const cleanPart = normalizeTargetText(part.replace(/\s*\([^)]*\)\s*/g, ' '));
+      const placeholderRe = /\b(?:do\s+something|doing\s+something|something|someone|somebody|somewhere|oneself|one['’]s|someone['’]s|somebody['’]s|sth\.?|sb\.?)\b/i;
+      const placeholderMatch = cleanPart.match(placeholderRe);
+      let fixedPrefix = '';
+      let pattern = cleanPart;
+      if (placeholderMatch) {
+        fixedPrefix = normalizeTargetText(cleanPart.slice(0, placeholderMatch.index).replace(/[\s,;:/-]+$/g, ''));
+        pattern = cleanPart
+          .replace(/\bdo\s+something\b/ig, '+ verb')
+          .replace(/\bdoing\s+something\b/ig, '+ -ing')
+          .replace(/\b(?:something|someone|somebody|somewhere|oneself|one['’]s|someone['’]s|somebody['’]s|sth\.?|sb\.?)\b/ig, '…')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (fixedPrefix.split(/\s+/).filter(Boolean).length >= 2) {
+          accepted.add(fixedPrefix);
+          leaks.add(fixedPrefix);
+          const fixedTokens = fixedPrefix.split(/\s+/);
+          const firstToken = fixedTokens[0];
+          const rest = fixedTokens.slice(1).join(' ');
+          const thirdPerson = thirdPersonForm(firstToken);
+          if (thirdPerson && normalizeAnswer(thirdPerson) !== normalizeAnswer(firstToken)) {
+            const phrase = `${thirdPerson}${rest ? ` ${rest}` : ''}`;
+            accepted.add(phrase);
+            leaks.add(phrase);
+          }
+        }
+      }
+      if (!placeholderMatch) {
+        accepted.add(cleanPart);
+        leaks.add(cleanPart);
+      }
+      if (/^[A-Za-z][A-Za-z'-]{2,}$/.test(cleanPart)) {
+        const partPos = (profile.kind === 'family' && posParts.length === rawParts.length ? posParts[partIndex] : pos).toLowerCase();
+        simpleWordForms(cleanPart, { verb: partPos.includes('verb'), noun: partPos.includes('noun') }).forEach(form => { accepted.add(form); leaks.add(form); });
+      }
+      return { raw: part, clean: cleanPart, fixedPrefix, pattern, hasPlaceholder: Boolean(placeholderMatch), pos: profile.kind === 'family' && posParts.length === rawParts.length ? posParts[partIndex] : pos };
+    });
+
+    profile.parts = partProfiles;
+    if (profile.kind === 'simple' && partProfiles[0]?.hasPlaceholder) profile.kind = 'construction';
+    const first = partProfiles[0];
+    profile.practiceTarget = first?.fixedPrefix || first?.clean || base;
+    profile.patternDisplay = first?.pattern || profile.practiceTarget;
+    profile.displayTarget = profile.kind === 'construction' ? profile.patternDisplay : profile.practiceTarget;
+    if (profile.kind === 'family') {
+      const firstSimple = partProfiles.find(part => !part.hasPlaceholder)?.clean;
+      profile.practiceTarget = firstSimple || partProfiles[0]?.fixedPrefix || partProfiles[0]?.clean || base;
+      profile.displayTarget = profile.practiceTarget;
+    }
+    if (profile.kind === 'contrast') {
+      profile.practiceTarget = partProfiles[0]?.clean || base;
+      profile.displayTarget = profile.practiceTarget;
+    }
+    if (profile.kind === 'labeled') {
+      profile.practiceTarget = normalizeTargetText(base);
+      profile.displayTarget = profile.practiceTarget;
+      accepted.add(profile.practiceTarget);
+      leaks.add(profile.practiceTarget);
+      const posLower = pos.toLowerCase();
+      simpleWordForms(profile.practiceTarget, { verb: posLower.includes('verb'), noun: posLower.includes('noun') }).forEach(form => { accepted.add(form); leaks.add(form); });
+    }
+    // Always retain the raw headword as a display/accepted value, but do not
+    // rely on it alone for leakage detection.
+    accepted.add(raw);
+    profile.accepted = Array.from(accepted).filter(Boolean).sort((a, b) => b.length - a.length);
+    profile.leakVariants = Array.from(leaks).filter(value => value.length >= 2).sort((a, b) => b.length - a.length);
+    return profile;
+  }
+
+  function targetVariants(target) {
+    const profile = target && typeof target === 'object' && Array.isArray(target.leakVariants) ? target : targetProfile(target);
+    return profile.leakVariants || [];
+  }
+
+  function targetAnswerVariants(item) {
+    const profile = item?.targetProfile || targetProfile(item?.row || item?.answerTarget || '');
+    const out = new Set(profile.accepted || []);
+    if (item?.answerTarget) out.add(clean(item.answerTarget));
+    if (Array.isArray(item?.acceptedAnswers)) item.acceptedAnswers.forEach(value => out.add(clean(value)));
+    return Array.from(out).filter(Boolean).sort((a, b) => b.length - a.length);
   }
 
   function variantPattern(variant) {
@@ -131,12 +285,35 @@
       .join('\\s+');
   }
 
+  function matchingTargetSurfaces(value, target) {
+    const text = stripInvisible(clean(value)).normalize('NFKC');
+    const profile = target && typeof target === 'object' && Array.isArray(target.leakVariants) ? target : targetProfile(target);
+    const matches = [];
+    targetVariants(profile).forEach(variant => {
+      const pattern = variantPattern(variant);
+      if (!pattern) return;
+      const regex = new RegExp(`(^|[^A-Za-z0-9])(${pattern})(?=$|[^A-Za-z0-9])`, 'giu');
+      let match;
+      while ((match = regex.exec(text))) {
+        matches.push({ variant, surface: match[2], index: match.index + match[1].length });
+        if (!match[0].length) regex.lastIndex++;
+      }
+    });
+    const seen = new Set();
+    return matches.filter(match => {
+      const key = `${normalizeAnswer(match.surface)}@${match.index}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => a.index - b.index || b.surface.length - a.surface.length);
+  }
+
   function redactTarget(value, target) {
     let text = stripInvisible(clean(value)).normalize('NFKC');
     let changed = false;
-    const safeTarget = stripInvisible(clean(target)).normalize('NFKC');
-    if (!text || !safeTarget) return { text, changed };
-    targetVariants(safeTarget).forEach(variant => {
+    const profile = target && typeof target === 'object' && Array.isArray(target.leakVariants) ? target : targetProfile(target);
+    if (!text || !profile.raw) return { text, changed };
+    targetVariants(profile).forEach(variant => {
       const pattern = variantPattern(variant);
       if (!pattern) return;
       const regex = new RegExp(`(^|[^A-Za-z0-9])(${pattern})(?=$|[^A-Za-z0-9])`, 'giu');
@@ -160,7 +337,9 @@
   }
 
   function definitionCue(value, target) {
-    const redacted = safePrompt(value, target);
+    const profile = target && typeof target === 'object' && Array.isArray(target.leakVariants) ? target : targetProfile(target);
+    if (!profile.genericDefinitionSafe) return '';
+    const redacted = safePrompt(value, profile);
     let prompt = redacted.text;
     if (!prompt || !redacted.changed) return prompt;
 
@@ -226,25 +405,29 @@
 
   function baseExperience(row, meta, review) {
     const wordId = clean(row.WordID);
+    const profile = targetProfile(row);
     return {
       wordId,
       row,
       meta: meta || {},
+      targetProfile: profile,
+      answerTarget: profile.displayTarget || profile.practiceTarget || clean(row.Word),
+      acceptedAnswers: profile.accepted || [],
       alternatives: Array.isArray(meta?.alternativeExpressions) ? meta.alternativeExpressions : [],
       review: review || null
     };
   }
 
   function situationExperiences(row, meta, review) {
-    const target = clean(row.Word);
+    const profile = targetProfile(row);
     const base = baseExperience(row, meta, review);
     const situations = Array.isArray(meta?.situations) ? meta.situations.filter(item => clean(item?.anchor)) : [];
     const out = [];
     situations.forEach(situation => {
-      const anchor = sanitizeSituationPrompt(situation?.anchor, target);
+      const anchor = sanitizeSituationPrompt(situation?.anchor, profile);
       if (!meaningfulPrompt(anchor)) return;
-      const title = safePrompt(situation?.title, target).text;
-      const need = safePrompt(situation?.communicativeNeed, target).text;
+      const title = safePrompt(situation?.title, profile).text;
+      const need = safePrompt(situation?.communicativeNeed, profile).text;
       out.push({
         ...base,
         kind: 'situation',
@@ -261,28 +444,38 @@
   }
 
   function exampleExperiences(row, meta, review) {
-    const target = clean(row.Word);
+    const profile = targetProfile(row);
     const base = baseExperience(row, meta, review);
     return splitExamples(row['Example Sentence']).map(example => {
-      const redacted = safePrompt(example, target);
+      const matches = matchingTargetSurfaces(example, profile);
+      // Contrast cards are useful only when this example points to one side
+      // clearly. If both prestige and prestigious are present, for example,
+      // skip that example instead of creating an ambiguous cloze.
+      const distinct = Array.from(new Set(matches.map(match => normalizeAnswer(match.surface)).filter(Boolean)));
+      if (profile.kind === 'contrast' && distinct.length !== 1) return null;
+      const redacted = safePrompt(example, profile);
       if (!redacted.changed || !meaningfulPrompt(redacted.text)) return null;
+      const surface = matches[0]?.surface || profile.practiceTarget || clean(row.Word);
       return {
         ...base,
         kind: 'example',
         situation: null,
+        answerTarget: clean(surface),
+        acceptedAnswers: profile.kind === 'contrast' ? [clean(surface)] : profile.accepted,
         promptLabel: 'Example context',
         promptTitle: '',
         promptText: redacted.text,
         question: 'What expression fits naturally here?',
-        responseHelp: 'More than one answer may work. Reveal shows the WLP target for this card.',
+        responseHelp: 'More than one answer may work. Reveal shows the WLP target for this context.',
         communicativeNeed: ''
       };
     }).filter(Boolean);
   }
 
   function definitionExperience(row, meta, review) {
-    const target = clean(row.Word);
-    const prompt = definitionCue(row.Definition, target);
+    const profile = targetProfile(row);
+    if (!profile.genericDefinitionSafe) return null;
+    const prompt = definitionCue(row.Definition, profile);
     if (!meaningfulPrompt(prompt)) return null;
     return {
       ...baseExperience(row, meta, review),
@@ -298,8 +491,9 @@
   }
 
   function noteExperience(row, meta, review) {
-    const target = clean(row.Word);
-    const prompt = safePrompt(noteExcerpt(row['Note(s)']), target).text;
+    const profile = targetProfile(row);
+    if (profile.kind === 'contrast') return null;
+    const prompt = safePrompt(noteExcerpt(row['Note(s)']), profile).text;
     if (!meaningfulPrompt(prompt)) return null;
     return {
       ...baseExperience(row, meta, review),
@@ -459,18 +653,21 @@
 
   function responseMatch(item, answerValue = $('study-response').value) {
     const answer = clean(answerValue);
-    if (!answer) return { kind: 'blank', alternative: '' };
-    const target = clean(item.row?.Word);
-    if (normalizeAnswer(answer) === normalizeAnswer(target)) return { kind: 'target-exact', alternative: '' };
-    if (normalizedContains(answer, target)) return { kind: 'target-contained', alternative: '' };
+    if (!answer) return { kind: 'blank', alternative: '', matchedTarget: '' };
+    const preferred = clean(item.targetProfile?.practiceTarget || item.answerTarget || item.row?.Word);
+    const candidates = targetAnswerVariants(item);
+    const exact = candidates.find(candidate => normalizeAnswer(answer) === normalizeAnswer(candidate));
+    if (exact) return { kind: 'target-exact', alternative: '', matchedTarget: exact };
+    const contained = candidates.find(candidate => normalizedContains(answer, candidate));
+    if (contained) return { kind: 'target-contained', alternative: '', matchedTarget: contained };
     const matchedAlternative = relevantAlternatives(item).find(alt => normalizedContains(answer, alt.expression));
-    if (matchedAlternative) return { kind: 'alternative', alternative: clean(matchedAlternative.expression) };
-    const normalizedTarget = normalizeAnswer(target);
+    if (matchedAlternative) return { kind: 'alternative', alternative: clean(matchedAlternative.expression), matchedTarget: '' };
+    const normalizedTarget = normalizeAnswer(preferred);
     if (/^[a-z][a-z'-]{3,}$/.test(normalizedTarget)) {
       const closeToken = normalizeAnswer(answer).split(/\s+/).find(token => Math.abs(token.length - normalizedTarget.length) <= 1 && editDistance(token, normalizedTarget) <= 1);
-      if (closeToken) return { kind: 'near-target', alternative: '' };
+      if (closeToken) return { kind: 'near-target', alternative: '', matchedTarget: preferred };
     }
-    return { kind: 'other', alternative: '' };
+    return { kind: 'other', alternative: '', matchedTarget: '' };
   }
 
   function makeEventId() {
@@ -483,6 +680,191 @@
       const value = JSON.parse(localStorage.getItem(STUDYQ_EVENT_KEY) || '[]');
       return Array.isArray(value) ? value : [];
     } catch { return []; }
+  }
+
+  function readStudySessions() {
+    try {
+      const value = JSON.parse(localStorage.getItem(STUDYQ_SESSION_KEY) || '[]');
+      return Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
+    } catch { return []; }
+  }
+
+  function writeStudySessions(sessions) {
+    try {
+      localStorage.setItem(STUDYQ_SESSION_KEY, JSON.stringify(sessions.slice(-STUDYQ_SESSION_LIMIT)));
+    } catch (error) {
+      console.warn('Could not save Study Q session history', error);
+    }
+  }
+
+  function ratingCounts(attempts = sessionAttempts) {
+    const counts = { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0, unrated: 0 };
+    attempts.forEach(attempt => {
+      const rating = clean(attempt?.selfRating);
+      if (rating && Object.prototype.hasOwnProperty.call(counts, rating)) counts[rating]++;
+      else counts.unrated++;
+    });
+    return counts;
+  }
+
+  function compactAttempt(attempt = {}) {
+    return {
+      eventId: clean(attempt.eventId),
+      wordId: clean(attempt.wordId),
+      batch: Number(attempt.batch) || 0,
+      target: clean(attempt.target),
+      cardHeadword: clean(attempt.cardHeadword),
+      promptKind: clean(attempt.promptKind),
+      responseText: clean(attempt.responseText),
+      autoMatch: clean(attempt.autoMatch),
+      matchedAlternative: clean(attempt.matchedAlternative),
+      matchedTarget: clean(attempt.matchedTarget),
+      selfRating: clean(attempt.selfRating),
+      communicativeNeedShown: attempt.communicativeNeedShown === true,
+      hintShown: attempt.hintShown === true,
+      hintCount: Number(attempt.hintCount) || 0,
+      hintTypes: Array.isArray(attempt.hintTypes) ? attempt.hintTypes.map(clean).filter(Boolean) : [],
+      targetShown: attempt.targetShown === true,
+      elapsedMs: Number(attempt.elapsedMs) || 0
+    };
+  }
+
+  function compactExperience(item, attempt) {
+    return {
+      wordId: clean(item.wordId),
+      batch: Number(item.row?.['Batch #']) || 0,
+      cardHeadword: clean(item.row?.Word),
+      answerTarget: clean(item.answerTarget || item.targetProfile?.practiceTarget || item.row?.Word),
+      targetKind: clean(item.targetProfile?.kind),
+      promptKind: clean(item.kind),
+      promptLabel: clean(item.promptLabel),
+      promptTitle: clean(item.promptTitle),
+      promptText: clean(item.promptText).slice(0, 900),
+      question: clean(item.question),
+      attempt: compactAttempt(attempt)
+    };
+  }
+
+  function persistCurrentSession() {
+    if (!currentSessionId || !sessionQueue.length || viewingSavedSession) return null;
+    const now = new Date().toISOString();
+    const counts = ratingCounts(sessionAttempts);
+    const decks = Array.from(new Set(sessionQueue.map(item => Number(item.row?.['Batch #']) || 0).filter(Boolean)));
+    const hintCount = sessionAttempts.reduce((sum, attempt) => sum + (Number(attempt?.hintCount) || 0), 0);
+    const elapsedMs = sessionAttempts.reduce((sum, attempt) => sum + (Number(attempt?.elapsedMs) || 0), 0);
+    const record = {
+      schemaVersion: 1,
+      sessionId: currentSessionId,
+      startedAt: currentSessionStartedAt || now,
+      completedAt: now,
+      sourceMode: lastSessionSpec?.mode || sourceMode,
+      sourceLabel: sourceLabel(lastSessionSpec?.mode || sourceMode),
+      coverageMode: lastSessionSpec?.coverage || coverageMode,
+      spec: lastSessionSpec ? { ...lastSessionSpec } : null,
+      experienceCount: sessionQueue.length,
+      wordIds: sessionQueue.map(item => clean(item.wordId)).filter(Boolean),
+      decks,
+      counts,
+      hintCount,
+      elapsedMs,
+      experiences: sessionQueue.map((item, index) => compactExperience(item, sessionAttempts[index] || {}))
+    };
+    const sessions = readStudySessions();
+    const index = sessions.findIndex(item => item?.sessionId === currentSessionId);
+    if (index >= 0) sessions[index] = record;
+    else sessions.push(record);
+    writeStudySessions(sessions);
+    return record;
+  }
+
+  function formatSessionWhen(value) {
+    const date = new Date(value || 0);
+    if (!Number.isFinite(date.getTime())) return '';
+    return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function sessionRatingSummary(counts = {}) {
+    const parts = [];
+    if (counts['got-it']) parts.push(`${counts['got-it']} Got it`);
+    if (counts.almost) parts.push(`${counts.almost} Almost`);
+    if (counts['not-yet']) parts.push(`${counts['not-yet']} Not yet`);
+    if (counts['no-idea']) parts.push(`${counts['no-idea']} No idea`);
+    if (counts.unrated) parts.push(`${counts.unrated} not rated`);
+    return parts.join(' · ');
+  }
+
+  function renderRecentSessions() {
+    const section = $('study-history');
+    const list = $('study-history-list');
+    if (!section || !list) return;
+    const sessions = readStudySessions().sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0)).slice(0, 5);
+    list.replaceChildren();
+    section.hidden = !sessions.length;
+    sessions.forEach(session => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'study-history-item';
+      button.dataset.studyqSessionId = clean(session.sessionId);
+      const top = document.createElement('span');
+      top.className = 'study-history-item-top';
+      const source = document.createElement('strong');
+      source.textContent = clean(session.sourceLabel) || 'Study Q';
+      const when = document.createElement('time');
+      when.textContent = formatSessionWhen(session.completedAt);
+      top.append(source, when);
+      const meta = document.createElement('small');
+      const ratings = sessionRatingSummary(session.counts || {});
+      meta.textContent = `${Number(session.experienceCount) || session.experiences?.length || 0} experiences${ratings ? ` · ${ratings}` : ''}`;
+      button.append(top, meta);
+      list.append(button);
+    });
+  }
+
+  function itemFromSavedExperience(snapshot) {
+    const wordId = clean(snapshot?.wordId);
+    const row = rowByWordId.get(wordId) || {
+      WordID: wordId,
+      'Batch #': Number(snapshot?.batch) || 0,
+      Word: clean(snapshot?.cardHeadword || snapshot?.answerTarget)
+    };
+    const meta = metadataFor(wordId) || {};
+    const profile = targetProfile(row);
+    return {
+      ...baseExperience(row, meta, reviewByWordId.get(wordId) || null),
+      kind: clean(snapshot?.promptKind) || 'history',
+      promptLabel: clean(snapshot?.promptLabel) || 'Experience',
+      promptTitle: clean(snapshot?.promptTitle),
+      promptText: clean(snapshot?.promptText),
+      question: clean(snapshot?.question),
+      answerTarget: clean(snapshot?.answerTarget) || profile.displayTarget || profile.practiceTarget || clean(row.Word),
+      acceptedAnswers: profile.accepted || [],
+      targetProfile: profile,
+      communicativeNeed: ''
+    };
+  }
+
+  function showSavedSession(sessionId) {
+    const record = readStudySessions().find(item => clean(item?.sessionId) === clean(sessionId));
+    if (!record || !Array.isArray(record.experiences)) return false;
+    viewingSavedSession = true;
+    currentSessionId = clean(record.sessionId);
+    currentSessionStartedAt = clean(record.startedAt);
+    lastSessionSpec = record.spec && typeof record.spec === 'object' ? { ...record.spec } : null;
+    sessionQueue = record.experiences.map(itemFromSavedExperience);
+    sessionAttempts = record.experiences.map(experience => ({ ...experience.attempt, _elapsedBaseMs: Number(experience.attempt?.elapsedMs) || 0, _visitStartedMs: Date.now() }));
+    sessionIndex = Math.max(0, sessionQueue.length - 1);
+    currentAttempt = sessionAttempts[sessionIndex] || null;
+    $('study-experience').hidden = true;
+    $('study-start-panel').hidden = true;
+    $('study-finished').hidden = false;
+    $('study-finished-copy').textContent = `Saved session · ${clean(record.sourceLabel) || 'Study Q'} · ${formatSessionWhen(record.completedAt)}.`;
+    const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
+    $('study-finished-summary').hidden = false;
+    $('study-finished-summary').textContent = `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`;
+    renderFinishedDeckLinks();
+    renderSessionReview();
+    $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
   }
 
   function persistAttempt(attempt, completed = false) {
@@ -515,7 +897,10 @@
       completedAt: '',
       wordId: item.wordId,
       batch: Number(item.row?.['Batch #']) || 0,
-      target: clean(item.row?.Word),
+      target: clean(item.answerTarget || item.targetProfile?.practiceTarget || item.row?.Word),
+      cardHeadword: clean(item.row?.Word),
+      targetKind: clean(item.targetProfile?.kind),
+      sessionId: currentSessionId,
       entryType: clean(item.meta?.entryType),
       sourceMode: lastSessionSpec?.mode || sourceMode,
       sourceLabel: sourceLabel(lastSessionSpec?.mode || sourceMode),
@@ -559,6 +944,7 @@
     currentAttempt.responseText = answer;
     currentAttempt.autoMatch = match.kind;
     currentAttempt.matchedAlternative = match.alternative || '';
+    currentAttempt.matchedTarget = match.matchedTarget || '';
     currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
   }
 
@@ -586,8 +972,50 @@
     persistAttempt(currentAttempt, true);
   }
 
+  function formHintFor(item) {
+    const profile = item.targetProfile || targetProfile(item.row || '');
+    const entryTypeRaw = clean(item.meta?.entryType);
+    const entryType = entryTypeRaw === 'conversational frame' ? 'conversational frame' : entryTypeRaw;
+    const pos = clean(item.row?.['Part of Speech']);
+    const practice = clean(item.answerTarget || profile.practiceTarget);
+    const count = practice.split(/\s+/).filter(Boolean).length;
+    const countLabel = count === 1 ? 'one word' : (count > 1 ? `${count}-word expression` : '');
+    const bits = [];
+
+    if (profile.kind === 'contrast') {
+      if (countLabel) bits.push(countLabel);
+      bits.push('one side of a contrast card');
+    } else if (profile.kind === 'family') {
+      const normalizedPractice = normalizeAnswer(practice);
+      const exactPart = (profile.parts || []).find(part => normalizeAnswer(part.clean) === normalizedPractice);
+      const derivedPart = exactPart || (profile.parts || []).find(part => {
+        const root = normalizeAnswer(part.clean);
+        return root && normalizedPractice.startsWith(root) && part.pos;
+      });
+      if (derivedPart?.pos) bits.push(derivedPart.pos);
+      else {
+        const slashPos = pos.split(/\s*\/\s*/).map(clean).filter(Boolean);
+        if (slashPos.length > 1) bits.push(`form family: ${slashPos.join(' / ')}`);
+        else if (entryType) bits.push(entryType);
+        else bits.push('related form family');
+      }
+      if (countLabel) bits.push(countLabel);
+    } else if (profile.kind === 'construction') {
+      if (entryType) bits.push(entryType);
+      else if (pos) bits.push(pos);
+      if (profile.patternDisplay) bits.push(`pattern: ${profile.patternDisplay}`);
+    } else if (profile.kind === 'labeled') {
+      if (countLabel) bits.push(countLabel);
+    } else {
+      if (entryType) bits.push(entryType);
+      if (pos && normalizeAnswer(pos) !== normalizeAnswer(entryType) && !/contrast/i.test(pos)) bits.push(pos);
+      if (countLabel) bits.push(countLabel);
+    }
+    return bits.length ? `Form: ${Array.from(new Set(bits)).join(' · ')}.` : '';
+  }
+
   function hintStepsFor(item) {
-    const target = clean(item.row?.Word);
+    const profile = item.targetProfile || targetProfile(item.row || '');
     const hints = [];
     const seen = new Set();
     const add = (type, text) => {
@@ -598,28 +1026,23 @@
       hints.push({ type, text: value });
     };
 
-    const synonyms = safePrompt(item.row?.['Synonym(s)'], target).text;
+    const synonyms = safePrompt(item.row?.['Synonym(s)'], profile).text;
     if (meaningfulPrompt(synonyms)) add('related', `Related expression(s): ${synonyms}`);
 
-    const entryTypeRaw = clean(item.meta?.entryType);
-    const entryType = entryTypeRaw === 'conversational frame' ? 'conversational frame' : entryTypeRaw;
-    const pos = clean(item.row?.['Part of Speech']);
-    const wordCount = target.split(/\s+/).filter(Boolean).length;
-    const formBits = [];
-    if (entryType) formBits.push(entryType);
-    if (pos && normalizeAnswer(pos) !== normalizeAnswer(entryType)) formBits.push(pos);
-    formBits.push(wordCount === 1 ? 'one word' : `${wordCount}-word expression`);
-    add('form', `Form: ${formBits.join(' · ')}.`);
+    add('form', formHintFor(item));
 
     if (item.kind !== 'example') {
-      const example = splitExamples(item.row?.['Example Sentence']).map(value => safePrompt(value, target)).find(value => value.changed && meaningfulPrompt(value.text));
-      if (example) add('example', `Example frame: ${example.text}`);
+      const example = splitExamples(item.row?.['Example Sentence'])
+        .map(value => ({ value, safe: safePrompt(value, profile) }))
+        .find(entry => entry.safe.changed && meaningfulPrompt(entry.safe.text));
+      if (example) add('example', `Example frame: ${example.safe.text}`);
     }
 
-    const first = Array.from(target.trim())[0] || '';
+    const firstTarget = clean(profile.practiceTarget || item.answerTarget || profile.raw);
+    const first = Array.from(firstTarget.trim())[0] || '';
     if (first) add('first-letter', `Starts with “${first}”.`);
 
-    const sense = safePrompt(item.meta?.senseHook, target).text;
+    const sense = safePrompt(item.meta?.senseHook, profile).text;
     if (meaningfulPrompt(sense)) add('sense-hook', `Sense hook: ${sense}`);
 
     return hints;
@@ -706,7 +1129,7 @@
     $('study-need-block').hidden = !(need && attempt?.communicativeNeedShown);
     renderHintState(item);
 
-    $('study-target').textContent = clean(item.row?.Word) || `WID ${item.wordId}`;
+    $('study-target').textContent = clean(item.answerTarget || item.targetProfile?.practiceTarget || item.row?.Word) || `WID ${item.wordId}`;
     const entryType = clean(item.meta?.entryType);
     $('study-target-type').hidden = !entryType;
     $('study-target-type').textContent = entryType ? `type: ${entryType === 'conversational frame' ? 'conv. frame' : entryType}` : '';
@@ -767,7 +1190,10 @@
   function exactHeadwordRows(answer) {
     const normalized = normalizeAnswer(answer);
     if (!normalized) return [];
-    return rows.filter(row => normalizeAnswer(row?.Word) === normalized);
+    return rows.filter(row => {
+      const profile = targetProfile(row);
+      return normalizeAnswer(row?.Word) === normalized || (profile.accepted || []).some(value => normalizeAnswer(value) === normalized);
+    });
   }
 
   function searchHrefFor(answer) {
@@ -916,10 +1342,14 @@
       rating.textContent = ratingLabel(attempt.selfRating);
       top.append(idx, rating);
 
+      const prompt = document.createElement('p');
+      prompt.className = 'study-session-review-prompt';
+      prompt.textContent = clean(item.promptText) || 'Prompt not available.';
+
       const target = document.createElement('div');
       target.className = 'study-session-review-target';
       const targetWord = document.createElement('strong');
-      targetWord.textContent = clean(item.row?.Word) || `WID ${item.wordId}`;
+      targetWord.textContent = clean(item.answerTarget || item.targetProfile?.practiceTarget || item.row?.Word) || `WID ${item.wordId}`;
       const targetButton = document.createElement('button');
       targetButton.type = 'button';
       targetButton.dataset.quickCardWordId = item.wordId;
@@ -940,10 +1370,11 @@
       answerRow.append(answerText, answerActions);
       const match = document.createElement('div');
       match.className = 'study-session-review-match';
-      match.textContent = matchLabel(attempt);
+      const hintCount = Number(attempt.hintCount) || 0;
+      match.textContent = `${matchLabel(attempt)}${hintCount ? ` · ${hintCount} hint${hintCount === 1 ? '' : 's'}` : ''}`;
       answerBox.append(answerLabel, answerRow, match);
 
-      article.append(top, target, answerBox);
+      article.append(top, prompt, target, answerBox);
       list.append(article);
     });
     $('study-session-review').hidden = !sessionQueue.length;
@@ -999,22 +1430,14 @@
     $('study-start-panel').hidden = true;
     $('study-finished').hidden = false;
     $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} ${sessionQueue.length === 1 ? 'experience' : 'experiences'} from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
-    const counts = { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0, unrated: 0 };
-    sessionAttempts.forEach(attempt => {
-      const rating = attempt?.selfRating;
-      if (rating && Object.prototype.hasOwnProperty.call(counts, rating)) counts[rating]++;
-      else counts.unrated++;
-    });
-    const pieces = [];
-    if (counts['got-it']) pieces.push(`${counts['got-it']} Got it`);
-    if (counts.almost) pieces.push(`${counts.almost} Almost`);
-    if (counts['not-yet']) pieces.push(`${counts['not-yet']} Not yet`);
-    if (counts['no-idea']) pieces.push(`${counts['no-idea']} No idea`);
-    if (counts.unrated) pieces.push(`${counts.unrated} not rated`);
-    $('study-finished-summary').hidden = !pieces.length;
-    $('study-finished-summary').textContent = pieces.length ? `Your self-check: ${pieces.join(' · ')}. Saved on this device.` : '';
+    const counts = ratingCounts(sessionAttempts);
+    const summary = sessionRatingSummary(counts);
+    const record = persistCurrentSession();
+    $('study-finished-summary').hidden = false;
+    $('study-finished-summary').textContent = `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved on this device.`;
     renderFinishedDeckLinks();
     renderSessionReview();
+    renderRecentSessions();
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -1034,6 +1457,9 @@
     sessionIndex = 0;
     sessionAttempts = [];
     currentAttempt = null;
+    viewingSavedSession = false;
+    currentSessionId = makeEventId().replace(/^studyq-/, 'studyq-session-');
+    currentSessionStartedAt = new Date().toISOString();
     renderExperience();
   }
 
@@ -1051,10 +1477,12 @@
   }
 
   function changeSet() {
+    viewingSavedSession = false;
     $('study-finished').hidden = true;
     $('study-finished-decks').hidden = true;
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = false;
+    renderRecentSessions();
     document.querySelector('.study-hub-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -1082,6 +1510,8 @@
     document.addEventListener('click', event => {
       const button = event.target.closest('[data-quick-card-word-id]');
       if (button) openQuickCard(button.dataset.quickCardWordId);
+      const historyButton = event.target.closest('[data-studyq-session-id]');
+      if (historyButton) showSavedSession(historyButton.dataset.studyqSessionId);
     });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('study-quick-card-modal').hidden) closeQuickCard(); });
   }
@@ -1101,6 +1531,7 @@
     $('study-range-end').value = String(Math.min(maxDeck, initialDeck + 4));
 
     setCoverageMode('all');
+    renderRecentSessions();
     const reviewExperiences = experiencePoolFor('review');
     setSourceMode(reviewExperiences.length ? 'review' : 'deck');
   }
@@ -1114,6 +1545,9 @@
       rowByWordId = new Map(rows.map(row => [clean(row.WordID), row]).filter(([wordId]) => wordId));
       reviewByWordId = readReviewMap();
       setDefaults();
+      const requestedSession = new URLSearchParams(location.search).get('session');
+      if (requestedSession) showSavedSession(requestedSession);
+      else if (location.hash === '#recent-sessions') $('study-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
       console.error('Study Q could not load', error);
       $('study-eligibility').innerHTML = '<strong>Study data could not be loaded</strong><span>Reload when the Master TSV is available.</span>';

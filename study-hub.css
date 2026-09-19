@@ -177,3 +177,17 @@ body.study-quick-card-open{overflow:hidden}
 .study-finished-deck-links a{border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#5b7365;padding:7px 11px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:none}
 .study-finished-deck-links a.is-primary{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
 @media(max-width:420px){.study-experience-topline{align-items:flex-start}.study-experience-topline-right{gap:7px}.study-previous-button{font-size:.63rem}.study-hint-item{grid-template-columns:1fr;gap:2px}.study-hint-item b{padding-top:0}}
+
+/* v1.8.6.47 R6 — target resolver QA + saved Study Q sessions. */
+.study-history{margin-top:12px;border:1px solid #dbe6dd;border-radius:20px;background:rgba(255,255,255,.72);box-shadow:0 6px 18px rgba(40,70,55,.035);padding:14px 16px}
+.study-history-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.study-history-head h2{margin:2px 0 0;font-family:"EB Garamond",Georgia,serif;font-size:1.28rem;line-height:1.05;font-weight:600;color:#365c49}
+.study-history-head>a{color:#688073;text-decoration:none;font-size:.68rem;font-weight:700}
+.study-history-list{display:grid;gap:7px;margin-top:10px}
+.study-history-item{width:100%;border:1px solid #dfe8e1;border-radius:13px;background:#fbfdfb;color:#4f6c5d;padding:9px 10px;text-align:left;cursor:pointer;font:inherit}
+.study-history-item-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.study-history-item-top strong{font-family:"EB Garamond",Georgia,serif;font-size:.98rem;font-weight:600;color:#365c49}
+.study-history-item-top time{color:#88958d;font-size:.6rem;white-space:nowrap}
+.study-history-item small{display:block;margin-top:2px;color:#7d8d84;font-size:.62rem;line-height:1.35}
+.study-session-review-prompt{margin:0!important;max-width:none!important;padding:7px 8px;border-radius:10px;background:#f7faf7;color:#60756a!important;font-family:"EB Garamond",Georgia,serif;font-size:.86rem!important;line-height:1.36!important;text-align:left}
+@media(max-width:420px){.study-history-item-top{align-items:flex-start;flex-direction:column;gap:2px}.study-history-item-top time{white-space:normal}}

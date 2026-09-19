@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r5">
+  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r6">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -94,7 +94,15 @@
 
       <section class="study-start-panel" id="study-start-panel">
         <button type="button" class="study-start-button" id="study-start" disabled>Start Experience</button>
-        <p id="study-start-note">Study Q activity is saved on this device. Your self-check does not change Review attention yet.</p>
+        <p id="study-start-note">Study Q activity and completed sessions are saved on this device. Your self-check does not change Review attention yet.</p>
+      </section>
+
+      <section class="study-history" id="study-history" hidden>
+        <div class="study-history-head">
+          <div><span class="section-kicker">Study Q history</span><h2>Recent sessions</h2></div>
+          <a href="./progress.html?view=activity">Progress</a>
+        </div>
+        <div class="study-history-list" id="study-history-list"></div>
       </section>
 
       <section class="study-experience" id="study-experience" hidden aria-live="polite">
@@ -255,7 +263,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r5"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r6"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
