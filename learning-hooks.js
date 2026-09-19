@@ -17,7 +17,9 @@
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
   const MERGE_ROLLBACK_KEY = 'wlp:learning-meta:merge-rollback:v1';
   const SCHEMA_VERSION = 2;
-  const KNOWN_FIELDS = ['senseHook', 'memoryHook', 'situations'];
+  const PORTABLE_FORMAT = 'WLP_LEARNING_METADATA_V2_ARCH';
+  const LEGACY_PORTABLE_FORMAT = 'WLP_LEARNING_METADATA';
+  const KNOWN_FIELDS = ['senseHook', 'memoryHook', 'entryType', 'situations', 'alternativeExpressions'];
 
   function clean(value) {
     return String(value ?? '').replace(/\r\n?/g, '\n').trim();
@@ -75,6 +77,7 @@
       changedByDevice: clean(situation?.updatedByDevice),
       status: clean(situation?.status) || 'provisional',
       deletedAt: clean(situation?.deletedAt),
+      title: clean(situation?.title),
       anchor: clean(situation?.anchor),
       communicativeNeed: clean(situation?.communicativeNeed)
     };
@@ -99,6 +102,7 @@
       createdByDevice: clean(input.createdByDevice) || deviceId,
       updatedByDevice: clean(input.updatedByDevice) || deviceId,
       deletedAt: clean(input.deletedAt),
+      title: clean(input.title ?? input.situationTitle),
       anchor: clean(input.anchor ?? input.situationAnchor ?? input.text),
       communicativeNeed: clean(input.communicativeNeed),
       history: Array.isArray(input.history) ? clone(input.history) : []
@@ -112,6 +116,59 @@
 
   function activeSituations(value) {
     return normalizeSituations(value).filter(item => !item.deletedAt && item.anchor);
+  }
+
+  function alternativeSnapshot(alternative) {
+    return {
+      versionId: clean(alternative?.versionId),
+      parentVersionId: clean(alternative?.parentVersionId),
+      revision: Math.max(1, Number(alternative?.revision) || 1),
+      changedAt: clean(alternative?.updatedAt),
+      changedByDevice: clean(alternative?.updatedByDevice),
+      status: clean(alternative?.status) || 'provisional',
+      deletedAt: clean(alternative?.deletedAt),
+      expression: clean(alternative?.expression),
+      situationIds: Array.isArray(alternative?.situationIds) ? alternative.situationIds.map(clean).filter(Boolean) : [],
+      note: clean(alternative?.note)
+    };
+  }
+
+  function normalizeAlternative(value) {
+    const input = value && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : { expression: typeof value === 'string' ? value : '' };
+    const now = new Date().toISOString();
+    const updatedAt = clean(input.updatedAt) || now;
+    const createdAt = clean(input.createdAt) || updatedAt;
+    const deviceId = ensureDeviceId();
+    const situationIds = Array.isArray(input.situationIds)
+      ? input.situationIds.map(clean).filter(Boolean)
+      : clean(input.situationId) ? [clean(input.situationId)] : [];
+    return {
+      alternativeId: clean(input.alternativeId) || makeId('alt'),
+      status: clean(input.status) || 'provisional',
+      revision: Math.max(1, Number(input.revision) || 1),
+      versionId: clean(input.versionId) || makeId('altver'),
+      parentVersionId: clean(input.parentVersionId),
+      createdAt,
+      updatedAt,
+      createdByDevice: clean(input.createdByDevice) || deviceId,
+      updatedByDevice: clean(input.updatedByDevice) || deviceId,
+      deletedAt: clean(input.deletedAt),
+      expression: clean(input.expression ?? input.text),
+      situationIds,
+      note: clean(input.note),
+      history: Array.isArray(input.history) ? clone(input.history) : []
+    };
+  }
+
+  function normalizeAlternatives(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(normalizeAlternative);
+  }
+
+  function activeAlternatives(value) {
+    return normalizeAlternatives(value).filter(item => !item.deletedAt && item.expression);
   }
 
   function emptyContent() {
@@ -132,14 +189,14 @@
       memoryHook: clean(input.memoryHook),
       entryType: clean(input.entryType),
       situations: normalizeSituations(input.situations),
-      alternativeExpressions: Array.isArray(input.alternativeExpressions) ? clone(input.alternativeExpressions) : []
+      alternativeExpressions: normalizeAlternatives(input.alternativeExpressions)
     };
   }
 
   function hasContentPayload(content) {
     const value = normalizeContent(content);
     if (value.senseHook || value.memoryHook || value.entryType) return true;
-    if (activeSituations(value.situations).length || value.alternativeExpressions.length) return true;
+    if (activeSituations(value.situations).length || activeAlternatives(value.alternativeExpressions).length) return true;
     return Object.entries(value).some(([key, item]) => {
       if (['senseHook','memoryHook','entryType','situations','alternativeExpressions'].includes(key)) return false;
       if (Array.isArray(item)) return item.length > 0;
@@ -305,6 +362,7 @@
     return {
       ...content,
       situations: activeSituations(content.situations),
+      alternativeExpressions: activeAlternatives(content.alternativeExpressions),
       metadataId: record.metadataId,
       entryKey: record.entryKey,
       entryKind: record.entryKind,
@@ -348,6 +406,7 @@
       createdByDevice: deviceId,
       updatedByDevice: deviceId,
       deletedAt: '',
+      title: clean(value?.title),
       anchor: clean(value?.anchor),
       communicativeNeed: clean(value?.communicativeNeed),
       history: []
@@ -362,6 +421,7 @@
     const requested = requestedValue
       .map(item => ({
         situationId: clean(item?.situationId),
+        title: clean(item?.title ?? item?.situationTitle),
         anchor: clean(item?.anchor ?? item?.situationAnchor ?? item?.text),
         communicativeNeed: clean(item?.communicativeNeed)
       }))
@@ -377,6 +437,7 @@
       }
       seen.add(current.situationId);
       const same = !current.deletedAt
+        && clean(current.title) === item.title
         && clean(current.anchor) === item.anchor
         && clean(current.communicativeNeed) === item.communicativeNeed;
       if (same) return current;
@@ -390,6 +451,7 @@
         updatedAt: now,
         updatedByDevice: ensureDeviceId(),
         deletedAt: '',
+        title: item.title,
         anchor: item.anchor,
         communicativeNeed: item.communicativeNeed,
         history: [...current.history, situationSnapshot(current)]
@@ -411,6 +473,84 @@
           history: [...current.history, situationSnapshot(current)]
         };
       });
+    const oldTombstones = existing.filter(item => item.deletedAt);
+    return [...nextActive, ...removed, ...oldTombstones];
+  }
+
+  function newAlternative(value) {
+    const now = new Date().toISOString();
+    const deviceId = ensureDeviceId();
+    return normalizeAlternative({
+      alternativeId: clean(value?.alternativeId) || makeId('alt'),
+      status: clean(value?.status) || 'provisional',
+      revision: 1,
+      versionId: makeId('altver'),
+      parentVersionId: '',
+      createdAt: now,
+      updatedAt: now,
+      createdByDevice: deviceId,
+      updatedByDevice: deviceId,
+      deletedAt: '',
+      expression: clean(value?.expression),
+      situationIds: Array.isArray(value?.situationIds) ? value.situationIds.map(clean).filter(Boolean) : [],
+      note: clean(value?.note),
+      history: []
+    });
+  }
+
+  function reconcileAlternatives(existingValue, requestedValue) {
+    const existing = normalizeAlternatives(existingValue);
+    if (!Array.isArray(requestedValue)) return existing;
+    const currentById = new Map(existing.map(item => [item.alternativeId, item]));
+    const requested = requestedValue.map(item => ({
+      alternativeId: clean(item?.alternativeId),
+      expression: clean(item?.expression ?? item?.text),
+      situationIds: Array.isArray(item?.situationIds) ? item.situationIds.map(clean).filter(Boolean) : clean(item?.situationId) ? [clean(item.situationId)] : [],
+      note: clean(item?.note)
+    })).filter(item => item.expression);
+    const seen = new Set();
+    const nextActive = requested.map(item => {
+      let current = item.alternativeId ? currentById.get(item.alternativeId) : null;
+      if (!current) {
+        const created = newAlternative(item);
+        seen.add(created.alternativeId);
+        return created;
+      }
+      seen.add(current.alternativeId);
+      const same = !current.deletedAt
+        && clean(current.expression) === item.expression
+        && JSON.stringify((current.situationIds || []).map(clean).filter(Boolean)) === JSON.stringify(item.situationIds)
+        && clean(current.note) === item.note;
+      if (same) return current;
+      const now = new Date().toISOString();
+      return {
+        ...current,
+        status: current.status || 'provisional',
+        revision: current.revision + 1,
+        parentVersionId: current.versionId,
+        versionId: makeId('altver'),
+        updatedAt: now,
+        updatedByDevice: ensureDeviceId(),
+        deletedAt: '',
+        expression: item.expression,
+        situationIds: item.situationIds,
+        note: item.note,
+        history: [...current.history, alternativeSnapshot(current)]
+      };
+    });
+    const removed = existing.filter(item => !item.deletedAt && !seen.has(item.alternativeId)).map(current => {
+      const now = new Date().toISOString();
+      return {
+        ...current,
+        revision: current.revision + 1,
+        parentVersionId: current.versionId,
+        versionId: makeId('altver'),
+        updatedAt: now,
+        updatedByDevice: ensureDeviceId(),
+        deletedAt: now,
+        history: [...current.history, alternativeSnapshot(current)]
+      };
+    });
     const oldTombstones = existing.filter(item => item.deletedAt);
     return [...nextActive, ...removed, ...oldTombstones];
   }
@@ -443,7 +583,9 @@
         ...emptyContent(),
         senseHook: clean(values?.senseHook),
         memoryHook: clean(values?.memoryHook),
-        situations: reconcileSituations([], Array.isArray(values?.situations) ? values.situations : [])
+        entryType: clean(values?.entryType),
+        situations: reconcileSituations([], Array.isArray(values?.situations) ? values.situations : []),
+        alternativeExpressions: reconcileAlternatives([], Array.isArray(values?.alternativeExpressions) ? values.alternativeExpressions : [])
       }),
       history: []
     };
@@ -458,7 +600,9 @@
     const requested = {
       senseHook: Object.prototype.hasOwnProperty.call(values, 'senseHook') ? clean(values.senseHook) : undefined,
       memoryHook: Object.prototype.hasOwnProperty.call(values, 'memoryHook') ? clean(values.memoryHook) : undefined,
-      situations: Array.isArray(values?.situations) ? values.situations : undefined
+      entryType: Object.prototype.hasOwnProperty.call(values, 'entryType') ? clean(values.entryType) : undefined,
+      situations: Array.isArray(values?.situations) ? values.situations : undefined,
+      alternativeExpressions: Array.isArray(values?.alternativeExpressions) ? values.alternativeExpressions : undefined
     };
 
     if (!current) {
@@ -473,9 +617,13 @@
       ...current.content,
       senseHook: requested.senseHook === undefined ? current.content.senseHook : requested.senseHook,
       memoryHook: requested.memoryHook === undefined ? current.content.memoryHook : requested.memoryHook,
+      entryType: requested.entryType === undefined ? current.content.entryType : requested.entryType,
       situations: requested.situations === undefined
         ? current.content.situations
-        : reconcileSituations(current.content.situations, requested.situations)
+        : reconcileSituations(current.content.situations, requested.situations),
+      alternativeExpressions: requested.alternativeExpressions === undefined
+        ? current.content.alternativeExpressions
+        : reconcileAlternatives(current.content.alternativeExpressions, requested.alternativeExpressions)
     });
     const willDelete = !hasContentPayload(nextContent);
     const alreadyDeleted = Boolean(current.deletedAt);
@@ -557,6 +705,15 @@
     };
   }
 
+  function alternativeEditorParts(form) {
+    const block = form?.querySelector?.('[data-learning-alternatives]');
+    return {
+      block,
+      list: block?.querySelector?.('[data-alternative-list]') || null,
+      add: block?.querySelector?.('[data-add-alternative]') || null
+    };
+  }
+
   function makeSituationRow(value = {}, index = 0) {
     const row = document.createElement('div');
     row.className = 'learning-situation-row';
@@ -565,7 +722,7 @@
     const hidden = document.createElement('input');
     hidden.type = 'hidden';
     hidden.name = 'Situation ID';
-    hidden.value = clean(value.situationId);
+    hidden.value = clean(value.situationId) || makeId('sit');
     hidden.dataset.situationId = '';
 
     const top = document.createElement('div');
@@ -580,6 +737,14 @@
     removeButton.textContent = 'Remove';
     top.append(label, removeButton);
 
+    const title = document.createElement('input');
+    title.type = 'text';
+    title.name = 'Situation Title';
+    title.dataset.situationTitle = '';
+    title.placeholder = 'Optional short title · e.g. Emotional overload';
+    title.value = clean(value.title);
+    title.setAttribute('aria-label', `Situation ${index + 1} short title`);
+
     const textarea = document.createElement('textarea');
     textarea.name = 'Situation Anchor';
     textarea.rows = 3;
@@ -588,7 +753,19 @@
     textarea.value = clean(value.anchor);
     textarea.setAttribute('aria-label', `Situation Anchor ${index + 1}`);
 
-    row.append(hidden, top, textarea);
+    const need = document.createElement('textarea');
+    need.name = 'Communicative Need';
+    need.rows = 2;
+    need.dataset.communicativeNeed = '';
+    need.placeholder = 'What does the speaker need to do here? · e.g. express that they have had enough';
+    need.value = clean(value.communicativeNeed);
+    need.setAttribute('aria-label', `Communicative Need ${index + 1}`);
+
+    const needLabel = document.createElement('small');
+    needLabel.className = 'learning-situation-sub-label';
+    needLabel.textContent = 'Communicative Need · what the speaker is trying to accomplish in this situation';
+
+    row.append(hidden, top, title, textarea, needLabel, need);
     return row;
   }
 
@@ -597,9 +774,44 @@
     const rows = Array.from(list.querySelectorAll('[data-situation-row]'));
     rows.forEach((row, index) => {
       const label = row.querySelector('.learning-situation-row-label');
+      const title = row.querySelector('[data-situation-title]');
       const textarea = row.querySelector('[data-situation-anchor]');
+      const need = row.querySelector('[data-communicative-need]');
       if (label) label.textContent = `Situation ${index + 1}`;
+      if (title) title.setAttribute('aria-label', `Situation ${index + 1} short title`);
       if (textarea) textarea.setAttribute('aria-label', `Situation Anchor ${index + 1}`);
+      if (need) need.setAttribute('aria-label', `Communicative Need ${index + 1}`);
+    });
+  }
+
+  function situationChoices(form) {
+    const { list } = situationEditorParts(form);
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('[data-situation-row]')).map((row, index) => ({
+      id: clean(row.querySelector('[data-situation-id]')?.value),
+      anchor: clean(row.querySelector('[data-situation-anchor]')?.value),
+      label: `Situation ${index + 1}${clean(row.querySelector('[data-situation-title]')?.value) ? ` — ${clean(row.querySelector('[data-situation-title]')?.value)}` : ''}`
+    })).filter(item => item.id && item.anchor);
+  }
+
+  function refreshAlternativeSituationOptions(form) {
+    const { list } = alternativeEditorParts(form);
+    if (!list) return;
+    const choices = situationChoices(form);
+    list.querySelectorAll('[data-alternative-situation]').forEach(select => {
+      const current = clean(select.value);
+      select.innerHTML = '';
+      const general = document.createElement('option');
+      general.value = '';
+      general.textContent = 'General / not tied to one situation';
+      select.appendChild(general);
+      choices.forEach(choice => {
+        const option = document.createElement('option');
+        option.value = choice.id;
+        option.textContent = choice.label;
+        select.appendChild(option);
+      });
+      select.value = choices.some(choice => choice.id === current) ? current : '';
     });
   }
 
@@ -613,61 +825,198 @@
     const rows = active.length ? active : [{}];
     rows.forEach((item, index) => list.appendChild(makeSituationRow(item, index)));
     refreshSituationRowLabels(list);
+    refreshAlternativeSituationOptions(form);
+  }
+
+  function makeAlternativeRow(value = {}, index = 0) {
+    const row = document.createElement('div');
+    row.className = 'learning-alternative-row';
+    row.dataset.alternativeRow = '';
+
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'Alternative ID';
+    hidden.value = clean(value.alternativeId) || makeId('alt');
+    hidden.dataset.alternativeId = '';
+
+    const top = document.createElement('div');
+    top.className = 'learning-situation-row-head';
+    const label = document.createElement('span');
+    label.className = 'learning-alternative-row-label';
+    label.textContent = `Alternative ${index + 1}`;
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'learning-situation-remove';
+    removeButton.dataset.removeAlternative = '';
+    removeButton.textContent = 'Remove';
+    top.append(label, removeButton);
+
+    const expression = document.createElement('input');
+    expression.type = 'text';
+    expression.name = 'Alternative Expression';
+    expression.dataset.alternativeExpression = '';
+    expression.placeholder = 'e.g. How much longer?';
+    expression.value = clean(value.expression);
+
+    const relationLabel = document.createElement('small');
+    relationLabel.className = 'learning-situation-sub-label';
+    relationLabel.textContent = 'Situation link · optional';
+    const relation = document.createElement('select');
+    relation.name = 'Alternative Situation';
+    relation.dataset.alternativeSituation = '';
+    relation.dataset.pendingSituation = Array.isArray(value.situationIds) ? clean(value.situationIds[0]) : '';
+
+    const note = document.createElement('input');
+    note.type = 'text';
+    note.name = 'Alternative Note';
+    note.dataset.alternativeNote = '';
+    note.placeholder = 'Optional nuance / register note';
+    note.value = clean(value.note);
+
+    row.append(hidden, top, expression, relationLabel, relation, note);
+    return row;
+  }
+
+  function refreshAlternativeRowLabels(list) {
+    if (!list) return;
+    Array.from(list.querySelectorAll('[data-alternative-row]')).forEach((row, index) => {
+      const label = row.querySelector('.learning-alternative-row-label');
+      if (label) label.textContent = `Alternative ${index + 1}`;
+    });
+  }
+
+  function renderAlternativeRows(form, alternatives = []) {
+    const { list } = alternativeEditorParts(form);
+    if (!list) return;
+    const active = Array.isArray(alternatives)
+      ? alternatives.filter(item => !item?.deletedAt && clean(item?.expression))
+      : [];
+    list.innerHTML = '';
+    const rows = active.length ? active : [{}];
+    rows.forEach((item, index) => list.appendChild(makeAlternativeRow(item, index)));
+    refreshAlternativeRowLabels(list);
+    refreshAlternativeSituationOptions(form);
+    list.querySelectorAll('[data-alternative-situation]').forEach(select => {
+      const pending = clean(select.dataset.pendingSituation);
+      if (pending && Array.from(select.options).some(option => option.value === pending)) select.value = pending;
+      delete select.dataset.pendingSituation;
+    });
+  }
+
+  function installLearningEditors(form) {
+    const { block, list, add } = situationEditorParts(form);
+    if (block && list && block.dataset.situationEditorInstalled !== 'true') {
+      block.dataset.situationEditorInstalled = 'true';
+      if (!list.querySelector('[data-situation-row]')) renderSituationRows(form, []);
+      add?.addEventListener('click', () => {
+        const index = list.querySelectorAll('[data-situation-row]').length;
+        const row = makeSituationRow({}, index);
+        list.appendChild(row);
+        refreshAlternativeSituationOptions(form);
+        row.querySelector('[data-situation-anchor]')?.focus();
+      });
+      list.addEventListener('click', event => {
+        const button = event.target.closest?.('[data-remove-situation]');
+        if (!button) return;
+        button.closest('[data-situation-row]')?.remove();
+        if (!list.querySelector('[data-situation-row]')) list.appendChild(makeSituationRow({}, 0));
+        refreshSituationRowLabels(list);
+        refreshAlternativeSituationOptions(form);
+      });
+      list.addEventListener('input', event => {
+        if (event.target.matches?.('[data-situation-title],[data-situation-anchor]')) refreshAlternativeSituationOptions(form);
+      });
+    }
+
+    const alt = alternativeEditorParts(form);
+    if (alt.block && alt.list && alt.block.dataset.alternativeEditorInstalled !== 'true') {
+      alt.block.dataset.alternativeEditorInstalled = 'true';
+      if (!alt.list.querySelector('[data-alternative-row]')) renderAlternativeRows(form, []);
+      alt.add?.addEventListener('click', () => {
+        const index = alt.list.querySelectorAll('[data-alternative-row]').length;
+        const row = makeAlternativeRow({}, index);
+        alt.list.appendChild(row);
+        refreshAlternativeSituationOptions(form);
+        row.querySelector('[data-alternative-expression]')?.focus();
+      });
+      alt.list.addEventListener('click', event => {
+        const button = event.target.closest?.('[data-remove-alternative]');
+        if (!button) return;
+        button.closest('[data-alternative-row]')?.remove();
+        if (!alt.list.querySelector('[data-alternative-row]')) alt.list.appendChild(makeAlternativeRow({}, 0));
+        refreshAlternativeRowLabels(alt.list);
+        refreshAlternativeSituationOptions(form);
+      });
+    }
+
+    if (form && form.dataset.learningEditorsResetInstalled !== 'true') {
+      form.dataset.learningEditorsResetInstalled = 'true';
+      form.addEventListener('reset', () => setTimeout(() => {
+        renderSituationRows(form, []);
+        renderAlternativeRows(form, []);
+      }, 0));
+    }
   }
 
   function installSituationEditor(form) {
-    const { block, list, add } = situationEditorParts(form);
-    if (!block || !list || block.dataset.situationEditorInstalled === 'true') return;
-    block.dataset.situationEditorInstalled = 'true';
-    if (!list.querySelector('[data-situation-row]')) renderSituationRows(form, []);
-
-    add?.addEventListener('click', () => {
-      const index = list.querySelectorAll('[data-situation-row]').length;
-      const row = makeSituationRow({}, index);
-      list.appendChild(row);
-      row.querySelector('[data-situation-anchor]')?.focus();
-    });
-    list.addEventListener('click', event => {
-      const button = event.target.closest?.('[data-remove-situation]');
-      if (!button) return;
-      button.closest('[data-situation-row]')?.remove();
-      if (!list.querySelector('[data-situation-row]')) list.appendChild(makeSituationRow({}, 0));
-      refreshSituationRowLabels(list);
-    });
-    form.addEventListener('reset', () => setTimeout(() => renderSituationRows(form, []), 0));
+    installLearningEditors(form);
   }
 
   function situationsFromForm(form) {
-    installSituationEditor(form);
+    installLearningEditors(form);
     const { list } = situationEditorParts(form);
     if (!list) return [];
     return Array.from(list.querySelectorAll('[data-situation-row]')).map(row => {
+      const title = clean(row.querySelector('[data-situation-title]')?.value);
       const anchor = clean(row.querySelector('[data-situation-anchor]')?.value);
+      const communicativeNeed = clean(row.querySelector('[data-communicative-need]')?.value);
       const hidden = row.querySelector('[data-situation-id]');
-      if (anchor && hidden && !clean(hidden.value)) hidden.value = makeId('sit');
-      return { situationId: clean(hidden?.value), anchor, communicativeNeed: '' };
+      return { situationId: clean(hidden?.value), title, anchor, communicativeNeed };
     }).filter(item => item.anchor);
   }
 
+  function alternativesFromForm(form) {
+    installLearningEditors(form);
+    const { list } = alternativeEditorParts(form);
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('[data-alternative-row]')).map(row => {
+      const hidden = row.querySelector('[data-alternative-id]');
+      const expression = clean(row.querySelector('[data-alternative-expression]')?.value);
+      const situationId = clean(row.querySelector('[data-alternative-situation]')?.value);
+      const note = clean(row.querySelector('[data-alternative-note]')?.value);
+      return {
+        alternativeId: clean(hidden?.value),
+        expression,
+        situationIds: situationId ? [situationId] : [],
+        note
+      };
+    }).filter(item => item.expression);
+  }
+
   function fromForm(form) {
-    if (!form) return { senseHook: '', memoryHook: '', situations: [] };
+    if (!form) return { senseHook: '', memoryHook: '', entryType: '', situations: [], alternativeExpressions: [] };
     const fd = new FormData(form);
     return {
       senseHook: clean(fd.get('Sense Hook')),
       memoryHook: clean(fd.get('Memory Hook')),
-      situations: situationsFromForm(form)
+      entryType: clean(fd.get('Entry Type')),
+      situations: situationsFromForm(form),
+      alternativeExpressions: alternativesFromForm(form)
     };
   }
 
   function fillForm(form, entry) {
     if (!form) return;
-    installSituationEditor(form);
+    installLearningEditors(form);
     const hooks = entry && typeof entry === 'object' ? entry : publicEntry(null);
     const sense = form.elements.namedItem('Sense Hook');
     const memory = form.elements.namedItem('Memory Hook');
+    const entryType = form.elements.namedItem('Entry Type');
     if (sense) sense.value = clean(hooks.senseHook);
     if (memory) memory.value = clean(hooks.memoryHook);
+    if (entryType) entryType.value = clean(hooks.entryType);
     renderSituationRows(form, Array.isArray(hooks.situations) ? hooks.situations : []);
+    renderAlternativeRows(form, Array.isArray(hooks.alternativeExpressions) ? hooks.alternativeExpressions : []);
   }
 
   // Future Draft -> Master promotion can preserve metadata identity rather than
@@ -732,7 +1081,7 @@
 
   function validatePortableSnapshot(payload) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('This file is not a WLP Learning Metadata JSON.');
-    if (clean(payload.format) !== 'WLP_LEARNING_METADATA') throw new Error('This JSON is not a WLP Learning Metadata export.');
+    if (![PORTABLE_FORMAT, LEGACY_PORTABLE_FORMAT].includes(clean(payload.format))) throw new Error('This JSON is not a compatible WLP Learning Metadata export.');
     if (Number(payload.schemaVersion) !== SCHEMA_VERSION) throw new Error(`Learning Metadata schema v${payload.schemaVersion ?? '?'} cannot be merged into v${SCHEMA_VERSION}.`);
     if (!payload.records || typeof payload.records !== 'object' || Array.isArray(payload.records)) throw new Error('This metadata file has no records object.');
     const normalized = {};
@@ -744,7 +1093,7 @@
       normalized[key] = record;
     });
     return {
-      format: 'WLP_LEARNING_METADATA',
+      format: clean(payload.format) || LEGACY_PORTABLE_FORMAT,
       schemaVersion: SCHEMA_VERSION,
       exportedAt: clean(payload.exportedAt),
       sourceDeviceId: clean(payload.sourceDeviceId),
@@ -900,8 +1249,9 @@
   function portableSnapshot() {
     const store = readStore();
     return {
-      format: 'WLP_LEARNING_METADATA',
+      format: PORTABLE_FORMAT,
       schemaVersion: SCHEMA_VERSION,
+      architecture: 'entry-type+situation-need+alternatives-v1',
       exportedAt: new Date().toISOString(),
       sourceDeviceId: ensureDeviceId(),
       records: clone(store.records)
@@ -926,6 +1276,8 @@
     LEGACY_STORAGE_KEY,
     DEVICE_ID_KEY,
     SCHEMA_VERSION,
+    PORTABLE_FORMAT,
+    LEGACY_PORTABLE_FORMAT,
     KNOWN_FIELDS,
     masterKey,
     draftKey,
@@ -946,6 +1298,7 @@
     fillForm,
     installSituationEditor,
     activeSituations,
+    activeAlternatives,
     promoteDraftToMaster,
     portableSnapshot,
     validatePortableSnapshot,

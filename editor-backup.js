@@ -6,7 +6,7 @@
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260916-s7-editor-backup-v1-5-1';
   const WLP_EXPORT_COLUMNS = ['Batch #','Guidance #','WordID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const WLP_DRAFT_EXPORT_COLUMNS = [...WLP_EXPORT_COLUMNS,'Local Draft ID','Created At','Updated At'];
-  const WLP_HOOK_EXPORT_COLUMNS = ['Entry Kind','WordID','Local Draft ID','Word','Sense Hook','Memory Hook','Situation Count','Situation Anchors','Situation IDs','Situation Revisions','Metadata ID','Status','Revision','Version ID','Parent Version ID','Updated At','Updated By Device'];
+  const WLP_HOOK_EXPORT_COLUMNS = ['Entry Kind','WordID','Local Draft ID','Word','Entry Type','Sense Hook','Memory Hook','Situation Count','Situation Titles','Situation Anchors','Communicative Needs','Situation IDs','Situation Revisions','Alternative Count','Alternative Expressions','Alternative Situation Links','Alternative Notes','Alternative IDs','Alternative Revisions','Metadata ID','Status','Revision','Version ID','Parent Version ID','Updated At','Updated By Device'];
   const LOCAL_OVERRIDE_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const $ = id => document.getElementById(id);
   const isAdmin = () => localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin';
@@ -42,13 +42,24 @@
     const draftById=new Map(drafts.map(d=>[String(d.localId||'').trim(),d]));
     const rows=entries.map(([key,hook])=>{
       const situations=Array.isArray(hook.situations)?hook.situations.filter(item=>item&&!item.deletedAt&&String(item.anchor||'').trim()):[];
+      const alternatives=Array.isArray(hook.alternativeExpressions)?hook.alternativeExpressions.filter(item=>item&&!item.deletedAt&&String(item.expression||'').trim()):[];
+      const situationIndexById=new Map(situations.map((item,index)=>[String(item.situationId||''),index+1]));
       const learning={
+        'Entry Type':String(hook.entryType||''),
         'Sense Hook':String(hook.senseHook||''),
         'Memory Hook':String(hook.memoryHook||''),
         'Situation Count':String(situations.length),
+        'Situation Titles':situations.map(item=>String(item.title||'').trim()).join('\n'),
         'Situation Anchors':situations.map(item=>String(item.anchor||'').trim()).join('\n'),
+        'Communicative Needs':situations.map(item=>String(item.communicativeNeed||'').trim()).join('\n'),
         'Situation IDs':situations.map(item=>String(item.situationId||'')).join('\n'),
-        'Situation Revisions':situations.map(item=>String(item.revision||'')).join('\n')
+        'Situation Revisions':situations.map(item=>String(item.revision||'')).join('\n'),
+        'Alternative Count':String(alternatives.length),
+        'Alternative Expressions':alternatives.map(item=>String(item.expression||'').trim()).join('\n'),
+        'Alternative Situation Links':alternatives.map(item=>{const ids=Array.isArray(item.situationIds)?item.situationIds:[];const nums=ids.map(id=>situationIndexById.get(String(id||''))).filter(Boolean);return nums.length?nums.map(n=>`Situation ${n}`).join(', '):'General';}).join('\n'),
+        'Alternative Notes':alternatives.map(item=>String(item.note||'').trim()).join('\n'),
+        'Alternative IDs':alternatives.map(item=>String(item.alternativeId||'')).join('\n'),
+        'Alternative Revisions':alternatives.map(item=>String(item.revision||'')).join('\n')
       };
       const identity={
         'Metadata ID':String(hook.metadataId||''),
@@ -158,12 +169,15 @@
   function formatMetaTime(value){const raw=String(value||'').trim();if(!raw)return 'Unknown';const ms=Date.parse(raw);if(!Number.isFinite(ms))return raw;try{return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms));}catch{return raw;}}
   function deviceLabel(value,currentDevice=''){const id=String(value||'').trim();if(!id)return 'Unknown';if(id===String(currentDevice||'').trim())return 'This device';return id;}
   function entryLabelForKey(key){const safe=String(key||'').trim();if(safe.startsWith('wid:')){const wid=safe.slice(4),overrides=readOverrides();const row=masterRows.find(item=>String(item.WordID||'').trim()===wid);const effective=row?applyOverride(row,overrides):null;return effective?.Word?`${effective.Word} · WID ${wid}`:`WID ${wid}`;}if(safe.startsWith('draft:')){const id=safe.slice(6),draft=readDrafts().find(item=>String(item.localId||'').trim()===id);return draft?.Word?`${draft.Word} · Draft`:`Draft · ${id}`;}return safe||'Learning Metadata';}
-  function activeSituationText(record){const list=Array.isArray(record?.content?.situations)?record.content.situations:[];const active=list.filter(item=>!item?.deletedAt&&String(item?.anchor||'').trim());return active.map((item,index)=>`Situation ${index+1}: ${String(item.anchor||'').trim()}`).join('\n');}
+  function activeSituationText(record){const list=Array.isArray(record?.content?.situations)?record.content.situations:[];const active=list.filter(item=>!item?.deletedAt&&String(item?.anchor||'').trim());return active.map((item,index)=>{const title=String(item.title||'').trim(),need=String(item.communicativeNeed||'').trim();return `Situation ${index+1}${title?` — ${title}`:''}: ${String(item.anchor||'').trim()}${need?`\nNeed: ${need}`:''}`;}).join('\n\n');}
+  function activeAlternativeText(record){const list=Array.isArray(record?.content?.alternativeExpressions)?record.content.alternativeExpressions:[];const active=list.filter(item=>!item?.deletedAt&&String(item?.expression||'').trim());const situations=Array.isArray(record?.content?.situations)?record.content.situations.filter(item=>!item?.deletedAt&&String(item?.anchor||'').trim()):[];const numberById=new Map(situations.map((item,index)=>[String(item.situationId||''),index+1]));return active.map((item,index)=>{const links=(Array.isArray(item.situationIds)?item.situationIds:[]).map(id=>numberById.get(String(id||''))).filter(Boolean);const note=String(item.note||'').trim();return `Alternative ${index+1}${links.length?` · Situation ${links.join(', ')}`:' · General'}: ${String(item.expression||'').trim()}${note?`\nNote: ${note}`:''}`;}).join('\n\n');}
   function metadataDisplayFields(record){if(!record)return{};return{
     State:record.deletedAt?'Deleted':'Active',
+    'Entry Type':String(record.content?.entryType||''),
     'Sense Hook':String(record.content?.senseHook||''),
     'Memory Hook':String(record.content?.memoryHook||''),
-    Situations:activeSituationText(record)
+    Situations:activeSituationText(record),
+    'Alternative Expressions':activeAlternativeText(record)
   };}
   function metadataChangedFields(local,incoming){if(!local)return Object.keys(metadataDisplayFields(incoming)).filter(key=>metadataDisplayFields(incoming)[key]);const a=metadataDisplayFields(local),b=metadataDisplayFields(incoming);return Object.keys({...a,...b}).filter(key=>String(a[key]??'')!==String(b[key]??''));}
   function metadataBadge(item){if(item.kind==='new')return{label:'New',cls:'is-new'};if(item.kind==='incoming-newer')return{label:'Incoming newer',cls:'is-newer'};if(item.kind==='local-newer')return{label:'This device newer',cls:'is-warning'};if(item.kind==='conflict')return{label:'Conflict',cls:'is-warning'};return{label:'Same',cls:''};}

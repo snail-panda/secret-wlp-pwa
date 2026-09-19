@@ -3130,3 +3130,128 @@ body.review-attention-open{overflow:hidden}
   font-size:inherit!important;
   line-height:inherit!important;
 }
+
+/* =========================================================
+   WLP Stage 7 — Language Architecture v1.8.6.40
+   Entry Type / Communicative Need / Alternative Expressions.
+   ========================================================= */
+.stage7-study-body .learning-hook-entry-type{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:8px 10px;
+  margin:0 0 9px;
+  border:1px solid rgba(92,111,99,.12);
+  border-radius:10px;
+  background:rgba(247,250,247,.92);
+}
+.stage7-study-body .learning-hook-entry-type[hidden]{display:none!important}
+.stage7-study-body .learning-hook-entry-type span{
+  color:#7b877f;
+  font-size:.68rem;
+  line-height:1.2;
+  font-weight:700;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+.stage7-study-body .learning-hook-entry-type strong{
+  color:#52645a;
+  font-size:.8rem;
+  line-height:1.25;
+  font-weight:700;
+  text-align:right;
+}
+.stage7-study-body .learning-situation-index{
+  line-height:1.35;
+}
+.stage7-study-body .learning-communicative-need{
+  margin-top:8px;
+  padding:8px 9px;
+  border-left:2px solid rgba(95,122,104,.28);
+  background:rgba(248,251,249,.68);
+  border-radius:0 8px 8px 0;
+}
+.stage7-study-body .learning-communicative-need span{
+  display:block;
+  margin-bottom:3px;
+  color:#76847b;
+  font-size:.64rem;
+  font-weight:700;
+  letter-spacing:.055em;
+  text-transform:uppercase;
+}
+.stage7-study-body .learning-communicative-need p{
+  margin:0;
+  color:#526159;
+  font-size:.79rem;
+  line-height:1.48;
+}
+.stage7-study-body .learning-hook-alternatives{
+  margin-top:8px;
+}
+.stage7-study-body .learning-alternative-toggle{
+  width:100%;
+  border:0;
+  background:transparent;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:8px 2px;
+  color:#53665b;
+  cursor:pointer;
+  text-align:left;
+}
+.stage7-study-body .learning-alternative-toggle-label{
+  font-size:.73rem;
+  font-weight:700;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+}
+.stage7-study-body .learning-alternative-count{
+  color:#849087;
+  font-size:.7rem;
+  font-weight:600;
+}
+.stage7-study-body .learning-alternative-chevron{
+  margin-left:auto;
+  color:#859187;
+  font-size:.9rem;
+  transition:transform .16s ease;
+}
+.stage7-study-body .learning-alternative-toggle[aria-expanded="true"] .learning-alternative-chevron{
+  transform:rotate(180deg);
+}
+.stage7-study-body .learning-alternative-items{
+  display:grid;
+  gap:7px;
+  padding:2px 0 4px;
+}
+.stage7-study-body .learning-alternative-items[hidden]{display:none!important}
+.stage7-study-body .learning-alternative-item{
+  padding:8px 9px;
+  border:1px solid rgba(95,114,101,.11);
+  border-radius:9px;
+  background:rgba(249,251,249,.86);
+}
+.stage7-study-body .learning-alternative-index{
+  margin-bottom:3px;
+  color:#7e8a82;
+  font-size:.64rem;
+  font-weight:700;
+  letter-spacing:.045em;
+  text-transform:uppercase;
+}
+.stage7-study-body .learning-alternative-expression{
+  margin:0;
+  color:#3f5147;
+  font-size:.86rem;
+  line-height:1.42;
+  font-weight:650;
+}
+.stage7-study-body .learning-alternative-note{
+  margin:4px 0 0;
+  color:#748078;
+  font-size:.73rem;
+  line-height:1.4;
+}

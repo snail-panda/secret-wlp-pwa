@@ -276,3 +276,78 @@
   .learning-situations-head span{max-width:220px}
   .learning-situation-add{padding-inline:9px}
 }
+
+/* =========================================================
+   WLP Stage 7 — Language Architecture v1.8.6.40
+   Entry Type / Communicative Need / Alternative Expressions.
+   ========================================================= */
+.learning-entry-type-field input{
+  width:100%;
+}
+.learning-situation-row input[type="text"],
+.learning-alternative-row input[type="text"],
+.learning-alternative-row select{
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid rgba(95,113,101,.2);
+  border-radius:10px;
+  background:#fff;
+  color:#33443a;
+  font:inherit;
+  padding:9px 10px;
+}
+.learning-situation-row input[data-situation-title]{
+  margin-bottom:7px;
+  color:#52645a;
+  font-size:.88rem;
+}
+.learning-situation-sub-label{
+  display:block;
+  margin:9px 1px 5px;
+  color:#7a877f;
+  font-size:.72rem;
+  line-height:1.35;
+  font-weight:600;
+  letter-spacing:.015em;
+}
+.learning-situation-row textarea[data-communicative-need]{
+  min-height:64px;
+}
+.learning-alternatives-block{
+  margin-top:18px;
+}
+.learning-alternative-list{
+  display:grid;
+  gap:10px;
+}
+.learning-alternative-row{
+  padding:10px 11px 11px;
+  border:1px solid rgba(93,111,99,.12);
+  border-radius:12px;
+  background:rgba(248,251,249,.82);
+}
+.learning-alternative-row-label{
+  color:#728077;
+  font:600 .73rem/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.learning-alternative-row input[data-alternative-expression]{
+  font-weight:600;
+}
+.learning-alternative-row select{
+  appearance:auto;
+  -webkit-appearance:menulist;
+  min-height:40px;
+  color:#53645a;
+  font-size:.84rem;
+}
+.learning-alternative-row input[data-alternative-note]{
+  margin-top:7px;
+  color:#66766d;
+  font-size:.82rem;
+}
+@media(max-width:560px){
+  .learning-situation-row,
+  .learning-alternative-row{padding:9px 10px 10px}
+}

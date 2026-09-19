@@ -1427,6 +1427,42 @@ function setLearningSituationsExpanded(panel, expanded) {
   requestAnimationFrame(() => fitLearningHookPanel(panel));
 }
 
+function setLearningAlternativesExpanded(panel, expanded) {
+  if (!panel) return;
+  const toggle = panel.querySelector(".learning-alternative-toggle");
+  const list = panel.querySelector(".learning-alternative-items");
+  if (!toggle || !list) return;
+  const next = Boolean(expanded);
+  toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  list.hidden = !next;
+  panel.classList.toggle("alternatives-expanded", next);
+  requestAnimationFrame(() => fitLearningHookPanel(panel));
+}
+
+function ensureLearningArchitectureSections(panel) {
+  if (!panel) return {};
+  const scroll = panel.querySelector(".learning-hook-scroll");
+  if (!scroll) return {};
+  let entryType = scroll.querySelector(".learning-hook-entry-type");
+  if (!entryType) {
+    entryType = document.createElement("div");
+    entryType.className = "learning-hook-entry-type";
+    entryType.hidden = true;
+    entryType.innerHTML = '<span>Entry Type</span><strong></strong>';
+    const sense = scroll.querySelector(".learning-hook-sense");
+    scroll.insertBefore(entryType, sense || scroll.firstChild);
+  }
+  let alternatives = scroll.querySelector(".learning-hook-alternatives");
+  if (!alternatives) {
+    alternatives = document.createElement("div");
+    alternatives.className = "learning-hook-section learning-hook-alternatives";
+    alternatives.hidden = true;
+    alternatives.innerHTML = '<button type="button" class="learning-alternative-toggle" aria-expanded="false"><span class="learning-alternative-toggle-label">Alternative Expressions</span><span class="learning-alternative-count" aria-hidden="true"></span><span class="learning-alternative-chevron" aria-hidden="true">⌄</span></button><div class="learning-alternative-items" hidden></div>';
+    scroll.appendChild(alternatives);
+  }
+  return { entryType, alternatives };
+}
+
 function closeLearningHookPanel(panel) {
   if (!panel) return;
   panel.hidden = true;
@@ -1447,6 +1483,7 @@ function openLearningHookPanel(panel, button) {
   panel.classList.add("is-viewport-layer");
   panel.hidden = false;
   setLearningSituationsExpanded(panel, false);
+  setLearningAlternativesExpanded(panel, false);
   if (button) button.setAttribute("aria-expanded", "true");
   ensureLearningLayerBackdrop().hidden = false;
   document.documentElement.classList.add("learning-layer-is-open");
@@ -1503,14 +1540,20 @@ function installLearningHookUI(root, row, openEditor = null) {
   const key = api?.keyForRow?.(row) || "";
 
   const refresh = () => {
-    const hooks = key && api ? api.get(key) : { senseHook: "", memoryHook: "", situations: [] };
+    const hooks = key && api ? api.get(key) : { senseHook: "", memoryHook: "", entryType: "", situations: [], alternativeExpressions: [] };
     const hasSense = Boolean(String(hooks.senseHook || "").trim());
     const hasMemory = Boolean(String(hooks.memoryHook || "").trim());
+    const entryTypeValue = String(hooks.entryType || "").trim();
+    const hasEntryType = Boolean(entryTypeValue);
     const situations = Array.isArray(hooks.situations)
       ? hooks.situations.filter(item => item && !item.deletedAt && String(item.anchor || "").trim())
       : [];
+    const alternatives = Array.isArray(hooks.alternativeExpressions)
+      ? hooks.alternativeExpressions.filter(item => item && !item.deletedAt && String(item.expression || "").trim())
+      : [];
     const hasSituations = situations.length > 0;
-    const hasLearningLayer = hasSense || hasMemory || hasSituations;
+    const hasAlternatives = alternatives.length > 0;
+    const hasLearningLayer = hasSense || hasMemory || hasEntryType || hasSituations || hasAlternatives;
 
     buttons.forEach(button => {
       button.hidden = !hasLearningLayer;
@@ -1519,10 +1562,18 @@ function installLearningHookUI(root, row, openEditor = null) {
       const panel = surface?.querySelector(".learning-hook-popover");
       if (!panel) return;
       panel.hidden = true;
+      const architecture = ensureLearningArchitectureSections(panel);
+      const entryType = architecture.entryType;
+      const alternativesSection = architecture.alternatives;
       const sense = panel.querySelector(".learning-hook-sense");
       const memory = panel.querySelector(".learning-hook-memory");
       const situation = panel.querySelector(".learning-hook-situation");
       const edit = panel.querySelector(".learning-hook-edit");
+      if (entryType) {
+        entryType.hidden = !hasEntryType;
+        const value = entryType.querySelector("strong");
+        if (value) value.textContent = hasEntryType ? entryTypeValue : "";
+      }
       if (sense) {
         sense.hidden = !hasSense;
         const copy = sense.querySelector("p");
@@ -1547,16 +1598,63 @@ function installLearningHookUI(root, row, openEditor = null) {
             article.className = "learning-situation-item";
             const label = document.createElement("div");
             label.className = "learning-situation-index";
-            label.textContent = `Situation ${index + 1}`;
+            const title = String(item.title || "").trim();
+            label.textContent = `Situation ${index + 1}${title ? ` — ${title}` : ""}`;
             const copy = document.createElement("p");
             copy.textContent = String(item.anchor || "").trim();
             article.append(label, copy);
+            const needValue = String(item.communicativeNeed || "").trim();
+            if (needValue) {
+              const need = document.createElement("div");
+              need.className = "learning-communicative-need";
+              const needLabel = document.createElement("span");
+              needLabel.textContent = "Communicative Need";
+              const needCopy = document.createElement("p");
+              needCopy.textContent = needValue;
+              need.append(needLabel, needCopy);
+              article.appendChild(need);
+            }
             list.appendChild(article);
           });
           list.hidden = true;
         }
         if (toggle) toggle.setAttribute("aria-expanded", "false");
         panel.classList.remove("situations-expanded");
+      }
+      if (alternativesSection) {
+        alternativesSection.hidden = !hasAlternatives;
+        const toggle = alternativesSection.querySelector(".learning-alternative-toggle");
+        const count = alternativesSection.querySelector(".learning-alternative-count");
+        const list = alternativesSection.querySelector(".learning-alternative-items");
+        if (count) count.textContent = hasAlternatives ? `(${alternatives.length})` : "";
+        if (toggle) toggle.setAttribute("aria-label", hasAlternatives ? `Show ${alternatives.length} alternative ${alternatives.length === 1 ? "expression" : "expressions"}` : "Show alternative expressions");
+        if (list) {
+          list.innerHTML = "";
+          const situationNumberById = new Map(situations.map((item, index) => [String(item.situationId || ""), index + 1]));
+          alternatives.forEach((item, index) => {
+            const article = document.createElement("div");
+            article.className = "learning-alternative-item";
+            const label = document.createElement("div");
+            label.className = "learning-alternative-index";
+            const linked = Array.isArray(item.situationIds) ? item.situationIds.map(id => situationNumberById.get(String(id || ""))).filter(Boolean) : [];
+            label.textContent = `Alternative ${index + 1}${linked.length ? ` · Situation ${linked.join(", ")}` : ""}`;
+            const expression = document.createElement("p");
+            expression.className = "learning-alternative-expression";
+            expression.textContent = String(item.expression || "").trim();
+            article.append(label, expression);
+            const noteValue = String(item.note || "").trim();
+            if (noteValue) {
+              const note = document.createElement("p");
+              note.className = "learning-alternative-note";
+              note.textContent = noteValue;
+              article.appendChild(note);
+            }
+            list.appendChild(article);
+          });
+          list.hidden = true;
+        }
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+        panel.classList.remove("alternatives-expanded");
       }
       if (edit) edit.hidden = !(isWlpAdminMode() && typeof openEditor === "function");
     });
@@ -1566,6 +1664,7 @@ function installLearningHookUI(root, row, openEditor = null) {
     const surface = button.closest(".study-card-surface");
     const panel = surface?.querySelector(".learning-hook-popover");
     if (!panel) return;
+    ensureLearningArchitectureSections(panel);
     button.addEventListener("click", event => {
       event.preventDefault();
       event.stopPropagation();
@@ -1580,6 +1679,13 @@ function installLearningHookUI(root, row, openEditor = null) {
       const toggle = event.currentTarget;
       const expanded = toggle.getAttribute("aria-expanded") === "true";
       setLearningSituationsExpanded(panel, !expanded);
+    });
+    panel.querySelector(".learning-alternative-toggle")?.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const toggle = event.currentTarget;
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      setLearningAlternativesExpanded(panel, !expanded);
     });
     panel.querySelector(".learning-hook-close")?.addEventListener("click", event => {
       event.preventDefault();
