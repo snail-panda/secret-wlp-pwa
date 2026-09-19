@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wlp://schemas/interpreter-router-request-v1.schema.json",
+  "title": "WLP Interpreter + Router Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "requestId",
+    "session",
+    "target",
+    "learningOpportunity",
+    "experience",
+    "learnerResponse",
+    "relevantState"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "contract": {
+      "const": "interpreter-router-v1.request"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "sessionId"
+      ],
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "wordId",
+        "targetFamily"
+      ],
+      "properties": {
+        "wordId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetFamily": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "learningOpportunity": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
+    "experience": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
+    "learnerResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawTranscript",
+        "correctedTranscript",
+        "authoritativeResponse",
+        "inputMode",
+        "sttCorrectedByLearner"
+      ],
+      "properties": {
+        "rawTranscript": {
+          "type": "string"
+        },
+        "correctedTranscript": {
+          "type": "string"
+        },
+        "authoritativeResponse": {
+          "type": "string"
+        },
+        "inputMode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sttCorrectedByLearner": {
+          "type": "boolean"
+        }
+      }
+    },
+    "relevantState": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

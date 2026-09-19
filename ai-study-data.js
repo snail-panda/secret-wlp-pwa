@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -80,6 +80,13 @@
   const normalizeConfidence = value => {
     const v = clean(value).toLowerCase();
     return ['high', 'medium', 'low'].includes(v) ? v : 'medium';
+  };
+  const normalizeTargetVisibility = value => {
+    const v = clean(value).toLowerCase();
+    if (['hidden', 'visible', 'partial'].includes(v)) return v;
+    if (value === true) return 'visible';
+    if (value === false) return 'hidden';
+    return 'hidden';
   };
 
   function parseTSV(text) {
@@ -275,14 +282,18 @@
         targetKind: clean(target.targetKind)
       },
       experience: {
-        direction: clean(event.experience?.direction),
+        direction: clean(event.experience?.direction || event.learningOpportunity?.direction),
         type: clean(event.experience?.type),
         domain: clean(event.experience?.domain),
-        targetVisible: Boolean(event.experience?.targetVisible),
+        targetVisibility: normalizeTargetVisibility(event.experience?.targetVisibility ?? event.experience?.targetVisible),
+        targetVisible: normalizeTargetVisibility(event.experience?.targetVisibility ?? event.experience?.targetVisible) === 'visible',
         prompt: clampText(event.experience?.prompt, 1200),
-        messageCore: clone(event.experience?.messageCore || null),
-        communicativeFocus: clone(event.experience?.communicativeFocus || null),
-        construal: clone(event.experience?.construal || null)
+        responseMode: clean(event.experience?.responseMode),
+        experienceGrounding: clone(event.experience?.experienceGrounding || event.experienceGrounding || null),
+        messageCore: clone(event.experience?.messageCore || event.messageCore || null),
+        communicativeFocus: clone(event.experience?.communicativeFocus || event.communicativeFocus || null),
+        construal: clone(event.experience?.construal || event.communicativeFocus?.construal || null),
+        usageMotivation: clone(event.experience?.usageMotivation || event.usageMotivation || null)
       },
       learnerResponse: {
         rawTranscript: raw,
@@ -301,8 +312,8 @@
     let score = 0;
     const result = object(event.interpreterResult);
     const interpretation = object(result.responseInterpretation || result.observation || result.interpretation);
-    const routePatch = object(result.routePatch);
-    const profilePatch = object(result.profilePatch);
+    const routePatch = routePatchFrom(result);
+    const profilePatch = profilePatchFrom(result);
     const response = object(event.learnerResponse);
 
     if (!event.interpreterResult || event.interpretationStatus === 'pending') score += 90;
@@ -316,7 +327,8 @@
     if (array(routePatch.addPersonalAnchors).length) score += 100;
     if (array(routePatch.addNeighbors).length) score += 82;
     if (array(routePatch.addFailedRoutes).length) score += 86;
-    if (array(routePatch.diagnosticExemplarCandidates).length) score += 80;
+    if (array(routePatch.diagnosticExemplarCandidates).length || object(result.diagnosticExemplarCandidate).retain === true) score += 80;
+    if (array(object(result.evidence).evidenceTypes).some(type => ['spontaneous-production', 'reverse-reconstruction', 'context-transfer', 'sense-transfer', 'free-composition'].includes(clean(type)))) score += 90;
     if (array(profilePatch.candidateTendencies).length) score += 78;
     if (array(profilePatch.constructionEvidence).length) score += 70;
     if (array(profilePatch.styleTendencies).length) score += 70;
@@ -577,11 +589,50 @@
   }
 
   function routePatchFrom(result) {
-    return object(result?.routePatch);
+    const patch = object(result?.routePatch);
+    const operations = array(patch.operations);
+    if (!operations.length) return patch;
+    const normalized = {
+      addPersonalAnchors: [],
+      addNeighbors: [],
+      addConnections: [],
+      addEvidence: [],
+      addFailedRoutes: [],
+      addDomains: [],
+      diagnosticExemplarCandidates: []
+    };
+    operations.forEach(operation => {
+      const op = object(operation);
+      const payload = object(op.payload);
+      switch (clean(op.action)) {
+        case 'ADD_PERSONAL_ANCHOR': normalized.addPersonalAnchors.push(payload); break;
+        case 'ADD_NEIGHBOR': normalized.addNeighbors.push(payload); break;
+        case 'ADD_CONNECTION': normalized.addConnections.push(payload); break;
+        case 'STRENGTHEN_CONNECTION': normalized.addConnections.push(payload); break;
+        case 'ADD_EVIDENCE': normalized.addEvidence.push(payload); break;
+        case 'ADD_FAILED_ROUTE': normalized.addFailedRoutes.push(payload); break;
+        case 'ADD_DOMAIN': normalized.addDomains.push(payload); break;
+        case 'ADD_DIAGNOSTIC_EXEMPLAR_CANDIDATE': normalized.diagnosticExemplarCandidates.push(payload); break;
+      }
+    });
+    return normalized;
   }
 
   function profilePatchFrom(result) {
-    return object(result?.profilePatch);
+    const patch = object(result?.profilePatch);
+    const operations = array(patch.operations);
+    if (!operations.length) return patch;
+    const normalized = { candidateTendencies: [], styleTendencies: [], constructionEvidence: [] };
+    operations.forEach(operation => {
+      const op = object(operation);
+      const payload = object(op.payload);
+      switch (clean(op.action)) {
+        case 'ADD_PROFILE_OBSERVATION': normalized.candidateTendencies.push(payload); break;
+        case 'ADD_STYLE_OBSERVATION': normalized.styleTendencies.push(payload); break;
+        case 'ADD_CONSTRUCTION_EVIDENCE': normalized.constructionEvidence.push(payload); break;
+      }
+    });
+    return normalized;
   }
 
   function applyRoutePatch(record, event, result) {
@@ -593,7 +644,12 @@
     array(patch.addFailedRoutes).forEach(item => mergeFailedRoute(record, item, event));
     array(patch.addDomains).forEach(item => mergeDomain(record, item, event));
 
-    const exemplars = array(patch.diagnosticExemplarCandidates)
+    const topLevelDiagnostic = object(result.diagnosticExemplarCandidate);
+    const diagnosticCandidates = [
+      ...array(patch.diagnosticExemplarCandidates),
+      ...(topLevelDiagnostic.retain === true ? [topLevelDiagnostic] : [])
+    ];
+    const exemplars = diagnosticCandidates
       .filter(item => object(item).retain !== false)
       .map(item => normalizeExemplar(item, event, clean(item.type || 'diagnostic')));
     record.diagnosticExemplars = mergeExemplars(record.diagnosticExemplars, exemplars, ROUTE_EXEMPLAR_LIMIT);
@@ -743,8 +799,11 @@
     events.forEach(raw => {
       const event = normalizeEvent(raw);
       if (!event.interpreterResult || event.interpretationStatus === 'stale-after-correction') return;
-      const confidence = normalizeConfidence(event.interpreterResult?.interpretationConfidence);
-      const allowProfile = event.interpreterResult?.profilePromotionAllowed !== false && confidence !== 'low';
+      const interpretation = object(event.interpreterResult?.interpretation || event.interpreterResult?.responseInterpretation || event.interpreterResult?.observation);
+      const confidence = normalizeConfidence(interpretation.interpretationConfidence || event.interpreterResult?.interpretationConfidence);
+      const evidence = object(event.interpreterResult?.evidence);
+      const promotionFlag = evidence.profilePromotionAllowed ?? event.interpreterResult?.profilePromotionAllowed;
+      const allowProfile = promotionFlag !== false && confidence !== 'low';
       const key = `wid:${event.wordId}`;
       if (!route.records[key]) route.records[key] = blankRouteRecord(event);
       applyRoutePatch(route.records[key], event, event.interpreterResult);
@@ -761,6 +820,13 @@
     if (!id) throw new Error('eventId is required');
     const result = object(interpreterResult);
     if (!Object.keys(result).length) throw new Error('interpreterResult is required');
+    if (result.contract && window.WLPAIStudyContract?.validateInterpreterResponse) {
+      const validation = window.WLPAIStudyContract.validateInterpreterResponse(result);
+      if (!validation.valid) {
+        const details = validation.errors.map(item => `${item.path}: ${item.message}`).join('; ');
+        throw new Error(`Interpreter contract rejected: ${details}`);
+      }
+    }
     const events = readAIEvents();
     const index = events.findIndex(event => clean(event.eventId) === id);
     if (index < 0) throw new Error(`AI Study event not found: ${id}`);
@@ -818,8 +884,9 @@
           experience: clone(event.experience),
           learnerResponse: clone(event.learnerResponse),
           interpretationStatus: event.interpretationStatus,
-          responseInterpretation: clone(event.interpreterResult?.responseInterpretation || event.interpreterResult?.observation || null),
-          routerDecision: clone(event.interpreterResult?.routerDecision || null)
+          responseInterpretation: clone(event.interpreterResult?.interpretation || event.interpreterResult?.responseInterpretation || event.interpreterResult?.observation || null),
+          communicativeInterpretation: clone(event.interpreterResult?.communicativeInterpretation || null),
+          routerDecision: clone(event.interpreterResult?.router || event.interpreterResult?.routerDecision || null)
         };
       });
   }
@@ -833,16 +900,18 @@
         domain: clean(event.experience?.domain),
         direction: clean(event.experience?.direction),
         type: clean(event.experience?.type),
-        targetVisible: Boolean(event.experience?.targetVisible),
+        targetVisibility: normalizeTargetVisibility(event.experience?.targetVisibility ?? event.experience?.targetVisible),
         promptSignature: clampText(event.experience?.prompt, 180),
+        experienceGrounding: clone(event.experience?.experienceGrounding || null),
         messageCore: clone(event.experience?.messageCore || null),
         communicativeFocus: clone(event.experience?.communicativeFocus || null),
-        construal: clone(event.experience?.construal || null)
+        construal: clone(event.experience?.construal || null),
+        usageMotivation: clone(event.experience?.usageMotivation || null)
       })),
       recentDomains: uniqueStrings(events.map(event => event.experience?.domain)),
       recentDirections: uniqueStrings(events.map(event => event.experience?.direction)),
       recentPromptTypes: uniqueStrings(events.map(event => event.experience?.type)),
-      targetVisibilityHistory: events.map(event => event.experience?.targetVisible ? 'visible' : 'hidden')
+      targetVisibilityHistory: events.map(event => normalizeTargetVisibility(event.experience?.targetVisibility ?? event.experience?.targetVisible))
     };
   }
 
@@ -1050,6 +1119,51 @@
     };
   }
 
+  function buildPlannerWriterRequest(input = {}) {
+    const contract = window.WLPAIStudyContract;
+    if (!contract?.createPlannerRequest) throw new Error('AI Study Contract layer is not loaded');
+    const candidateContext = object(input.candidateContext);
+    const request = contract.createPlannerRequest({
+      ...input,
+      session: Object.keys(object(input.session)).length ? input.session : candidateContext.session,
+      learnerSessionState: Object.keys(object(input.learnerSessionState)).length ? input.learnerSessionState : candidateContext.learnerSessionState,
+      candidateContext,
+      targetPackets: array(input.targetPackets)
+    });
+    const validation = contract.validatePlannerRequest(request);
+    if (!validation.valid) {
+      const details = validation.errors.map(item => `${item.path}: ${item.message}`).join('; ');
+      throw new Error(`Planner request rejected: ${details}`);
+    }
+    return request;
+  }
+
+  function buildInterpreterRouterRequest(input = {}) {
+    const contract = window.WLPAIStudyContract;
+    if (!contract?.createInterpreterRequest) throw new Error('AI Study Contract layer is not loaded');
+    const context = object(input.interpretationContext || input.context || input);
+    const relevantState = Object.keys(object(input.relevantState)).length ? input.relevantState : {
+      graph: clone(context.relevantGraphState || {}),
+      learnerProfile: clone(context.relevantLearnerProfile || {}),
+      recentEvidence: clone(context.recentRelatedEvidence || [])
+    };
+    const request = contract.createInterpreterRequest({
+      ...input,
+      session: Object.keys(object(input.session)).length ? input.session : { sessionId: clean(input.sessionId || context.sessionId || input.experience?.sessionId) },
+      target: context.target || input.target,
+      learningOpportunity: context.learningOpportunity ?? input.learningOpportunity ?? null,
+      experience: context.experience ?? input.experience ?? null,
+      learnerResponse: context.learnerResponse || input.learnerResponse,
+      relevantState
+    });
+    const validation = contract.validateInterpreterRequest(request);
+    if (!validation.valid) {
+      const details = validation.errors.map(item => `${item.path}: ${item.message}`).join('; ');
+      throw new Error(`Interpreter request rejected: ${details}`);
+    }
+    return request;
+  }
+
   function exportSnapshot() {
     return {
       format: 'WLP_AI_STUDY_DATA_SNAPSHOT',
@@ -1094,6 +1208,8 @@
     assembleCandidateContext,
     assembleTargetContext,
     assembleInterpretationContext,
+    buildPlannerWriterRequest,
+    buildInterpreterRouterRequest,
     exportSnapshot,
     getStorageSummary
   });

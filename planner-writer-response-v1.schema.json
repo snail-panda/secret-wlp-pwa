@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wlp://schemas/planner-writer-response-v1.schema.json",
+  "title": "WLP Planner + Experience Writer Response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "requestId",
+    "sessionId",
+    "selectedTarget",
+    "learningOpportunity",
+    "experienceGrounding",
+    "messageCore",
+    "communicativeFocus",
+    "usageMotivation",
+    "experience",
+    "naturalnessCheck",
+    "antiRoteCheck"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "contract": {
+      "const": "planner-writer-v1.response"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "selectedTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wordId",
+        "target"
+      ],
+      "properties": {
+        "wordId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetFamily": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "learningOpportunity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "goal",
+        "whyNow"
+      ],
+      "properties": {
+        "direction": {
+          "enum": [
+            "world-to-expression",
+            "expression-to-world",
+            "concept-to-expression",
+            "expression-to-concept",
+            "message-to-expression",
+            "expression-to-message",
+            "neighbor-to-target",
+            "target-to-neighbor",
+            "cross-domain-transfer",
+            "cross-sense-transfer",
+            "free-composition"
+          ]
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 12
+        },
+        "missingOrWeakConnection": {
+          "type": "string"
+        },
+        "whyNow": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    },
+    "experienceGrounding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "worldState"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "experiential",
+            "situational",
+            "conceptual",
+            "procedural",
+            "terminological",
+            "contrastive",
+            "discourse"
+          ]
+        },
+        "worldState": {
+          "type": "string",
+          "minLength": 20
+        },
+        "observableChange": {
+          "type": "string"
+        },
+        "salientChange": {
+          "type": "string"
+        },
+        "whyThisMatters": {
+          "type": "string"
+        }
+      }
+    },
+    "messageCore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 12
+        }
+      }
+    },
+    "communicativeFocus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "foreground",
+        "speakerIntent"
+      ],
+      "properties": {
+        "foreground": {
+          "type": "string",
+          "minLength": 4
+        },
+        "background": {
+          "type": "string"
+        },
+        "speakerIntent": {
+          "type": "string",
+          "minLength": 6
+        },
+        "construal": {
+          "type": "string"
+        }
+      }
+    },
+    "usageMotivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "communicativeNeed",
+        "targetContribution",
+        "whyThisExpressionNow",
+        "motivationStrength"
+      ],
+      "properties": {
+        "communicativeNeed": {
+          "type": "string",
+          "minLength": 10
+        },
+        "discourseTrigger": {
+          "type": "string"
+        },
+        "perspectiveShift": {
+          "type": "string"
+        },
+        "targetContribution": {
+          "type": "string",
+          "minLength": 10
+        },
+        "whyThisExpressionNow": {
+          "type": "string",
+          "minLength": 10
+        },
+        "motivationStrength": {
+          "enum": [
+            "weak",
+            "natural",
+            "strong"
+          ]
+        }
+      }
+    },
+    "experience": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experienceId",
+        "type",
+        "domain",
+        "targetVisibility",
+        "prompt",
+        "responseMode"
+      ],
+      "properties": {
+        "experienceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "situational-production",
+            "reverse-reconstruction",
+            "open-description",
+            "dialogue",
+            "micro-story",
+            "contrast",
+            "continuation",
+            "cloze",
+            "reformulation",
+            "free-composition",
+            "multi-expression-composition"
+          ]
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetVisibility": {
+          "enum": [
+            "hidden",
+            "visible",
+            "partial"
+          ]
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 8
+        },
+        "responseMode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptableSemanticTerritory": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "anticipatedNaturalAlternatives": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "naturalnessCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targetNaturalness",
+        "targetIsNaturalForExperience",
+        "targetIsRequired"
+      ],
+      "properties": {
+        "targetNaturalness": {
+          "enum": [
+            "merely-possible",
+            "natural",
+            "strongly-motivated"
+          ]
+        },
+        "targetIsNaturalForExperience": {
+          "type": "boolean"
+        },
+        "targetIsRequired": {
+          "type": "boolean"
+        },
+        "strongerDefaultAlternative": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "otherNaturalExpressions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "wouldACommonSpeakerPreferAnotherExpression": {
+          "type": "boolean"
+        }
+      }
+    },
+    "antiRoteCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "duplicatesRecentRoute",
+        "duplicatesRecentFrame"
+      ],
+      "properties": {
+        "duplicatesRecentRoute": {
+          "type": "boolean"
+        },
+        "duplicatesRecentFrame": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
