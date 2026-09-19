@@ -7,8 +7,13 @@
   const STUDYQ_EVENT_LIMIT = 1200;
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const STUDYQ_SESSION_LIMIT = 80;
+  const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const STUDYQ_UA = navigator.userAgent || '';
+  const STUDYQ_IS_IOS = /iPad|iPhone|iPod/i.test(STUDYQ_UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const STUDYQ_IS_IOS_SAFARI = STUDYQ_IS_IOS && /Safari/i.test(STUDYQ_UA) && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|Brave/i.test(STUDYQ_UA);
+  const STUDYQ_IS_IOS_CHROME = STUDYQ_IS_IOS && /CriOS/i.test(STUDYQ_UA);
 
   let rows = [];
   let rowByWordId = new Map();
@@ -24,11 +29,16 @@
   let currentAttempt = null;
   let currentSessionId = '';
   let currentSessionStartedAt = '';
+  let currentSessionPlannedCount = 0;
   let viewingSavedSession = false;
   let deckPickerTargetId = '';
+  let deckPickerMode = 'wheel';
+  let deckPickerMajorRange = null;
+  let deckPickerMinorRange = null;
   let studyVoiceRecognition = null;
   let studyVoiceListening = false;
   let studyVoiceTimeout = 0;
+  let studyVoiceMicPrimed = false;
 
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
@@ -565,36 +575,62 @@
     } catch { return []; }
   }
 
-  function deckPreview(deck) {
-    const words = rows.filter(row => Number(row['Batch #']) === Number(deck)).map(row => clean(row.Word)).filter(Boolean).slice(0, 3);
-    return words.length ? words.join(' · ') : 'Open this deck';
+  function readDeckPickerMode() {
+    const saved = clean(localStorage.getItem(DECK_PICKER_MODE_KEY));
+    return saved === 'browse' ? 'browse' : 'wheel';
   }
 
-  function populateDeckPickerOptions() {
+  function pickerMinimumDeck() {
+    if (deckPickerTargetId !== 'study-range-end') return 1;
+    return clampDeck($('study-range-start')?.value || 1);
+  }
+
+  function availableDeckNumbers(minimum = 1) {
+    return Array.from(new Set(rows.map(row => Number(row['Batch #']) || 0).filter(deck => deck >= minimum))).sort((a, b) => a - b);
+  }
+
+  function populateDeckPickerOptions(selectedDeck = 1) {
     const select = $('study-deck-picker-select');
     if (!select) return;
-    const decks = Array.from(new Set(rows.map(row => Number(row['Batch #']) || 0).filter(Boolean))).sort((a, b) => a - b);
+    const minimum = pickerMinimumDeck();
+    const decks = availableDeckNumbers(minimum);
     select.replaceChildren(...decks.map(deck => {
       const option = document.createElement('option');
       option.value = String(deck);
-      option.textContent = `WLP${padDeck(deck)} · ${deckPreview(deck)}`;
+      option.textContent = `WLP${padDeck(deck)}`;
       return option;
     }));
+    const safeSelected = Math.max(minimum, clampDeck(selectedDeck));
+    if (decks.includes(safeSelected)) select.value = String(safeSelected);
+    else if (decks.length) select.value = String(decks[0]);
+  }
+
+  function selectedPickerDeck() {
+    const select = $('study-deck-picker-select');
+    return clampDeck(select?.value || pickerMinimumDeck());
   }
 
   function updateDeckPickerPreview() {
-    const deck = clampDeck($('study-deck-picker-select').value);
-    $('study-deck-picker-preview').textContent = `WLP${padDeck(deck)} · ${deckPreview(deck)}`;
+    const deck = selectedPickerDeck();
+    const minimum = pickerMinimumDeck();
+    const preview = $('study-deck-picker-preview');
+    if (preview) {
+      preview.textContent = deckPickerTargetId === 'study-range-end' && minimum > 1
+        ? `Range end · WLP${padDeck(deck)} (from WLP${padDeck(minimum)})`
+        : `Selected · WLP${padDeck(deck)}`;
+    }
     $('study-deck-picker-recent-list')?.querySelectorAll('button').forEach(button => {
       button.classList.toggle('is-selected', Number(button.dataset.deck) === deck);
     });
+    renderDeckPickerBrowseSelection();
   }
 
   function renderDeckPickerRecent(selectedDeck) {
     const wrap = $('study-deck-picker-recent');
     const list = $('study-deck-picker-recent-list');
     if (!wrap || !list) return;
-    const recent = readRecentDecks().slice(0, 8);
+    const minimum = pickerMinimumDeck();
+    const recent = readRecentDecks().filter(deck => deck >= minimum).slice(0, 8);
     list.replaceChildren();
     wrap.hidden = !recent.length;
     recent.forEach(deck => {
@@ -611,36 +647,187 @@
     });
   }
 
+  function setDeckPickerMode(mode, { remember = true } = {}) {
+    deckPickerMode = mode === 'browse' ? 'browse' : 'wheel';
+    document.querySelectorAll('[data-deck-picker-mode]').forEach(button => {
+      const selected = button.dataset.deckPickerMode === deckPickerMode;
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    $('study-deck-picker-wheel').hidden = deckPickerMode !== 'wheel';
+    $('study-deck-picker-browse').hidden = deckPickerMode !== 'browse';
+    if (remember) {
+      try { localStorage.setItem(DECK_PICKER_MODE_KEY, deckPickerMode); } catch (_) {}
+    }
+    if (deckPickerMode === 'browse') renderDeckPickerBrowse();
+  }
+
+  function pickerMajorFor(deck) {
+    const start = Math.floor((Math.max(1, deck) - 1) / 50) * 50 + 1;
+    return { start, end: Math.min(start + 49, maxDeck) };
+  }
+
+  function pickerMinorFor(deck, major) {
+    const start = Math.floor((Math.max(major.start, deck) - major.start) / 10) * 10 + major.start;
+    return { start, end: Math.min(start + 9, major.end) };
+  }
+
+  function resetDeckPickerBrowse(selectedDeck, focusNearSelected = false) {
+    deckPickerMajorRange = null;
+    deckPickerMinorRange = null;
+    if (focusNearSelected) {
+      deckPickerMajorRange = pickerMajorFor(selectedDeck);
+      deckPickerMinorRange = pickerMinorFor(selectedDeck, deckPickerMajorRange);
+    }
+    renderDeckPickerBrowse();
+  }
+
+  function deckPickerRangeButton(start, end, level) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'study-deck-picker-range-card';
+    button.innerHTML = `<strong>WLP${padDeck(start)}–${padDeck(end)}</strong><span>${level === 'major' ? '50-deck range' : '10-deck group'}</span>`;
+    button.addEventListener('click', () => {
+      if (level === 'major') {
+        deckPickerMajorRange = { start, end };
+        deckPickerMinorRange = null;
+      } else {
+        deckPickerMinorRange = { start, end };
+      }
+      renderDeckPickerBrowse();
+    });
+    return button;
+  }
+
+  function renderDeckPickerBreadcrumbs() {
+    const crumbs = $('study-deck-picker-breadcrumbs');
+    if (!crumbs) return;
+    crumbs.replaceChildren();
+    if (!deckPickerMajorRange) {
+      crumbs.hidden = true;
+      return;
+    }
+    crumbs.hidden = false;
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.textContent = 'All ranges';
+    all.addEventListener('click', () => {
+      deckPickerMajorRange = null;
+      deckPickerMinorRange = null;
+      renderDeckPickerBrowse();
+    });
+    crumbs.append(all);
+    const sep = document.createElement('span');
+    sep.textContent = '›';
+    crumbs.append(sep);
+    const major = document.createElement('button');
+    major.type = 'button';
+    major.textContent = `${padDeck(deckPickerMajorRange.start)}–${padDeck(deckPickerMajorRange.end)}`;
+    major.addEventListener('click', () => { deckPickerMinorRange = null; renderDeckPickerBrowse(); });
+    crumbs.append(major);
+    if (deckPickerMinorRange) {
+      const sep2 = document.createElement('span');
+      sep2.textContent = '›';
+      crumbs.append(sep2);
+      const minor = document.createElement('span');
+      minor.textContent = `${padDeck(deckPickerMinorRange.start)}–${padDeck(deckPickerMinorRange.end)}`;
+      crumbs.append(minor);
+    }
+  }
+
+  function renderDeckPickerBrowseSelection() {
+    const selected = selectedPickerDeck();
+    $('study-deck-picker-grid')?.querySelectorAll('[data-picker-deck]').forEach(button => {
+      button.classList.toggle('is-selected', Number(button.dataset.pickerDeck) === selected);
+    });
+  }
+
+  function renderDeckPickerBrowse() {
+    const grid = $('study-deck-picker-grid');
+    const meta = $('study-deck-picker-browse-meta');
+    const back = $('study-deck-picker-browse-back');
+    if (!grid || !meta || !back) return;
+    const minimum = pickerMinimumDeck();
+    grid.replaceChildren();
+    renderDeckPickerBreadcrumbs();
+
+    if (!deckPickerMajorRange) {
+      meta.textContent = minimum > 1 ? `Choose a 50-deck range · WLP${padDeck(minimum)} or later` : 'Choose a 50-deck range';
+      back.hidden = true;
+      const firstMajorStart = Math.floor((minimum - 1) / 50) * 50 + 1;
+      for (let start = firstMajorStart; start <= maxDeck; start += 50) {
+        const end = Math.min(start + 49, maxDeck);
+        if (end < minimum) continue;
+        grid.append(deckPickerRangeButton(start, end, 'major'));
+      }
+      return;
+    }
+
+    back.hidden = false;
+    if (!deckPickerMinorRange) {
+      meta.textContent = `Choose a 10-deck group inside WLP${padDeck(deckPickerMajorRange.start)}–${padDeck(deckPickerMajorRange.end)}`;
+      for (let start = deckPickerMajorRange.start; start <= deckPickerMajorRange.end; start += 10) {
+        const end = Math.min(start + 9, deckPickerMajorRange.end);
+        if (end < minimum) continue;
+        grid.append(deckPickerRangeButton(start, end, 'minor'));
+      }
+      return;
+    }
+
+    meta.textContent = `Choose a deck · WLP${padDeck(deckPickerMinorRange.start)}–${padDeck(deckPickerMinorRange.end)}`;
+    availableDeckNumbers(minimum)
+      .filter(deck => deck >= deckPickerMinorRange.start && deck <= deckPickerMinorRange.end)
+      .forEach(deck => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'study-deck-picker-deck-button';
+        button.dataset.pickerDeck = String(deck);
+        button.textContent = `WLP${padDeck(deck)}`;
+        button.classList.toggle('is-selected', deck === selectedPickerDeck());
+        button.addEventListener('click', () => {
+          $('study-deck-picker-select').value = String(deck);
+          updateDeckPickerPreview();
+        });
+        grid.append(button);
+      });
+  }
+
   function openDeckPicker(targetId) {
     const target = $(targetId);
     if (!target || !$('study-deck-picker-modal')) return;
     deckPickerTargetId = targetId;
-    const selected = clampDeck(target.value);
+    const minimum = pickerMinimumDeck();
+    let selected = Math.max(minimum, clampDeck(target.value));
+    if (targetId === 'study-range-end') selected = Math.max(selected, clampDeck($('study-range-start').value));
     const labels = {
       'study-deck': 'Choose a deck',
       'study-range-start': 'Choose range start',
       'study-range-end': 'Choose range end'
     };
     $('study-deck-picker-title').textContent = labels[targetId] || 'Choose deck';
-    $('study-deck-picker-select').value = String(selected);
+    populateDeckPickerOptions(selected);
     renderDeckPickerRecent(selected);
     updateDeckPickerPreview();
+    resetDeckPickerBrowse(selected, targetId === 'study-range-end');
+    setDeckPickerMode(readDeckPickerMode(), { remember: false });
     $('study-deck-picker-modal').hidden = false;
     document.body.classList.add('study-deck-picker-open');
-    setTimeout(() => $('study-deck-picker-select').focus({ preventScroll: true }), 0);
+    if (deckPickerMode === 'wheel') setTimeout(() => $('study-deck-picker-select').focus({ preventScroll: true }), 0);
   }
 
   function closeDeckPicker() {
     $('study-deck-picker-modal').hidden = true;
     document.body.classList.remove('study-deck-picker-open');
     deckPickerTargetId = '';
+    deckPickerMajorRange = null;
+    deckPickerMinorRange = null;
   }
 
   function useDeckPicker() {
     if (!deckPickerTargetId) return closeDeckPicker();
     const target = $(deckPickerTargetId);
     if (!target) return closeDeckPicker();
-    const deck = clampDeck($('study-deck-picker-select').value);
+    const deck = selectedPickerDeck();
     target.value = String(deck);
     target.dispatchEvent(new Event('input', { bubbles: true }));
     target.dispatchEvent(new Event('change', { bubbles: true }));
@@ -839,29 +1026,60 @@
     };
   }
 
-  function persistCurrentSession() {
-    if (!currentSessionId || !sessionQueue.length || viewingSavedSession) return null;
+  function attemptHasActivity(attempt) {
+    if (!attempt || typeof attempt !== 'object') return false;
+    return Boolean(
+      clean(attempt.responseText) ||
+      attempt.communicativeNeedShown ||
+      Number(attempt.hintCount) > 0 ||
+      attempt.targetShown ||
+      clean(attempt.selfRating)
+    );
+  }
+
+  function attemptedSessionSlices() {
+    const queue = [];
+    const attempts = [];
+    sessionQueue.forEach((item, index) => {
+      const attempt = sessionAttempts[index];
+      if (!attemptHasActivity(attempt)) return;
+      queue.push(item);
+      attempts.push(attempt);
+    });
+    return { queue, attempts };
+  }
+
+  function sessionTimestampValue(session) {
+    return new Date(session?.completedAt || session?.endedAt || session?.startedAt || 0).getTime() || 0;
+  }
+
+  function persistCurrentSession({ status = 'completed', queue = sessionQueue, attempts = sessionAttempts, plannedCount = currentSessionPlannedCount || sessionQueue.length } = {}) {
+    if (!currentSessionId || !queue.length || viewingSavedSession) return null;
     const now = new Date().toISOString();
-    const counts = ratingCounts(sessionAttempts);
-    const decks = Array.from(new Set(sessionQueue.map(item => Number(item.row?.['Batch #']) || 0).filter(Boolean)));
-    const hintCount = sessionAttempts.reduce((sum, attempt) => sum + (Number(attempt?.hintCount) || 0), 0);
-    const elapsedMs = sessionAttempts.reduce((sum, attempt) => sum + (Number(attempt?.elapsedMs) || 0), 0);
+    const counts = ratingCounts(attempts);
+    const decks = Array.from(new Set(queue.map(item => Number(item.row?.['Batch #']) || 0).filter(Boolean)));
+    const hintCount = attempts.reduce((sum, attempt) => sum + (Number(attempt?.hintCount) || 0), 0);
+    const elapsedMs = attempts.reduce((sum, attempt) => sum + (Number(attempt?.elapsedMs) || 0), 0);
+    const isComplete = status === 'completed';
     const record = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       sessionId: currentSessionId,
+      status,
       startedAt: currentSessionStartedAt || now,
-      completedAt: now,
+      completedAt: isComplete ? now : '',
+      endedAt: isComplete ? '' : now,
       sourceMode: lastSessionSpec?.mode || sourceMode,
       sourceLabel: sourceLabel(lastSessionSpec?.mode || sourceMode),
       coverageMode: lastSessionSpec?.coverage || coverageMode,
       spec: lastSessionSpec ? { ...lastSessionSpec } : null,
-      experienceCount: sessionQueue.length,
-      wordIds: sessionQueue.map(item => clean(item.wordId)).filter(Boolean),
+      experienceCount: queue.length,
+      plannedExperienceCount: Math.max(queue.length, Number(plannedCount) || queue.length),
+      wordIds: queue.map(item => clean(item.wordId)).filter(Boolean),
       decks,
       counts,
       hintCount,
       elapsedMs,
-      experiences: sessionQueue.map((item, index) => compactExperience(item, sessionAttempts[index] || {}))
+      experiences: queue.map((item, index) => compactExperience(item, attempts[index] || {}))
     };
     const sessions = readStudySessions();
     const index = sessions.findIndex(item => item?.sessionId === currentSessionId);
@@ -891,7 +1109,7 @@
     const section = $('study-history');
     const list = $('study-history-list');
     if (!section || !list) return;
-    const sessions = readStudySessions().sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0)).slice(0, 5);
+    const sessions = readStudySessions().sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a)).slice(0, 5);
     list.replaceChildren();
     section.hidden = !sessions.length;
     sessions.forEach(session => {
@@ -904,11 +1122,15 @@
       const source = document.createElement('strong');
       source.textContent = clean(session.sourceLabel) || 'Study Q';
       const when = document.createElement('time');
-      when.textContent = formatSessionWhen(session.completedAt);
+      when.textContent = formatSessionWhen(session.completedAt || session.endedAt || session.startedAt);
       top.append(source, when);
       const meta = document.createElement('small');
       const ratings = sessionRatingSummary(session.counts || {});
-      meta.textContent = `${Number(session.experienceCount) || session.experiences?.length || 0} experiences${ratings ? ` · ${ratings}` : ''}`;
+      const count = Number(session.experienceCount) || session.experiences?.length || 0;
+      const planned = Number(session.plannedExperienceCount) || count;
+      const status = clean(session.status);
+      const statusText = status === 'ended-early' ? `Ended early · ${count}/${planned}` : status === 'incomplete' ? `Left early · ${count}/${planned}` : `${count} experiences`;
+      meta.textContent = `${statusText}${ratings ? ` · ${ratings}` : ''}`;
       button.append(top, meta);
       list.append(button);
     });
@@ -945,13 +1167,18 @@
     currentSessionStartedAt = clean(record.startedAt);
     lastSessionSpec = record.spec && typeof record.spec === 'object' ? { ...record.spec } : null;
     sessionQueue = record.experiences.map(itemFromSavedExperience);
+    currentSessionPlannedCount = Number(record.plannedExperienceCount) || sessionQueue.length;
     sessionAttempts = record.experiences.map(experience => ({ ...experience.attempt, _elapsedBaseMs: Number(experience.attempt?.elapsedMs) || 0, _visitStartedMs: Date.now() }));
     sessionIndex = Math.max(0, sessionQueue.length - 1);
     currentAttempt = sessionAttempts[sessionIndex] || null;
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = true;
     $('study-finished').hidden = false;
-    $('study-finished-copy').textContent = `Saved session · ${clean(record.sourceLabel) || 'Study Q'} · ${formatSessionWhen(record.completedAt)}.`;
+    const savedStatus = clean(record.status);
+    const savedCount = Number(record.experienceCount) || sessionQueue.length;
+    const savedPlanned = Number(record.plannedExperienceCount) || savedCount;
+    $('study-finished').querySelector('h2').textContent = savedStatus === 'completed' || !savedStatus ? 'You finished this set.' : 'Saved partial session.';
+    $('study-finished-copy').textContent = `Saved session · ${clean(record.sourceLabel) || 'Study Q'} · ${formatSessionWhen(record.completedAt || record.endedAt || record.startedAt)}${savedStatus && savedStatus !== 'completed' ? ` · ${savedCount}/${savedPlanned} experiences` : ''}.`;
     const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
     $('study-finished-summary').textContent = `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`;
@@ -1550,16 +1777,99 @@
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = true;
     $('study-finished').hidden = false;
+    $('study-finished').querySelector('h2').textContent = 'You finished this set.';
     $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} ${sessionQueue.length === 1 ? 'experience' : 'experiences'} from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
     const counts = ratingCounts(sessionAttempts);
     const summary = sessionRatingSummary(counts);
-    const record = persistCurrentSession();
+    const record = persistCurrentSession({ status: 'completed' });
     $('study-finished-summary').hidden = false;
     $('study-finished-summary').textContent = `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved on this device.`;
     renderFinishedDeckLinks();
     renderSessionReview();
     renderRecentSessions();
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeEndSessionDialog() {
+    const modal = $('study-end-session-modal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove('study-end-session-open');
+  }
+
+  function openEndSessionDialog() {
+    if (viewingSavedSession || !sessionQueue.length) return;
+    const item = sessionQueue[sessionIndex];
+    if (item && currentAttempt) snapshotResponse(item);
+    const attempted = attemptedSessionSlices();
+    const count = attempted.queue.length;
+    const planned = currentSessionPlannedCount || sessionQueue.length;
+    const copy = $('study-end-session-copy');
+    if (copy) {
+      copy.textContent = count
+        ? `${count} of ${planned} experiences have activity. End now and save that work as a partial session?`
+        : 'No experience has activity yet. You can end now without saving a session.';
+    }
+    const save = $('study-end-session-save');
+    if (save) save.textContent = count ? `End & save ${count}/${planned}` : 'End session';
+    $('study-end-session-modal').hidden = false;
+    document.body.classList.add('study-end-session-open');
+  }
+
+  function endSessionEarly() {
+    if (viewingSavedSession) return closeEndSessionDialog();
+    const item = sessionQueue[sessionIndex];
+    if (item && currentAttempt) {
+      snapshotResponse(item);
+      if (attemptHasActivity(currentAttempt)) persistAttempt(currentAttempt, true);
+    }
+    const attempted = attemptedSessionSlices();
+    const planned = currentSessionPlannedCount || sessionQueue.length;
+    closeEndSessionDialog();
+
+    if (!attempted.queue.length) {
+      $('study-experience').hidden = true;
+      $('study-finished').hidden = true;
+      $('study-start-panel').hidden = false;
+      renderRecentSessions();
+      document.querySelector('.study-hub-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    sessionQueue = attempted.queue;
+    sessionAttempts = attempted.attempts;
+    sessionIndex = Math.max(0, sessionQueue.length - 1);
+    currentAttempt = sessionAttempts[sessionIndex] || null;
+    const record = persistCurrentSession({ status: 'ended-early', queue: sessionQueue, attempts: sessionAttempts, plannedCount: planned });
+    $('study-experience').hidden = true;
+    $('study-start-panel').hidden = true;
+    $('study-finished').hidden = false;
+    $('study-finished').querySelector('h2').textContent = 'Session ended.';
+    $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} of ${planned} experiences from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
+    const summary = sessionRatingSummary(ratingCounts(sessionAttempts));
+    $('study-finished-summary').hidden = false;
+    $('study-finished-summary').textContent = `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Partial session saved on this device.`;
+    renderFinishedDeckLinks();
+    renderSessionReview();
+    renderRecentSessions();
+    $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function autosavePartialSessionOnLeave() {
+    if (viewingSavedSession || !currentSessionId || !$('study-experience') || $('study-experience').hidden) return;
+    const item = sessionQueue[sessionIndex];
+    if (item && currentAttempt) {
+      snapshotResponse(item);
+      if (attemptHasActivity(currentAttempt)) persistAttempt(currentAttempt, false);
+    }
+    const attempted = attemptedSessionSlices();
+    if (!attempted.queue.length) return;
+    persistCurrentSession({
+      status: 'incomplete',
+      queue: attempted.queue,
+      attempts: attempted.attempts,
+      plannedCount: currentSessionPlannedCount || sessionQueue.length
+    });
   }
 
   function startSession() {
@@ -1575,6 +1885,7 @@
       size
     };
     sessionQueue = buildQueue(currentPool, size, sourceMode);
+    currentSessionPlannedCount = sessionQueue.length;
     sessionIndex = 0;
     sessionAttempts = [];
     currentAttempt = null;
@@ -1614,16 +1925,49 @@
     help.innerHTML = '';
   }
 
-  function showStudyVoiceHelp(message, permission = false) {
+  function studyVoiceBrowserName() {
+    if (STUDYQ_IS_IOS_SAFARI) return 'Safari';
+    if (STUDYQ_IS_IOS_CHROME) return 'Chrome';
+    if (/Brave/i.test(STUDYQ_UA)) return 'Brave';
+    if (/FxiOS|Firefox/i.test(STUDYQ_UA)) return 'Firefox';
+    return 'this browser';
+  }
+
+  function showStudyVoiceHelp(message, permission = false, errorCode = '') {
     const help = $('study-response-voice-help');
     if (!help) return;
     if (permission) {
-      help.innerHTML = `<strong>Microphone permission is blocked for this site.</strong><br>In Chrome on iPhone, tap the microphone/camera icon at the left of the address bar and turn site Permissions on. Also check iPhone Settings → Chrome → Microphone and Speech Recognition.<br><button type="button">Dismiss</button>`;
+      const browser = studyVoiceBrowserName();
+      const code = clean(errorCode);
+      if (STUDYQ_IS_IOS_SAFARI) {
+        const micLine = studyVoiceMicPrimed
+          ? 'Safari was able to access the microphone, but its speech-recognition service still did not start.'
+          : 'Safari could not start voice input. This does not always mean the site microphone setting is wrong.';
+        help.innerHTML = `<strong>Voice input could not start in Safari.</strong><br>${micLine}${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br><br>Check Safari’s Page Menu → … → Website Settings → Microphone → Ask or Allow. Also check iPhone Settings → General → Keyboard → Enable Dictation.<br><br>If those are already enabled and it still fails, this can be Safari/WebKit speech-recognition behavior rather than your WLP setting. Chrome can be used for Study Q voice input for now.<br><button type="button">Dismiss</button>`;
+      } else if (STUDYQ_IS_IOS_CHROME) {
+        help.innerHTML = `<strong>Voice input could not start in Chrome.</strong>${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br>Check the site microphone prompt/permission and iPhone Settings → Apps → Chrome → Microphone. Then try Speak answer again.<br><button type="button">Dismiss</button>`;
+      } else {
+        help.innerHTML = `<strong>Voice input could not start in ${browser}.</strong>${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br>Check this browser’s microphone and speech-recognition permissions, then try again.<br><button type="button">Dismiss</button>`;
+      }
       help.querySelector('button')?.addEventListener('click', hideStudyVoiceHelp);
     } else {
       help.textContent = message || 'Voice input could not hear that. Try again.';
     }
     help.hidden = false;
+  }
+
+  async function primeSafariMicrophone() {
+    studyVoiceMicPrimed = false;
+    if (!STUDYQ_IS_IOS_SAFARI || !navigator.mediaDevices?.getUserMedia) return { ok: true };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      studyVoiceMicPrimed = true;
+      stream.getTracks().forEach(track => track.stop());
+      await new Promise(resolve => setTimeout(resolve, 220));
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error };
+    }
   }
 
   function setStudyVoiceListening(listening) {
@@ -1673,13 +2017,20 @@
     if (!button || !StudySpeechRecognition) return;
     button.hidden = false;
     button.setAttribute('aria-pressed', 'false');
-    button.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (studyVoiceListening && studyVoiceRecognition) {
-        try { studyVoiceRecognition.stop(); } catch (_) {}
-        return;
+
+    const beginRecognition = async () => {
+      hideStudyVoiceHelp();
+      if (STUDYQ_IS_IOS_SAFARI) {
+        const primed = await primeSafariMicrophone();
+        if (!primed.ok) {
+          const code = clean(primed.error?.name || primed.error?.message || 'microphone-not-available');
+          showStudyVoiceHelp('', true, code);
+          return;
+        }
+      } else {
+        studyVoiceMicPrimed = false;
       }
+
       try {
         const recognition = new StudySpeechRecognition();
         studyVoiceRecognition = recognition;
@@ -1703,10 +2054,10 @@
           studyVoiceRecognition = null;
           if (event?.error === 'aborted' || event?.error === 'no-speech') return;
           if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
-            showStudyVoiceHelp('', true);
+            showStudyVoiceHelp('', true, event?.error || 'not-allowed');
             return;
           }
-          showStudyVoiceHelp('Voice input could not hear that. Try again.');
+          showStudyVoiceHelp(`Voice input could not start (${clean(event?.error) || 'unknown error'}). Try again.`);
         };
         recognition.onresult = event => {
           const transcript = clean(event?.results?.[0]?.[0]?.transcript);
@@ -1719,8 +2070,18 @@
         console.error('Study Q voice input could not start:', error);
         setStudyVoiceListening(false);
         studyVoiceRecognition = null;
-        showStudyVoiceHelp('Voice input is unavailable right now.');
+        showStudyVoiceHelp('', true, clean(error?.name || error?.message || 'unavailable'));
       }
+    };
+
+    button.addEventListener('click', async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (studyVoiceListening && studyVoiceRecognition) {
+        try { studyVoiceRecognition.stop(); } catch (_) {}
+        return;
+      }
+      await beginRecognition();
     });
     window.addEventListener('pagehide', stopStudyVoice);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopStudyVoice(); });
@@ -1729,7 +2090,13 @@
   function installEvents() {
     document.querySelectorAll('[data-source-mode]').forEach(button => button.addEventListener('click', () => setSourceMode(button.dataset.sourceMode)));
     document.querySelectorAll('[data-deck-picker-target]').forEach(button => button.addEventListener('click', () => openDeckPicker(button.dataset.deckPickerTarget)));
+    document.querySelectorAll('[data-deck-picker-mode]').forEach(button => button.addEventListener('click', () => setDeckPickerMode(button.dataset.deckPickerMode)));
     $('study-deck-picker-select').addEventListener('change', updateDeckPickerPreview);
+    $('study-deck-picker-browse-back').addEventListener('click', () => {
+      if (deckPickerMinorRange) deckPickerMinorRange = null;
+      else deckPickerMajorRange = null;
+      renderDeckPickerBrowse();
+    });
     $('study-deck-picker-close').addEventListener('click', closeDeckPicker);
     $('study-deck-picker-cancel').addEventListener('click', closeDeckPicker);
     $('study-deck-picker-use').addEventListener('click', useDeckPicker);
@@ -1756,6 +2123,10 @@
     });
     $('study-open-card').addEventListener('click', () => openQuickCard($('study-open-card').dataset.wordId));
     document.querySelectorAll('[data-study-rating]').forEach(button => button.addEventListener('click', () => setSelfRating(button.dataset.studyRating)));
+    $('study-end-session').addEventListener('click', openEndSessionDialog);
+    $('study-end-session-keep').addEventListener('click', closeEndSessionDialog);
+    $('study-end-session-save').addEventListener('click', endSessionEarly);
+    $('study-end-session-modal').addEventListener('click', event => { if (event.target === $('study-end-session-modal')) closeEndSessionDialog(); });
     $('study-previous').addEventListener('click', previousExperience);
     $('study-next').addEventListener('click', nextExperience);
     $('study-again').addEventListener('click', restoreSessionSpecAndRestart);
@@ -1771,9 +2142,11 @@
     });
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
-      if (!$('study-deck-picker-modal').hidden) closeDeckPicker();
+      if (!$('study-end-session-modal').hidden) closeEndSessionDialog();
+      else if (!$('study-deck-picker-modal').hidden) closeDeckPicker();
       else if (!$('study-quick-card-modal').hidden) closeQuickCard();
     });
+    window.addEventListener('pagehide', autosavePartialSessionOnLeave);
     installStudyVoice();
   }
 

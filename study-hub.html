@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r7">
+  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r8">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -103,7 +103,7 @@
 
       <section class="study-start-panel" id="study-start-panel">
         <button type="button" class="study-start-button" id="study-start" disabled>Start Experience</button>
-        <p id="study-start-note">Study Q activity and completed sessions are saved on this device. Your self-check does not change Review attention yet.</p>
+        <p id="study-start-note">Study Q activity, completed sessions, and partial sessions are saved on this device. Your self-check does not change Review attention yet.</p>
       </section>
 
       <section class="study-history" id="study-history" hidden>
@@ -118,6 +118,7 @@
         <div class="study-experience-topline">
           <span class="study-experience-source" id="study-experience-source">Review</span>
           <div class="study-experience-topline-right">
+            <button class="study-end-session-button" type="button" id="study-end-session">End session</button>
             <button class="study-previous-button" type="button" id="study-previous" hidden>← Previous</button>
             <span class="study-experience-progress" id="study-experience-progress">1 / 1</span>
           </div>
@@ -269,14 +270,40 @@
         <span>Recent decks</span>
         <div id="study-deck-picker-recent-list"></div>
       </div>
-      <label class="study-deck-picker-select-wrap">
-        <span>All decks</span>
-        <select id="study-deck-picker-select" aria-label="Choose a WLP deck"></select>
-      </label>
-      <p class="study-deck-picker-preview" id="study-deck-picker-preview"></p>
+      <div class="study-deck-picker-methods" role="group" aria-label="Deck picker method">
+        <button type="button" class="is-active" data-deck-picker-mode="wheel" aria-pressed="true">Quick wheel</button>
+        <button type="button" data-deck-picker-mode="browse" aria-pressed="false">Browse ranges</button>
+      </div>
+      <div class="study-deck-picker-wheel" id="study-deck-picker-wheel">
+        <label class="study-deck-picker-select-wrap">
+          <span>All decks</span>
+          <select id="study-deck-picker-select" aria-label="Choose a WLP deck"></select>
+        </label>
+        <p class="study-deck-picker-preview" id="study-deck-picker-preview"></p>
+      </div>
+      <div class="study-deck-picker-browse" id="study-deck-picker-browse" hidden>
+        <div class="study-deck-picker-browse-head">
+          <span id="study-deck-picker-browse-meta">Choose a 50-deck range</span>
+          <button type="button" id="study-deck-picker-browse-back" hidden>Back</button>
+        </div>
+        <div class="study-deck-picker-breadcrumbs" id="study-deck-picker-breadcrumbs" hidden></div>
+        <div class="study-deck-picker-grid" id="study-deck-picker-grid"></div>
+      </div>
       <div class="study-deck-picker-actions">
         <button type="button" id="study-deck-picker-cancel">Cancel</button>
         <button type="button" id="study-deck-picker-use">Use this deck</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="study-end-session-modal" id="study-end-session-modal" hidden>
+    <section class="study-end-session-panel" role="dialog" aria-modal="true" aria-labelledby="study-end-session-title">
+      <span class="section-kicker">Study Q</span>
+      <h2 id="study-end-session-title">End this session?</h2>
+      <p id="study-end-session-copy">Your completed work so far will be saved.</p>
+      <div class="study-end-session-actions">
+        <button type="button" id="study-end-session-keep">Keep practicing</button>
+        <button type="button" id="study-end-session-save">End &amp; save</button>
       </div>
     </section>
   </div>
@@ -301,7 +328,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r7"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r8"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

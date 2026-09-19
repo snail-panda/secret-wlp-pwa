@@ -229,3 +229,33 @@ body.study-quick-card-open{overflow:hidden}
 .study-deck-picker-actions #study-deck-picker-use{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
 body.study-deck-picker-open{overflow:hidden}
 @media(max-width:560px){.study-deck-choice-row{align-items:stretch;flex-direction:column}.study-deck-choice-row .study-deck-picker-open{align-self:flex-start}.study-range-config{align-items:flex-start}.study-range-dash{padding-top:30px;padding-bottom:0}.study-deck-picker-modal{padding:10px}.study-deck-picker-panel{max-height:84dvh;border-radius:18px}}
+
+/* v1.8.6.47 R8 — session exit, dual deck picker, Safari voice diagnostics */
+.study-end-session-button{border:0;background:transparent;color:#7d8d84;padding:4px 2px;font:650 .63rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
+.study-end-session-button:hover,.study-end-session-button:focus-visible{color:#496b59;text-decoration:underline;text-underline-offset:2px}
+.study-voice-error-code{color:#8a968f;font-size:.94em}
+.study-deck-picker-methods{display:flex;gap:7px;margin:0 0 12px;padding:4px;border:1px solid #e0e8e2;border-radius:13px;background:#f6f9f6}
+.study-deck-picker-methods button{flex:1;border:0;border-radius:10px;background:transparent;color:#708178;padding:8px 9px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-deck-picker-methods button.is-active{background:#fff;color:#315f49;box-shadow:0 1px 5px rgba(35,72,53,.07)}
+.study-deck-picker-browse{display:grid;gap:9px}
+.study-deck-picker-browse[hidden],.study-deck-picker-wheel[hidden]{display:none!important}
+.study-deck-picker-browse-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#6f8277;font-size:.67rem;font-weight:700}
+.study-deck-picker-browse-head button{border:0;background:transparent;color:#456b57;padding:3px 0;font:650 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-deck-picker-breadcrumbs{display:flex;align-items:center;flex-wrap:wrap;gap:5px;color:#8a968f;font-size:.62rem}
+.study-deck-picker-breadcrumbs button{border:0;background:transparent;color:#557363;padding:1px 0;font:650 .62rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-deck-picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:42dvh;overflow:auto;padding:1px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.study-deck-picker-range-card,.study-deck-picker-deck-button{border:1px solid #dbe5dd;border-radius:12px;background:#fff;color:#587263;padding:10px 9px;text-align:left;cursor:pointer}
+.study-deck-picker-range-card strong{display:block;color:#3d6651;font:650 .78rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.study-deck-picker-range-card span{display:block;margin-top:2px;color:#8a968f;font-size:.59rem}
+.study-deck-picker-deck-button{text-align:center;font:650 .72rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.study-deck-picker-deck-button.is-selected{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+.study-end-session-modal[hidden]{display:none!important}
+.study-end-session-modal{position:fixed;inset:0;z-index:126;background:rgba(26,48,37,.28);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
+.study-end-session-panel{width:min(430px,100%);background:#fbfdfb;border:1px solid #d9e5dc;border-radius:20px;padding:20px 18px 17px;box-shadow:0 18px 50px rgba(33,62,47,.16)}
+.study-end-session-panel h2{margin:3px 0 7px;font-family:"EB Garamond",Georgia,serif;color:#315f49;font-size:1.5rem;line-height:1;font-weight:600}
+.study-end-session-panel p{margin:0;color:#6f8177;font-size:.74rem;line-height:1.45}
+.study-end-session-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}
+.study-end-session-actions button{border:1px solid #d5e1d8;border-radius:999px;background:#fff;color:#5a7365;padding:8px 11px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-end-session-actions #study-end-session-save{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+body.study-end-session-open{overflow:hidden}
+@media(max-width:560px){.study-deck-picker-grid{grid-template-columns:1fr 1fr;max-height:45dvh}.study-end-session-modal{padding:10px}.study-end-session-panel{border-radius:18px}.study-end-session-actions{flex-wrap:wrap}.study-experience-topline-right{flex-wrap:wrap}}

@@ -478,7 +478,7 @@
       const candidates = [];
       activityEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
       practiceEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
-      studyQSessions.forEach(session => { const t = Date.parse(session.completedAt || session.startedAt || '') || 0; if (t) candidates.push(t); });
+      studyQSessions.forEach(session => { const t = Date.parse(session.completedAt || session.endedAt || session.startedAt || '') || 0; if (t) candidates.push(t); });
       progressRecords.forEach(record => { if (record.firstSeen) candidates.push(record.firstSeen); if (record.lastSeen) candidates.push(record.lastSeen); });
       const start = candidates.length ? Math.min(...candidates) : startOfToday();
       return { ...config, start, end };
@@ -651,7 +651,7 @@
   }
 
   function sessionTimestamp(session) {
-    return Date.parse(session?.completedAt || session?.startedAt || '') || 0;
+    return Date.parse(session?.completedAt || session?.endedAt || session?.startedAt || '') || 0;
   }
 
   function renderStudyQSessions(range) {
@@ -669,14 +669,15 @@
     $('studyq-almost').textContent = fmt(ratings.almost);
     $('studyq-not-yet').textContent = fmt(ratings['not-yet']);
     $('studyq-no-idea').textContent = fmt(ratings['no-idea']);
+    const partialSessions = sessions.filter(session => session.status === 'ended-early' || session.status === 'incomplete').length;
     $('studyq-summary-line').textContent = sessions.length
-      ? `${fmt(sessions.length)} saved session${sessions.length === 1 ? '' : 's'} · ${fmt(totalExperiences)} experience${totalExperiences === 1 ? '' : 's'} · ${fmt(totalHints)} hint${totalHints === 1 ? '' : 's'} used.`
+      ? `${fmt(sessions.length)} saved session${sessions.length === 1 ? '' : 's'}${partialSessions ? ` · ${fmt(partialSessions)} partial` : ''} · ${fmt(totalExperiences)} experience${totalExperiences === 1 ? '' : 's'} · ${fmt(totalHints)} hint${totalHints === 1 ? '' : 's'} used.`
       : 'No Study Q sessions recorded in this time window yet.';
 
     const target = $('studyq-session-list');
     const recent = sessions.slice(0, 8);
     if (!recent.length) {
-      target.innerHTML = '<p class="empty-progress">Finish a Study Q set and it will appear here automatically.</p>';
+      target.innerHTML = '<p class="empty-progress">Finish or end a Study Q session and it will appear here automatically.</p>';
       return;
     }
     target.innerHTML = recent.map(session => {
@@ -687,9 +688,13 @@
       const deckText = Array.isArray(session.decks) && session.decks.length
         ? (session.decks.length === 1 ? `WLP${pad3(session.decks[0])}` : `${session.decks.length} decks`)
         : '';
-      const copy = [ `${count} experience${count === 1 ? '' : 's'}`, deckText, ratingsText ].filter(Boolean).join(' · ');
+      const planned = Number(session.plannedExperienceCount) || count;
+      const isPartial = session.status === 'ended-early' || session.status === 'incomplete';
+      const statusText = isPartial ? `${count}/${planned} experiences` : `${count} experience${count === 1 ? '' : 's'}`;
+      const copy = [ statusText, deckText, ratingsText ].filter(Boolean).join(' · ');
       const href = `./study-hub.html?session=${encodeURIComponent(String(session.sessionId || ''))}`;
-      return `<a class="studyq-session-row" href="${href}"><span class="studyq-session-time">${escapeHtml(formatWhen(timestamp))}</span><span class="studyq-session-main"><strong>${escapeHtml(source)}</strong><small>${escapeHtml(copy)}</small></span><span class="studyq-session-tag">Open</span></a>`;
+      const tag = session.status === 'ended-early' ? 'Ended early' : session.status === 'incomplete' ? 'Left early' : 'Open';
+      return `<a class="studyq-session-row" href="${href}"><span class="studyq-session-time">${escapeHtml(formatWhen(timestamp))}</span><span class="studyq-session-main"><strong>${escapeHtml(source)}</strong><small>${escapeHtml(copy)}</small></span><span class="studyq-session-tag">${escapeHtml(tag)}</span></a>`;
     }).join('');
   }
 
