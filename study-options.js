@@ -935,5 +935,52 @@
   syncPanel();
   applyAll();
 
+
+  /* Stage 7 R9 — shared drawer enhancement.
+     Most Stage 7 pages already load study-options.js, so keep the new Links
+     entry and internal-scroll stylesheet synchronized without replacing each
+     page's otherwise-stable shell markup. */
+  const installSharedDrawerEnhancements = () => {
+    const scriptUrl = (() => {
+      try {
+        const current = document.currentScript?.src;
+        return current ? new URL(current, location.href) : new URL('./study-options.js', location.href);
+      } catch (_) {
+        return new URL('./study-options.js', location.href);
+      }
+    })();
+
+    if (!document.querySelector('link[data-wlp-drawer-shell]')) {
+      const shellCss = document.createElement('link');
+      shellCss.rel = 'stylesheet';
+      shellCss.href = new URL('./drawer-shell.css?v=20260919-s7-drawer-links-r9', scriptUrl).href;
+      shellCss.dataset.wlpDrawerShell = '1';
+      document.head.appendChild(shellCss);
+    }
+
+    const nav = document.querySelector('.drawer-nav');
+    if (!nav || nav.querySelector('.wlp-links-menu-item, a[href$="/links.html"], a[href="./links.html"]')) return;
+
+    const item = document.createElement('a');
+    item.className = 'drawer-item wlp-links-menu-item';
+    item.href = new URL('./links.html', scriptUrl).href;
+    if (location.pathname.endsWith('/links.html') || location.pathname === '/links.html') {
+      item.classList.add('is-current');
+    }
+    item.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9L10.9 5"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg><span>Links</span>';
+
+    const progress = Array.from(nav.querySelectorAll('a.drawer-item')).find(link => {
+      try { return new URL(link.href, location.href).pathname.endsWith('/progress.html'); }
+      catch (_) { return false; }
+    });
+    const firstDivider = nav.querySelector('hr');
+    if (progress) progress.insertAdjacentElement('afterend', item);
+    else if (firstDivider) nav.insertBefore(item, firstDivider);
+    else nav.appendChild(item);
+  };
+
+  installSharedDrawerEnhancements();
+
   window.WLPStudyOptions = { open:openPanel, close:closePanel };
 })();
+

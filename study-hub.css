@@ -259,3 +259,22 @@ body.study-deck-picker-open{overflow:hidden}
 .study-end-session-actions #study-end-session-save{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
 body.study-end-session-open{overflow:hidden}
 @media(max-width:560px){.study-deck-picker-grid{grid-template-columns:1fr 1fr;max-height:45dvh}.study-end-session-modal{padding:10px}.study-end-session-panel{border-radius:18px}.study-end-session-actions{flex-wrap:wrap}.study-experience-topline-right{flex-wrap:wrap}}
+
+
+/* R9 — keep End session visible without turning it into a primary action. */
+.study-end-session-button{
+  border:1px solid #d9e4dd;
+  border-radius:8px;
+  background:rgba(255,255,255,.46);
+  color:#74867c;
+  padding:5px 8px;
+  line-height:1.15;
+  text-decoration:none;
+}
+.study-end-session-button:hover,
+.study-end-session-button:focus-visible{
+  border-color:#c8d8ce;
+  background:#f7faf7;
+  color:#466957;
+  text-decoration:none;
+}
