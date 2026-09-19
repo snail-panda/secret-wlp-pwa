@@ -9,6 +9,7 @@
   let rowByWordId = new Map();
   let maxDeck = 1;
   let sourceMode = 'review';
+  let coverageMode = 'all';
   let reviewByWordId = new Map();
   let currentPool = [];
   let sessionQueue = [];
@@ -88,7 +89,204 @@
     const api = window.WLPLearningHooks;
     if (!api || typeof api.getForMaster !== 'function') return null;
     const meta = api.getForMaster(wordId);
-    return meta && Array.isArray(meta.situations) ? meta : null;
+    return meta && typeof meta === 'object' ? meta : null;
+  }
+
+  function escapeRegex(value) {
+    return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function targetVariants(target) {
+    const raw = clean(target).replace(/\s+/g, ' ');
+    const values = new Set();
+    const add = value => {
+      const normalized = clean(value).replace(/\s+/g, ' ');
+      if (normalized.length >= 2) values.add(normalized);
+    };
+    add(raw);
+    const withoutParens = raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    add(withoutParens);
+    if (raw.includes('/')) {
+      raw.split('/').forEach(part => {
+        const normalized = clean(part);
+        if (normalized.length >= 4) add(normalized);
+      });
+    }
+    return Array.from(values).sort((a, b) => b.length - a.length);
+  }
+
+  function variantPattern(variant) {
+    return variant
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(token => escapeRegex(token).replace(/['’]/g, "['’]").replace(/-/g, '[-‐‑‒–—]'))
+      .join('\\s+');
+  }
+
+  function redactTarget(value, target) {
+    let text = clean(value);
+    let changed = false;
+    if (!text || !clean(target)) return { text, changed };
+    targetVariants(target).forEach(variant => {
+      const pattern = variantPattern(variant);
+      if (!pattern) return;
+      const regex = new RegExp(`(^|[^A-Za-z0-9])(${pattern})(?=$|[^A-Za-z0-9])`, 'giu');
+      text = text.replace(regex, (match, prefix) => {
+        changed = true;
+        return `${prefix}_____`;
+      });
+    });
+    return { text: text.replace(/\s{2,}/g, ' ').trim(), changed };
+  }
+
+  function meaningfulPrompt(value) {
+    const text = clean(value).replace(/_+/g, '').replace(/[\s.,;:!?"'`()\[\]{}<>/\\|~@#$%^&*+=—–-]+/g, '');
+    return text.length >= 8;
+  }
+
+  function sanitizeSituationPrompt(value, target) {
+    let text = clean(value);
+    if (!text) return '';
+
+    // If a stored Situation ends with an explicit example that contains the
+    // target (e.g. "The ending felt overwrought."), drop that example first.
+    // This keeps Situation → Expression an open retrieval prompt instead of
+    // turning it into an accidental cloze whenever possible.
+    const exampleMarker = /\b(?:e\.?\s*g\.?|for example|for instance|example)\s*[:.,-]?\s*/ig;
+    const matches = Array.from(text.matchAll(exampleMarker));
+    for (const match of matches) {
+      const trailing = text.slice(match.index);
+      if (redactTarget(trailing, target).changed) {
+        const before = text.slice(0, match.index).replace(/[\s,:;–—-]+$/g, '').trim();
+        if (meaningfulPrompt(before)) {
+          text = before;
+          break;
+        }
+      }
+    }
+
+    return redactTarget(text, target).text;
+  }
+
+  function splitExamples(value) {
+    return clean(value)
+      .split(/\s+\/\s+|<br\s*\/?\s*>|\r?\n+/i)
+      .map(clean)
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+
+  function noteExcerpt(value) {
+    const text = clean(value).replace(/\s+/g, ' ');
+    if (text.length <= 360) return text;
+    const slice = text.slice(0, 360);
+    const boundary = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('; '), slice.lastIndexOf(', '));
+    return `${slice.slice(0, boundary >= 160 ? boundary + 1 : 357).trim()}…`;
+  }
+
+  function baseExperience(row, meta, review) {
+    const wordId = clean(row.WordID);
+    return {
+      wordId,
+      row,
+      meta: meta || {},
+      alternatives: Array.isArray(meta?.alternativeExpressions) ? meta.alternativeExpressions : [],
+      review: review || null
+    };
+  }
+
+  function situationExperiences(row, meta, review) {
+    const target = clean(row.Word);
+    const base = baseExperience(row, meta, review);
+    const situations = Array.isArray(meta?.situations) ? meta.situations.filter(item => clean(item?.anchor)) : [];
+    const out = [];
+    situations.forEach(situation => {
+      const anchor = sanitizeSituationPrompt(situation?.anchor, target);
+      if (!meaningfulPrompt(anchor)) return;
+      const title = redactTarget(situation?.title, target).text;
+      const need = redactTarget(situation?.communicativeNeed, target).text;
+      out.push({
+        ...base,
+        kind: 'situation',
+        situation,
+        promptLabel: 'Situation',
+        promptTitle: meaningfulPrompt(title) ? title : '',
+        promptText: anchor,
+        question: 'What might you naturally say?',
+        responseHelp: 'Multiple answers can be natural. WLP is not treating this as a one-answer quiz.',
+        communicativeNeed: meaningfulPrompt(need) ? need : ''
+      });
+    });
+    return out;
+  }
+
+  function exampleExperiences(row, meta, review) {
+    const target = clean(row.Word);
+    const base = baseExperience(row, meta, review);
+    return splitExamples(row['Example Sentence']).map(example => {
+      const redacted = redactTarget(example, target);
+      if (!redacted.changed || !meaningfulPrompt(redacted.text)) return null;
+      return {
+        ...base,
+        kind: 'example',
+        situation: null,
+        promptLabel: 'Example context',
+        promptTitle: '',
+        promptText: redacted.text,
+        question: 'What expression fits naturally here?',
+        responseHelp: 'More than one answer may work. Reveal shows the WLP target for this card.',
+        communicativeNeed: ''
+      };
+    }).filter(Boolean);
+  }
+
+  function definitionExperience(row, meta, review) {
+    const target = clean(row.Word);
+    const prompt = redactTarget(row.Definition, target).text;
+    if (!meaningfulPrompt(prompt)) return null;
+    return {
+      ...baseExperience(row, meta, review),
+      kind: 'definition',
+      situation: null,
+      promptLabel: 'Meaning cue',
+      promptTitle: '',
+      promptText: prompt,
+      question: 'What word or expression matches this meaning?',
+      responseHelp: 'Other expressions may fit too. Reveal shows the WLP target for this card.',
+      communicativeNeed: ''
+    };
+  }
+
+  function noteExperience(row, meta, review) {
+    const target = clean(row.Word);
+    const prompt = redactTarget(noteExcerpt(row['Note(s)']), target).text;
+    if (!meaningfulPrompt(prompt)) return null;
+    return {
+      ...baseExperience(row, meta, review),
+      kind: 'note',
+      situation: null,
+      promptLabel: 'Usage clue',
+      promptTitle: '',
+      promptText: prompt,
+      question: 'What expression is this usage note pointing to?',
+      responseHelp: 'Use the clue as a starting point. Reveal shows the WLP target for this card.',
+      communicativeNeed: ''
+    };
+  }
+
+  function experiencesForRow(row) {
+    const wordId = clean(row.WordID);
+    const meta = metadataFor(wordId) || {};
+    const review = reviewByWordId.get(wordId) || null;
+    const situations = situationExperiences(row, meta, review);
+    if (coverageMode === 'situations') return situations;
+    if (situations.length) return situations;
+    const examples = exampleExperiences(row, meta, review);
+    if (examples.length) return examples;
+    const definition = definitionExperience(row, meta, review);
+    if (definition) return [definition];
+    const note = noteExperience(row, meta, review);
+    return note ? [note] : [];
   }
 
   function experiencePoolFor(mode = sourceMode) {
@@ -109,24 +307,7 @@
     }
 
     const pool = [];
-    selectedRows.forEach(row => {
-      const wordId = clean(row.WordID);
-      const meta = metadataFor(wordId);
-      if (!meta) return;
-      const situations = Array.isArray(meta.situations) ? meta.situations.filter(item => clean(item?.anchor)) : [];
-      if (!situations.length) return;
-      const alternatives = Array.isArray(meta.alternativeExpressions) ? meta.alternativeExpressions : [];
-      situations.forEach(situation => {
-        pool.push({
-          wordId,
-          row,
-          meta,
-          situation,
-          alternatives,
-          review: reviewByWordId.get(wordId) || null
-        });
-      });
-    });
+    selectedRows.forEach(row => pool.push(...experiencesForRow(row)));
     return pool;
   }
 
@@ -144,11 +325,20 @@
     const experiences = currentPool.length;
     const box = $('study-eligibility');
     if (!experiences) {
-      box.innerHTML = '<strong>No eligible situations yet</strong><span>Try another source, or add Situation metadata in the Editor.</span>';
+      box.innerHTML = coverageMode === 'situations'
+        ? '<strong>No safe saved situations here</strong><span>Try All eligible cards, another source, or add Situation metadata.</span>'
+        : '<strong>No eligible card material here</strong><span>Try another source or deck.</span>';
       $('study-start').disabled = true;
       return;
     }
-    box.innerHTML = `<strong>${entries} ${entries === 1 ? 'entry' : 'entries'} · ${experiences} ${experiences === 1 ? 'situation' : 'situations'}</strong><span>Available for Situation → Expression.</span>`;
+    const savedSituations = currentPool.filter(item => item.kind === 'situation').length;
+    const cardCues = experiences - savedSituations;
+    let detail = '';
+    if (coverageMode === 'situations') detail = `${savedSituations} saved ${savedSituations === 1 ? 'situation' : 'situations'} · target leakage is masked`;
+    else if (savedSituations && cardCues) detail = `${savedSituations} saved situations + ${cardCues} card-based cues`;
+    else if (savedSituations) detail = `${savedSituations} saved ${savedSituations === 1 ? 'situation' : 'situations'}`;
+    else detail = `${cardCues} card-based ${cardCues === 1 ? 'cue' : 'cues'}`;
+    box.innerHTML = `<strong>${entries} ${entries === 1 ? 'entry' : 'entries'} · ${experiences} ${experiences === 1 ? 'experience' : 'experiences'}</strong><span>${detail}</span>`;
     $('study-start').disabled = false;
   }
 
@@ -156,6 +346,16 @@
     sourceMode = ['review', 'deck', 'range'].includes(mode) ? mode : 'review';
     document.querySelectorAll('[data-source-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.sourceMode === sourceMode));
     document.querySelectorAll('[data-source-config]').forEach(block => { block.hidden = block.dataset.sourceConfig !== sourceMode; });
+    updateEligibility();
+  }
+
+  function setCoverageMode(mode) {
+    coverageMode = mode === 'situations' ? 'situations' : 'all';
+    document.querySelectorAll('[data-coverage-mode]').forEach(button => {
+      const active = button.dataset.coverageMode === coverageMode;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
     updateEligibility();
   }
 
@@ -180,28 +380,28 @@
     });
     let groupEntries = shuffle(Array.from(groups.entries()));
     if (mode === 'review') groupEntries.sort((a, b) => reviewRank(a[1][0]) - reviewRank(b[1][0]));
-
-    const firstPass = [];
-    const extras = [];
-    groupEntries.forEach(([, items]) => {
-      const mixed = shuffle(items);
-      if (mixed[0]) firstPass.push(mixed[0]);
-      if (mixed.length > 1) extras.push(...mixed.slice(1));
-    });
-    const orderedExtras = mode === 'review'
-      ? shuffle(extras).sort((a, b) => reviewRank(a) - reviewRank(b))
-      : shuffle(extras);
-    return [...firstPass, ...orderedExtras].slice(0, Math.max(1, size));
+    return groupEntries
+      .slice(0, Math.max(1, size))
+      .map(([, items]) => shuffle(items)[0])
+      .filter(Boolean);
   }
 
   function normalizeAnswer(value) {
     return clean(value).toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9'\s-]+/g, ' ').replace(/\s+/g, ' ');
   }
 
+  function normalizedContains(haystack, needle) {
+    const text = normalizeAnswer(haystack);
+    const target = normalizeAnswer(needle);
+    return Boolean(text && target && (` ${text} `).includes(` ${target} `));
+  }
+
   function hintFor(item) {
-    const sense = clean(item.meta?.senseHook);
-    if (sense) return sense;
     const target = clean(item.row?.Word);
+    const sense = redactTarget(item.meta?.senseHook, target).text;
+    if (meaningfulPrompt(sense)) return sense;
+    const synonyms = redactTarget(item.row?.['Synonym(s)'], target).text;
+    if (meaningfulPrompt(synonyms)) return `Related expression(s): ${synonyms}`;
     const first = Array.from(target)[0] || '';
     const words = target.split(/\s+/).filter(Boolean).length;
     return first ? `Starts with “${first}”${words > 1 ? ` · ${words} words in the headword` : ''}.` : 'No extra hint is stored for this entry yet.';
@@ -211,18 +411,19 @@
     const situationId = clean(item.situation?.situationId);
     return (item.alternatives || []).filter(alt => {
       const ids = Array.isArray(alt?.situationIds) ? alt.situationIds.map(clean).filter(Boolean) : [];
-      return clean(alt?.expression) && (!ids.length || ids.includes(situationId));
+      return clean(alt?.expression) && (!ids.length || (situationId && ids.includes(situationId)));
     });
   }
 
   function responseNote(item) {
-    const answer = normalizeAnswer($('study-response').value);
+    const answer = clean($('study-response').value);
     if (!answer) return '';
-    const target = normalizeAnswer(item.row?.Word);
-    if (answer === target) return 'You produced the target expression.';
-    const matchedAlternative = relevantAlternatives(item).find(alt => normalizeAnswer(alt.expression) === answer);
-    if (matchedAlternative) return 'Your response matches a linked alternative for this situation.';
-    return 'Keep your response as a comparison point. This first version does not grade open-ended answers.';
+    const target = clean(item.row?.Word);
+    if (normalizeAnswer(answer) === normalizeAnswer(target)) return 'You produced the target expression.';
+    if (normalizedContains(answer, target)) return 'Your response includes the target expression.';
+    const matchedAlternative = relevantAlternatives(item).find(alt => normalizedContains(answer, alt.expression));
+    if (matchedAlternative) return 'Your response includes a linked alternative for this experience.';
+    return 'Keep your response as a comparison point. This version does not grade open-ended answers.';
   }
 
   function renderExperience() {
@@ -234,13 +435,16 @@
     $('study-experience-source').textContent = sourceLabel(lastSessionSpec?.mode || sourceMode);
     $('study-experience-progress').textContent = `${sessionIndex + 1} / ${sessionQueue.length}`;
 
-    const title = clean(item.situation?.title);
+    $('study-prompt-label').textContent = item.promptLabel || 'Situation';
+    const title = clean(item.promptTitle);
     $('study-situation-title').hidden = !title;
     $('study-situation-title').textContent = title;
-    $('study-situation-anchor').textContent = clean(item.situation?.anchor);
+    $('study-situation-anchor').textContent = clean(item.promptText);
+    $('study-response-question').textContent = item.question || 'What might you naturally say?';
+    $('study-response-help').textContent = item.responseHelp || 'Multiple answers can be natural.';
     $('study-response').value = '';
 
-    const need = clean(item.situation?.communicativeNeed);
+    const need = clean(item.communicativeNeed);
     $('study-show-need').hidden = !need;
     $('study-need-block').hidden = true;
     $('study-need').textContent = need;
@@ -295,7 +499,7 @@
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = true;
     $('study-finished').hidden = false;
-    $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} ${sessionQueue.length === 1 ? 'situation' : 'situations'} from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
+    $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} ${sessionQueue.length === 1 ? 'experience' : 'experiences'} from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -305,6 +509,7 @@
     const size = Number($('study-session-size').value) || 10;
     lastSessionSpec = {
       mode: sourceMode,
+      coverage: coverageMode,
       deck: clampDeck($('study-deck').value),
       rangeStart: clampDeck($('study-range-start').value),
       rangeEnd: clampDeck($('study-range-end').value),
@@ -318,10 +523,12 @@
   function restoreSessionSpecAndRestart() {
     if (!lastSessionSpec) return startSession();
     sourceMode = lastSessionSpec.mode;
+    coverageMode = lastSessionSpec.coverage || 'all';
     $('study-deck').value = lastSessionSpec.deck;
     $('study-range-start').value = lastSessionSpec.rangeStart;
     $('study-range-end').value = lastSessionSpec.rangeEnd;
     $('study-session-size').value = String(lastSessionSpec.size);
+    setCoverageMode(coverageMode);
     setSourceMode(sourceMode);
     startSession();
   }
@@ -335,6 +542,7 @@
 
   function installEvents() {
     document.querySelectorAll('[data-source-mode]').forEach(button => button.addEventListener('click', () => setSourceMode(button.dataset.sourceMode)));
+    document.querySelectorAll('[data-coverage-mode]').forEach(button => button.addEventListener('click', () => setCoverageMode(button.dataset.coverageMode)));
     ['study-deck', 'study-range-start', 'study-range-end', 'study-session-size'].forEach(id => $(id).addEventListener('change', updateEligibility));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => $(id).addEventListener('input', updateEligibility));
     $('study-start').addEventListener('click', startSession);
@@ -355,17 +563,12 @@
       const recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
       if (Array.isArray(recent) && Number.isFinite(recent[0])) recentDeck = Number(recent[0]);
     } catch {}
-    const rowsWithSituations = rows.filter(row => {
-      const meta = metadataFor(clean(row.WordID));
-      return meta && Array.isArray(meta.situations) && meta.situations.some(item => clean(item?.anchor));
-    });
-    const metadataDeck = rowsWithSituations[0];
-    const recentHasSituations = recentDeck && rowsWithSituations.some(row => Number(row['Batch #']) === recentDeck);
-    const initialDeck = clampDeck((recentHasSituations ? recentDeck : 0) || Number(metadataDeck?.['Batch #']) || recentDeck || 1);
+    const initialDeck = clampDeck(recentDeck || Number(rows[0]?.['Batch #']) || 1);
     $('study-deck').value = String(initialDeck);
     $('study-range-start').value = String(initialDeck);
     $('study-range-end').value = String(Math.min(maxDeck, initialDeck + 4));
 
+    setCoverageMode('all');
     const reviewExperiences = experiencePoolFor('review');
     setSourceMode(reviewExperiences.length ? 'review' : 'deck');
   }

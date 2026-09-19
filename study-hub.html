@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647">
+  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r2">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -56,7 +56,7 @@
         </div>
 
         <div class="study-source-config" data-source-config="review">
-          <p>Uses cards currently marked <strong>Review</strong>. High attention is prioritized before Medium and Light. Only entries with Situation metadata can enter this experience.</p>
+          <p>Uses cards currently marked <strong>Review</strong>. High attention is prioritized before Medium and Light.</p>
         </div>
         <div class="study-source-config" data-source-config="deck" hidden>
           <label class="study-number-field"><span>Deck</span><span class="study-deck-input"><b>WLP</b><input id="study-deck" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
@@ -67,9 +67,17 @@
           <label class="study-number-field"><span>To</span><span class="study-deck-input"><b>WLP</b><input id="study-range-end" type="number" inputmode="numeric" min="1" step="1" value="5"></span></label>
         </div>
 
+        <div class="study-coverage-block">
+          <div class="study-coverage-head"><span>Card coverage</span><small>Choose how strictly this session depends on saved Situation metadata.</small></div>
+          <div class="study-coverage-options" role="group" aria-label="Card coverage">
+            <button type="button" class="study-coverage-option is-active" data-coverage-mode="all" aria-pressed="true"><strong>All eligible cards</strong><span>Use saved Situations first, then existing card data when needed.</span></button>
+            <button type="button" class="study-coverage-option" data-coverage-mode="situations" aria-pressed="false"><strong>Situation-rich only</strong><span>Use only saved Situation metadata.</span></button>
+          </div>
+        </div>
+
         <div class="study-source-footer">
           <label class="study-session-size"><span>Session size</span><select id="study-session-size"><option value="5">5 experiences</option><option value="10" selected>10 experiences</option><option value="20">20 experiences</option></select></label>
-          <div class="study-eligibility" id="study-eligibility" aria-live="polite"><strong>Loading…</strong><span>Checking your Learning Layer.</span></div>
+          <div class="study-eligibility" id="study-eligibility" aria-live="polite"><strong>Loading…</strong><span>Checking available card material.</span></div>
         </div>
       </section>
 
@@ -79,7 +87,7 @@
         </div>
         <article class="study-method-card is-selected">
           <div class="study-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5h7M13 8.5h7M8 5l3.5 3.5L8 12"/><path d="M16 14v5M13.5 16.5H18.5"/></svg></div>
-          <div class="study-method-copy"><span class="study-method-status">Available now</span><strong>Situation → Expression</strong><p>See the situation first. Produce whatever feels natural, then reveal the communicative need, a hint, the target expression, and linked alternatives.</p></div>
+          <div class="study-method-copy"><span class="study-method-status">Available now</span><strong>Situation → Expression</strong><p>Saved situations are used first. If a card has none, WLP can build a lightweight cue from its existing Example or Definition, then reveal hints, the target expression, and linked alternatives.</p></div>
         </article>
         <p class="study-method-note">Dialogue, short story, fit / not fit, register shifts, and other experience types can plug into this same Study Hub later.</p>
       </section>
@@ -95,20 +103,22 @@
           <span class="study-experience-progress" id="study-experience-progress">1 / 1</span>
         </div>
         <div class="study-situation-card">
-          <span class="section-kicker">Situation</span>
+          <span class="section-kicker" id="study-prompt-label">Situation</span>
           <h2 id="study-situation-title" hidden></h2>
           <p id="study-situation-anchor"></p>
         </div>
 
         <label class="study-response-field" for="study-response">
-          <span>What might you naturally say?</span>
+          <span id="study-response-question">What might you naturally say?</span>
           <textarea id="study-response" rows="3" placeholder="Type an expression or sentence — or just think it through first."></textarea>
-          <small>Multiple answers can be natural. WLP is not treating this as a one-answer quiz.</small>
+          <small id="study-response-help">Multiple answers can be natural. WLP is not treating this as a one-answer quiz.</small>
         </label>
 
-        <div class="study-reveal-actions" id="study-reveal-actions">
+        <div class="study-help-actions" id="study-reveal-actions">
           <button type="button" id="study-show-need">Show communicative need</button>
           <button type="button" id="study-show-hint">Give me a hint</button>
+        </div>
+        <div class="study-target-action-row">
           <button type="button" class="study-target-button" id="study-show-target">Show target</button>
         </div>
 
@@ -139,7 +149,7 @@
       <section class="study-finished" id="study-finished" hidden>
         <span class="section-kicker">Session complete</span>
         <h2>You finished this set.</h2>
-        <p id="study-finished-copy">You worked through the selected situations.</p>
+        <p id="study-finished-copy">You worked through the selected experiences.</p>
         <div class="study-finished-actions"><button type="button" id="study-again">Practice this set again</button><button type="button" id="study-change-set">Change study set</button></div>
       </section>
     </main>
@@ -196,7 +206,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r2"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
