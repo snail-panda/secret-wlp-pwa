@@ -154,19 +154,24 @@ function minimizeCandidate(candidate) {
 
 function minimizeLearningMetadata(meta) {
   const m = obj(meta);
+  const situations = arr(m.situations).slice(0, 3).map(item => {
+    if (typeof item === 'string') return text(item, 900);
+    const x = obj(item);
+    const out = {};
+    const title = text(x.title || x.label, 220);
+    const anchor = text(x.anchor || x.situation || x.text || x.context || x.example, 900);
+    const communicativeNeed = text(x.communicativeNeed, 420);
+    if (title) out.title = title;
+    if (anchor) out.anchor = anchor;
+    if (communicativeNeed) out.communicativeNeed = communicativeNeed;
+    return out;
+  }).filter(item => typeof item === 'string' ? Boolean(clean(item)) : Object.keys(item).length > 0);
+
   return {
     senseHook: text(m.senseHook, 420),
     memoryHook: text(m.memoryHook, 420),
     entryType: text(m.entryType, 100),
-    situations: arr(m.situations).slice(0, 3).map(item => {
-      if (typeof item === 'string') return text(item, 700);
-      const x = obj(item);
-      const out = {};
-      ['id', 'label', 'title', 'situation', 'text', 'context', 'example', 'note'].forEach(key => {
-        if (x[key] !== undefined) out[key] = text(x[key], 700);
-      });
-      return Object.keys(out).length ? out : text(JSON.stringify(x), 700);
-    }),
+    situations,
     communicativeNeeds: strings(m.communicativeNeeds, 4).map(v => text(v, 320)),
     alternativeExpressions: arr(m.alternativeExpressions).slice(0, 5).map(item => {
       if (typeof item === 'string') return text(item, 240);
@@ -678,7 +683,7 @@ exports.handler = async function handler(event) {
       provider: config.provider,
       configured: config.configured,
       model: config.model,
-      privacyMinimizer: 'v1',
+      privacyMinimizer: 'v1.1',
       providerSwitching: 'server-config'
     });
   }
