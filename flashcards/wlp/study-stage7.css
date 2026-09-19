@@ -3418,3 +3418,18 @@ body.review-attention-open{overflow:hidden}
   box-shadow:none!important;
   border-color:rgba(95,114,101,.13)!important;
 }
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer micro-polish v1.8.6.43
+   Entry Type remains a badge, but quiet and better aligned.
+   ========================================================= */
+.stage7-study-body .learning-hook-popover-head .learning-hook-entry-type{
+  position:relative!important;
+  top:3px!important;
+  padding:4px 9px!important;
+  border:1px solid rgba(96,113,102,.30)!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  color:#818d85!important;
+  box-shadow:none!important;
+}

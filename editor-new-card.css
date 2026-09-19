@@ -445,3 +445,26 @@
   .learning-hooks-summary{padding-bottom:25px}
   .learning-hooks-summary-chevron{bottom:5px}
 }
+
+/* =========================================================
+   WLP Stage 7 — Learning Layer micro-polish v1.8.6.43
+   Flatter disclosure cue, tighter collapsed spacing.
+   ========================================================= */
+.learning-hooks-summary{
+  padding-bottom:21px;
+}
+.learning-hooks-summary-chevron{
+  bottom:3px;
+  font-size:.80rem;
+  line-height:1;
+  opacity:.82;
+  transform:translateX(-50%) scaleX(1.55) scaleY(.62);
+  transform-origin:center;
+}
+.learning-hooks-details[open] .learning-hooks-summary-chevron{
+  transform:translateX(-50%) rotate(180deg) scaleX(1.55) scaleY(.62);
+}
+@media(max-width:520px){
+  .learning-hooks-summary{padding-bottom:20px}
+  .learning-hooks-summary-chevron{bottom:2px}
+}
