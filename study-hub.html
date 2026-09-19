@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r6">
+  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r7">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -59,12 +59,21 @@
           <p>Uses cards currently marked <strong>Review</strong>. High attention is prioritized before Medium and Light.</p>
         </div>
         <div class="study-source-config" data-source-config="deck" hidden>
-          <label class="study-number-field"><span>Deck</span><span class="study-deck-input"><b>WLP</b><input id="study-deck" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
+          <div class="study-deck-choice-row">
+            <label class="study-number-field"><span>Deck</span><span class="study-deck-input"><b>WLP</b><input id="study-deck" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
+            <button class="study-deck-picker-open" type="button" data-deck-picker-target="study-deck">Choose deck</button>
+          </div>
         </div>
         <div class="study-source-config study-range-config" data-source-config="range" hidden>
-          <label class="study-number-field"><span>From</span><span class="study-deck-input"><b>WLP</b><input id="study-range-start" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
+          <div class="study-range-field-wrap">
+            <label class="study-number-field"><span>From</span><span class="study-deck-input"><b>WLP</b><input id="study-range-start" type="number" inputmode="numeric" min="1" step="1" value="1"></span></label>
+            <button class="study-deck-picker-open" type="button" data-deck-picker-target="study-range-start">Choose</button>
+          </div>
           <span class="study-range-dash" aria-hidden="true">→</span>
-          <label class="study-number-field"><span>To</span><span class="study-deck-input"><b>WLP</b><input id="study-range-end" type="number" inputmode="numeric" min="1" step="1" value="5"></span></label>
+          <div class="study-range-field-wrap">
+            <label class="study-number-field"><span>To</span><span class="study-deck-input"><b>WLP</b><input id="study-range-end" type="number" inputmode="numeric" min="1" step="1" value="5"></span></label>
+            <button class="study-deck-picker-open" type="button" data-deck-picker-target="study-range-end">Choose</button>
+          </div>
         </div>
 
         <div class="study-coverage-block">
@@ -124,6 +133,14 @@
           <textarea id="study-response" rows="3" placeholder="Type an expression or sentence — or just think it through first."></textarea>
           <small id="study-response-help">Multiple answers can be natural. WLP is not treating this as a one-answer quiz.</small>
         </label>
+        <div class="study-response-tools">
+          <button id="study-response-voice" class="study-response-voice" type="button" aria-label="Speak your answer" title="Speak your answer" hidden>
+            <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg>
+            <svg class="voice-stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="7.5" width="9" height="9" rx="1.4"></rect></svg>
+            <span id="study-response-voice-label">Speak answer</span>
+          </button>
+        </div>
+        <div id="study-response-voice-help" class="study-response-voice-help" hidden></div>
 
         <div class="study-help-actions" id="study-reveal-actions">
           <button type="button" id="study-show-need">Show communicative need</button>
@@ -153,7 +170,7 @@
           <div class="study-self-check" id="study-self-check">
             <div class="study-self-check-copy">
               <span>How did that go?</span>
-              <small>You decide. A hint, a small spelling slip, or a natural alternative does not have to become an automatic fail.</small>
+              <small id="study-self-check-guidance">You decide. A hint, a small spelling slip, or a natural alternative does not have to become an automatic fail.</small>
             </div>
             <div class="study-self-check-options" role="group" aria-label="Self assessment">
               <button type="button" data-study-rating="got-it" aria-pressed="false">Got it</button>
@@ -243,6 +260,27 @@
   </div>
 
 
+  <div class="study-deck-picker-modal" id="study-deck-picker-modal" hidden>
+    <section class="study-deck-picker-panel" role="dialog" aria-modal="true" aria-labelledby="study-deck-picker-title">
+      <button class="study-deck-picker-close" id="study-deck-picker-close" type="button" aria-label="Close deck picker">×</button>
+      <span class="section-kicker">Deck picker</span>
+      <h2 id="study-deck-picker-title">Choose deck</h2>
+      <div class="study-deck-picker-recent" id="study-deck-picker-recent" hidden>
+        <span>Recent decks</span>
+        <div id="study-deck-picker-recent-list"></div>
+      </div>
+      <label class="study-deck-picker-select-wrap">
+        <span>All decks</span>
+        <select id="study-deck-picker-select" aria-label="Choose a WLP deck"></select>
+      </label>
+      <p class="study-deck-picker-preview" id="study-deck-picker-preview"></p>
+      <div class="study-deck-picker-actions">
+        <button type="button" id="study-deck-picker-cancel">Cancel</button>
+        <button type="button" id="study-deck-picker-use">Use this deck</button>
+      </div>
+    </section>
+  </div>
+
   <div class="study-quick-card-modal" id="study-quick-card-modal" hidden>
     <div class="study-quick-card-panel" role="dialog" aria-modal="true" aria-labelledby="study-quick-card-title">
       <button class="study-quick-card-close" id="study-quick-card-close" type="button" aria-label="Close card preview">×</button>
@@ -263,7 +301,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r6"></script>
+  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r7"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

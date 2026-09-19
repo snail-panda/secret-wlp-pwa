@@ -8,6 +8,7 @@
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const STUDYQ_SESSION_LIMIT = 80;
   const $ = id => document.getElementById(id);
+  const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   let rows = [];
   let rowByWordId = new Map();
@@ -24,6 +25,10 @@
   let currentSessionId = '';
   let currentSessionStartedAt = '';
   let viewingSavedSession = false;
+  let deckPickerTargetId = '';
+  let studyVoiceRecognition = null;
+  let studyVoiceListening = false;
+  let studyVoiceTimeout = 0;
 
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
@@ -551,6 +556,95 @@
     let start = clampDeck($('study-range-start').value), end = clampDeck($('study-range-end').value);
     if (start > end) [start, end] = [end, start];
     return `WLP${String(start).padStart(3, '0')}–${String(end).padStart(3, '0')}`;
+  }
+
+  function readRecentDecks() {
+    try {
+      const value = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+      return Array.isArray(value) ? value.map(Number).filter(deck => Number.isFinite(deck) && deck >= 1 && deck <= maxDeck) : [];
+    } catch { return []; }
+  }
+
+  function deckPreview(deck) {
+    const words = rows.filter(row => Number(row['Batch #']) === Number(deck)).map(row => clean(row.Word)).filter(Boolean).slice(0, 3);
+    return words.length ? words.join(' · ') : 'Open this deck';
+  }
+
+  function populateDeckPickerOptions() {
+    const select = $('study-deck-picker-select');
+    if (!select) return;
+    const decks = Array.from(new Set(rows.map(row => Number(row['Batch #']) || 0).filter(Boolean))).sort((a, b) => a - b);
+    select.replaceChildren(...decks.map(deck => {
+      const option = document.createElement('option');
+      option.value = String(deck);
+      option.textContent = `WLP${padDeck(deck)} · ${deckPreview(deck)}`;
+      return option;
+    }));
+  }
+
+  function updateDeckPickerPreview() {
+    const deck = clampDeck($('study-deck-picker-select').value);
+    $('study-deck-picker-preview').textContent = `WLP${padDeck(deck)} · ${deckPreview(deck)}`;
+    $('study-deck-picker-recent-list')?.querySelectorAll('button').forEach(button => {
+      button.classList.toggle('is-selected', Number(button.dataset.deck) === deck);
+    });
+  }
+
+  function renderDeckPickerRecent(selectedDeck) {
+    const wrap = $('study-deck-picker-recent');
+    const list = $('study-deck-picker-recent-list');
+    if (!wrap || !list) return;
+    const recent = readRecentDecks().slice(0, 8);
+    list.replaceChildren();
+    wrap.hidden = !recent.length;
+    recent.forEach(deck => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.deck = String(deck);
+      button.textContent = `WLP${padDeck(deck)}`;
+      button.classList.toggle('is-selected', deck === selectedDeck);
+      button.addEventListener('click', () => {
+        $('study-deck-picker-select').value = String(deck);
+        updateDeckPickerPreview();
+      });
+      list.append(button);
+    });
+  }
+
+  function openDeckPicker(targetId) {
+    const target = $(targetId);
+    if (!target || !$('study-deck-picker-modal')) return;
+    deckPickerTargetId = targetId;
+    const selected = clampDeck(target.value);
+    const labels = {
+      'study-deck': 'Choose a deck',
+      'study-range-start': 'Choose range start',
+      'study-range-end': 'Choose range end'
+    };
+    $('study-deck-picker-title').textContent = labels[targetId] || 'Choose deck';
+    $('study-deck-picker-select').value = String(selected);
+    renderDeckPickerRecent(selected);
+    updateDeckPickerPreview();
+    $('study-deck-picker-modal').hidden = false;
+    document.body.classList.add('study-deck-picker-open');
+    setTimeout(() => $('study-deck-picker-select').focus({ preventScroll: true }), 0);
+  }
+
+  function closeDeckPicker() {
+    $('study-deck-picker-modal').hidden = true;
+    document.body.classList.remove('study-deck-picker-open');
+    deckPickerTargetId = '';
+  }
+
+  function useDeckPicker() {
+    if (!deckPickerTargetId) return closeDeckPicker();
+    const target = $(deckPickerTargetId);
+    if (!target) return closeDeckPicker();
+    const deck = clampDeck($('study-deck-picker-select').value);
+    target.value = String(deck);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+    closeDeckPicker();
   }
 
   function updateEligibility() {
@@ -1102,7 +1196,32 @@
     return 'Different from the stored WLP target. Compare them, then make your own self-check.';
   }
 
+  function selfCheckGuidance(item) {
+    const match = responseMatch(item);
+    if (match.kind === 'target-exact') return { exact: true, text: 'You got it — exact WLP target match. Still choose the rating that reflects how independently it came to you.' };
+    if (match.kind === 'target-contained') return { exact: true, text: 'Your response includes the stored WLP target. Nice — still rate how independently it came to you.' };
+    if (match.kind === 'alternative') return { exact: true, text: 'That matches a linked natural alternative. Nice — rate how solid it felt for you.' };
+    if (match.kind === 'near-target') return { exact: false, text: 'Very close to the stored target form. You decide whether that feels like Almost, Got it, or something else.' };
+    if (match.kind === 'other') return { exact: false, text: 'Different from the stored WLP target. Compare them, then rate what happened for you.' };
+    return { exact: false, text: 'You decide. A hint, a small spelling slip, or a natural alternative does not have to become an automatic fail.' };
+  }
+
+  function updateSelfCheckGuidance(item) {
+    const copy = $('study-self-check-guidance');
+    const box = $('study-self-check');
+    if (!copy || !box) return;
+    if (!currentAttempt?.targetShown) {
+      copy.textContent = 'You decide. A hint, a small spelling slip, or a natural alternative does not have to become an automatic fail.';
+      box.classList.remove('is-exact');
+      return;
+    }
+    const guidance = selfCheckGuidance(item);
+    copy.textContent = guidance.text;
+    box.classList.toggle('is-exact', guidance.exact);
+  }
+
   function renderExperience() {
+    stopStudyVoice();
     const item = sessionQueue[sessionIndex];
     if (!item) return finishSession();
     $('study-start-panel').hidden = true;
@@ -1166,6 +1285,7 @@
       $('study-response-note').textContent = note;
       renderCurrentAnswerReview(item);
     }
+    updateSelfCheckGuidance(item);
 
     $('study-experience').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1398,6 +1518,7 @@
     $('study-response-note').hidden = !note;
     $('study-response-note').textContent = note;
     renderCurrentAnswerReview(item);
+    updateSelfCheckGuidance(item);
     $('study-target-reveal').hidden = false;
     $('study-target-reveal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -1486,8 +1607,133 @@
     document.querySelector('.study-hub-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function hideStudyVoiceHelp() {
+    const help = $('study-response-voice-help');
+    if (!help) return;
+    help.hidden = true;
+    help.innerHTML = '';
+  }
+
+  function showStudyVoiceHelp(message, permission = false) {
+    const help = $('study-response-voice-help');
+    if (!help) return;
+    if (permission) {
+      help.innerHTML = `<strong>Microphone permission is blocked for this site.</strong><br>In Chrome on iPhone, tap the microphone/camera icon at the left of the address bar and turn site Permissions on. Also check iPhone Settings → Chrome → Microphone and Speech Recognition.<br><button type="button">Dismiss</button>`;
+      help.querySelector('button')?.addEventListener('click', hideStudyVoiceHelp);
+    } else {
+      help.textContent = message || 'Voice input could not hear that. Try again.';
+    }
+    help.hidden = false;
+  }
+
+  function setStudyVoiceListening(listening) {
+    studyVoiceListening = Boolean(listening);
+    if (!studyVoiceListening && studyVoiceTimeout) {
+      clearTimeout(studyVoiceTimeout);
+      studyVoiceTimeout = 0;
+    }
+    const button = $('study-response-voice');
+    if (!button) return;
+    button.classList.toggle('is-listening', studyVoiceListening);
+    button.setAttribute('aria-pressed', String(studyVoiceListening));
+    button.setAttribute('aria-label', studyVoiceListening ? 'Stop voice input' : 'Speak your answer');
+    button.setAttribute('title', studyVoiceListening ? 'Stop voice input' : 'Speak your answer');
+    $('study-response-voice-label').textContent = studyVoiceListening ? 'Stop' : 'Speak answer';
+  }
+
+  function stopStudyVoice() {
+    if (studyVoiceRecognition) {
+      try { studyVoiceRecognition.abort(); } catch (_) {}
+    }
+    studyVoiceRecognition = null;
+    setStudyVoiceListening(false);
+  }
+
+  function insertVoiceTranscript(transcript) {
+    const input = $('study-response');
+    const spoken = clean(transcript);
+    if (!input || !spoken) return;
+    const start = Number.isFinite(input.selectionStart) ? input.selectionStart : input.value.length;
+    const end = Number.isFinite(input.selectionEnd) ? input.selectionEnd : input.value.length;
+    const before = input.value.slice(0, start);
+    const after = input.value.slice(end);
+    const lead = before && !/\s$/.test(before) ? ' ' : '';
+    const trail = after && !/^\s/.test(after) ? ' ' : '';
+    input.value = `${before}${lead}${spoken}${trail}${after}`;
+    const caret = before.length + lead.length + spoken.length;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      try { input.setSelectionRange(caret, caret); } catch (_) {}
+    });
+  }
+
+  function installStudyVoice() {
+    const button = $('study-response-voice');
+    if (!button || !StudySpeechRecognition) return;
+    button.hidden = false;
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (studyVoiceListening && studyVoiceRecognition) {
+        try { studyVoiceRecognition.stop(); } catch (_) {}
+        return;
+      }
+      try {
+        const recognition = new StudySpeechRecognition();
+        studyVoiceRecognition = recognition;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.continuous = false;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => {
+          hideStudyVoiceHelp();
+          setStudyVoiceListening(true);
+          studyVoiceTimeout = window.setTimeout(() => {
+            try { recognition.stop(); } catch (_) {}
+          }, 12000);
+        };
+        recognition.onend = () => {
+          setStudyVoiceListening(false);
+          studyVoiceRecognition = null;
+        };
+        recognition.onerror = event => {
+          setStudyVoiceListening(false);
+          studyVoiceRecognition = null;
+          if (event?.error === 'aborted' || event?.error === 'no-speech') return;
+          if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+            showStudyVoiceHelp('', true);
+            return;
+          }
+          showStudyVoiceHelp('Voice input could not hear that. Try again.');
+        };
+        recognition.onresult = event => {
+          const transcript = clean(event?.results?.[0]?.[0]?.transcript);
+          if (!transcript) return;
+          insertVoiceTranscript(transcript);
+          try { recognition.stop(); } catch (_) {}
+        };
+        recognition.start();
+      } catch (error) {
+        console.error('Study Q voice input could not start:', error);
+        setStudyVoiceListening(false);
+        studyVoiceRecognition = null;
+        showStudyVoiceHelp('Voice input is unavailable right now.');
+      }
+    });
+    window.addEventListener('pagehide', stopStudyVoice);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopStudyVoice(); });
+  }
+
   function installEvents() {
     document.querySelectorAll('[data-source-mode]').forEach(button => button.addEventListener('click', () => setSourceMode(button.dataset.sourceMode)));
+    document.querySelectorAll('[data-deck-picker-target]').forEach(button => button.addEventListener('click', () => openDeckPicker(button.dataset.deckPickerTarget)));
+    $('study-deck-picker-select').addEventListener('change', updateDeckPickerPreview);
+    $('study-deck-picker-close').addEventListener('click', closeDeckPicker);
+    $('study-deck-picker-cancel').addEventListener('click', closeDeckPicker);
+    $('study-deck-picker-use').addEventListener('click', useDeckPicker);
+    $('study-deck-picker-modal').addEventListener('click', event => { if (event.target === $('study-deck-picker-modal')) closeDeckPicker(); });
     document.querySelectorAll('[data-coverage-mode]').forEach(button => button.addEventListener('click', () => setCoverageMode(button.dataset.coverageMode)));
     ['study-deck', 'study-range-start', 'study-range-end', 'study-session-size'].forEach(id => $(id).addEventListener('change', updateEligibility));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => $(id).addEventListener('input', updateEligibility));
@@ -1498,6 +1744,16 @@
     });
     $('study-show-hint').addEventListener('click', showNextHint);
     $('study-show-target').addEventListener('click', showTarget);
+    $('study-response').addEventListener('input', () => {
+      const item = sessionQueue[sessionIndex];
+      if (!item || !currentAttempt?.targetShown) return;
+      snapshotResponse(item);
+      const note = responseNote(item);
+      $('study-response-note').hidden = !note;
+      $('study-response-note').textContent = note;
+      renderCurrentAnswerReview(item);
+      updateSelfCheckGuidance(item);
+    });
     $('study-open-card').addEventListener('click', () => openQuickCard($('study-open-card').dataset.wordId));
     document.querySelectorAll('[data-study-rating]').forEach(button => button.addEventListener('click', () => setSelfRating(button.dataset.studyRating)));
     $('study-previous').addEventListener('click', previousExperience);
@@ -1513,12 +1769,18 @@
       const historyButton = event.target.closest('[data-studyq-session-id]');
       if (historyButton) showSavedSession(historyButton.dataset.studyqSessionId);
     });
-    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('study-quick-card-modal').hidden) closeQuickCard(); });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if (!$('study-deck-picker-modal').hidden) closeDeckPicker();
+      else if (!$('study-quick-card-modal').hidden) closeQuickCard();
+    });
+    installStudyVoice();
   }
 
   function setDefaults() {
     maxDeck = Math.max(1, ...rows.map(row => Number(row['Batch #']) || 0));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => { $(id).max = String(maxDeck); });
+    populateDeckPickerOptions();
 
     let recentDeck = 0;
     try {

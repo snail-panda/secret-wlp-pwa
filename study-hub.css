@@ -191,3 +191,41 @@ body.study-quick-card-open{overflow:hidden}
 .study-history-item small{display:block;margin-top:2px;color:#7d8d84;font-size:.62rem;line-height:1.35}
 .study-session-review-prompt{margin:0!important;max-width:none!important;padding:7px 8px;border-radius:10px;background:#f7faf7;color:#60756a!important;font-family:"EB Garamond",Georgia,serif;font-size:.86rem!important;line-height:1.36!important;text-align:left}
 @media(max-width:420px){.study-history-item-top{align-items:flex-start;flex-direction:column;gap:2px}.study-history-item-top time{white-space:normal}}
+
+/* v1.8.6.47 R7 — deck picker, spoken response, and exact-match guidance. */
+.study-deck-choice-row{display:flex;align-items:flex-end;gap:8px}
+.study-deck-choice-row .study-number-field{flex:1}
+.study-range-field-wrap{display:grid;gap:6px;min-width:0;flex:1}
+.study-deck-picker-open{flex:none;border:1px solid #d6e2d9;border-radius:999px;background:#fff;color:#5d7567;padding:8px 10px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
+.study-range-field-wrap .study-deck-picker-open{justify-self:start;padding:6px 9px;font-size:.64rem}
+.study-response-tools{display:flex;justify-content:flex-end;margin-top:6px}
+.study-response-voice{display:inline-flex;align-items:center;gap:6px;border:1px solid #d6e2d9;border-radius:999px;background:#fff;color:#5b7365;padding:7px 10px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-response-voice svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.study-response-voice .voice-stop-icon{display:none}
+.study-response-voice.is-listening{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+.study-response-voice.is-listening .voice-mic-icon{display:none}
+.study-response-voice.is-listening .voice-stop-icon{display:block;fill:currentColor;stroke:none}
+.study-response-voice[hidden]{display:none!important}
+.study-response-voice-help{margin:6px 0 0;padding:9px 10px;border-radius:11px;background:#f6f8f6;color:#6e7f76;font-size:.66rem;line-height:1.38}
+.study-response-voice-help strong{color:#456653}
+.study-response-voice-help button{margin-top:5px;padding:0;border:0;background:transparent;color:#35644f;font:650 .65rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-self-check.is-exact{border-color:#c6dbc9;background:#f8fcf8}
+.study-self-check.is-exact .study-self-check-copy small{color:#4f705e}
+.study-deck-picker-modal[hidden]{display:none!important}
+.study-deck-picker-modal{position:fixed;inset:0;z-index:122;background:rgba(26,48,37,.28);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
+.study-deck-picker-panel{position:relative;width:min(560px,100%);max-height:min(82dvh,700px);overflow:auto;background:#fbfdfb;border:1px solid #d9e5dc;border-radius:20px;padding:19px 16px 16px;box-sizing:border-box;box-shadow:0 18px 50px rgba(33,62,47,.16);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.study-deck-picker-close{position:absolute;top:9px;right:11px;width:32px;height:32px;border:0;background:transparent;color:#688073;font-size:1.4rem;line-height:1;cursor:pointer}
+.study-deck-picker-panel h2{margin:3px 36px 12px 0;font-family:"EB Garamond",Georgia,serif;color:#315f49;font-size:1.55rem;line-height:1;font-weight:600}
+.study-deck-picker-recent{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e3ebe5}
+.study-deck-picker-recent>span,.study-deck-picker-select-wrap>span{display:block;color:#7b8a82;font-size:.61rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.study-deck-picker-recent>div{display:flex;flex-wrap:wrap;gap:6px}
+.study-deck-picker-recent button{border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#5b7365;padding:6px 9px;font:650 .66rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-deck-picker-recent button.is-selected{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+.study-deck-picker-select-wrap{display:block}
+.study-deck-picker-select-wrap select{width:100%;border:1px solid #d6e2d9;border-radius:12px;background:#fff;color:#345b48;padding:10px 11px;font:inherit;font-size:.82rem;outline:0}
+.study-deck-picker-preview{margin:8px 0 0;color:#7d8d84;font-family:"EB Garamond",Georgia,serif;font-size:.78rem;line-height:1.4}
+.study-deck-picker-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:11px;border-top:1px solid #e1e9e3}
+.study-deck-picker-actions button{border:1px solid #d5e1d8;border-radius:999px;background:#fff;color:#5a7365;padding:7px 11px;font:650 .68rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-deck-picker-actions #study-deck-picker-use{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+body.study-deck-picker-open{overflow:hidden}
+@media(max-width:560px){.study-deck-choice-row{align-items:stretch;flex-direction:column}.study-deck-choice-row .study-deck-picker-open{align-self:flex-start}.study-range-config{align-items:flex-start}.study-range-dash{padding-top:30px;padding-bottom:0}.study-deck-picker-modal{padding:10px}.study-deck-picker-panel{max-height:84dvh;border-radius:18px}}

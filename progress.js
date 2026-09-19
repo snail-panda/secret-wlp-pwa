@@ -94,6 +94,33 @@
   function wordIdOf(row) { return String(field(row, 'WordID', 'Word ID') || '').trim(); }
   function deckOf(row) { return Number(field(row, 'Batch #', 'Batch') || 0) || 0; }
   function pad3(value) { return String(Number(value) || 0).padStart(3, '0'); }
+  function cardHrefForWordId(wordId) {
+    const id = String(wordId || '').trim();
+    const row = rowByWordId.get(id) || {};
+    const deck = deckOf(row);
+    if (deck && id) return `./flashcards/wlp/batch.html?batch=${encodeURIComponent(pad3(deck))}&wordid=${encodeURIComponent(id)}&solo=1`;
+    if (deck) return `./flashcards/wlp/batch.html?batch=${encodeURIComponent(pad3(deck))}`;
+    return '';
+  }
+
+  function firstPracticeWordId(event) {
+    const values = [];
+    if (event?.wordId) values.push(event.wordId);
+    if (Array.isArray(event?.targets)) values.push(...event.targets);
+    if (Array.isArray(event?.supports)) values.push(...event.supports);
+    for (const value of values) {
+      const id = typeof value === 'object' && value ? String(value.wordId || value.id || '') : String(value || '');
+      if (id && rowByWordId.has(id)) return id;
+    }
+    return '';
+  }
+
+  function activityHref(event) {
+    if (!event) return '';
+    const id = event.type === 'practice' ? firstPracticeWordId(event) : String(event.wordId || '').trim();
+    return id ? cardHrefForWordId(id) : '';
+  }
+
   function fmt(value) { return Number(value || 0).toLocaleString(); }
 
   function readProgressRecords() {
@@ -234,7 +261,9 @@
       const word = field(row, 'Word') || `WID ${record.wordId}`;
       const deck = deckOf(row);
       const tag = record.review ? 'Review' : 'Card Study';
-      return `<div class="activity-row"><span class="activity-time">${escapeHtml(formatWhen(record.lastSeen))}</span><span class="activity-main"><strong>${escapeHtml(word)}</strong><small>${deck ? `Deck WLP${pad3(deck)} · ` : ''}${fmt(record.attempts)} recorded interaction${record.attempts === 1 ? '' : 's'}</small></span><span class="activity-tag">${escapeHtml(tag)}</span></div>`;
+      const href = cardHrefForWordId(record.wordId);
+      const inner = `<span class="activity-time">${escapeHtml(formatWhen(record.lastSeen))}</span><span class="activity-main"><strong>${escapeHtml(word)}</strong><small>${deck ? `Deck WLP${pad3(deck)} · ` : ''}${fmt(record.attempts)} recorded interaction${record.attempts === 1 ? '' : 's'}</small></span><span class="activity-tag">${escapeHtml(tag)}</span>`;
+      return href ? `<a class="activity-row" href="${href}">${inner}</a>` : `<div class="activity-row">${inner}</div>`;
     }).join('');
   }
 
@@ -401,7 +430,9 @@
         const type = String(event.type || event.practiceType || 'Practice');
         const targets = Array.isArray(event.targets) ? event.targets.length : 0;
         const supports = Array.isArray(event.supports) ? event.supports.length : 0;
-        return `<div class="practice-row"><span class="practice-time">${escapeHtml(formatWhen(timestamp))}</span><span class="practice-main"><strong>${escapeHtml(titleCase(type))}</strong><small>${targets ? `${targets} target${targets === 1 ? '' : 's'}` : 'Practice'}${supports ? ` + ${supports} support` : ''}</small></span><span class="practice-tag">Connection</span></div>`;
+        const inner = `<span class="practice-time">${escapeHtml(formatWhen(timestamp))}</span><span class="practice-main"><strong>${escapeHtml(titleCase(type))}</strong><small>${targets ? `${targets} target${targets === 1 ? '' : 's'}` : 'Practice'}${supports ? ` + ${supports} support` : ''}</small></span><span class="practice-tag">Connection</span>`;
+        const href = activityHref({ ...event, type: 'practice' });
+        return href ? `<a class="practice-row" href="${href}">${inner}</a>` : `<div class="practice-row">${inner}</div>`;
       }).join('');
       return;
     }
@@ -413,7 +444,9 @@
     }
     target.innerHTML = `<p class="panel-footnote" style="margin-top:0">No connection-practice events yet. Recent card activity is shown below.</p>` + recent.map(record => {
       const row = rowByWordId.get(record.wordId) || {};
-      return `<div class="practice-row"><span class="practice-time">${escapeHtml(formatWhen(record.lastSeen))}</span><span class="practice-main"><strong>${escapeHtml(field(row,'Word') || `WID ${record.wordId}`)}</strong><small>${deckOf(row) ? `Deck WLP${pad3(deckOf(row))}` : 'Card activity'}</small></span><span class="practice-tag">Card</span></div>`;
+      const inner = `<span class="practice-time">${escapeHtml(formatWhen(record.lastSeen))}</span><span class="practice-main"><strong>${escapeHtml(field(row,'Word') || `WID ${record.wordId}`)}</strong><small>${deckOf(row) ? `Deck WLP${pad3(deckOf(row))}` : 'Card activity'}</small></span><span class="practice-tag">Card</span>`;
+      const href = cardHrefForWordId(record.wordId);
+      return href ? `<a class="practice-row" href="${href}">${inner}</a>` : `<div class="practice-row">${inner}</div>`;
     }).join('');
   }
 
@@ -600,7 +633,11 @@
       target.innerHTML = '<p class="empty-progress">No recorded activity in this time window.</p>';
       return;
     }
-    target.innerHTML = items.map(event => `<div class="timeline-row"><span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study')}</span></div>`).join('');
+    target.innerHTML = items.map(event => {
+      const inner = `<span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study')}</span>`;
+      const href = activityHref(event);
+      return href ? `<a class="timeline-row" href="${href}">${inner}</a>` : `<div class="timeline-row">${inner}</div>`;
+    }).join('');
   }
 
   function studyQRatingSummary(counts = {}) {

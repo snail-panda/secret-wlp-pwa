@@ -66,3 +66,9 @@
 .studyq-session-main small{display:block;font-size:10px;color:#839087;margin-top:2px;line-height:1.35}
 .studyq-session-tag{border-radius:999px;padding:4px 7px;background:#edf5ef;color:#4b765f;font-size:9px;white-space:nowrap}
 @media(max-width:520px){.studyq-session-row{grid-template-columns:58px 1fr auto}.studyq-rating-grid{gap:5px}.studyq-rating-grid strong{font-size:18px}}
+
+/* v1.8.6.47 R7 — make recorded card activity navigable. */
+a.activity-row,a.practice-row,a.timeline-row{color:inherit;text-decoration:none;border-radius:10px;transition:background .15s ease}
+a.activity-row:hover,a.practice-row:hover,a.timeline-row:hover,a.activity-row:focus-visible,a.practice-row:focus-visible,a.timeline-row:focus-visible{background:#f4f8f4;outline:none}
+a.activity-row:active,a.practice-row:active,a.timeline-row:active{background:#edf4ee}
+a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeline-row .timeline-tag::after{content:' ›'}
