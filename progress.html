@@ -314,51 +314,8 @@
 
   <div class="toast" id="progress-toast" role="status" aria-live="polite" hidden></div>
 
-  <script>
-    (()=>{
-      const nav=()=>document.querySelector('.progress-bottom-nav');
-      let tracked=innerWidth>innerHeight;
-      let raf=0;
-      const view=()=>{
-        const vv=visualViewport;
-        const width=Math.max(1,vv?.width||innerWidth||document.documentElement.clientWidth||1);
-        const height=Math.max(1,vv?.height||innerHeight||document.documentElement.clientHeight||1);
-        const pageTop=Number.isFinite(vv?.pageTop)?vv.pageTop:(scrollY||pageYOffset||0)+(vv?.offsetTop||0);
-        const pageLeft=Number.isFinite(vv?.pageLeft)?vv.pageLeft:(scrollX||pageXOffset||0)+(vv?.offsetLeft||0);
-        return{width,height,pageTop,pageLeft};
-      };
-      const set=(el,key,value)=>el.style.setProperty(key,value,'important');
-      const lock=()=>{
-        const el=nav();if(!el||!document.body)return;
-        if(el.parentElement!==document.body)document.body.appendChild(el);
-        if(!tracked){
-          [['position','fixed'],['z-index','85'],['left','50%'],['right','auto'],['top','auto'],['bottom','0'],['transform','translateX(-50%)'],['width','min(100%, 700px)'],['max-width','100vw'],['margin','0'],['will-change','auto']].forEach(([k,v])=>set(el,k,v));
-          el.style.removeProperty('backdrop-filter');el.style.removeProperty('-webkit-backdrop-filter');
-          el.dataset.stage7ViewportLocked='fixed';return;
-        }
-        const v=view();
-        [['position','absolute'],['z-index','85'],['right','auto'],['bottom','auto'],['width','min(100%, 700px)'],['max-width',`${Math.round(v.width)}px`],['margin','0'],['transform','translateX(-50%)'],['will-change','auto'],['backdrop-filter','none'],['-webkit-backdrop-filter','none']].forEach(([k,val])=>set(el,k,val));
-        const h=Math.max(1,el.getBoundingClientRect().height||el.offsetHeight||1);
-        set(el,'top',`${Math.round(Math.max(v.pageTop,v.pageTop+v.height-h))}px`);
-        set(el,'left',`${Math.round(v.pageLeft+v.width/2)}px`);
-        el.dataset.stage7ViewportLocked='tracked';
-      };
-      const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lock();});};
-      const recover=()=>{tracked=true;[0,40,120,260,520,900,1500].forEach(ms=>setTimeout(schedule,ms));};
-      let last=innerWidth>innerHeight?'landscape':'portrait';
-      const detect=()=>{const next=innerWidth>innerHeight?'landscape':'portrait';if(next!==last){last=next;recover();}else schedule();};
-      if(tracked)recover();else lock();
-      ['pageshow','focus','scroll','touchmove','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
-      addEventListener('resize',detect,{passive:true});
-      addEventListener('orientationchange',recover,{passive:true});
-      if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recover);
-      const mq=matchMedia('(orientation: portrait)');if(mq.addEventListener)mq.addEventListener('change',recover);
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover();});
-      if(window.visualViewport){visualViewport.addEventListener('resize',detect,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
-      setInterval(()=>{if(!document.hidden)lock();},1000);
-    })();
-  </script>
+  <!-- Bottom Nav anchoring is centralized in pwa-register.js (v1.8.6.36). -->
   <script src="./progress.js?v=20260918-s7-v18627"></script>
-  <script src="./pwa-register.js?v=20260918-s7-visual-anchor-v18635"></script>
+  <script src="./pwa-register.js?v=20260918-s7-visual-fixed-v18636"></script>
 </body>
 </html>

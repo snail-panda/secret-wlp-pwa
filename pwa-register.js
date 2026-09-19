@@ -1,33 +1,32 @@
-// WLP Stage 7 v1.8.6.35 — Bottom Nav visual-viewport anchor.
-// Portrait keeps the proven fixed-position path. Once rotation or fixed drift is
-// detected, navs switch to a document-positioned visual-viewport tracker so an
-// iPhone Chrome/WebKit compositor reset cannot make them scroll with the page.
+// WLP Stage 7 v1.8.6.36 — Bottom Nav visual-fixed landscape recovery.
+// Portrait keeps the proven bottom:0 fixed path. After any orientation change
+// (or fixed-position drift), navs enter visual-fixed mode: they remain fixed at
+// top:0 and are translated to the *current Visual Viewport* bottom. A continuous
+// rAF watcher avoids depending on iPhone Chrome/WebKit scroll event delivery.
 (() => {
   const NAV_SPECS = [
-    { selector: '.stage7-page-bottom-nav', width: 'min(100%, 760px)' },
-    { selector: '.deck-browser-bottom-nav', width: 'min(100%, 760px)' },
-    { selector: '.progress-bottom-nav', width: 'min(100%, 700px)' }
+    { selector: '.stage7-page-bottom-nav', maxWidth: 760 },
+    { selector: '.deck-browser-bottom-nav', maxWidth: 760 },
+    { selector: '.progress-bottom-nav', maxWidth: 700 }
   ];
 
-  let trackedMode = window.innerWidth > window.innerHeight;
+  let visualMode = matchMedia('(orientation: landscape)').matches;
   let raf = 0;
-  let recoveryTimers = [];
+  let visualLoopRaf = 0;
+  let lastVisualSignature = '';
 
   const cssName = key => key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
   const setImportant = (node, key, value) => node.style.setProperty(cssName(key), value, 'important');
 
   const viewportBox = () => {
     const vv = window.visualViewport;
-    const width = Math.max(1, vv?.width || window.innerWidth || document.documentElement.clientWidth || 1);
-    const height = Math.max(1, vv?.height || window.innerHeight || document.documentElement.clientHeight || 1);
-    const pageTop = Number.isFinite(vv?.pageTop)
-      ? vv.pageTop
-      : (window.scrollY || window.pageYOffset || 0) + (vv?.offsetTop || 0);
-    const pageLeft = Number.isFinite(vv?.pageLeft)
-      ? vv.pageLeft
-      : (window.scrollX || window.pageXOffset || 0) + (vv?.offsetLeft || 0);
-    const offsetTop = vv?.offsetTop || 0;
-    return { width, height, pageTop, pageLeft, offsetTop };
+    return {
+      width: Math.max(1, vv?.width || window.innerWidth || document.documentElement.clientWidth || 1),
+      height: Math.max(1, vv?.height || window.innerHeight || document.documentElement.clientHeight || 1),
+      offsetTop: Number.isFinite(vv?.offsetTop) ? vv.offsetTop : 0,
+      offsetLeft: Number.isFinite(vv?.offsetLeft) ? vv.offsetLeft : 0,
+      scale: Number.isFinite(vv?.scale) ? vv.scale : 1
+    };
   };
 
   const ensureBodyParent = nav => {
@@ -36,92 +35,116 @@
     return true;
   };
 
-  const applyFixed = (nav, width) => {
+  const applyFixed = (nav, maxWidth) => {
     if (!ensureBodyParent(nav)) return;
     const lock = {
       position: 'fixed', zIndex: '85', left: '50%', right: 'auto', top: 'auto', bottom: '0',
-      transform: 'translateX(-50%)', width, maxWidth: '100vw', margin: '0', willChange: 'auto'
+      transform: 'translateX(-50%)', width: `min(100%, ${maxWidth}px)`, maxWidth: '100vw',
+      margin: '0', willChange: 'auto'
     };
     Object.entries(lock).forEach(([key, value]) => setImportant(nav, key, value));
+    nav.style.removeProperty('transform-origin');
+    nav.style.removeProperty('-webkit-transform-origin');
     nav.style.removeProperty('backdrop-filter');
     nav.style.removeProperty('-webkit-backdrop-filter');
     nav.dataset.stage7ViewportLocked = 'fixed';
   };
 
-  const applyTracked = (nav, width) => {
+  const applyVisualFixed = (nav, maxWidth, view) => {
     if (!ensureBodyParent(nav)) return;
-    const view = viewportBox();
 
-    // Establish width/position first, then measure the real nav height including
-    // safe-area padding before anchoring it to the visible viewport bottom.
-    setImportant(nav, 'position', 'absolute');
+    const navWidth = Math.max(1, Math.min(maxWidth, view.width));
+    setImportant(nav, 'position', 'fixed');
     setImportant(nav, 'zIndex', '85');
+    setImportant(nav, 'left', '0');
     setImportant(nav, 'right', 'auto');
+    setImportant(nav, 'top', '0');
     setImportant(nav, 'bottom', 'auto');
-    setImportant(nav, 'width', width);
-    setImportant(nav, 'maxWidth', `${Math.round(view.width)}px`);
+    setImportant(nav, 'width', `${navWidth}px`);
+    setImportant(nav, 'maxWidth', `${navWidth}px`);
     setImportant(nav, 'margin', '0');
-    setImportant(nav, 'transform', 'translateX(-50%)');
-    nav.style.setProperty('-webkit-transform', 'translateX(-50%)', 'important');
-    // Avoid keeping the nav in the stale fixed/backdrop compositor layer that
-    // can survive an iPhone orientation change.
-    nav.style.setProperty('will-change', 'auto', 'important');
+    setImportant(nav, 'transformOrigin', '0 0');
+    nav.style.setProperty('-webkit-transform-origin', '0 0', 'important');
+    setImportant(nav, 'willChange', 'transform');
+    // Avoid keeping the old blurred bottom:0 compositor layer after rotation.
     nav.style.setProperty('backdrop-filter', 'none', 'important');
     nav.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
 
+    // Measure with the final width before computing the visible-viewport anchor.
     const navHeight = Math.max(1, nav.getBoundingClientRect().height || nav.offsetHeight || 1);
-    const top = Math.max(view.pageTop, view.pageTop + view.height - navHeight);
-    const left = view.pageLeft + view.width / 2;
-    setImportant(nav, 'top', `${Math.round(top)}px`);
-    setImportant(nav, 'left', `${Math.round(left)}px`);
-    nav.dataset.stage7ViewportLocked = 'tracked';
+    const x = view.offsetLeft + Math.max(0, (view.width - navWidth) / 2);
+    const y = view.offsetTop + Math.max(0, view.height - navHeight);
+    const transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+    nav.style.setProperty('transform', transform, 'important');
+    nav.style.setProperty('-webkit-transform', transform, 'important');
+    nav.dataset.stage7ViewportLocked = 'visual-fixed';
   };
 
-  const lockAllBottomNavs = () => {
-    NAV_SPECS.forEach(({ selector, width }) => {
-      document.querySelectorAll(selector).forEach(nav => {
-        if (trackedMode) applyTracked(nav, width);
-        else applyFixed(nav, width);
+  const lockAllBottomNavs = (force = false) => {
+    if (!visualMode) {
+      NAV_SPECS.forEach(({ selector, maxWidth }) => {
+        document.querySelectorAll(selector).forEach(nav => applyFixed(nav, maxWidth));
       });
+      return;
+    }
+
+    const view = viewportBox();
+    const signature = [
+      view.width.toFixed(2), view.height.toFixed(2), view.offsetTop.toFixed(2),
+      view.offsetLeft.toFixed(2), view.scale.toFixed(3)
+    ].join('|');
+
+    // If viewport geometry did not change, still force periodically when requested
+    // so an external browser/compositor mutation cannot leave the inline lock stale.
+    if (!force && signature === lastVisualSignature) return;
+    lastVisualSignature = signature;
+    NAV_SPECS.forEach(({ selector, maxWidth }) => {
+      document.querySelectorAll(selector).forEach(nav => applyVisualFixed(nav, maxWidth, view));
     });
   };
 
   const scheduleLock = () => {
+    if (visualMode) {
+      lockAllBottomNavs(true);
+      return;
+    }
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
-      lockAllBottomNavs();
+      lockAllBottomNavs(true);
     });
   };
 
-  const enterTrackedMode = () => {
-    trackedMode = true;
-    document.documentElement.dataset.stage7NavAnchor = 'visual-viewport';
-    recoveryTimers.forEach(clearTimeout);
-    recoveryTimers = [];
-    [0, 40, 120, 260, 520, 900, 1500].forEach(delay => {
-      recoveryTimers.push(setTimeout(() => {
-        lockAllBottomNavs();
-        requestAnimationFrame(lockAllBottomNavs);
-      }, delay));
-    });
+  const runVisualLoop = () => {
+    if (visualLoopRaf || !visualMode || document.hidden) return;
+    const tick = () => {
+      visualLoopRaf = 0;
+      if (!visualMode || document.hidden) return;
+      // Read/write every animation frame in recovery mode. iPhone Chrome can
+      // visually pan the viewport during landscape scrolling without delivering
+      // a reliable sequence of window/VisualViewport scroll events.
+      lastVisualSignature = '';
+      lockAllBottomNavs(true);
+      visualLoopRaf = requestAnimationFrame(tick);
+    };
+    visualLoopRaf = requestAnimationFrame(tick);
   };
 
-  let lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-  const detectOrientation = () => {
-    const next = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-    if (next !== lastOrientation) {
-      lastOrientation = next;
-      enterTrackedMode();
-      return;
-    }
-    scheduleLock();
+  const enterVisualMode = () => {
+    visualMode = true;
+    document.documentElement.dataset.stage7NavAnchor = 'visual-fixed';
+    lastVisualSignature = '';
+    lockAllBottomNavs(true);
+    runVisualLoop();
   };
 
   const detectFixedDrift = () => {
-    if (trackedMode) { scheduleLock(); return; }
+    if (visualMode) { scheduleLock(); return; }
     const vv = window.visualViewport;
     if (!vv) { scheduleLock(); return; }
+    // In portrait the expected visible bottom is vv.height + vv.offsetTop.
+    // A large mismatch means the browser has stopped treating bottom:0 as the
+    // visible viewport bottom, so switch permanently to visual-fixed recovery.
     const expectedBottom = (vv.offsetTop || 0) + vv.height;
     let drifted = false;
     NAV_SPECS.forEach(({ selector }) => {
@@ -130,47 +153,50 @@
         if (Number.isFinite(rect.bottom) && Math.abs(rect.bottom - expectedBottom) > 24) drifted = true;
       });
     });
-    if (drifted) enterTrackedMode();
+    if (drifted) enterVisualMode();
     else scheduleLock();
   };
 
   window.WLPBottomNavGuard = {
-    lockAll: lockAllBottomNavs,
+    lockAll: () => lockAllBottomNavs(true),
     schedule: scheduleLock,
-    recover: enterTrackedMode,
-    useVisualViewportAnchor: enterTrackedMode,
-    isTracked: () => trackedMode
+    recover: enterVisualMode,
+    useVisualViewportAnchor: enterVisualMode,
+    isTracked: () => visualMode,
+    isVisualFixed: () => visualMode
   };
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      if (trackedMode) enterTrackedMode(); else lockAllBottomNavs();
-    }, { once: true });
-  } else if (trackedMode) {
-    enterTrackedMode();
-  } else {
-    lockAllBottomNavs();
-  }
+  const boot = () => {
+    if (visualMode) enterVisualMode();
+    else lockAllBottomNavs(true);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 
   ['load', 'pageshow', 'focus', 'scroll', 'touchmove', 'touchend', 'pointerup']
-    .forEach(type => window.addEventListener(type, trackedMode ? scheduleLock : detectFixedDrift, { passive: true }));
-  window.addEventListener('resize', detectOrientation, { passive: true });
-  window.addEventListener('orientationchange', enterTrackedMode, { passive: true });
-  if (screen.orientation && screen.orientation.addEventListener) {
-    screen.orientation.addEventListener('change', enterTrackedMode);
-  }
+    .forEach(type => window.addEventListener(type, visualMode ? scheduleLock : detectFixedDrift, { passive: true }));
+  window.addEventListener('resize', () => {
+    if (matchMedia('(orientation: landscape)').matches) enterVisualMode();
+    else if (visualMode) scheduleLock();
+    else detectFixedDrift();
+  }, { passive: true });
+  window.addEventListener('orientationchange', enterVisualMode, { passive: true });
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', enterVisualMode);
   const orientationQuery = matchMedia('(orientation: portrait)');
-  if (orientationQuery.addEventListener) orientationQuery.addEventListener('change', enterTrackedMode);
+  if (orientationQuery.addEventListener) orientationQuery.addEventListener('change', enterVisualMode);
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      if (trackedMode) enterTrackedMode();
-      else { detectFixedDrift(); setTimeout(detectFixedDrift, 140); }
+    if (document.hidden) {
+      if (visualLoopRaf) cancelAnimationFrame(visualLoopRaf);
+      visualLoopRaf = 0;
+      return;
     }
+    if (visualMode) enterVisualMode();
+    else detectFixedDrift();
   });
 
   if (window.visualViewport) {
-    visualViewport.addEventListener('resize', detectOrientation, { passive: true });
+    visualViewport.addEventListener('resize', visualMode ? scheduleLock : detectFixedDrift, { passive: true });
     visualViewport.addEventListener('scroll', scheduleLock, { passive: true });
   }
 
@@ -184,7 +210,7 @@
 
   setInterval(() => {
     if (document.hidden) return;
-    if (trackedMode) lockAllBottomNavs();
+    if (visualMode) lockAllBottomNavs(true);
     else detectFixedDrift();
   }, 1000);
 })();

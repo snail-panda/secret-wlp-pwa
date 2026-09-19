@@ -843,45 +843,62 @@
 
   <script>
     (()=>{
+      // Stage 7 v1.8.6.36 — Study Bottom Nav visual-fixed landscape recovery.
+      // After rotation, keep the nav fixed at top:0 and translate it to the
+      // live Visual Viewport bottom every frame. Do not park it at an absolute
+      // document coordinate; iPhone Chrome can skip scroll callbacks in landscape.
       const nav=()=>document.getElementById('deck-nav-links');
-      let tracked=innerWidth>innerHeight;
+      let visualMode=matchMedia('(orientation: landscape)').matches;
+      let loop=0;
       let raf=0;
-      const view=()=>{
-        const vv=visualViewport;
-        const width=Math.max(1,vv?.width||innerWidth||document.documentElement.clientWidth||1);
-        const height=Math.max(1,vv?.height||innerHeight||document.documentElement.clientHeight||1);
-        const pageTop=Number.isFinite(vv?.pageTop)?vv.pageTop:(scrollY||pageYOffset||0)+(vv?.offsetTop||0);
-        const pageLeft=Number.isFinite(vv?.pageLeft)?vv.pageLeft:(scrollX||pageXOffset||0)+(vv?.offsetLeft||0);
-        return{width,height,pageTop,pageLeft};
-      };
       const set=(el,key,value)=>el.style.setProperty(key,value,'important');
-      const lock=()=>{
+      const view=()=>{
+        const vv=window.visualViewport;
+        return{
+          width:Math.max(1,vv?.width||innerWidth||document.documentElement.clientWidth||1),
+          height:Math.max(1,vv?.height||innerHeight||document.documentElement.clientHeight||1),
+          offsetTop:Number.isFinite(vv?.offsetTop)?vv.offsetTop:0,
+          offsetLeft:Number.isFinite(vv?.offsetLeft)?vv.offsetLeft:0
+        };
+      };
+      const fixed=()=>{
         const el=nav();if(!el||!document.body)return;
         if(el.parentElement!==document.body)document.body.appendChild(el);
-        if(!tracked){
-          [['position','fixed'],['z-index','85'],['left','50%'],['right','auto'],['top','auto'],['bottom','0'],['transform','translateX(-50%)'],['width','min(100%, 760px)'],['max-width','100vw'],['margin','0'],['will-change','auto']].forEach(([k,v])=>set(el,k,v));
-          el.style.removeProperty('backdrop-filter');el.style.removeProperty('-webkit-backdrop-filter');
-          el.dataset.stage7ViewportLocked='fixed';return;
-        }
-        const v=view();
-        [['position','absolute'],['z-index','85'],['right','auto'],['bottom','auto'],['width','min(100%, 760px)'],['max-width',`${Math.round(v.width)}px`],['margin','0'],['transform','translateX(-50%)'],['will-change','auto'],['backdrop-filter','none'],['-webkit-backdrop-filter','none']].forEach(([k,val])=>set(el,k,val));
-        const h=Math.max(1,el.getBoundingClientRect().height||el.offsetHeight||1);
-        set(el,'top',`${Math.round(Math.max(v.pageTop,v.pageTop+v.height-h))}px`);
-        set(el,'left',`${Math.round(v.pageLeft+v.width/2)}px`);
-        el.dataset.stage7ViewportLocked='tracked';
+        [['position','fixed'],['z-index','85'],['left','50%'],['right','auto'],['top','auto'],['bottom','0'],['transform','translateX(-50%)'],['width','min(100%, 760px)'],['max-width','100vw'],['margin','0'],['will-change','auto']].forEach(([k,v])=>set(el,k,v));
+        el.style.removeProperty('transform-origin');el.style.removeProperty('-webkit-transform-origin');
+        el.style.removeProperty('backdrop-filter');el.style.removeProperty('-webkit-backdrop-filter');
+        el.dataset.stage7ViewportLocked='fixed';
       };
-      const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lock();});};
-      const recover=()=>{tracked=true;[0,40,120,260,520,900,1500].forEach(ms=>setTimeout(schedule,ms));};
-      let last=innerWidth>innerHeight?'landscape':'portrait';
-      const detect=()=>{const next=innerWidth>innerHeight?'landscape':'portrait';if(next!==last){last=next;recover();}else schedule();};
-      if(tracked)recover();else lock();
+      const visualFixed=()=>{
+        const el=nav();if(!el||!document.body)return;
+        if(el.parentElement!==document.body)document.body.appendChild(el);
+        const v=view();
+        const w=Math.max(1,Math.min(760,v.width));
+        [['position','fixed'],['z-index','85'],['left','0'],['right','auto'],['top','0'],['bottom','auto'],['width',`${w}px`],['max-width',`${w}px`],['margin','0'],['transform-origin','0 0'],['will-change','transform'],['backdrop-filter','none'],['-webkit-backdrop-filter','none']].forEach(([k,val])=>set(el,k,val));
+        el.style.setProperty('-webkit-transform-origin','0 0','important');
+        const h=Math.max(1,el.getBoundingClientRect().height||el.offsetHeight||1);
+        const x=v.offsetLeft+Math.max(0,(v.width-w)/2);
+        const y=v.offsetTop+Math.max(0,v.height-h);
+        const t=`translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+        set(el,'transform',t);el.style.setProperty('-webkit-transform',t,'important');
+        el.dataset.stage7ViewportLocked='visual-fixed';
+      };
+      const lock=()=>visualMode?visualFixed():fixed();
+      const schedule=()=>{if(visualMode){lock();return;}if(raf)return;raf=requestAnimationFrame(()=>{raf=0;lock();});};
+      const startLoop=()=>{
+        if(loop||!visualMode||document.hidden)return;
+        const tick=()=>{loop=0;if(!visualMode||document.hidden)return;visualFixed();loop=requestAnimationFrame(tick);};
+        loop=requestAnimationFrame(tick);
+      };
+      const recover=()=>{visualMode=true;visualFixed();startLoop();};
+      if(visualMode)recover();else fixed();
       ['pageshow','focus','scroll','touchmove','touchend','pointerup'].forEach(type=>addEventListener(type,schedule,{passive:true}));
-      addEventListener('resize',detect,{passive:true});
+      addEventListener('resize',()=>{if(matchMedia('(orientation: landscape)').matches)recover();else if(visualMode)schedule();else fixed();},{passive:true});
       addEventListener('orientationchange',recover,{passive:true});
       if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',recover);
       const mq=matchMedia('(orientation: portrait)');if(mq.addEventListener)mq.addEventListener('change',recover);
-      document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover();});
-      if(window.visualViewport){visualViewport.addEventListener('resize',detect,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
+      document.addEventListener('visibilitychange',()=>{if(document.hidden){if(loop)cancelAnimationFrame(loop);loop=0;}else if(visualMode)recover();else fixed();});
+      if(window.visualViewport){visualViewport.addEventListener('resize',schedule,{passive:true});visualViewport.addEventListener('scroll',schedule,{passive:true});}
       setInterval(()=>{if(!document.hidden)lock();},1000);
     })();
   </script>
