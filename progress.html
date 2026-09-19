@@ -314,8 +314,30 @@
 
   <div class="toast" id="progress-toast" role="status" aria-live="polite" hidden></div>
 
-  <!-- Bottom Nav anchoring is centralized in pwa-register.js (v1.8.6.37 viewport dock). -->
+  <script>
+    (()=>{
+      const lockBottomNav=()=>{
+        const nav=document.querySelector('.progress-bottom-nav');
+        if(!nav)return;
+        if(nav.parentElement!==document.body)document.body.appendChild(nav);
+        const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translate3d(-50%, 0, 0)',width:'min(100%, 700px)',maxWidth:'100vw',margin:'0'};
+        Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));
+        nav.style.setProperty('-webkit-transform','translate3d(-50%, 0, 0)','important');
+        nav.style.setProperty('will-change','transform','important');
+      };
+      lockBottomNav();
+      addEventListener('pageshow',lockBottomNav);
+      addEventListener('resize',lockBottomNav,{passive:true});
+      addEventListener('orientationchange',lockBottomNav,{passive:true});
+      addEventListener('focus',lockBottomNav,{passive:true});
+      addEventListener('scroll',lockBottomNav,{passive:true});
+      addEventListener('touchend',lockBottomNav,{passive:true});
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden)lockBottomNav();});
+      if(window.visualViewport){visualViewport.addEventListener('resize',lockBottomNav,{passive:true});visualViewport.addEventListener('scroll',lockBottomNav,{passive:true});}
+      setInterval(()=>{if(!document.hidden)lockBottomNav();},1500);
+    })();
+  </script>
   <script src="./progress.js?v=20260918-s7-v18627"></script>
-  <script src="./pwa-register.js?v=20260918-s7-viewport-dock-v18637"></script>
+  <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>
 </html>
