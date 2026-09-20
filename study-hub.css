@@ -282,8 +282,8 @@ body.study-end-session-open{overflow:hidden}
 /* Subtle Study Q result hierarchy: scanability without score-like color coding. */
 .study-match-lead{font-weight:800;color:#3f6552}
 .study-summary-number{font-weight:800;color:#526f5f}
-.study-session-review-rating.is-got-it{background:#edf4ee;border-color:#c8d8cc;color:#4f6d5d}
-.study-session-review-rating.is-almost{background:#f2f6f2;border-color:#d2ddd5;color:#587164}
-.study-session-review-rating.is-not-yet{background:#f6f8f6;border-color:#d9e2db;color:#61766b}
-.study-session-review-rating.is-no-idea{background:#fafbfa;border-color:#e0e6e1;color:#687a70}
+.study-session-review-rating.is-got-it{background:#eaf2eb}
+.study-session-review-rating.is-almost{background:#f1f5f1}
+.study-session-review-rating.is-not-yet{background:#f8faf8}
+.study-session-review-rating.is-no-idea{background:#fff}
 .study-session-review-match-hit{font-weight:800;color:#5d7768}
