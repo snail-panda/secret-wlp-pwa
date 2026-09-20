@@ -2729,6 +2729,11 @@ body.review-attention-open{overflow:hidden}
 .stage7-study-body .s7-read-target-menu button:active{
   background:rgba(229,239,231,.78)!important;
 }
+.stage7-study-body .s7-read-menu-separator{
+  height:1px;
+  margin:2px 7px 1px;
+  background:rgba(71,104,79,.14);
+}
 .stage7-study-body .s7-back-audio-tools .s7-voice-utility .btn-voice{
   min-width:0!important;
   max-width:none!important;

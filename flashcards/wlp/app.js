@@ -2780,7 +2780,8 @@ function readAloudPreferences() {
       definition: true,
       example: true,
       synonyms: true,
-      notes: true
+      notes: true,
+      all: true
     }
   };
 
@@ -2793,6 +2794,7 @@ function readAloudPreferences() {
     allowed.forEach(key => {
       enabled[key] = typeof targets[key] === "boolean" ? targets[key] : fallback.targets[key];
     });
+    enabled.all = typeof targets.all === "boolean" ? targets.all : fallback.targets.all;
     if (!allowed.some(key => enabled[key])) enabled.example = true;
     let defaultTarget = allowed.includes(read.defaultTarget) ? read.defaultTarget : fallback.defaultTarget;
     if (!enabled[defaultTarget]) defaultTarget = allowed.find(key => enabled[key]) || "example";
@@ -2812,6 +2814,11 @@ function readTargetLabel(target) {
 }
 
 function readChunksForTarget(row, target) {
+  if (target === "all") {
+    return ["definition", "example", "synonyms", "notes"]
+      .flatMap(key => readChunksForTarget(row, key));
+  }
+
   if (target === "definition") {
     const def = String(row["Definition"] || "").replace(/\s+/g, " ").trim();
     return def ? [def] : [];
@@ -2855,6 +2862,8 @@ function syncReadAloudControl(root) {
     button.hidden = !enabled;
     button.setAttribute("aria-hidden", String(!enabled));
   });
+  const separator = utility.querySelector(".s7-read-menu-separator");
+  if (separator) separator.hidden = prefs.targets.all === false;
 }
 
 function speakBackAll(row) {

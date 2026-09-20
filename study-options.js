@@ -29,7 +29,8 @@
         definition: true,
         example: true,
         synonyms: true,
-        notes: true
+        notes: true,
+        all: true
       }
     },
     display: {
@@ -81,7 +82,8 @@
           definition: typeof stored.readAloud?.targets?.definition === 'boolean' ? stored.readAloud.targets.definition : DEFAULTS.readAloud.targets.definition,
           example: typeof stored.readAloud?.targets?.example === 'boolean' ? stored.readAloud.targets.example : DEFAULTS.readAloud.targets.example,
           synonyms: typeof stored.readAloud?.targets?.synonyms === 'boolean' ? stored.readAloud.targets.synonyms : DEFAULTS.readAloud.targets.synonyms,
-          notes: typeof stored.readAloud?.targets?.notes === 'boolean' ? stored.readAloud.targets.notes : DEFAULTS.readAloud.targets.notes
+          notes: typeof stored.readAloud?.targets?.notes === 'boolean' ? stored.readAloud.targets.notes : DEFAULTS.readAloud.targets.notes,
+          all: typeof stored.readAloud?.targets?.all === 'boolean' ? stored.readAloud.targets.all : DEFAULTS.readAloud.targets.all
         }
       },
       display: {
@@ -250,6 +252,10 @@
           <div class="s7-switch-row">
             <div class="s7-switch-copy"><strong>Notes</strong><small>Read the card Notes without waiting through other fields.</small></div>
             <label class="s7-switch"><input type="checkbox" data-s7-read-target="notes"><span class="s7-switch-track"></span></label>
+          </div>
+          <div class="s7-switch-row">
+            <div class="s7-switch-copy"><strong>Read All</strong><small>Show Read All in the Read menu.</small></div>
+            <label class="s7-switch"><input type="checkbox" data-s7-read-target="all"><span class="s7-switch-track"></span></label>
           </div>
         </section>
 
@@ -834,14 +840,21 @@
   panel.querySelectorAll('[data-s7-read-target]').forEach(input => {
     input.addEventListener('change', () => {
       const key = input.dataset.s7ReadTarget;
+      if (key === 'all') {
+        prefs.readAloud.targets.all = input.checked;
+        savePrefs();
+        syncPanel();
+        return;
+      }
+      const readKeys = ['definition','example','synonyms','notes'];
       const next = { ...prefs.readAloud.targets, [key]: input.checked };
-      if (!Object.values(next).some(Boolean)) {
+      if (!readKeys.some(candidate => next[candidate])) {
         input.checked = true;
         return;
       }
       prefs.readAloud.targets[key] = input.checked;
       if (!prefs.readAloud.targets[prefs.readAloud.defaultTarget]) {
-        prefs.readAloud.defaultTarget = ['definition','example','synonyms','notes']
+        prefs.readAloud.defaultTarget = readKeys
           .find(candidate => prefs.readAloud.targets[candidate]) || 'example';
       }
       savePrefs();
