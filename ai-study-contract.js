@@ -1,13 +1,14 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.1';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
     directions: ['world-to-expression','expression-to-world','concept-to-expression','expression-to-concept','message-to-expression','expression-to-message','neighbor-to-target','target-to-neighbor','cross-domain-transfer','cross-sense-transfer','free-composition'],
     experienceTypes: ['situational-production','reverse-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
     targetVisibility: ['hidden','visible','partial'],
+    responseConstraints: ['open','fixed-frame'],
     motivationStrength: ['weak','natural','strong'],
     targetNaturalness: ['merely-possible','natural','highly-natural'],
     targetCommonness: ['default-common','common','less-common-but-natural','specialized-or-marked'],
@@ -168,6 +169,11 @@
       requireEnum(value.experience, 'targetVisibility', ENUMS.targetVisibility, '$.experience', errors);
       requireString(value.experience, 'prompt', '$.experience', errors, 8);
       requireString(value.experience, 'responseMode', '$.experience', errors);
+      requireEnum(value.experience, 'responseConstraint', ENUMS.responseConstraints, '$.experience', errors);
+      if (!has(value.experience, 'responseFrame') || typeof value.experience.responseFrame !== 'string') push(errors, '$.experience.responseFrame', 'must be a string');
+      requireArray(value.experience, 'anticipatedNaturalAlternatives', '$.experience', errors, 0);
+      requireArray(value.experience, 'frameCompatibleAlternatives', '$.experience', errors, 0);
+      requireBoolean(value.experience, 'frameCompatibilityVerified', '$.experience', errors);
     }
     if (requireObject(value.naturalnessCheck, '$.naturalnessCheck', errors)) {
       requireEnum(value.naturalnessCheck, 'targetNaturalness', ENUMS.targetNaturalness, '$.naturalnessCheck', errors);
@@ -201,6 +207,10 @@
     const commonness = value.naturalnessCheck?.targetCommonness;
     const commonerAlternatives = asArray(value.naturalnessCheck?.commonerAlternatives).map(text).filter(Boolean);
     const anticipatedAlternatives = asArray(value.experience?.anticipatedNaturalAlternatives).map(text).filter(Boolean);
+    const frameCompatibleAlternatives = asArray(value.experience?.frameCompatibleAlternatives).map(text).filter(Boolean);
+    const responseConstraint = value.experience?.responseConstraint;
+    const responseFrame = text(value.experience?.responseFrame);
+    const frameCompatibilityVerified = value.experience?.frameCompatibilityVerified === true;
     const semanticTerritory = asArray(value.experience?.acceptableSemanticTerritory).map(text).filter(Boolean);
 
     const targetOnlyPatterns = [
@@ -226,6 +236,33 @@
 
     if (visibility === 'hidden' && value.naturalnessCheck?.targetIsRequired === true && (commonerAlternatives.length || anticipatedAlternatives.length)) {
       push(errors, '$.naturalnessCheck.targetIsRequired', 'hidden production must not require the target when natural alternatives are explicitly recognized');
+    }
+
+    const clozeLikePrompt = /_{2,}|\[\s*(?:blank|answer)\s*\]|\{\s*answer\s*\}/i.test(promptText);
+    if (clozeLikePrompt && responseConstraint !== 'fixed-frame') {
+      push(errors, '$.experience.responseConstraint', 'cloze/fill-in prompts must declare fixed-frame response constraint');
+    }
+    if (responseConstraint === 'fixed-frame') {
+      const answerMarkers = (responseFrame.match(/\{answer\}/g) || []).length;
+      if (answerMarkers !== 1) {
+        push(errors, '$.experience.responseFrame', 'fixed-frame responseFrame must contain exactly one {answer} placeholder');
+      }
+      if (!frameCompatibilityVerified) {
+        push(errors, '$.experience.frameCompatibilityVerified', 'fixed-frame experience must explicitly verify target and direct alternatives against the exact response frame');
+      }
+      const anticipatedNorm = new Set(anticipatedAlternatives.map(norm));
+      const nonSubset = frameCompatibleAlternatives.filter(item => !anticipatedNorm.has(norm(item)));
+      if (nonSubset.length) {
+        push(errors, '$.experience.frameCompatibleAlternatives', 'frame-compatible alternatives must be a subset of anticipatedNaturalAlternatives');
+      }
+      const targetInFrameAlternatives = frameCompatibleAlternatives.some(item => family.some(f => f && norm(item) === f));
+      if (targetInFrameAlternatives) {
+        push(warnings, '$.experience.frameCompatibleAlternatives', 'frameCompatibleAlternatives should list alternatives, not repeat the selected target');
+      }
+    } else if (responseConstraint === 'open') {
+      if (responseFrame) push(errors, '$.experience.responseFrame', 'open response must use an empty responseFrame');
+      if (frameCompatibleAlternatives.length) push(errors, '$.experience.frameCompatibleAlternatives', 'open response must leave frameCompatibleAlternatives empty');
+      if (!frameCompatibilityVerified) push(errors, '$.experience.frameCompatibilityVerified', 'response constraint check must be verified before returning');
     }
 
     if (['less-common-but-natural','specialized-or-marked'].includes(commonness) && !commonerAlternatives.length) {
@@ -425,7 +462,7 @@
       messageCore: { summary: 'Something concentrated becomes distributed across a wider area.' },
       communicativeFocus: { foreground: 'change from concentration to distribution', speakerIntent: 'describe how the scent gradually fills the space', construal: 'concentration-to-dispersion' },
       usageMotivation: { communicativeNeed: 'describe the scent becoming distributed through the room', targetContribution: 'foregrounds the transition from concentration to dispersion', whyThisExpressionNow: 'the scene makes that distribution pattern perceptually salient', motivationStrength: 'strong' },
-      experience: { experienceId: 'self-exp-1', type: 'situational-production', domain: 'home / scent', targetVisibility: 'hidden', prompt: 'You spray fragrance near the doorway. Ten minutes later you can smell it throughout the room. Describe what happened to the scent.', responseMode: 'open-production', acceptableSemanticTerritory: ['gradual distribution from a concentrated source through a wider space'], anticipatedNaturalAlternatives: ['spread','permeate'] },
+      experience: { experienceId: 'self-exp-1', type: 'situational-production', domain: 'home / scent', targetVisibility: 'hidden', prompt: 'You spray fragrance near the doorway. Ten minutes later you can smell it throughout the room. Describe what happened to the scent.', responseMode: 'open-production', responseConstraint: 'open', responseFrame: '', frameCompatibilityVerified: true, frameCompatibleAlternatives: [], acceptableSemanticTerritory: ['gradual distribution from a concentrated source through a wider space'], anticipatedNaturalAlternatives: ['spread','permeate'] },
       naturalnessCheck: { targetNaturalness: 'natural', targetIsNaturalForExperience: true, targetIsRequired: false, targetCommonness: 'less-common-but-natural', commonerAlternatives: ['spread'], otherNaturalExpressions: ['spread','permeate'] },
       antiRoteCheck: { duplicatesRecentRoute: false, duplicatesRecentFrame: false }
     };
@@ -442,6 +479,20 @@
     lessCommonButMotivated.experience.acceptableSemanticTerritory = ['excessively dramatic, elaborate, emotionally strained, or overdone'];
     lessCommonButMotivated.experience.anticipatedNaturalAlternatives = ['melodramatic','over-the-top','overdone'];
     lessCommonButMotivated.naturalnessCheck = { targetNaturalness: 'natural', targetIsNaturalForExperience: true, targetIsRequired: false, targetCommonness: 'less-common-but-natural', commonerAlternatives: ['melodramatic','over-the-top','overdone'], otherNaturalExpressions: ['melodramatic','over-the-top','overdone'] };
+
+    const fixedFramePlanner = JSON.parse(JSON.stringify(lessCommonButMotivated));
+    fixedFramePlanner.requestId = 'self-plan-fixed-frame';
+    fixedFramePlanner.experience.prompt = "Complete the response: 'The scene felt completely ______.'";
+    fixedFramePlanner.experience.responseMode = 'text';
+    fixedFramePlanner.experience.responseConstraint = 'fixed-frame';
+    fixedFramePlanner.experience.responseFrame = 'The scene felt completely {answer}.';
+    fixedFramePlanner.experience.anticipatedNaturalAlternatives = ['melodramatic','over-the-top','overdone','too dramatic'];
+    fixedFramePlanner.experience.frameCompatibleAlternatives = ['melodramatic','over-the-top','overdone'];
+    fixedFramePlanner.experience.frameCompatibilityVerified = true;
+
+    const badFixedFramePlanner = JSON.parse(JSON.stringify(fixedFramePlanner));
+    badFixedFramePlanner.requestId = 'self-plan-bad-fixed-frame';
+    badFixedFramePlanner.experience.frameCompatibleAlternatives = ['melodramatic','not-listed-semantically'];
 
     const forcedAlternativePlanner = JSON.parse(JSON.stringify(lessCommonButMotivated));
     forcedAlternativePlanner.requestId = 'self-plan-forced-alternative';
@@ -467,6 +518,8 @@
     const checks = [
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
       { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
+      { name: 'planner-valid-fixed-frame-compatible-alternatives', expected: 'VALID', actual: validatePlannerResponse(fixedFramePlanner).status },
+      { name: 'planner-reject-fixed-frame-unlisted-direct-alternative', expected: 'REJECT', actual: validatePlannerResponse(badFixedFramePlanner).status },
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
       { name: 'interpreter-valid-natural-neighbor', expected: 'VALID', actual: validateInterpreterResponse(goodInterpreter).status },

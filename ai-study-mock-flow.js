@@ -92,8 +92,12 @@
         targetVisibility: 'hidden',
         prompt: 'You spray a little fragrance near the doorway. Ten minutes later, you can smell it throughout the room. Describe what happened to the scent.',
         responseMode: 'open-production',
+        responseConstraint: 'open',
+        responseFrame: '',
+        frameCompatibilityVerified: true,
         acceptableSemanticTerritory: ['gradual spreading through space', 'distribution away from a concentrated source'],
-        anticipatedNaturalAlternatives: ['spread', 'permeate']
+        anticipatedNaturalAlternatives: ['spread', 'permeate'],
+        frameCompatibleAlternatives: []
       },
       naturalnessCheck: {
         targetNaturalness: 'natural',
