@@ -2703,7 +2703,7 @@ body.review-attention-open{overflow:hidden}
   left:0;
   bottom:calc(100% + 7px);
   z-index:40;
-  width:152px;
+  width:128px;
   padding:5px;
   border:1px solid rgba(71,104,79,.17);
   border-radius:12px;
