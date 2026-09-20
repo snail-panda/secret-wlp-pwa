@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.2';
+  const VERSION = '1.1.3';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -496,11 +496,43 @@
     }
 
     const profileOps = asArray(value.profilePatch?.operations);
+    const requestedPromotionOps = profileOps.filter(op => {
+      const p = isObject(op?.payload) ? op.payload : {};
+      return ['supported','recurring'].includes(norm(p.suggestedConfidence || p.confidence));
+    });
+
+    if (promotion) {
+      if (!profileOps.length) {
+        push(errors, '$.evidence.profilePromotionAllowed', 'must be false when no profilePatch operation is proposed');
+      } else if (!requestedPromotionOps.length) {
+        push(errors, '$.evidence.profilePromotionAllowed', 'must be false unless a profilePatch operation explicitly requests supported or recurring confidence');
+      }
+
+      if (requestContext) {
+        const priorTendencies = asArray(requestContext?.relevantState?.learnerProfile?.relevantTendencies);
+        if (!priorTendencies.length) {
+          push(errors, '$.evidence.profilePromotionAllowed', 'cannot be true without prior relevant learner-profile evidence; a first observation may be stored only as a hypothesis');
+        } else if (requestedPromotionOps.length) {
+          const asksRecurring = requestedPromotionOps.some(op => norm(op?.payload?.suggestedConfidence || op?.payload?.confidence) === 'recurring');
+          const requiredPrior = asksRecurring ? 2 : 1;
+          const hasPriorBreadth = priorTendencies.some(item => {
+            const e = isObject(item?.evidence) ? item.evidence : {};
+            return Number(e.distinctTargetCount || 0) >= requiredPrior &&
+              Number(e.distinctContextCount || 0) >= requiredPrior &&
+              Number(e.distinctSessionCount || 0) >= requiredPrior;
+          });
+          if (!hasPriorBreadth) {
+            push(errors, '$.evidence.profilePromotionAllowed', `prior profile evidence is not broad enough to request ${asksRecurring ? 'recurring' : 'supported'} promotion`);
+          }
+        }
+      }
+    }
+
     profileOps.forEach((op, index) => {
       const p = isObject(op.payload) ? op.payload : {};
       const asked = norm(p.suggestedConfidence || p.confidence);
       if (['supported','recurring'].includes(asked)) {
-        push(warnings, `$.profilePatch.operations[${index}].payload`, 'profile confidence promotion is advisory only; Merge Engine must verify distinct targets/contexts/sessions');
+        push(warnings, `$.profilePatch.operations[${index}].payload`, 'profile confidence promotion is advisory only; Merge Engine independently verifies distinct targets/contexts/sessions and may keep the tendency at its current confidence');
       }
     });
 
@@ -596,7 +628,7 @@
       schemaVersion: 1, contract: 'interpreter-router-v1.response', requestId: 'self-int-1', sessionId: 'self-session', eventId: 'event-1',
       interpretation: { responseClasses: ['natural-neighbor'], conceptMatched: true, targetProduced: false, targetFamilyReached: false, naturalAlternativesObserved: ['spread'], formIssue: null, senseIssue: null, interpretationConfidence: 'high' },
       communicativeInterpretation: { messageCoreMatched: true, learnerFocus: 'general distribution through space', experienceFocus: 'distribution from an initially concentrated source', focusRelation: 'overlapping', learnerExpressionNatural: true },
-      evidence: { evidenceTypes: ['neighbor-discrimination'], observationSummary: 'A natural broad neighbor appeared instead of the target-specific construal.', profilePromotionAllowed: true },
+      evidence: { evidenceTypes: ['neighbor-discrimination'], observationSummary: 'A natural broad neighbor appeared instead of the target-specific construal.', profilePromotionAllowed: false },
       routePatch: { operations: [{ action: 'ADD_NEIGHBOR', payload: { expression: 'spread', relationship: 'broad natural alternative', source: 'learner-generated' } }] },
       profilePatch: { operations: [] },
       diagnosticExemplarCandidate: { retain: true, type: 'neighbor-response', reason: 'Shows the learner’s strong general spreading route.' },
@@ -617,6 +649,31 @@
     falseCorrectionSuggestionInterpreter.requestId = 'self-int-false-correction-suggestion';
     falseCorrectionSuggestionInterpreter.learnerFacingResponse.suggestedNaturalForm = 'diffuse';
 
+    const uncorroboratedPromotionInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    uncorroboratedPromotionInterpreter.requestId = 'self-int-uncorroborated-promotion';
+    uncorroboratedPromotionInterpreter.evidence.profilePromotionAllowed = true;
+    uncorroboratedPromotionInterpreter.profilePatch.operations = [{ action: 'ADD_PROFILE_OBSERVATION', payload: { description: 'Prefers broad verbs before more specific diffusion verbs.', suggestedConfidence: 'supported' } }];
+    const emptyProfileContext = {
+      learnerResponse: { authoritativeResponse: 'spread' },
+      relevantState: { learnerProfile: { relevantTendencies: [], reusableConstructions: [] } }
+    };
+
+    const corroboratedPromotionInterpreter = JSON.parse(JSON.stringify(uncorroboratedPromotionInterpreter));
+    corroboratedPromotionInterpreter.requestId = 'self-int-corroborated-promotion';
+    const corroboratedProfileContext = {
+      learnerResponse: { authoritativeResponse: 'spread' },
+      relevantState: { learnerProfile: { relevantTendencies: [{
+        description: 'Prefers broad verbs before more specific diffusion verbs.',
+        confidence: 'hypothesis',
+        evidence: { observationCount: 1, distinctTargetCount: 1, distinctContextCount: 1, distinctSessionCount: 1 }
+      }], reusableConstructions: [] } }
+    };
+
+    const firstObservationInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    firstObservationInterpreter.requestId = 'self-int-first-profile-observation';
+    firstObservationInterpreter.profilePatch.operations = [{ action: 'ADD_PROFILE_OBSERVATION', payload: { description: 'Possible broad-before-specific lexical selection pattern.', suggestedConfidence: 'hypothesis' } }];
+    firstObservationInterpreter.evidence.profilePromotionAllowed = false;
+
     const checks = [
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
       { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
@@ -627,7 +684,10 @@
       { name: 'interpreter-valid-natural-neighbor', expected: 'VALID', actual: validateInterpreterResponse(goodInterpreter).status },
       { name: 'interpreter-reject-low-confidence-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(badInterpreter).status },
       { name: 'interpreter-reject-empty-neighbor-payload', expected: 'REJECT', actual: validateInterpreterResponse(emptyNeighborPayloadInterpreter).status },
-      { name: 'interpreter-reject-suggestion-when-no-correction', expected: 'REJECT', actual: validateInterpreterResponse(falseCorrectionSuggestionInterpreter).status }
+      { name: 'interpreter-reject-suggestion-when-no-correction', expected: 'REJECT', actual: validateInterpreterResponse(falseCorrectionSuggestionInterpreter).status },
+      { name: 'interpreter-valid-first-profile-observation-without-promotion', expected: 'VALID', actual: validateInterpreterResponse(firstObservationInterpreter, emptyProfileContext).status },
+      { name: 'interpreter-reject-uncorroborated-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(uncorroboratedPromotionInterpreter, emptyProfileContext).status },
+      { name: 'interpreter-valid-corroborated-supported-promotion-proposal', expected: 'VALID_WITH_WARNINGS', actual: validateInterpreterResponse(corroboratedPromotionInterpreter, corroboratedProfileContext).status }
     ];
     return { passed: checks.every(item => item.actual === item.expected), checks };
   }

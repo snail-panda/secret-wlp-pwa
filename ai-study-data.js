@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.1';
+  const VERSION = '1.1.2';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -670,9 +670,10 @@
     return [normalizeKey(value.type), normalizeKey(value.pattern || value.description)].join('|');
   }
 
-  function profileConfidence(existing, requested, evidence) {
+  function profileConfidence(existing, requested, evidence, allowPromotion = false) {
     const current = clean(existing || 'hypothesis');
     const ask = clean(requested || current);
+    if (!allowPromotion) return ['supported', 'recurring'].includes(current) ? current : 'hypothesis';
     const targets = Number(evidence.distinctTargetCount || 0);
     const contexts = Number(evidence.distinctContextCount || 0);
     const sessions = Number(evidence.distinctSessionCount || 0);
@@ -681,7 +682,7 @@
     return ['supported', 'recurring'].includes(current) ? current : 'hypothesis';
   }
 
-  function mergeTendency(list, incoming, event, defaultType = 'production') {
+  function mergeTendency(list, incoming, event, defaultType = 'production', allowPromotion = false) {
     const item = object(incoming);
     const description = clean(item.description || item.pattern);
     if (!description) return;
@@ -732,7 +733,7 @@
     evidence.distinctContextCount = evidence.contexts.length;
     evidence.distinctSessionCount = evidence.sessionIds.length;
     found.evidence = evidence;
-    found.confidence = profileConfidence(found.confidence, item.suggestedConfidence || item.confidence, evidence);
+    found.confidence = profileConfidence(found.confidence, item.suggestedConfidence || item.confidence, evidence, allowPromotion);
     found.diagnosticExemplars = mergeExemplars(found.diagnosticExemplars, [exemplar], PROFILE_EXEMPLAR_LIMIT);
     found.usefulScaffolds = uniqueStrings([...(array(found.usefulScaffolds)), ...(array(item.usefulScaffolds))]);
     found.lastObservedAt = clean(event.createdAt);
@@ -777,10 +778,11 @@
     found.lastObservedAt = clean(event.createdAt);
   }
 
-  function applyProfilePatch(profile, event, result) {
+  function applyProfilePatch(profile, event, result, options = {}) {
     const patch = profilePatchFrom(result);
-    array(patch.candidateTendencies).forEach(item => mergeTendency(profile.productionTendencies, item, event, 'production'));
-    array(patch.styleTendencies).forEach(item => mergeTendency(profile.styleTendencies, item, event, 'style'));
+    const allowPromotion = options.allowPromotion === true;
+    array(patch.candidateTendencies).forEach(item => mergeTendency(profile.productionTendencies, item, event, 'production', allowPromotion));
+    array(patch.styleTendencies).forEach(item => mergeTendency(profile.styleTendencies, item, event, 'style', allowPromotion));
     array(patch.constructionEvidence).forEach(item => mergeConstruction(profile.reusableConstructions, item, event));
     profile.updatedAt = clean(event.updatedAt || event.createdAt || nowIso());
   }
@@ -801,13 +803,15 @@
       if (!event.interpreterResult || event.interpretationStatus === 'stale-after-correction') return;
       const interpretation = object(event.interpreterResult?.interpretation || event.interpreterResult?.responseInterpretation || event.interpreterResult?.observation);
       const confidence = normalizeConfidence(interpretation.interpretationConfidence || event.interpreterResult?.interpretationConfidence);
+      const classes = new Set(array(interpretation.responseClasses).map(clean));
       const evidence = object(event.interpreterResult?.evidence);
       const promotionFlag = evidence.profilePromotionAllowed ?? event.interpreterResult?.profilePromotionAllowed;
-      const allowProfile = promotionFlag !== false && confidence !== 'low';
+      const canRecordProfileObservation = confidence !== 'low' && !classes.has('stt-uncertain');
+      const allowProfilePromotion = canRecordProfileObservation && promotionFlag === true;
       const key = `wid:${event.wordId}`;
       if (!route.records[key]) route.records[key] = blankRouteRecord(event);
       applyRoutePatch(route.records[key], event, event.interpreterResult);
-      if (allowProfile) applyProfilePatch(profile, event, event.interpreterResult);
+      if (canRecordProfileObservation) applyProfilePatch(profile, event, event.interpreterResult, { allowPromotion: allowProfilePromotion });
     });
 
     writeJson(AI_ROUTE_KEY, route);
@@ -954,7 +958,13 @@
       patternId: clean(item.patternId),
       type: clean(item.type),
       description: clean(item.description),
-      confidence: clean(item.confidence)
+      confidence: clean(item.confidence),
+      evidence: {
+        observationCount: Number(item.evidence?.observationCount || 0),
+        distinctTargetCount: Number(item.evidence?.distinctTargetCount || 0),
+        distinctContextCount: Number(item.evidence?.distinctContextCount || 0),
+        distinctSessionCount: Number(item.evidence?.distinctSessionCount || 0)
+      }
     }));
   }
 

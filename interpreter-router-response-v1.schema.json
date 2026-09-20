@@ -193,7 +193,8 @@
           "minLength": 4
         },
         "profilePromotionAllowed": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "True only when this event may be considered for confidence promotion of an existing learner-profile tendency. False for first observations/hypotheses, when profilePatch is empty, or when prior cross-target/context/session corroboration is insufficient. Observation storage is separate from promotion."
         }
       }
     },
