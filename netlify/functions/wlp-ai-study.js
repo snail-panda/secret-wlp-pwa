@@ -26,6 +26,114 @@ function clean(value) {
   return String(value ?? '').trim();
 }
 
+function parseRetryDelayMs(value) {
+  const raw = clean(value);
+  if (!raw) return null;
+  const secondsMatch = raw.match(/^([0-9]+(?:\.[0-9]+)?)s$/i);
+  if (secondsMatch) return Math.max(0, Math.ceil(Number(secondsMatch[1]) * 1000));
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric >= 0) return Math.ceil(numeric * 1000);
+  const dateMs = Date.parse(raw);
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  return null;
+}
+
+function findRetryDelayMs(value, depth = 0) {
+  if (depth > 6 || value == null) return null;
+  if (typeof value === 'string' || typeof value === 'number') return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findRetryDelayMs(item, depth + 1);
+      if (found != null) return found;
+    }
+    return null;
+  }
+  if (typeof value !== 'object') return null;
+  for (const [key, item] of Object.entries(value)) {
+    if (/retry(?:After|Delay)/i.test(key)) {
+      const parsed = parseRetryDelayMs(item);
+      if (parsed != null) return parsed;
+    }
+  }
+  for (const item of Object.values(value)) {
+    const found = findRetryDelayMs(item, depth + 1);
+    if (found != null) return found;
+  }
+  return null;
+}
+
+function retryDelayFromMessage(message) {
+  const match = clean(message).match(/retry\s+(?:again\s+)?in\s+([0-9]+(?:\.[0-9]+)?)\s*s(?:ec(?:ond)?s?)?/i);
+  return match ? Math.max(0, Math.ceil(Number(match[1]) * 1000)) : null;
+}
+
+function retryAfterMsFromProvider(response, body, message) {
+  const headerValue = response?.headers?.get ? response.headers.get('retry-after') : '';
+  const headerMs = parseRetryDelayMs(headerValue);
+  if (headerMs != null) return headerMs;
+  const detailMs = findRetryDelayMs(body?.error?.details || body?.details || body);
+  if (detailMs != null) return detailMs;
+  return retryDelayFromMessage(message);
+}
+
+function quotaScopeFromProvider(message, retryAfterMs) {
+  const lower = clean(message).toLowerCase();
+  if (/per[_ -]?day|requests[_ -]?per[_ -]?day|daily|\brpd\b/.test(lower)) return 'daily';
+  if (Number.isFinite(retryAfterMs) && retryAfterMs >= 0) return 'short-window';
+  return 'unknown';
+}
+
+function normalizeProviderHttpError(provider, response, body) {
+  const providerName = clean(provider) || 'provider';
+  const providerHttpStatus = Number(response?.status) || 0;
+  const providerMessage = clean(body?.error?.message || body?.message) || `${providerName} API returned HTTP ${providerHttpStatus || 'error'}`;
+  const providerCode = clean(body?.error?.status || body?.error?.code) || 'WLP_AI_PROVIDER_ERROR';
+  const retryAfterMs = retryAfterMsFromProvider(response, body, providerMessage);
+
+  if (providerHttpStatus === 429) {
+    const quotaScope = quotaScopeFromProvider(providerMessage, retryAfterMs);
+    const retryable = quotaScope !== 'daily';
+    const waitText = Number.isFinite(retryAfterMs) ? ` Try again in about ${Math.max(1, Math.ceil(retryAfterMs / 1000))} seconds.` : ' Try again later.';
+    const error = new Error(`${providerName} request quota/rate limit reached.${waitText}`);
+    error.code = 'WLP_AI_PROVIDER_RATE_LIMIT';
+    error.statusCode = 429;
+    error.provider = providerName;
+    error.providerHttpStatus = providerHttpStatus;
+    error.providerCode = providerCode;
+    error.providerMessage = providerMessage;
+    error.retryAfterMs = retryAfterMs;
+    error.retryable = retryable;
+    error.quotaScope = quotaScope;
+    return error;
+  }
+
+  if (providerHttpStatus === 503) {
+    const error = new Error(`${providerName} is temporarily unavailable or busy. Please try again later.`);
+    error.code = 'WLP_AI_PROVIDER_BUSY';
+    error.statusCode = 503;
+    error.provider = providerName;
+    error.providerHttpStatus = providerHttpStatus;
+    error.providerCode = providerCode;
+    error.providerMessage = providerMessage;
+    error.retryAfterMs = retryAfterMs;
+    error.retryable = true;
+    error.quotaScope = 'temporary';
+    return error;
+  }
+
+  const error = new Error(providerMessage);
+  error.code = providerCode || 'WLP_AI_PROVIDER_ERROR';
+  error.statusCode = providerHttpStatus >= 500 ? 503 : 502;
+  error.provider = providerName;
+  error.providerHttpStatus = providerHttpStatus;
+  error.providerCode = providerCode;
+  error.providerMessage = providerMessage;
+  error.retryAfterMs = retryAfterMs;
+  error.retryable = false;
+  error.quotaScope = 'none';
+  return error;
+}
+
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
@@ -591,10 +699,7 @@ async function callOpenAI(kind, minimizedPayload) {
   let body;
   try { body = await response.json(); } catch (_) { body = null; }
   if (!response.ok) {
-    const error = new Error(clean(body?.error?.message) || `OpenAI API returned HTTP ${response.status}`);
-    error.code = clean(body?.error?.code) || 'WLP_AI_PROVIDER_ERROR';
-    error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-    throw error;
+    throw normalizeProviderHttpError('openai', response, body);
   }
   const extracted = extractOpenAIOutputText(body);
   if (extracted.refusal && !extracted.text) {
@@ -641,10 +746,7 @@ async function callGemini(kind, minimizedPayload) {
   let body;
   try { body = await response.json(); } catch (_) { body = null; }
   if (!response.ok) {
-    const error = new Error(clean(body?.error?.message) || `Gemini API returned HTTP ${response.status}`);
-    error.code = clean(body?.error?.status) || 'WLP_AI_PROVIDER_ERROR';
-    error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-    throw error;
+    throw normalizeProviderHttpError('gemini', response, body);
   }
   if (body?.promptFeedback?.blockReason) {
     const error = new Error(`Gemini blocked the prompt: ${clean(body.promptFeedback.blockReason)}`);
@@ -728,7 +830,8 @@ exports.handler = async function handler(event) {
       configured: config.configured,
       model: config.model,
       privacyMinimizer: 'v1.1',
-      providerSwitching: 'server-config'
+      providerSwitching: 'server-config',
+      providerErrorNormalization: 'v1'
     });
   }
 
@@ -752,7 +855,13 @@ exports.handler = async function handler(event) {
       ok: false,
       error: {
         code: clean(error?.code) || 'WLP_AI_SERVER_ERROR',
-        message: clean(error?.message) || 'AI Study server error.'
+        message: clean(error?.message) || 'AI Study server error.',
+        provider: clean(error?.provider),
+        providerHttpStatus: Number(error?.providerHttpStatus) || null,
+        providerCode: clean(error?.providerCode),
+        retryAfterMs: typeof error?.retryAfterMs === 'number' && Number.isFinite(error.retryAfterMs) ? error.retryAfterMs : null,
+        retryable: error?.retryable === true,
+        quotaScope: clean(error?.quotaScope) || 'none'
       }
     });
   }
@@ -772,5 +881,10 @@ exports._test = Object.freeze({
   extractGeminiOutputText,
   buildOpenAIRequest,
   buildGeminiRequest,
-  finalizeProviderOutput
+  finalizeProviderOutput,
+  parseRetryDelayMs,
+  retryDelayFromMessage,
+  retryAfterMsFromProvider,
+  quotaScopeFromProvider,
+  normalizeProviderHttpError
 });

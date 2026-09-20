@@ -1,13 +1,15 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
   const MODE_KEY = 'wlp:ai-transport-mode:v1';
   const DEFAULT_MODE = 'mock';
   const ENDPOINT = '/.netlify/functions/wlp-ai-study';
   const REQUEST_TIMEOUT_MS = 60000;
   const RETRYABLE_HTTP_STATUSES = Object.freeze([429, 503]);
   const DEFAULT_RETRY_DELAYS_MS = Object.freeze([1500, 4000, 8000]);
+  const MAX_PROVIDER_RETRY_AFTER_MS = 30000;
+  const RETRY_AFTER_SAFETY_MS = 250;
 
   const clean = value => String(value ?? '').trim();
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -69,8 +71,32 @@
     return cleaned.slice(0, maxRetries);
   }
 
+  function providerErrorMeta(error) {
+    const providerError = error?.details?.error && typeof error.details.error === 'object'
+      ? error.details.error
+      : {};
+    const retryAfterMs = Number(providerError.retryAfterMs);
+    return {
+      retryable: providerError.retryable,
+      retryAfterMs: Number.isFinite(retryAfterMs) && retryAfterMs >= 0 ? retryAfterMs : null,
+      quotaScope: clean(providerError.quotaScope),
+      provider: clean(providerError.provider),
+      providerCode: clean(providerError.providerCode)
+    };
+  }
+
   function isRetryableTemporaryFailure(error) {
+    const meta = providerErrorMeta(error);
+    if (meta.retryable === false) return false;
     return RETRYABLE_HTTP_STATUSES.includes(Number(error?.status));
+  }
+
+  function retryDelayFor(error, retryCount, retryDelays) {
+    const fallback = Number(retryDelays[retryCount] || 0);
+    const meta = providerErrorMeta(error);
+    if (meta.retryAfterMs == null) return fallback;
+    if (meta.retryAfterMs > MAX_PROVIDER_RETRY_AFTER_MS) return null;
+    return Math.max(fallback, Math.ceil(meta.retryAfterMs) + RETRY_AFTER_SAFETY_MS);
   }
 
   async function fetchJSON(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -146,17 +172,26 @@
         };
       } catch (error) {
         const retryable = isRetryableTemporaryFailure(error);
-        if (!retryable || retryCount >= retryDelays.length) {
+        const nextDelayMs = retryable && retryCount < retryDelays.length
+          ? retryDelayFor(error, retryCount, retryDelays)
+          : null;
+        const canRetryNow = retryable && retryCount < retryDelays.length && nextDelayMs != null;
+        if (!canRetryNow) {
           if (retryable) {
-            error.retryable = true;
+            const meta = providerErrorMeta(error);
+            error.retryable = meta.retryable !== false;
             error.retryCount = retryCount;
             error.attemptCount = retryCount + 1;
             error.retryDelaysMs = retryDelays.slice();
+            error.retryAfterMs = meta.retryAfterMs;
+            error.quotaScope = meta.quotaScope;
+            error.provider = meta.provider;
+            error.providerCode = meta.providerCode;
           }
           throw error;
         }
 
-        const delayMs = retryDelays[retryCount];
+        const delayMs = nextDelayMs;
         retryCount += 1;
         await wait(delayMs);
       }
@@ -316,7 +351,7 @@
     version: VERSION,
     endpoint: ENDPOINT,
     modeKey: MODE_KEY,
-    retryPolicy: Object.freeze({ statuses: RETRYABLE_HTTP_STATUSES.slice(), delaysMs: DEFAULT_RETRY_DELAYS_MS.slice() }),
+    retryPolicy: Object.freeze({ statuses: RETRYABLE_HTTP_STATUSES.slice(), delaysMs: DEFAULT_RETRY_DELAYS_MS.slice(), maxProviderRetryAfterMs: MAX_PROVIDER_RETRY_AFTER_MS }),
     getMode,
     setMode,
     callPlannerWriter,
