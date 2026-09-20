@@ -1,11 +1,13 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   const MODE_KEY = 'wlp:ai-transport-mode:v1';
   const DEFAULT_MODE = 'mock';
   const ENDPOINT = '/.netlify/functions/wlp-ai-study';
   const REQUEST_TIMEOUT_MS = 60000;
+  const RETRYABLE_HTTP_STATUSES = Object.freeze([429, 503]);
+  const DEFAULT_RETRY_DELAYS_MS = Object.freeze([1500, 4000, 8000]);
 
   const clean = value => String(value ?? '').trim();
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -48,6 +50,27 @@
   function assertValidation(label, validation) {
     if (!validation?.valid || validation?.status === 'REJECT') throw validationError(label, validation);
     return validation;
+  }
+
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function getRetryDelays(options = {}) {
+    if (options.retry === false) return [];
+    const source = Array.isArray(options.retryDelaysMs)
+      ? options.retryDelaysMs
+      : DEFAULT_RETRY_DELAYS_MS;
+    const cleaned = source
+      .map(value => Number(value))
+      .filter(value => Number.isFinite(value) && value >= 0)
+      .slice(0, 5);
+    const requestedMax = Number(options.maxRetries);
+    if (!Number.isFinite(requestedMax)) return cleaned;
+    const maxRetries = Math.max(0, Math.min(5, Math.floor(requestedMax)));
+    return cleaned.slice(0, maxRetries);
+  }
+
+  function isRetryableTemporaryFailure(error) {
+    return RETRYABLE_HTTP_STATUSES.includes(Number(error?.status));
   }
 
   async function fetchJSON(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -93,21 +116,51 @@
     };
     if (kind === 'interpreter') body.eventId = eventId;
 
-    const envelope = await fetchJSON(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'same-origin',
-      cache: 'no-store'
-    }, Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : REQUEST_TIMEOUT_MS);
+    const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : REQUEST_TIMEOUT_MS;
+    const retryDelays = getRetryDelays(options);
+    let retryCount = 0;
 
-    if (envelope.ok !== true || !envelope.result) {
-      const error = new Error(clean(envelope?.error?.message) || 'AI endpoint did not return a result');
-      error.code = clean(envelope?.error?.code) || 'WLP_AI_ENDPOINT_EMPTY_RESULT';
-      error.details = clone(envelope);
-      throw error;
+    while (true) {
+      try {
+        const envelope = await fetchJSON(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(body),
+          credentials: 'same-origin',
+          cache: 'no-store'
+        }, timeoutMs);
+
+        if (envelope.ok !== true || !envelope.result) {
+          const error = new Error(clean(envelope?.error?.message) || 'AI endpoint did not return a result');
+          error.code = clean(envelope?.error?.code) || 'WLP_AI_ENDPOINT_EMPTY_RESULT';
+          error.details = clone(envelope);
+          throw error;
+        }
+        return {
+          result: envelope.result,
+          meta: {
+            ...clone(envelope.meta || {}),
+            transportRetryCount: retryCount,
+            transportAttemptCount: retryCount + 1
+          }
+        };
+      } catch (error) {
+        const retryable = isRetryableTemporaryFailure(error);
+        if (!retryable || retryCount >= retryDelays.length) {
+          if (retryable) {
+            error.retryable = true;
+            error.retryCount = retryCount;
+            error.attemptCount = retryCount + 1;
+            error.retryDelaysMs = retryDelays.slice();
+          }
+          throw error;
+        }
+
+        const delayMs = retryDelays[retryCount];
+        retryCount += 1;
+        await wait(delayMs);
+      }
     }
-    return { result: envelope.result, meta: clone(envelope.meta || {}) };
   }
 
   async function callPlannerWriter(plannerRequest, options = {}) {
@@ -263,6 +316,7 @@
     version: VERSION,
     endpoint: ENDPOINT,
     modeKey: MODE_KEY,
+    retryPolicy: Object.freeze({ statuses: RETRYABLE_HTTP_STATUSES.slice(), delaysMs: DEFAULT_RETRY_DELAYS_MS.slice() }),
     getMode,
     setMode,
     callPlannerWriter,
