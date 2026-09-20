@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   const MODE_KEY = 'wlp:ai-transport-mode:v1';
   const DEFAULT_MODE = 'mock';
   const ENDPOINT = '/.netlify/functions/wlp-ai-study';
@@ -81,7 +81,8 @@
       retryAfterMs: Number.isFinite(retryAfterMs) && retryAfterMs >= 0 ? retryAfterMs : null,
       quotaScope: clean(providerError.quotaScope),
       provider: clean(providerError.provider),
-      providerCode: clean(providerError.providerCode)
+      providerCode: clean(providerError.providerCode),
+      resetPolicy: clean(providerError.resetPolicy)
     };
   }
 
@@ -177,17 +178,16 @@
           : null;
         const canRetryNow = retryable && retryCount < retryDelays.length && nextDelayMs != null;
         if (!canRetryNow) {
-          if (retryable) {
-            const meta = providerErrorMeta(error);
-            error.retryable = meta.retryable !== false;
-            error.retryCount = retryCount;
-            error.attemptCount = retryCount + 1;
-            error.retryDelaysMs = retryDelays.slice();
-            error.retryAfterMs = meta.retryAfterMs;
-            error.quotaScope = meta.quotaScope;
-            error.provider = meta.provider;
-            error.providerCode = meta.providerCode;
-          }
+          const meta = providerErrorMeta(error);
+          error.retryable = meta.retryable === true;
+          error.retryCount = retryCount;
+          error.attemptCount = retryCount + 1;
+          error.retryDelaysMs = retryDelays.slice();
+          error.retryAfterMs = meta.retryAfterMs;
+          error.quotaScope = meta.quotaScope;
+          error.provider = meta.provider;
+          error.providerCode = meta.providerCode;
+          error.resetPolicy = meta.resetPolicy;
           throw error;
         }
 

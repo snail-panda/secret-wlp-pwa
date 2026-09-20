@@ -76,9 +76,27 @@ function retryAfterMsFromProvider(response, body, message) {
   return retryDelayFromMessage(message);
 }
 
-function quotaScopeFromProvider(message, retryAfterMs) {
-  const lower = clean(message).toLowerCase();
-  if (/per[_ -]?day|requests[_ -]?per[_ -]?day|daily|\brpd\b/.test(lower)) return 'daily';
+function providerQuotaInspectionText(body, message) {
+  let serialized = '';
+  try { serialized = JSON.stringify(body || {}); } catch (_) {}
+  return `${clean(message)} ${serialized}`.toLowerCase();
+}
+
+function quotaScopeFromProvider(message, retryAfterMs, body = null) {
+  const inspection = providerQuotaInspectionText(body, message);
+
+  // Google commonly identifies RPD quota in structured QuotaFailure details,
+  // e.g. GenerateRequestsPerDayPerProjectPerModel-FreeTier. Prefer those
+  // semantics over a short retryDelay hint, which can still be present on a
+  // daily exhaustion response.
+  if (/generaterequestsperday|requestsperday|perdayperproject|requests[_ -]?per[_ -]?day|per[_ -]?day|\brpd\b|\bdaily\b/.test(inspection)) {
+    return 'daily';
+  }
+
+  if (/generaterequestsperminute|requestsperminute|perminuteperproject|requests[_ -]?per[_ -]?minute|\brpm\b/.test(inspection)) {
+    return 'short-window';
+  }
+
   if (Number.isFinite(retryAfterMs) && retryAfterMs >= 0) return 'short-window';
   return 'unknown';
 }
@@ -91,10 +109,16 @@ function normalizeProviderHttpError(provider, response, body) {
   const retryAfterMs = retryAfterMsFromProvider(response, body, providerMessage);
 
   if (providerHttpStatus === 429) {
-    const quotaScope = quotaScopeFromProvider(providerMessage, retryAfterMs);
+    const quotaScope = quotaScopeFromProvider(providerMessage, retryAfterMs, body);
     const retryable = quotaScope !== 'daily';
+    const inspection = providerQuotaInspectionText(body, providerMessage);
+    const freeTier = /free[_ -]?tier|freetier/.test(inspection);
+    const resetPolicy = quotaScope === 'daily' ? 'midnight-pacific' : '';
     const waitText = Number.isFinite(retryAfterMs) ? ` Try again in about ${Math.max(1, Math.ceil(retryAfterMs / 1000))} seconds.` : ' Try again later.';
-    const error = new Error(`${providerName} request quota/rate limit reached.${waitText}`);
+    const message = quotaScope === 'daily'
+      ? `${providerName}${freeTier ? ' free-tier' : ''} daily request limit reached. Requests-per-day quotas reset at midnight Pacific Time.`
+      : `${providerName} request quota/rate limit reached.${waitText}`;
+    const error = new Error(message);
     error.code = 'WLP_AI_PROVIDER_RATE_LIMIT';
     error.statusCode = 429;
     error.provider = providerName;
@@ -104,6 +128,7 @@ function normalizeProviderHttpError(provider, response, body) {
     error.retryAfterMs = retryAfterMs;
     error.retryable = retryable;
     error.quotaScope = quotaScope;
+    error.resetPolicy = resetPolicy;
     return error;
   }
 
@@ -831,7 +856,7 @@ exports.handler = async function handler(event) {
       model: config.model,
       privacyMinimizer: 'v1.1',
       providerSwitching: 'server-config',
-      providerErrorNormalization: 'v1'
+      providerErrorNormalization: 'v2'
     });
   }
 
@@ -861,7 +886,8 @@ exports.handler = async function handler(event) {
         providerCode: clean(error?.providerCode),
         retryAfterMs: typeof error?.retryAfterMs === 'number' && Number.isFinite(error.retryAfterMs) ? error.retryAfterMs : null,
         retryable: error?.retryable === true,
-        quotaScope: clean(error?.quotaScope) || 'none'
+        quotaScope: clean(error?.quotaScope) || 'none',
+        resetPolicy: clean(error?.resetPolicy)
       }
     });
   }
@@ -885,6 +911,7 @@ exports._test = Object.freeze({
   parseRetryDelayMs,
   retryDelayFromMessage,
   retryAfterMsFromProvider,
+  providerQuotaInspectionText,
   quotaScopeFromProvider,
   normalizeProviderHttpError
 });
