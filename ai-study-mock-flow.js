@@ -288,7 +288,8 @@
       router,
       learnerFacingResponse: {
         feedback,
-        correctionNeeded: false
+        correctionNeeded: false,
+        suggestedNaturalForm: null
       }
     };
 

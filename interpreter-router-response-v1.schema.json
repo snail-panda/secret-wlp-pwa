@@ -227,7 +227,203 @@
                 ]
               },
               "payload": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expression": {
+                    "type": "string"
+                  },
+                  "relationship": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": [
+                      "learner-generated",
+                      "learner-confirmed",
+                      "wlp-source",
+                      "ai-suggested",
+                      "ai-inferred",
+                      "experiment-observed"
+                    ]
+                  },
+                  "context": {
+                    "type": "string"
+                  },
+                  "contexts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "anchor": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "persistent": {
+                    "type": "boolean"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string"
+                  },
+                  "evidenceType": {
+                    "enum": [
+                      "recognition",
+                      "cue-based-retrieval",
+                      "spontaneous-production",
+                      "context-transfer",
+                      "sense-transfer",
+                      "reverse-reconstruction",
+                      "neighbor-discrimination",
+                      "free-composition",
+                      "personal-anchor",
+                      "form-control",
+                      "construction-use"
+                    ]
+                  },
+                  "evidenceSummary": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "status": {
+                        "type": "string"
+                      },
+                      "evidenceTypes": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "recognition",
+                            "cue-based-retrieval",
+                            "spontaneous-production",
+                            "context-transfer",
+                            "sense-transfer",
+                            "reverse-reconstruction",
+                            "neighbor-discrimination",
+                            "free-composition",
+                            "personal-anchor",
+                            "form-control",
+                            "construction-use"
+                          ]
+                        }
+                      },
+                      "observationCount": {
+                        "type": "integer"
+                      },
+                      "distinctContextCount": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "representativeEvidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "learnerResponse": {
+                          "type": "string"
+                        },
+                        "contextSummary": {
+                          "type": "string"
+                        },
+                        "whyImportant": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "enum": [
+                            "learner-generated",
+                            "learner-confirmed",
+                            "wlp-source",
+                            "ai-suggested",
+                            "ai-inferred",
+                            "experiment-observed"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "counterEvidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "learnerResponse": {
+                          "type": "string"
+                        },
+                        "contextSummary": {
+                          "type": "string"
+                        },
+                        "whyImportant": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "enum": [
+                            "learner-generated",
+                            "learner-confirmed",
+                            "wlp-source",
+                            "ai-suggested",
+                            "ai-inferred",
+                            "experiment-observed"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "trajectory": {
+                    "type": "string"
+                  },
+                  "route": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "retain": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "evidence": {
+                    "type": "string"
+                  },
+                  "learnerResponse": {
+                    "type": "string"
+                  },
+                  "contextSummary": {
+                    "type": "string"
+                  },
+                  "whyImportant": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
@@ -259,7 +455,104 @@
                 ]
               },
               "payload": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "context": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": [
+                      "learner-generated",
+                      "learner-confirmed",
+                      "wlp-source",
+                      "ai-suggested",
+                      "ai-inferred",
+                      "experiment-observed"
+                    ]
+                  },
+                  "suggestedConfidence": {
+                    "enum": [
+                      "hypothesis",
+                      "supported",
+                      "recurring"
+                    ]
+                  },
+                  "confidence": {
+                    "enum": [
+                      "hypothesis",
+                      "supported",
+                      "recurring"
+                    ]
+                  },
+                  "usefulScaffolds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "diagnosticExemplar": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      },
+                      "learnerResponse": {
+                        "type": "string"
+                      },
+                      "contextSummary": {
+                        "type": "string"
+                      },
+                      "whyImportant": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "enum": [
+                          "learner-generated",
+                          "learner-confirmed",
+                          "wlp-source",
+                          "ai-suggested",
+                          "ai-inferred",
+                          "experiment-observed"
+                        ]
+                      }
+                    }
+                  },
+                  "construction": {
+                    "type": "string"
+                  },
+                  "learnerStatus": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "learnerResponse": {
+                    "type": "string"
+                  },
+                  "whyImportant": {
+                    "type": "string"
+                  },
+                  "usefulness": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "retainEvidence": {
+                    "type": "boolean"
+                  }
+                }
               }
             }
           }
@@ -321,7 +614,8 @@
       "additionalProperties": false,
       "required": [
         "feedback",
-        "correctionNeeded"
+        "correctionNeeded",
+        "suggestedNaturalForm"
       ],
       "properties": {
         "feedback": {
@@ -331,7 +625,10 @@
           "type": "boolean"
         },
         "suggestedNaturalForm": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.1';
+  const VERSION = '1.1.2';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -18,7 +18,8 @@
     interpretationConfidence: ['low','medium','high'],
     evidenceTypes: ['recognition','cue-based-retrieval','spontaneous-production','context-transfer','sense-transfer','reverse-reconstruction','neighbor-discrimination','free-composition','personal-anchor','form-control','construction-use'],
     routePatchActions: ['ADD_EVIDENCE','ADD_CONNECTION','STRENGTHEN_CONNECTION','ADD_NEIGHBOR','ADD_PERSONAL_ANCHOR','ADD_FAILED_ROUTE','ADD_DIAGNOSTIC_EXEMPLAR_CANDIDATE','ADD_DOMAIN'],
-    profilePatchActions: ['ADD_PROFILE_OBSERVATION','ADD_STYLE_OBSERVATION','ADD_CONSTRUCTION_EVIDENCE']
+    profilePatchActions: ['ADD_PROFILE_OBSERVATION','ADD_STYLE_OBSERVATION','ADD_CONSTRUCTION_EVIDENCE'],
+    provenance: ['learner-generated','learner-confirmed','wlp-source','ai-suggested','ai-inferred','experiment-observed']
   });
 
   const SCHEMAS = Object.freeze({
@@ -356,8 +357,8 @@
       requireString(value.evidence, 'observationSummary', '$.evidence', errors, 4);
       requireBoolean(value.evidence, 'profilePromotionAllowed', '$.evidence', errors);
     }
-    validateOperations(value.routePatch, '$.routePatch', ENUMS.routePatchActions, errors);
-    validateOperations(value.profilePatch, '$.profilePatch', ENUMS.profilePatchActions, errors);
+    validateOperations(value.routePatch, '$.routePatch', ENUMS.routePatchActions, errors, 'route');
+    validateOperations(value.profilePatch, '$.profilePatch', ENUMS.profilePatchActions, errors, 'profile');
     if (requireObject(value.diagnosticExemplarCandidate, '$.diagnosticExemplarCandidate', errors)) {
       requireBoolean(value.diagnosticExemplarCandidate, 'retain', '$.diagnosticExemplarCandidate', errors);
       if (typeof value.diagnosticExemplarCandidate.reason !== 'string') push(errors, '$.diagnosticExemplarCandidate.reason', 'must be string');
@@ -375,14 +376,74 @@
     return result(errors, warnings);
   }
 
-  function validateOperations(patch, path, allowed, errors) {
+  function requirePayloadString(payload, key, base, errors, minLength = 1) {
+    if (typeof payload[key] !== 'string' || text(payload[key]).length < minLength) {
+      push(errors, `${base}.${key}`, `must be a string with length >= ${minLength}`);
+      return false;
+    }
+    return true;
+  }
+
+  function requirePayloadOneOfStrings(payload, keys, base, errors) {
+    if (keys.some(key => typeof payload[key] === 'string' && text(payload[key]))) return true;
+    push(errors, base, `must include one of: ${keys.join(', ')}`);
+    return false;
+  }
+
+  function validateRoutePayload(action, payload, base, errors) {
+    switch (action) {
+      case 'ADD_NEIGHBOR':
+        requirePayloadString(payload, 'expression', base, errors);
+        requirePayloadString(payload, 'relationship', base, errors, 4);
+        if (!ENUMS.provenance.includes(payload.source)) push(errors, `${base}.source`, `must be one of: ${ENUMS.provenance.join(', ')}`);
+        break;
+      case 'ADD_PERSONAL_ANCHOR':
+        requirePayloadOneOfStrings(payload, ['value','anchor'], base, errors);
+        if (!ENUMS.provenance.includes(payload.source)) push(errors, `${base}.source`, `must be one of: ${ENUMS.provenance.join(', ')}`);
+        break;
+      case 'ADD_CONNECTION':
+      case 'STRENGTHEN_CONNECTION':
+      case 'ADD_EVIDENCE':
+        requirePayloadString(payload, 'from', base, errors);
+        requirePayloadString(payload, 'to', base, errors);
+        requirePayloadString(payload, 'direction', base, errors);
+        break;
+      case 'ADD_FAILED_ROUTE':
+        requirePayloadString(payload, 'route', base, errors);
+        requirePayloadString(payload, 'reason', base, errors, 4);
+        break;
+      case 'ADD_DIAGNOSTIC_EXEMPLAR_CANDIDATE':
+        if (typeof payload.retain !== 'boolean') push(errors, `${base}.retain`, 'must be boolean');
+        requirePayloadString(payload, 'reason', base, errors, 4);
+        break;
+      case 'ADD_DOMAIN':
+        requirePayloadOneOfStrings(payload, ['name','domain'], base, errors);
+        break;
+    }
+  }
+
+  function validateProfilePayload(action, payload, base, errors) {
+    switch (action) {
+      case 'ADD_PROFILE_OBSERVATION':
+      case 'ADD_STYLE_OBSERVATION':
+        requirePayloadOneOfStrings(payload, ['description','pattern'], base, errors);
+        break;
+      case 'ADD_CONSTRUCTION_EVIDENCE':
+        requirePayloadOneOfStrings(payload, ['pattern','construction'], base, errors);
+        break;
+    }
+  }
+
+  function validateOperations(patch, path, allowed, errors, kind) {
     if (!requireObject(patch, path, errors)) return;
     if (!requireArray(patch, 'operations', path, errors, 0)) return;
     patch.operations.forEach((op, index) => {
       const base = `${path}.operations[${index}]`;
       if (!isObject(op)) { push(errors, base, 'must be an object'); return; }
-      if (!allowed.includes(op.action)) push(errors, `${base}.action`, `unsupported action: ${text(op.action)}`);
-      if (!isObject(op.payload)) push(errors, `${base}.payload`, 'must be an object');
+      if (!allowed.includes(op.action)) { push(errors, `${base}.action`, `unsupported action: ${text(op.action)}`); return; }
+      if (!isObject(op.payload)) { push(errors, `${base}.payload`, 'must be an object'); return; }
+      if (kind === 'route') validateRoutePayload(op.action, op.payload, `${base}.payload`, errors);
+      if (kind === 'profile') validateProfilePayload(op.action, op.payload, `${base}.payload`, errors);
     });
   }
 
@@ -399,6 +460,39 @@
       !classes.has('form-mismatch') && !classes.has('sense-mismatch') && !classes.has('register-mismatch');
     if (naturalOnly && value.communicativeInterpretation?.learnerExpressionNatural === true && value.learnerFacingResponse?.correctionNeeded === true) {
       push(errors, '$.learnerFacingResponse.correctionNeeded', 'a natural alternative/neighbor must not be treated as a correction-only failure');
+    }
+
+    const correctionNeeded = value.learnerFacingResponse?.correctionNeeded === true;
+    const suggestedNaturalForm = value.learnerFacingResponse?.suggestedNaturalForm;
+    if (!correctionNeeded && suggestedNaturalForm != null && text(suggestedNaturalForm)) {
+      push(errors, '$.learnerFacingResponse.suggestedNaturalForm', 'must be null when correctionNeeded is false; use feedback/router for target bridges or contrasts');
+    }
+    if (correctionNeeded && (typeof suggestedNaturalForm !== 'string' || !text(suggestedNaturalForm))) {
+      push(errors, '$.learnerFacingResponse.suggestedNaturalForm', 'must provide a non-empty natural form when correctionNeeded is true');
+    }
+
+    const routeOps = asArray(value.routePatch?.operations);
+    const observedAlternatives = asArray(value.interpretation?.naturalAlternativesObserved).map(norm).filter(Boolean);
+    routeOps.forEach((op, index) => {
+      if (op?.action !== 'ADD_NEIGHBOR' || !isObject(op.payload)) return;
+      const expression = text(op.payload.expression);
+      const source = text(op.payload.source);
+      if (source === 'learner-generated' && requestContext && isObject(requestContext.learnerResponse)) {
+        const authoritative = text(requestContext.learnerResponse.authoritativeResponse);
+        if (!containsWholeExpression(authoritative, expression)) {
+          push(errors, `$.routePatch.operations[${index}].payload.source`, 'learner-generated neighbor must actually appear in authoritativeResponse');
+        }
+      }
+      if (observedAlternatives.length && expression && !observedAlternatives.includes(norm(expression))) {
+        push(warnings, `$.routePatch.operations[${index}].payload.expression`, 'neighbor patch expression is not listed in naturalAlternativesObserved');
+      }
+    });
+
+    if (naturalOnly && value.communicativeInterpretation?.learnerExpressionNatural === true && observedAlternatives.length) {
+      const savedNeighbors = routeOps.filter(op => op?.action === 'ADD_NEIGHBOR' && isObject(op.payload)).map(op => norm(op.payload.expression)).filter(Boolean);
+      if (!observedAlternatives.some(item => savedNeighbors.includes(item))) {
+        push(warnings, '$.routePatch.operations', 'a high-value learner-generated natural alternative was observed but no matching ADD_NEIGHBOR patch was proposed');
+      }
     }
 
     const profileOps = asArray(value.profilePatch?.operations);
@@ -507,13 +601,21 @@
       profilePatch: { operations: [] },
       diagnosticExemplarCandidate: { retain: true, type: 'neighbor-response', reason: 'Shows the learner’s strong general spreading route.' },
       router: { action: 'CONTRAST', reason: 'Contrast the broad neighbor with the more specific concentration-to-dispersion construal.' },
-      learnerFacingResponse: { feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.', correctionNeeded: false }
+      learnerFacingResponse: { feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.', correctionNeeded: false, suggestedNaturalForm: null }
     };
     const badInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
     badInterpreter.requestId = 'self-int-bad';
     badInterpreter.interpretation.responseClasses = ['stt-uncertain'];
     badInterpreter.interpretation.interpretationConfidence = 'low';
     badInterpreter.evidence.profilePromotionAllowed = true;
+
+    const emptyNeighborPayloadInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    emptyNeighborPayloadInterpreter.requestId = 'self-int-empty-neighbor';
+    emptyNeighborPayloadInterpreter.routePatch.operations[0].payload = {};
+
+    const falseCorrectionSuggestionInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    falseCorrectionSuggestionInterpreter.requestId = 'self-int-false-correction-suggestion';
+    falseCorrectionSuggestionInterpreter.learnerFacingResponse.suggestedNaturalForm = 'diffuse';
 
     const checks = [
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
@@ -523,7 +625,9 @@
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
       { name: 'interpreter-valid-natural-neighbor', expected: 'VALID', actual: validateInterpreterResponse(goodInterpreter).status },
-      { name: 'interpreter-reject-low-confidence-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(badInterpreter).status }
+      { name: 'interpreter-reject-low-confidence-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(badInterpreter).status },
+      { name: 'interpreter-reject-empty-neighbor-payload', expected: 'REJECT', actual: validateInterpreterResponse(emptyNeighborPayloadInterpreter).status },
+      { name: 'interpreter-reject-suggestion-when-no-correction', expected: 'REJECT', actual: validateInterpreterResponse(falseCorrectionSuggestionInterpreter).status }
     ];
     return { passed: checks.every(item => item.actual === item.expected), checks };
   }
