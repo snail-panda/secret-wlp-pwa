@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.1';
   const FIXTURE_WORD_ID = '6293';
   const FIXTURE_TARGET = 'diffuse';
 
@@ -190,8 +190,8 @@
       learnerFocus = 'the scent changes from locally concentrated to distributed through the room';
       focusRelation = 'aligned';
       learnerExpressionNatural = true;
-      evidenceTypes = ['spontaneous-production'];
-      observationSummary = 'The hidden target was produced in a scene grounded in concentration-to-distribution rather than a definition cue.';
+      evidenceTypes = ['cue-based-retrieval'];
+      observationSummary = 'The hidden target was produced from a direct situational cue grounded in concentration-to-distribution.';
       routeOperations = [
         {
           action: 'ADD_CONNECTION',
@@ -199,9 +199,9 @@
             from: 'world:scent-concentration-to-distribution',
             to: 'expression:diffuse',
             direction: 'world-to-expression',
-            evidenceType: 'spontaneous-production',
-            evidenceSummary: { status: 'observed', evidenceTypes: ['spontaneous-production'] },
-            representativeEvidence: [{ type: 'spontaneous-production', learnerResponse: authoritative, contextSummary: 'scent gradually spreads from one spot through a room', whyImportant: 'direct world-to-expression retrieval with the target hidden' }]
+            evidenceType: 'cue-based-retrieval',
+            evidenceSummary: { status: 'observed', evidenceTypes: ['cue-based-retrieval'] },
+            representativeEvidence: [{ type: 'cue-based-retrieval', learnerResponse: authoritative, contextSummary: 'scent gradually spreads from one spot through a room', whyImportant: 'retrieval from a direct world-state cue with the target hidden' }]
           }
         },
         { action: 'ADD_DOMAIN', payload: { name: 'home / scent', evidence: 'observed' } }
@@ -218,8 +218,8 @@
       learnerFocus = spreadObserved ? 'general spreading through the room' : 'the scent filling or penetrating the room throughout';
       focusRelation = 'overlapping';
       learnerExpressionNatural = true;
-      evidenceTypes = ['neighbor-discrimination'];
-      observationSummary = `A natural neighboring route (${alternatives.join(', ')}) expressed the scene without producing the target.`;
+      evidenceTypes = ['cue-based-retrieval'];
+      observationSummary = `A natural neighboring route (${alternatives.join(', ')}) was retrieved from the situation cue without producing the target; this does not by itself demonstrate neighbor discrimination.`;
       routeOperations = alternatives.map(expression => ({
         action: 'ADD_NEIGHBOR',
         payload: {
@@ -276,7 +276,7 @@
       profilePatch: { operations: [] },
       diagnosticExemplarCandidate: {
         retain: Boolean(targetProduced || naturalAlternativesObserved.length),
-        type: targetProduced ? 'spontaneous-production' : naturalAlternativesObserved.length ? 'neighbor-response' : 'diagnostic',
+        type: targetProduced ? 'cue-based-retrieval' : naturalAlternativesObserved.length ? 'neighbor-response' : 'diagnostic',
         reason: targetProduced
           ? 'Shows direct retrieval from a meaningful hidden-target situation.'
           : naturalAlternativesObserved.length

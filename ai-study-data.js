@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.2';
+  const VERSION = '1.1.3';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -289,6 +289,12 @@
         targetVisible: normalizeTargetVisibility(event.experience?.targetVisibility ?? event.experience?.targetVisible) === 'visible',
         prompt: clampText(event.experience?.prompt, 1200),
         responseMode: clean(event.experience?.responseMode),
+        responseConstraint: clean(event.experience?.responseConstraint),
+        responseFrame: clampText(event.experience?.responseFrame, 1200),
+        acceptableSemanticTerritory: uniqueStrings(event.experience?.acceptableSemanticTerritory),
+        anticipatedNaturalAlternatives: uniqueStrings(event.experience?.anticipatedNaturalAlternatives),
+        frameCompatibleAlternatives: uniqueStrings(event.experience?.frameCompatibleAlternatives),
+        frameCompatibilityVerified: Boolean(event.experience?.frameCompatibilityVerified),
         experienceGrounding: clone(event.experience?.experienceGrounding || event.experienceGrounding || null),
         messageCore: clone(event.experience?.messageCore || event.messageCore || null),
         communicativeFocus: clone(event.experience?.communicativeFocus || event.communicativeFocus || null),
@@ -825,7 +831,15 @@
     const result = object(interpreterResult);
     if (!Object.keys(result).length) throw new Error('interpreterResult is required');
     if (result.contract && window.WLPAIStudyContract?.validateInterpreterResponse) {
-      const validation = window.WLPAIStudyContract.validateInterpreterResponse(result);
+      const eventsForValidation = readAIEvents();
+      const existingForValidation = eventsForValidation.find(item => clean(item.eventId) === id);
+      const normalizedForValidation = existingForValidation ? normalizeEvent(existingForValidation) : null;
+      const validationContext = normalizedForValidation ? {
+        learningOpportunity: { direction: clean(normalizedForValidation.experience?.direction) },
+        experience: clone(normalizedForValidation.experience),
+        learnerResponse: clone(normalizedForValidation.learnerResponse)
+      } : null;
+      const validation = window.WLPAIStudyContract.validateInterpreterResponse(result, validationContext);
       if (!validation.valid) {
         const details = validation.errors.map(item => `${item.path}: ${item.message}`).join('; ');
         throw new Error(`Interpreter contract rejected: ${details}`);

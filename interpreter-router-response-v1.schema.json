@@ -186,7 +186,8 @@
               "form-control",
               "construction-use"
             ]
-          }
+          },
+          "description": "Evidence actually demonstrated by this learner response. Use cue-based-retrieval for cloze, fixed-frame, direct situational/semantic cues, or other explicit elicitation. spontaneous-production is reserved for open free-composition without direct target elicitation. Producing/saving a natural neighbor alone is not neighbor-discrimination; that requires an explicit contrast/discrimination task."
         },
         "observationSummary": {
           "type": "string",

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.3';
+  const VERSION = '1.1.4';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -456,6 +456,38 @@
       push(errors, '$.evidence.profilePromotionAllowed', 'low-confidence or STT-uncertain interpretation cannot promote learner-profile tendencies');
     }
 
+    // Evidence labels describe what this learner response actually demonstrated.
+    // They must not be inferred merely from the router's next action or from a route patch.
+    const evidenceTypes = new Set(asArray(value.evidence?.evidenceTypes).map(text));
+    const experience = isObject(requestContext?.experience) ? requestContext.experience : {};
+    const opportunity = isObject(requestContext?.learningOpportunity) ? requestContext.learningOpportunity : {};
+    const experienceType = text(experience.type);
+    const responseConstraint = text(experience.responseConstraint);
+    const learningDirection = text(opportunity.direction || experience.direction);
+
+    if (evidenceTypes.has('spontaneous-production')) {
+      const spontaneousType = ['free-composition','multi-expression-composition','dialogue','open-description'].includes(experienceType);
+      const spontaneousDirection = learningDirection === 'free-composition';
+      const openResponse = responseConstraint === 'open';
+      if (!spontaneousType || !spontaneousDirection || !openResponse) {
+        push(errors, '$.evidence.evidenceTypes', 'spontaneous-production requires an open free-composition route; hidden target, cloze, fixed-frame, or ordinary prompted production is cue-based rather than spontaneous');
+      }
+    }
+
+    if (evidenceTypes.has('neighbor-discrimination')) {
+      const explicitContrast = experienceType === 'contrast' || ['neighbor-to-target','target-to-neighbor'].includes(learningDirection);
+      if (!explicitContrast) {
+        push(errors, '$.evidence.evidenceTypes', 'neighbor-discrimination requires an actual contrast/discrimination task; merely producing or saving a natural neighbor does not demonstrate discrimination');
+      }
+    }
+
+    const promptedRetrieval = experienceType === 'cloze' || responseConstraint === 'fixed-frame';
+    const responseShowsUsableMeaning = value.interpretation?.targetProduced === true || value.interpretation?.targetFamilyReached === true ||
+      classes.has('natural-neighbor') || classes.has('natural-alternative');
+    if (promptedRetrieval && responseShowsUsableMeaning && !evidenceTypes.has('cue-based-retrieval')) {
+      push(warnings, '$.evidence.evidenceTypes', 'cloze/fixed-frame production is ordinarily cue-based-retrieval; consider recording that evidence instead of stronger production labels');
+    }
+
     const naturalOnly = (classes.has('natural-neighbor') || classes.has('natural-alternative')) &&
       !classes.has('form-mismatch') && !classes.has('sense-mismatch') && !classes.has('register-mismatch');
     if (naturalOnly && value.communicativeInterpretation?.learnerExpressionNatural === true && value.learnerFacingResponse?.correctionNeeded === true) {
@@ -508,8 +540,8 @@
         push(errors, '$.evidence.profilePromotionAllowed', 'must be false unless a profilePatch operation explicitly requests supported or recurring confidence');
       }
 
-      if (requestContext) {
-        const priorTendencies = asArray(requestContext?.relevantState?.learnerProfile?.relevantTendencies);
+      if (isObject(requestContext?.relevantState?.learnerProfile)) {
+        const priorTendencies = asArray(requestContext.relevantState.learnerProfile.relevantTendencies);
         if (!priorTendencies.length) {
           push(errors, '$.evidence.profilePromotionAllowed', 'cannot be true without prior relevant learner-profile evidence; a first observation may be stored only as a hypothesis');
         } else if (requestedPromotionOps.length) {
@@ -628,13 +660,53 @@
       schemaVersion: 1, contract: 'interpreter-router-v1.response', requestId: 'self-int-1', sessionId: 'self-session', eventId: 'event-1',
       interpretation: { responseClasses: ['natural-neighbor'], conceptMatched: true, targetProduced: false, targetFamilyReached: false, naturalAlternativesObserved: ['spread'], formIssue: null, senseIssue: null, interpretationConfidence: 'high' },
       communicativeInterpretation: { messageCoreMatched: true, learnerFocus: 'general distribution through space', experienceFocus: 'distribution from an initially concentrated source', focusRelation: 'overlapping', learnerExpressionNatural: true },
-      evidence: { evidenceTypes: ['neighbor-discrimination'], observationSummary: 'A natural broad neighbor appeared instead of the target-specific construal.', profilePromotionAllowed: false },
+      evidence: { evidenceTypes: ['cue-based-retrieval'], observationSummary: 'A natural broad neighbor appeared under a direct situation cue instead of the target-specific construal.', profilePromotionAllowed: false },
       routePatch: { operations: [{ action: 'ADD_NEIGHBOR', payload: { expression: 'spread', relationship: 'broad natural alternative', source: 'learner-generated' } }] },
       profilePatch: { operations: [] },
       diagnosticExemplarCandidate: { retain: true, type: 'neighbor-response', reason: 'Shows the learner’s strong general spreading route.' },
       router: { action: 'CONTRAST', reason: 'Contrast the broad neighbor with the more specific concentration-to-dispersion construal.' },
       learnerFacingResponse: { feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.', correctionNeeded: false, suggestedNaturalForm: null }
     };
+    const promptedNeighborContext = {
+      learningOpportunity: { direction: 'message-to-expression' },
+      experience: { type: 'cloze', responseConstraint: 'fixed-frame' },
+      learnerResponse: { authoritativeResponse: 'spread' },
+      relevantState: { learnerProfile: { relevantTendencies: [], reusableConstructions: [] } }
+    };
+
+    const badSpontaneousInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    badSpontaneousInterpreter.requestId = 'self-int-bad-spontaneous';
+    badSpontaneousInterpreter.evidence.evidenceTypes = ['spontaneous-production'];
+
+    const badNeighborDiscriminationInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    badNeighborDiscriminationInterpreter.requestId = 'self-int-bad-neighbor-discrimination';
+    badNeighborDiscriminationInterpreter.evidence.evidenceTypes = ['neighbor-discrimination'];
+
+    const explicitContrastInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    explicitContrastInterpreter.requestId = 'self-int-explicit-contrast';
+    explicitContrastInterpreter.evidence.evidenceTypes = ['neighbor-discrimination'];
+    const explicitContrastContext = {
+      learningOpportunity: { direction: 'neighbor-to-target' },
+      experience: { type: 'contrast', responseConstraint: 'open' },
+      learnerResponse: { authoritativeResponse: 'spread, because it is the broader everyday choice here' },
+      relevantState: { learnerProfile: { relevantTendencies: [], reusableConstructions: [] } }
+    };
+
+    const spontaneousInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    spontaneousInterpreter.requestId = 'self-int-valid-spontaneous';
+    spontaneousInterpreter.interpretation.responseClasses = ['exact-target'];
+    spontaneousInterpreter.interpretation.targetProduced = true;
+    spontaneousInterpreter.interpretation.targetFamilyReached = true;
+    spontaneousInterpreter.interpretation.naturalAlternativesObserved = [];
+    spontaneousInterpreter.evidence.evidenceTypes = ['spontaneous-production'];
+    spontaneousInterpreter.routePatch.operations = [];
+    const spontaneousContext = {
+      learningOpportunity: { direction: 'free-composition' },
+      experience: { type: 'free-composition', responseConstraint: 'open' },
+      learnerResponse: { authoritativeResponse: 'The whole ending became overwrought and lost the rawness that made the earlier scenes work.' },
+      relevantState: { learnerProfile: { relevantTendencies: [], reusableConstructions: [] } }
+    };
+
     const badInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
     badInterpreter.requestId = 'self-int-bad';
     badInterpreter.interpretation.responseClasses = ['stt-uncertain'];
@@ -681,7 +753,11 @@
       { name: 'planner-reject-fixed-frame-unlisted-direct-alternative', expected: 'REJECT', actual: validatePlannerResponse(badFixedFramePlanner).status },
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
-      { name: 'interpreter-valid-natural-neighbor', expected: 'VALID', actual: validateInterpreterResponse(goodInterpreter).status },
+      { name: 'interpreter-valid-natural-neighbor-as-cue-based-retrieval', expected: 'VALID', actual: validateInterpreterResponse(goodInterpreter, promptedNeighborContext).status },
+      { name: 'interpreter-reject-spontaneous-on-cloze-fixed-frame', expected: 'REJECT', actual: validateInterpreterResponse(badSpontaneousInterpreter, promptedNeighborContext).status },
+      { name: 'interpreter-reject-neighbor-discrimination-without-contrast', expected: 'REJECT', actual: validateInterpreterResponse(badNeighborDiscriminationInterpreter, promptedNeighborContext).status },
+      { name: 'interpreter-valid-neighbor-discrimination-on-explicit-contrast', expected: 'VALID', actual: validateInterpreterResponse(explicitContrastInterpreter, explicitContrastContext).status },
+      { name: 'interpreter-valid-spontaneous-on-open-free-composition', expected: 'VALID', actual: validateInterpreterResponse(spontaneousInterpreter, spontaneousContext).status },
       { name: 'interpreter-reject-low-confidence-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(badInterpreter).status },
       { name: 'interpreter-reject-empty-neighbor-payload', expected: 'REJECT', actual: validateInterpreterResponse(emptyNeighborPayloadInterpreter).status },
       { name: 'interpreter-reject-suggestion-when-no-correction', expected: 'REJECT', actual: validateInterpreterResponse(falseCorrectionSuggestionInterpreter).status },
