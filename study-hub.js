@@ -1095,6 +1095,22 @@
     return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
+  function setNumericEmphasis(element, text) {
+    if (!element) return;
+    element.replaceChildren();
+    String(text || '').split(/(\d+)/).forEach(part => {
+      if (!part) return;
+      if (/^\d+$/.test(part)) {
+        const strong = document.createElement('strong');
+        strong.className = 'study-summary-number';
+        strong.textContent = part;
+        element.append(strong);
+      } else {
+        element.append(document.createTextNode(part));
+      }
+    });
+  }
+
   function sessionRatingSummary(counts = {}) {
     const parts = [];
     if (counts['got-it']) parts.push(`${counts['got-it']} Got it`);
@@ -1130,7 +1146,7 @@
       const planned = Number(session.plannedExperienceCount) || count;
       const status = clean(session.status);
       const statusText = status === 'ended-early' ? `Ended early · ${count}/${planned}` : status === 'incomplete' ? `Left early · ${count}/${planned}` : `${count} experiences`;
-      meta.textContent = `${statusText}${ratings ? ` · ${ratings}` : ''}`;
+      setNumericEmphasis(meta, `${statusText}${ratings ? ` · ${ratings}` : ''}`);
       button.append(top, meta);
       list.append(button);
     });
@@ -1181,7 +1197,7 @@
     $('study-finished-copy').textContent = `Saved session · ${clean(record.sourceLabel) || 'Study Q'} · ${formatSessionWhen(record.completedAt || record.endedAt || record.startedAt)}${savedStatus && savedStatus !== 'completed' ? ` · ${savedCount}/${savedPlanned} experiences` : ''}.`;
     const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
-    $('study-finished-summary').textContent = `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`;
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`);
     renderFinishedDeckLinks();
     renderSessionReview();
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1443,7 +1459,15 @@
       return;
     }
     const guidance = selfCheckGuidance(item);
-    copy.textContent = guidance.text;
+    if (responseMatch(item).kind === 'target-exact') {
+      copy.replaceChildren();
+      const lead = document.createElement('strong');
+      lead.className = 'study-match-lead';
+      lead.textContent = '✓ You got it!';
+      copy.append(lead, document.createTextNode(' — exact WLP target match. Still choose the rating that reflects how independently it came to you.'));
+    } else {
+      copy.textContent = guidance.text;
+    }
     box.classList.toggle('is-exact', guidance.exact);
   }
 
@@ -1686,6 +1710,9 @@
       idx.textContent = `${index + 1} · ${item.promptLabel || item.kind || 'Experience'}`;
       const rating = document.createElement('span');
       rating.className = 'study-session-review-rating';
+      if (['got-it', 'almost', 'not-yet', 'no-idea'].includes(clean(attempt.selfRating))) {
+        rating.classList.add(`is-${clean(attempt.selfRating)}`);
+      }
       rating.textContent = ratingLabel(attempt.selfRating);
       top.append(idx, rating);
 
@@ -1718,7 +1745,14 @@
       const match = document.createElement('div');
       match.className = 'study-session-review-match';
       const hintCount = Number(attempt.hintCount) || 0;
-      match.textContent = `${matchLabel(attempt)}${hintCount ? ` · ${hintCount} hint${hintCount === 1 ? '' : 's'}` : ''}`;
+      if (clean(attempt?.autoMatch) === 'target-exact') {
+        const matched = document.createElement('strong');
+        matched.className = 'study-session-review-match-hit';
+        matched.textContent = '✓ Matches target';
+        match.append(matched, document.createTextNode(` · exact form${hintCount ? ` · ${hintCount} hint${hintCount === 1 ? '' : 's'}` : ''}`));
+      } else {
+        match.textContent = `${matchLabel(attempt)}${hintCount ? ` · ${hintCount} hint${hintCount === 1 ? '' : 's'}` : ''}`;
+      }
       answerBox.append(answerLabel, answerRow, match);
 
       article.append(top, prompt, target, answerBox);
@@ -1783,7 +1817,7 @@
     const summary = sessionRatingSummary(counts);
     const record = persistCurrentSession({ status: 'completed' });
     $('study-finished-summary').hidden = false;
-    $('study-finished-summary').textContent = `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved on this device.`;
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved on this device.`);
     renderFinishedDeckLinks();
     renderSessionReview();
     renderRecentSessions();
@@ -1848,7 +1882,7 @@
     $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} of ${planned} experiences from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
     const summary = sessionRatingSummary(ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
-    $('study-finished-summary').textContent = `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Partial session saved on this device.`;
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Partial session saved on this device.`);
     renderFinishedDeckLinks();
     renderSessionReview();
     renderRecentSessions();
