@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.1';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -843,13 +843,25 @@
   function studyQEvidence(wordId) {
     const id = clean(wordId);
     const events = readStudyQEvents().filter(event => clean(event.wordId) === id);
-    const exact = events.filter(event => clean(event.autoMatch) === 'target-exact').length;
+    const exactEvents = events.filter(event => clean(event.autoMatch) === 'target-exact');
+    const shownAttempts = events.filter(event => event.targetShown === true).length;
+    const hiddenAttempts = events.filter(event => event.targetShown === false).length;
+    const unknownVisibilityAttempts = events.length - shownAttempts - hiddenAttempts;
+    const shownExact = exactEvents.filter(event => event.targetShown === true).length;
+    const hiddenExact = exactEvents.filter(event => event.targetShown === false).length;
+    const unknownVisibilityExact = exactEvents.length - shownExact - hiddenExact;
     const hintCount = events.reduce((sum, event) => sum + Number(event.hintCount || (event.hintShown ? 1 : 0)), 0);
     const latest = events[events.length - 1] || null;
     return {
       summary: {
         attemptCount: events.length,
-        targetExactCount: exact,
+        targetExactCount: exactEvents.length,
+        targetHiddenExactCount: hiddenExact,
+        targetShownExactCount: shownExact,
+        targetUnknownVisibilityExactCount: unknownVisibilityExact,
+        targetHiddenAttemptCount: hiddenAttempts,
+        targetShownAttemptCount: shownAttempts,
+        targetUnknownVisibilityAttemptCount: unknownVisibilityAttempts,
         totalHintCount: hintCount,
         latestOutcome: clean(latest?.selfRating || latest?.autoMatch),
         latestResponse: clampText(latest?.responseText, 250)
@@ -992,6 +1004,12 @@
         reviewSignal: reviewSignal(wordId),
         studyQSignal: {
           recentAttemptCount: studyQ.summary.attemptCount,
+          targetHiddenExactCount: studyQ.summary.targetHiddenExactCount,
+          targetShownExactCount: studyQ.summary.targetShownExactCount,
+          targetUnknownVisibilityExactCount: studyQ.summary.targetUnknownVisibilityExactCount,
+          targetHiddenAttemptCount: studyQ.summary.targetHiddenAttemptCount,
+          targetShownAttemptCount: studyQ.summary.targetShownAttemptCount,
+          targetUnknownVisibilityAttemptCount: studyQ.summary.targetUnknownVisibilityAttemptCount,
           latestOutcome: studyQ.summary.latestOutcome,
           recentHintsNeeded: studyQ.recentRawAttempts.reduce((sum, item) => sum + item.hintCount, 0)
         },

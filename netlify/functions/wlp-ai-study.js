@@ -141,7 +141,7 @@ function minimizeCandidate(candidate) {
     pos: text(c.pos, 120),
     meaningSummary: text(c.meaningSummary, 260),
     reviewSignal: minimizeReviewSignal(c.reviewSignal),
-    studyQSignal: pick(c.studyQSignal, ['recentAttemptCount', 'latestOutcome', 'recentHintsNeeded']),
+    studyQSignal: pick(c.studyQSignal, ['recentAttemptCount', 'targetHiddenExactCount', 'targetShownExactCount', 'targetUnknownVisibilityExactCount', 'targetHiddenAttemptCount', 'targetShownAttemptCount', 'targetUnknownVisibilityAttemptCount', 'latestOutcome', 'recentHintsNeeded']),
     learningMetadataSignal: pick(c.learningMetadataSignal, ['available', 'situationCount', 'hasSenseHook', 'hasMemoryHook']),
     routeSummary: minimizeRouteSummary(c.routeSummary),
     relevantLearnerPatterns: arr(c.relevantLearnerPatterns).slice(0, 3).map(item => ({
@@ -312,7 +312,7 @@ function minimizeTargetPacket(packet) {
     learningMetadata: minimizeLearningMetadata(p.learningMetadata),
     reviewProgress: minimizeReviewSignal(p.reviewProgress),
     studyQHistory: {
-      summary: pick(study.summary, ['attemptCount', 'targetExactCount', 'totalHintCount', 'latestOutcome', 'latestResponse']),
+      summary: pick(study.summary, ['attemptCount', 'targetExactCount', 'targetHiddenExactCount', 'targetShownExactCount', 'targetUnknownVisibilityExactCount', 'targetHiddenAttemptCount', 'targetShownAttemptCount', 'targetUnknownVisibilityAttemptCount', 'totalHintCount', 'latestOutcome', 'latestResponse']),
       recentRawAttempts: arr(study.recentRawAttempts).slice(-2).map(a => ({
         promptKind: clean(a?.promptKind),
         response: text(a?.response, 420),
@@ -538,7 +538,10 @@ function buildGeminiRequest(kind, minimizedPayload) {
     }],
     generationConfig: {
       responseMimeType: 'application/json',
-      responseSchema: sanitizeSchemaForGemini(responseSchema),
+      // Use Gemini's JSON-Schema field rather than the legacy protobuf Schema field.
+      // responseJsonSchema accepts JSON-Schema constructs used by our shared contract
+      // (including nullable type arrays and numeric enums after const normalization).
+      responseJsonSchema: sanitizeSchemaForGemini(responseSchema),
       maxOutputTokens: Number.isFinite(maxOutputTokens) && maxOutputTokens > 0 ? maxOutputTokens : 8000,
       temperature: kind === 'planner' ? 0.7 : 0.25
     }
