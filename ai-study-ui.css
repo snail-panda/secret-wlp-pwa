@@ -1,0 +1,143 @@
+/* WLP Stage 7 — AI Study UI integration v1.8.6.53 R1
+   Scope: Study Hub only. No Bottom Nav, drawer, service worker, or shared-shell changes. */
+
+.wlp-practice-mode-switch{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin:0 0 12px;
+  padding:4px;
+  border:1px solid #dce6de;
+  border-radius:16px;
+  background:rgba(248,251,248,.88);
+}
+.wlp-practice-mode-switch button{
+  min-width:0;
+  border:1px solid transparent;
+  border-radius:12px;
+  background:transparent;
+  color:#647a6e;
+  padding:9px 10px;
+  font:700 .73rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  cursor:pointer;
+}
+.wlp-practice-mode-switch button.is-active{
+  border-color:#b9cdbf;
+  background:#fff;
+  color:#315f49;
+  box-shadow:0 3px 10px rgba(40,70,55,.055);
+}
+.wlp-practice-mode-switch button small{
+  display:block;
+  margin-top:2px;
+  color:#87948c;
+  font-size:.6rem;
+  font-weight:600;
+  line-height:1.2;
+}
+
+.wlp-ai-hero{padding:5px 3px 18px}
+.wlp-ai-hero h1{margin:5px 0 7px;font-family:"EB Garamond",Georgia,serif;font-weight:600;font-size:clamp(2rem,8vw,2.65rem);line-height:1.02;letter-spacing:-.018em}
+.wlp-ai-hero p{margin:0;max-width:640px;color:#667a70;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.45}
+.wlp-ai-hero p strong{color:#365c49;font-weight:600}
+
+.wlp-ai-panel,.wlp-ai-start-panel,.wlp-ai-experience,.wlp-ai-finished{
+  margin-top:12px;
+  border:1px solid #dbe6dd;
+  border-radius:20px;
+  background:rgba(255,255,255,.72);
+  box-shadow:0 6px 18px rgba(40,70,55,.035);
+}
+.wlp-ai-panel{padding:16px}
+.wlp-ai-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
+.wlp-ai-panel h2,.wlp-ai-finished h2{margin:2px 0 0;font-family:"EB Garamond",Georgia,serif;font-size:1.45rem;line-height:1.05;font-weight:600}
+.wlp-ai-method-card{display:grid;grid-template-columns:44px minmax(0,1fr);gap:11px;padding:13px;border:1px solid #cfe0d3;border-radius:16px;background:#f5faf5}
+.wlp-ai-method-icon{width:42px;height:42px;border-radius:14px;background:#e7f1e8;color:#3f6b54;display:grid;place-items:center;font-size:1.05rem;font-weight:800}
+.wlp-ai-method-copy{min-width:0}
+.wlp-ai-method-status{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px;color:#6f8877;font-size:.61rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.wlp-ai-method-copy strong{display:block;font-family:"EB Garamond",Georgia,serif;font-size:1.14rem;font-weight:600}
+.wlp-ai-method-copy p{margin:3px 0 0;color:#667a70;font-size:.78rem;line-height:1.4}
+.wlp-ai-provider-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid #d6e2d9;border-radius:999px;background:#fff;padding:4px 7px;color:#5f7869;font-size:.6rem;font-weight:750;letter-spacing:0;text-transform:none}
+.wlp-ai-provider-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:#91aa9a}
+.wlp-ai-provider-pill.is-ready::before{background:#4f7c61}
+.wlp-ai-provider-pill.is-error::before{background:#9b716b}
+.wlp-ai-mode-warning{margin:10px 0 0;padding:10px 11px;border:1px solid #e4ddd3;border-radius:13px;background:#fbf8f3;color:#786c5d;font-size:.7rem;line-height:1.4}
+.wlp-ai-mode-warning button{margin-left:5px;border:1px solid #d5c8b7;border-radius:999px;background:#fff;color:#6b5e50;padding:5px 8px;font:700 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.wlp-ai-note{margin:10px 2px 0;color:#839088;font-size:.7rem;line-height:1.42}
+
+.wlp-ai-start-panel{padding:13px 16px;text-align:center}
+.wlp-ai-start-button,.wlp-ai-submit-button,.wlp-ai-next-button{
+  width:100%;
+  border:0;
+  border-radius:14px;
+  background:#315f49;
+  color:#fff;
+  padding:12px 15px;
+  font:700 .9rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  cursor:pointer;
+  box-shadow:0 5px 14px rgba(49,95,73,.12);
+}
+.wlp-ai-start-button:disabled,.wlp-ai-submit-button:disabled,.wlp-ai-next-button:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}
+.wlp-ai-start-note{margin:7px 0 0;color:#819087;font-size:.68rem;line-height:1.35}
+
+.wlp-ai-experience{padding:16px}
+.wlp-ai-experience-topline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;color:#74877c;font-size:.68rem;font-weight:700;letter-spacing:.04em}
+.wlp-ai-experience-topline-right{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0}
+.wlp-ai-source-pill{padding:5px 8px;border-radius:999px;background:#edf4ee;color:#567363}
+.wlp-ai-end-button{border:0;background:transparent;color:#71867a;padding:4px 2px;font:600 .66rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.wlp-ai-experience-card{padding:16px;border:1px solid #d9e5dc;border-radius:18px;background:linear-gradient(145deg,#fbfdf9,#f3f8f2)}
+.wlp-ai-experience-card h2{margin:4px 0 7px;font-family:"EB Garamond",Georgia,serif;font-size:1.13rem;line-height:1.1;font-weight:600;color:#365c49}
+.wlp-ai-prompt{margin:5px 0 0;font-family:"EB Garamond",Georgia,serif;font-size:1.12rem;line-height:1.42;color:#244a38;white-space:pre-wrap}
+.wlp-ai-frame{margin:12px 0 0;padding:10px 12px;border-left:2px solid #b8cdbd;border-radius:0 12px 12px 0;background:#fff;color:#365b49;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.4;white-space:pre-wrap}
+.wlp-ai-visible-target{display:inline-flex;margin-top:10px;border:1px solid #cddfd2;border-radius:999px;background:#fff;padding:5px 9px;color:#466957;font-size:.66rem;font-weight:750}
+.wlp-ai-response-field{display:grid;gap:6px;margin-top:13px}
+.wlp-ai-response-field>span{font-family:"EB Garamond",Georgia,serif;font-size:1rem;font-weight:600;color:#365c49}
+.wlp-ai-response-field textarea{width:100%;resize:vertical;min-height:88px;border:1px solid #d7e2da;border-radius:14px;background:#fff;padding:11px 12px;color:#284c3b;font:inherit;font-size:.88rem;line-height:1.45;outline:0;box-sizing:border-box}
+.wlp-ai-response-field textarea:focus{border-color:#9db7a6;box-shadow:0 0 0 3px rgba(90,132,104,.08)}
+.wlp-ai-response-field small{color:#859189;font-size:.66rem;line-height:1.35}
+.wlp-ai-actions{display:flex;gap:8px;align-items:center;margin-top:11px}
+.wlp-ai-actions .wlp-ai-submit-button{flex:1;width:auto}
+.wlp-ai-secondary-button{border:1px solid #d6e1d8;border-radius:999px;background:#fff;color:#5a7365;padding:9px 12px;font:650 .7rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
+.wlp-ai-secondary-button:disabled{opacity:.45;cursor:not-allowed}
+.wlp-ai-status{margin:9px 1px 0;color:#71847a;font-size:.68rem;line-height:1.4;min-height:1em}
+.wlp-ai-status.is-error{color:#8a5f59}
+
+.wlp-ai-feedback{margin-top:14px;padding:14px;border:1px solid #cfe0d3;border-radius:18px;background:#f7faf7}
+.wlp-ai-feedback[hidden]{display:none!important}
+.wlp-ai-feedback-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.wlp-ai-feedback-head strong{font-family:"EB Garamond",Georgia,serif;font-size:1.35rem;line-height:1.05;font-weight:600;color:#234b39}
+.wlp-ai-route-pill{border:.5px solid #8da697;border-radius:999px;padding:4px 8px;color:#5b7466;font-size:.61rem;font-weight:800;letter-spacing:.04em}
+.wlp-ai-feedback-text{margin:8px 0 0;color:#456654;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.42}
+.wlp-ai-correction{margin:8px 0 0;padding:8px 10px;border-radius:11px;background:#fff;color:#597163;font-size:.72rem;line-height:1.4}
+.wlp-ai-evidence{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.wlp-ai-evidence span{border:1px solid #d9e5dc;border-radius:999px;background:#fff;color:#6a8074;padding:5px 8px;font-size:.61rem;font-weight:700}
+.wlp-ai-next-wrap{margin-top:12px;padding-top:12px;border-top:1px solid #dee8e1}
+.wlp-ai-next-wrap small{display:block;margin-bottom:7px;color:#829087;font-size:.64rem;line-height:1.35}
+
+.wlp-ai-finished{padding:19px 17px;text-align:center}
+.wlp-ai-finished p{margin:7px auto 0;max-width:520px;color:#71847a;font-size:.76rem;line-height:1.45}
+.wlp-ai-finished-stats{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.wlp-ai-finished-stats span{border:1px solid #dbe6dd;border-radius:999px;background:#fbfdfb;color:#637b6e;padding:6px 9px;font-size:.65rem;font-weight:700}
+.wlp-ai-finished .wlp-ai-secondary-button{margin-top:13px}
+
+/* AI mode: keep Step 1 shared, leave stable Standard Practice DOM untouched. */
+body.wlp-ai-study-mode .study-hub-hero,
+body.wlp-ai-study-mode .study-hub-panel[aria-labelledby="study-method-title"],
+body.wlp-ai-study-mode #study-start-panel,
+body.wlp-ai-study-mode #study-history,
+body.wlp-ai-study-mode #study-experience,
+body.wlp-ai-study-mode #study-finished{display:none!important}
+body.wlp-ai-study-mode .study-coverage-block,
+body.wlp-ai-study-mode #study-eligibility{display:none!important}
+body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
+
+@media(max-width:560px){
+  .wlp-practice-mode-switch{grid-template-columns:1fr 1fr}
+  .wlp-practice-mode-switch button{padding:9px 7px;font-size:.69rem}
+  .wlp-ai-method-card{grid-template-columns:40px minmax(0,1fr)}
+  .wlp-ai-method-icon{width:39px;height:39px}
+  .wlp-ai-experience-topline{align-items:flex-start}
+  .wlp-ai-actions{align-items:stretch;flex-direction:column}
+  .wlp-ai-actions .wlp-ai-submit-button,.wlp-ai-secondary-button{width:100%}
+  .wlp-ai-feedback-head{align-items:flex-start;flex-direction:column;gap:6px}
+}
