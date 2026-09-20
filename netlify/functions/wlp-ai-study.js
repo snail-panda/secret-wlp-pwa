@@ -7,7 +7,7 @@ const OPENAI_URL = 'https://api.openai.com/v1/responses';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const DEFAULT_PROVIDER = 'gemini';
 const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 const MAX_BODY_BYTES = 512 * 1024;
 
 function json(statusCode, body) {
@@ -542,8 +542,7 @@ function buildGeminiRequest(kind, minimizedPayload) {
       // responseJsonSchema accepts JSON-Schema constructs used by our shared contract
       // (including nullable type arrays and numeric enums after const normalization).
       responseJsonSchema: sanitizeSchemaForGemini(responseSchema),
-      maxOutputTokens: Number.isFinite(maxOutputTokens) && maxOutputTokens > 0 ? maxOutputTokens : 8000,
-      temperature: kind === 'planner' ? 0.7 : 0.25
+      maxOutputTokens: Number.isFinite(maxOutputTokens) && maxOutputTokens > 0 ? maxOutputTokens : 8000
     }
   };
 }
