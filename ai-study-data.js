@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.3';
+  const VERSION = '1.2.0';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -36,6 +36,12 @@
   const clean = value => String(value ?? '').trim();
   const nowIso = () => new Date().toISOString();
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
+  const canonicalize = value => {
+    if (Array.isArray(value)) return value.map(canonicalize);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalize(value[key])]));
+  };
+  const canonicalJson = value => JSON.stringify(canonicalize(value));
   const normalizeKey = value => clean(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
   const array = value => Array.isArray(value) ? value : [];
   const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -444,6 +450,7 @@
       personalAnchors: [],
       learnerGeneratedNeighbors: [],
       connections: [],
+      routeEvidence: [],
       weakOrFailedRoutes: [],
       domains: [],
       diagnosticExemplars: [],
@@ -550,6 +557,39 @@
     if (item.trajectory) found.trajectory = clean(item.trajectory);
   }
 
+  function mergeEventEvidence(record, event, result) {
+    const evidence = object(result?.evidence);
+    const types = uniqueStrings(evidence.evidenceTypes);
+    if (!types.length) return;
+    const context = clean(event.experience?.domain || event.experience?.type);
+    const observedAt = clean(event.createdAt || event.updatedAt);
+    const eventId = clean(event.eventId);
+    const ledger = array(record.routeEvidence);
+
+    types.forEach(type => {
+      const key = normalizeKey(type);
+      let found = ledger.find(item => normalizeKey(item.type) === key);
+      if (!found) {
+        found = {
+          type,
+          observationCount: 0,
+          contexts: [],
+          firstObservedAt: observedAt,
+          lastObservedAt: observedAt,
+          lastEventId: eventId
+        };
+        ledger.push(found);
+      }
+      found.observationCount = Number(found.observationCount || 0) + 1;
+      found.contexts = uniqueStrings([...(array(found.contexts)), context].filter(Boolean));
+      if (!found.firstObservedAt) found.firstObservedAt = observedAt;
+      found.lastObservedAt = observedAt || found.lastObservedAt;
+      found.lastEventId = eventId || found.lastEventId;
+    });
+
+    record.routeEvidence = ledger;
+  }
+
   function mergeFailedRoute(record, incoming, event) {
     const item = object(incoming);
     const route = clean(item.route);
@@ -643,6 +683,7 @@
 
   function applyRoutePatch(record, event, result) {
     const patch = routePatchFrom(result);
+    mergeEventEvidence(record, event, result);
     array(patch.addPersonalAnchors).forEach(item => mergePersonalAnchor(record, item, event));
     array(patch.addNeighbors).forEach(item => mergeNeighbor(record, item, event));
     array(patch.addConnections).forEach(item => mergeConnection(record, item, event));
@@ -825,7 +866,7 @@
     return { routeState: clone(route), learnerProfile: clone(profile) };
   }
 
-  function mergeInterpreterResult(eventId, interpreterResult) {
+  function mergeInterpreterResult(eventId, interpreterResult, options = {}) {
     const id = clean(eventId);
     if (!id) throw new Error('eventId is required');
     const result = object(interpreterResult);
@@ -834,7 +875,8 @@
       const eventsForValidation = readAIEvents();
       const existingForValidation = eventsForValidation.find(item => clean(item.eventId) === id);
       const normalizedForValidation = existingForValidation ? normalizeEvent(existingForValidation) : null;
-      const validationContext = normalizedForValidation ? {
+      const suppliedValidationContext = object(options.validationContext || options.interpreterRequest);
+      const validationContext = Object.keys(suppliedValidationContext).length ? suppliedValidationContext : normalizedForValidation ? {
         learningOpportunity: { direction: clean(normalizedForValidation.experience?.direction) },
         experience: clone(normalizedForValidation.experience),
         learnerResponse: clone(normalizedForValidation.learnerResponse)
@@ -856,6 +898,177 @@
     writeJson(AI_EVENT_KEY, compactEventLog(events));
     const derived = rebuildDerivedState();
     return { event: clone(event), ...derived };
+  }
+
+  function rawAIStorageSnapshot() {
+    return {
+      events: localStorage.getItem(AI_EVENT_KEY),
+      routeState: localStorage.getItem(AI_ROUTE_KEY),
+      learnerProfile: localStorage.getItem(AI_PROFILE_KEY)
+    };
+  }
+
+  function restoreRawAIStorage(snapshot) {
+    const state = object(snapshot);
+    [
+      [AI_EVENT_KEY, state.events],
+      [AI_ROUTE_KEY, state.routeState],
+      [AI_PROFILE_KEY, state.learnerProfile]
+    ].forEach(([key, value]) => {
+      if (value == null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    });
+  }
+
+  function unwrapInterpreterResult(value) {
+    const root = object(value);
+    const response = object(root.response);
+    return Object.keys(response).length ? response : root;
+  }
+
+  function eventFromInterpreterRequest(request, eventId) {
+    const req = object(request);
+    const target = object(req.target);
+    const opportunity = object(req.learningOpportunity);
+    const experience = object(req.experience);
+    return normalizeEvent({
+      eventId: clean(eventId || req.eventId),
+      sessionId: clean(req.session?.sessionId),
+      wordId: clean(target.wordId),
+      target: {
+        wordId: clean(target.wordId),
+        headword: clean(target.headword || target.target),
+        targetFamily: uniqueNormalized(target.targetFamily),
+        partOfSpeech: clean(target.pos || target.partOfSpeech),
+        targetKind: clean(target.targetKind)
+      },
+      experience: {
+        ...clone(experience),
+        direction: clean(experience.direction || opportunity.direction)
+      },
+      learnerResponse: clone(req.learnerResponse),
+      interpretationStatus: 'pending',
+      metadata: {
+        source: 'ai-study-interpreter-request',
+        requestId: clean(req.requestId)
+      }
+    });
+  }
+
+  function eventIdentitySignature(event) {
+    const value = normalizeEvent(event);
+    return canonicalJson({
+      eventId: value.eventId,
+      sessionId: value.sessionId,
+      wordId: value.wordId,
+      target: value.target,
+      experience: {
+        direction: value.experience?.direction,
+        type: value.experience?.type,
+        domain: value.experience?.domain,
+        targetVisibility: value.experience?.targetVisibility,
+        prompt: value.experience?.prompt,
+        responseConstraint: value.experience?.responseConstraint,
+        responseFrame: value.experience?.responseFrame
+      },
+      learnerResponse: value.learnerResponse
+    });
+  }
+
+  function inspectCommittedTurn(eventId) {
+    const event = findEvent(eventId);
+    if (!event) return null;
+    const routeState = readRouteState();
+    const routeRecord = routeState.records[`wid:${clean(event.wordId)}`] || null;
+    const profile = readLearnerProfile();
+    return {
+      event: {
+        eventId: clean(event.eventId),
+        sessionId: clean(event.sessionId),
+        wordId: clean(event.wordId),
+        interpretationStatus: clean(event.interpretationStatus),
+        authoritativeResponse: authoritativeResponse(event),
+        evidenceTypes: uniqueStrings(event.interpreterResult?.evidence?.evidenceTypes),
+        routerAction: normalizeRouterAction(event.interpreterResult?.router?.action || event.interpreterResult?.routerDecision?.action)
+      },
+      route: routeRecord ? {
+        wordId: clean(routeRecord.wordId),
+        learnerGeneratedNeighbors: clone(routeRecord.learnerGeneratedNeighbors || []),
+        routeEvidence: clone(routeRecord.routeEvidence || []),
+        connectionCount: array(routeRecord.connections).length,
+        diagnosticExemplarCount: array(routeRecord.diagnosticExemplars).length
+      } : null,
+      profile: {
+        productionTendencyCount: array(profile.productionTendencies).length,
+        reusableConstructionCount: array(profile.reusableConstructions).length,
+        styleTendencyCount: array(profile.styleTendencies).length
+      },
+      storageSummary: getStorageSummary()
+    };
+  }
+
+  function commitInterpreterTurn(input = {}) {
+    const request = object(input.request || input.interpreterRequest);
+    const result = unwrapInterpreterResult(input.result || input.interpreterResult);
+    if (!Object.keys(request).length) throw new Error('Interpreter request is required');
+    if (!Object.keys(result).length) throw new Error('Interpreter result is required');
+    if (!window.WLPAIStudyContract?.validateInterpreterRequest || !window.WLPAIStudyContract?.validateInterpreterResponse) {
+      throw new Error('AI Study Contract layer is required for controlled commit');
+    }
+    const requestValidation = window.WLPAIStudyContract.validateInterpreterRequest(request);
+    if (!requestValidation.valid) {
+      const details = requestValidation.errors.map(item => `${item.path}: ${item.message}`).join('; ');
+      throw new Error(`Interpreter request rejected before commit: ${details}`);
+    }
+
+    const eventId = clean(input.eventId || result.eventId || request.eventId);
+    if (!eventId) throw new Error('eventId is required');
+    const event = eventFromInterpreterRequest(request, eventId);
+    if (!event.wordId) throw new Error('Interpreter request target.wordId is required');
+    if (clean(request.eventId) && clean(request.eventId) !== eventId) throw new Error('Interpreter request eventId does not match the committed eventId');
+    if (clean(result.eventId) && clean(result.eventId) !== eventId) throw new Error('Interpreter result eventId does not match the committed eventId');
+    if (clean(result.requestId) && clean(request.requestId) && clean(result.requestId) !== clean(request.requestId)) throw new Error('Interpreter result requestId does not match the request requestId');
+    if (clean(result.sessionId) && event.sessionId && clean(result.sessionId) !== event.sessionId) throw new Error('Interpreter result sessionId does not match the request sessionId');
+
+    const validation = window.WLPAIStudyContract.validateInterpreterResponse(result, request);
+    if (!validation.valid) {
+      const details = validation.errors.map(item => `${item.path}: ${item.message}`).join('; ');
+      throw new Error(`Interpreter contract rejected before commit: ${details}`);
+    }
+
+    const existing = findEvent(eventId);
+    if (existing && eventIdentitySignature(existing) !== eventIdentitySignature(event)) {
+      throw new Error(`AI Study event conflict: ${eventId} already exists with different turn data`);
+    }
+
+    if (existing?.interpreterResult) {
+      if (canonicalJson(existing.interpreterResult) !== canonicalJson(result)) {
+        throw new Error(`AI Study event conflict: ${eventId} already has a different interpreter result`);
+      }
+      return {
+        committed: true,
+        idempotent: true,
+        eventId,
+        inspection: inspectCommittedTurn(eventId)
+      };
+    }
+
+    const snapshot = rawAIStorageSnapshot();
+    try {
+      if (!existing) saveAIStudyEvent(event);
+      const merged = mergeInterpreterResult(eventId, result, { validationContext: request });
+      return {
+        committed: true,
+        idempotent: false,
+        eventId,
+        inspection: inspectCommittedTurn(eventId),
+        routeState: merged.routeState,
+        learnerProfile: merged.learnerProfile
+      };
+    } catch (error) {
+      restoreRawAIStorage(snapshot);
+      throw error;
+    }
   }
 
   function studyQEvidence(wordId) {
@@ -916,6 +1129,10 @@
           interpretationStatus: event.interpretationStatus,
           responseInterpretation: clone(event.interpreterResult?.interpretation || event.interpreterResult?.responseInterpretation || event.interpreterResult?.observation || null),
           communicativeInterpretation: clone(event.interpreterResult?.communicativeInterpretation || null),
+          evidence: {
+            evidenceTypes: uniqueStrings(event.interpreterResult?.evidence?.evidenceTypes),
+            observationSummary: clampText(event.interpreterResult?.evidence?.observationSummary, 500)
+          },
           routerDecision: clone(event.interpreterResult?.router || event.interpreterResult?.routerDecision || null)
         };
       });
@@ -955,6 +1172,11 @@
         .slice(0, 4)
         .map(item => `${clean(item.from)} → ${clean(item.to)}`),
       observedConnections: array(route.connections).slice(0, 6).map(item => `${clean(item.from)} → ${clean(item.to)}`),
+      routeEvidence: array(route.routeEvidence)
+        .slice()
+        .sort((a, b) => Number(b.observationCount || 0) - Number(a.observationCount || 0))
+        .slice(0, 6)
+        .map(item => ({ type: clean(item.type), observationCount: Number(item.observationCount || 0) })),
       weakOrFailedRoutes: array(route.weakOrFailedRoutes).slice(0, 3).map(item => clean(item.route)).filter(Boolean),
       nextRouteHints: array(route.nextRouteHints).slice(0, 3)
     };
@@ -1110,6 +1332,7 @@
         personalAnchors: clone(route.personalAnchors || []),
         learnerGeneratedNeighbors: clone(route.learnerGeneratedNeighbors || []),
         observedConnections: clone(route.connections || []),
+        routeEvidence: clone(route.routeEvidence || []),
         weakOrFailedRoutes: clone(route.weakOrFailedRoutes || []),
         domains: clone(route.domains || []),
         diagnosticExemplars: clone(route.diagnosticExemplars || []),
@@ -1243,6 +1466,8 @@
     findEvent,
     applyUserCorrection,
     mergeInterpreterResult,
+    commitInterpreterTurn,
+    inspectCommittedTurn,
     rebuildDerivedState,
     readAIEvents: () => clone(readAIEvents()),
     readRouteState: () => clone(readRouteState()),

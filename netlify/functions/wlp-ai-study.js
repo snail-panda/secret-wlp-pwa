@@ -127,6 +127,10 @@ function minimizeRouteSummary(route) {
     learnerGeneratedNeighbors: strings(r.learnerGeneratedNeighbors, 5).map(v => text(v, 160)),
     strongConnections: strings(r.strongConnections, 4).map(v => text(v, 220)),
     observedConnections: strings(r.observedConnections, 5).map(v => text(v, 220)),
+    routeEvidence: arr(r.routeEvidence).slice(0, 5).map(item => ({
+      type: clean(item?.type),
+      observationCount: Number(item?.observationCount || 0)
+    })).filter(item => item.type),
     weakOrFailedRoutes: strings(r.weakOrFailedRoutes, 3).map(v => text(v, 240)),
     nextRouteHints: arr(r.nextRouteHints).slice(0, 3).map(item => pick(item, ['action', 'reason']))
   };
@@ -298,6 +302,10 @@ function minimizeAIEvent(item) {
     },
     responseInterpretation: clone(x.responseInterpretation || null),
     communicativeInterpretation: clone(x.communicativeInterpretation || null),
+    evidence: {
+      evidenceTypes: strings(x.evidence?.evidenceTypes, 6),
+      observationSummary: text(x.evidence?.observationSummary, 420)
+    },
     routerDecision: pick(x.routerDecision, ['action', 'reason'])
   };
 }
@@ -339,6 +347,11 @@ function minimizeTargetPacket(packet) {
       personalAnchors: arr(evidence.personalAnchors).slice(0, 3).map(minimizeAnchor),
       learnerGeneratedNeighbors: arr(evidence.learnerGeneratedNeighbors).slice(0, 5).map(minimizeNeighbor),
       observedConnections: arr(evidence.observedConnections).slice(0, 5).map(minimizeConnection),
+      routeEvidence: arr(evidence.routeEvidence).slice(0, 6).map(item => ({
+        type: clean(item?.type),
+        observationCount: Number(item?.observationCount || 0),
+        contexts: strings(item?.contexts, 4).map(v => text(v, 160))
+      })).filter(item => item.type),
       weakOrFailedRoutes: arr(evidence.weakOrFailedRoutes).slice(0, 3).map(item => ({
         route: text(item?.route, 320),
         reason: text(item?.reason, 420),
