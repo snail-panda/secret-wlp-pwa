@@ -38,9 +38,6 @@
       "type": "string",
       "minLength": 1
     },
-    "generatedAt": {
-      "type": "string"
-    },
     "interpretation": {
       "type": "object",
       "additionalProperties": false,

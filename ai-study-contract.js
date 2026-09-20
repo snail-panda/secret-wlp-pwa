@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -9,7 +9,8 @@
     experienceTypes: ['situational-production','reverse-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
     targetVisibility: ['hidden','visible','partial'],
     motivationStrength: ['weak','natural','strong'],
-    targetNaturalness: ['merely-possible','natural','strongly-motivated'],
+    targetNaturalness: ['merely-possible','natural','highly-natural'],
+    targetCommonness: ['default-common','common','less-common-but-natural','specialized-or-marked'],
     routerActions: ['DEEPEN','BRANCH','TRANSFER','CONTRAST','REVERSE','COMPOSE','PAUSE'],
     responseClasses: ['exact-target','target-family','natural-neighbor','natural-alternative','partial-concept','form-mismatch','sense-mismatch','register-mismatch','construal-shift','unrelated','uncertain','stt-uncertain'],
     focusRelations: ['aligned','overlapping','shifted','conflicting','unclear'],
@@ -172,6 +173,8 @@
       requireEnum(value.naturalnessCheck, 'targetNaturalness', ENUMS.targetNaturalness, '$.naturalnessCheck', errors);
       requireBoolean(value.naturalnessCheck, 'targetIsNaturalForExperience', '$.naturalnessCheck', errors);
       requireBoolean(value.naturalnessCheck, 'targetIsRequired', '$.naturalnessCheck', errors);
+      requireEnum(value.naturalnessCheck, 'targetCommonness', ENUMS.targetCommonness, '$.naturalnessCheck', errors);
+      requireArray(value.naturalnessCheck, 'commonerAlternatives', '$.naturalnessCheck', errors, 0);
     }
     if (requireObject(value.antiRoteCheck, '$.antiRoteCheck', errors)) {
       requireBoolean(value.antiRoteCheck, 'duplicatesRecentRoute', '$.antiRoteCheck', errors);
@@ -188,13 +191,17 @@
     const target = norm(value.selectedTarget?.target);
     const family = [value.selectedTarget?.target, ...asArray(value.selectedTarget?.targetFamily)].map(norm).filter(Boolean);
     const goal = norm(value.learningOpportunity?.goal);
-    const prompt = norm(value.experience?.prompt);
+    const promptText = text(value.experience?.prompt);
+    const prompt = norm(promptText);
     const direction = value.learningOpportunity?.direction;
     const type = value.experience?.type;
     const visibility = value.experience?.targetVisibility;
     const motivation = value.usageMotivation?.motivationStrength;
     const naturalness = value.naturalnessCheck?.targetNaturalness;
-    const prefersOther = value.naturalnessCheck?.wouldACommonSpeakerPreferAnotherExpression === true;
+    const commonness = value.naturalnessCheck?.targetCommonness;
+    const commonerAlternatives = asArray(value.naturalnessCheck?.commonerAlternatives).map(text).filter(Boolean);
+    const anticipatedAlternatives = asArray(value.experience?.anticipatedNaturalAlternatives).map(text).filter(Boolean);
+    const semanticTerritory = asArray(value.experience?.acceptableSemanticTerritory).map(text).filter(Boolean);
 
     const targetOnlyPatterns = [
       /\bmake (?:the )?learner (?:say|produce|use)\b/,
@@ -212,18 +219,38 @@
 
     const productionDirections = new Set(['world-to-expression','concept-to-expression','message-to-expression','neighbor-to-target']);
     const exploratoryTypes = new Set(['contrast','reformulation','reverse-reconstruction']);
-    if (productionDirections.has(direction) && !exploratoryTypes.has(type)) {
-      if (motivation !== 'strong' || naturalness !== 'strongly-motivated') {
-        push(warnings, '$.usageMotivation', 'production-oriented experience should normally make the target strongly motivated by the situation/message');
-      }
-      if (prefersOther && visibility === 'hidden') {
-        push(errors, '$.naturalnessCheck.wouldACommonSpeakerPreferAnotherExpression', 'hidden target-production prompt should not force a target when another expression is the clear default');
-      }
+    const productionOriented = productionDirections.has(direction) && !exploratoryTypes.has(type);
+    if (productionOriented && motivation !== 'strong') {
+      push(warnings, '$.usageMotivation.motivationStrength', 'production-oriented experience should normally make the target strongly motivated by the situation/message');
+    }
+
+    if (visibility === 'hidden' && value.naturalnessCheck?.targetIsRequired === true && (commonerAlternatives.length || anticipatedAlternatives.length)) {
+      push(errors, '$.naturalnessCheck.targetIsRequired', 'hidden production must not require the target when natural alternatives are explicitly recognized');
+    }
+
+    if (['less-common-but-natural','specialized-or-marked'].includes(commonness) && !commonerAlternatives.length) {
+      push(warnings, '$.naturalnessCheck.commonerAlternatives', 'less-common or marked targets should list any commoner natural alternatives when they exist');
     }
 
     if (visibility === 'hidden' && target) {
       const leaked = family.some(item => item && containsWholeExpression(prompt, item));
       if (leaked) push(errors, '$.experience.prompt', 'hidden-target experience leaks the target or target family');
+
+      const territoryUsesTarget = semanticTerritory.some(item => family.some(f => f && containsWholeExpression(item, f)));
+      if (territoryUsesTarget) {
+        push(warnings, '$.experience.acceptableSemanticTerritory', 'semantic territory should describe meanings/construals rather than target-containing model answers');
+      }
+    }
+
+    if (productionOriented && visibility === 'hidden' && !semanticTerritory.length) {
+      push(warnings, '$.experience.acceptableSemanticTerritory', 'hidden production should normally define semantic territory so natural alternatives can be interpreted fairly');
+    }
+
+    if (promptText.length > 900) {
+      push(warnings, '$.experience.prompt', 'prompt is unusually long; prefer a compact, realistic experience unless detail is instructionally necessary');
+    }
+    if (/\s{3,}/.test(promptText) || /([!?.,])\1{2,}/.test(promptText)) {
+      push(warnings, '$.experience.prompt', 'prompt contains suspicious spacing or repeated punctuation; proofread generated wording');
     }
 
     if (value.antiRoteCheck?.duplicatesRecentRoute && value.antiRoteCheck?.duplicatesRecentFrame) {
@@ -398,14 +425,27 @@
       messageCore: { summary: 'Something concentrated becomes distributed across a wider area.' },
       communicativeFocus: { foreground: 'change from concentration to distribution', speakerIntent: 'describe how the scent gradually fills the space', construal: 'concentration-to-dispersion' },
       usageMotivation: { communicativeNeed: 'describe the scent becoming distributed through the room', targetContribution: 'foregrounds the transition from concentration to dispersion', whyThisExpressionNow: 'the scene makes that distribution pattern perceptually salient', motivationStrength: 'strong' },
-      experience: { experienceId: 'self-exp-1', type: 'situational-production', domain: 'home / scent', targetVisibility: 'hidden', prompt: 'You spray fragrance near the doorway. Ten minutes later you can smell it throughout the room. Describe what happened to the scent.', responseMode: 'open-production', anticipatedNaturalAlternatives: ['spread','permeate'] },
-      naturalnessCheck: { targetNaturalness: 'strongly-motivated', targetIsNaturalForExperience: true, targetIsRequired: false, strongerDefaultAlternative: null, otherNaturalExpressions: ['spread','permeate'], wouldACommonSpeakerPreferAnotherExpression: false },
+      experience: { experienceId: 'self-exp-1', type: 'situational-production', domain: 'home / scent', targetVisibility: 'hidden', prompt: 'You spray fragrance near the doorway. Ten minutes later you can smell it throughout the room. Describe what happened to the scent.', responseMode: 'open-production', acceptableSemanticTerritory: ['gradual distribution from a concentrated source through a wider space'], anticipatedNaturalAlternatives: ['spread','permeate'] },
+      naturalnessCheck: { targetNaturalness: 'natural', targetIsNaturalForExperience: true, targetIsRequired: false, targetCommonness: 'less-common-but-natural', commonerAlternatives: ['spread'], otherNaturalExpressions: ['spread','permeate'] },
       antiRoteCheck: { duplicatesRecentRoute: false, duplicatesRecentFrame: false }
     };
     const badPlanner = JSON.parse(JSON.stringify(goodPlanner));
     badPlanner.requestId = 'self-plan-bad';
     badPlanner.learningOpportunity.goal = 'Make the learner say diffuse';
     badPlanner.naturalnessCheck.targetNaturalness = 'merely-possible';
+
+    const lessCommonButMotivated = JSON.parse(JSON.stringify(goodPlanner));
+    lessCommonButMotivated.requestId = 'self-plan-less-common';
+    lessCommonButMotivated.selectedTarget = { wordId: '5578', target: 'overwrought', targetFamily: ['overwrought'] };
+    lessCommonButMotivated.learningOpportunity.goal = 'connect excessive dramatic elaboration with a precise evaluative adjective';
+    lessCommonButMotivated.experience.prompt = 'A climactic monologue is so elaborate and emotionally strained that it feels overdone rather than moving. Describe the style.';
+    lessCommonButMotivated.experience.acceptableSemanticTerritory = ['excessively dramatic, elaborate, emotionally strained, or overdone'];
+    lessCommonButMotivated.experience.anticipatedNaturalAlternatives = ['melodramatic','over-the-top','overdone'];
+    lessCommonButMotivated.naturalnessCheck = { targetNaturalness: 'natural', targetIsNaturalForExperience: true, targetIsRequired: false, targetCommonness: 'less-common-but-natural', commonerAlternatives: ['melodramatic','over-the-top','overdone'], otherNaturalExpressions: ['melodramatic','over-the-top','overdone'] };
+
+    const forcedAlternativePlanner = JSON.parse(JSON.stringify(lessCommonButMotivated));
+    forcedAlternativePlanner.requestId = 'self-plan-forced-alternative';
+    forcedAlternativePlanner.naturalnessCheck.targetIsRequired = true;
 
     const goodInterpreter = {
       schemaVersion: 1, contract: 'interpreter-router-v1.response', requestId: 'self-int-1', sessionId: 'self-session', eventId: 'event-1',
@@ -426,6 +466,8 @@
 
     const checks = [
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
+      { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
+      { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
       { name: 'interpreter-valid-natural-neighbor', expected: 'VALID', actual: validateInterpreterResponse(goodInterpreter).status },
       { name: 'interpreter-reject-low-confidence-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(badInterpreter).status }

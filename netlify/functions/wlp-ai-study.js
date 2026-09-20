@@ -451,9 +451,9 @@ function minimizeOutbound(kind, payload, eventId) {
 
 function operationalInstructions(kind) {
   if (kind === 'planner') {
-    return `Create one WLP learning experience from the supplied minimal context. Ground it in a meaningful situation, concept, procedure, terminology, or discourse move. The target may be elicited, but it must have a real communicative reason to be used, not merely be possible. Keep message core, communicative focus, and usage motivation aligned. Respect natural alternatives and existing learner language. Avoid cosmetic repetition of recent routes. Return only JSON matching the response schema and preserve requestId/sessionId.`;
+    return `Create one WLP learning experience from the supplied minimal context. Ground it in a meaningful situation, concept, procedure, terminology, or discourse move. The target may be elicited, but it must have a real communicative reason to be used, not merely be possible. Keep message core, communicative focus, and usage motivation aligned. Distinguish three separate judgments: targetNaturalness = whether the expression fits idiomatically in this exact experience; motivationStrength = whether this situation gives the target a meaningful communicative job; targetCommonness = whether it is a default/common choice in this register and situation. A target may be strongly motivated while still less-common-but-natural. If commoner natural alternatives exist, list them and do not mark the target required. acceptableSemanticTerritory should describe meanings/construals, not target-containing model answers. Respect natural alternatives and existing learner language. Avoid cosmetic repetition of recent routes. Before returning, silently proofread spelling, grammar, idiomatic wording, scenario coherence, and realistic human use; remove awkward or nonstandard phrasing without flattening a precise but less-common target into a generic alternative. Do not invent timestamps or system metadata. Return only JSON matching the response schema and preserve requestId/sessionId.`;
   }
-  return `Interpret the learner response as evidence, not binary right/wrong. Use authoritativeResponse when STT was corrected. Distinguish target, target family, natural neighbor/alternative, form or sense issues, and communicative-focus shifts. Do not punish a natural alternative or promote a learner tendency from weak/uncertain evidence. Return additive patch proposals only, choose a useful router action or PAUSE, keep learner-facing feedback natural, and return only JSON matching the response schema. Preserve requestId/sessionId/eventId.`;
+  return `Interpret the learner response as evidence, not binary right/wrong. Use authoritativeResponse when STT was corrected. Distinguish target, target family, natural neighbor/alternative, form or sense issues, and communicative-focus shifts. Do not punish a natural alternative or promote a learner tendency from weak/uncertain evidence. Return additive patch proposals only, choose a useful router action or PAUSE, keep learner-facing feedback natural, silently proofread generated wording, and do not invent timestamps or system metadata. Return only JSON matching the response schema. Preserve requestId/sessionId/eventId.`;
 }
 
 function getProvider() {
@@ -652,11 +652,27 @@ async function callGemini(kind, minimizedPayload) {
   };
 }
 
+function finalizeProviderOutput(kind, output) {
+  const result = clone(output?.result) || {};
+  // Provider-generated timestamps are not trusted system metadata.
+  // Keep response content provider-authored, but attach timing server-side.
+  if (kind === 'planner' || kind === 'interpreter') delete result.generatedAt;
+  return {
+    result,
+    meta: {
+      ...obj(output?.meta),
+      receivedAt: new Date().toISOString()
+    }
+  };
+}
+
 async function callProvider(kind, payload, eventId) {
   const minimizedPayload = minimizeOutbound(kind, payload, eventId);
   const provider = getProvider();
-  if (provider === 'openai') return callOpenAI(kind, minimizedPayload);
-  return callGemini(kind, minimizedPayload);
+  const output = provider === 'openai'
+    ? await callOpenAI(kind, minimizedPayload)
+    : await callGemini(kind, minimizedPayload);
+  return finalizeProviderOutput(kind, output);
 }
 
 exports.handler = async function handler(event) {
@@ -729,5 +745,6 @@ exports._test = Object.freeze({
   extractOpenAIOutputText,
   extractGeminiOutputText,
   buildOpenAIRequest,
-  buildGeminiRequest
+  buildGeminiRequest,
+  finalizeProviderOutput
 });

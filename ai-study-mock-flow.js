@@ -1,14 +1,13 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const FIXTURE_WORD_ID = '6293';
   const FIXTURE_TARGET = 'diffuse';
 
   const clean = value => String(value ?? '').trim();
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
   const norm = value => clean(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
-  const nowIso = () => new Date().toISOString();
   const makeId = prefix => {
     try {
       if (crypto?.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
@@ -56,7 +55,6 @@
       contract: 'planner-writer-v1.response',
       requestId: clean(plannerRequest.requestId),
       sessionId,
-      generatedAt: nowIso(),
       selectedTarget: selected,
       learningOpportunity: {
         direction: 'world-to-expression',
@@ -98,12 +96,12 @@
         anticipatedNaturalAlternatives: ['spread', 'permeate']
       },
       naturalnessCheck: {
-        targetNaturalness: 'strongly-motivated',
+        targetNaturalness: 'natural',
         targetIsNaturalForExperience: true,
         targetIsRequired: false,
-        strongerDefaultAlternative: null,
-        otherNaturalExpressions: ['spread', 'permeate'],
-        wouldACommonSpeakerPreferAnotherExpression: false
+        targetCommonness: 'less-common-but-natural',
+        commonerAlternatives: ['spread'],
+        otherNaturalExpressions: ['spread', 'permeate']
       },
       antiRoteCheck: {
         duplicatesRecentRoute: false,
@@ -248,7 +246,6 @@
       requestId: clean(interpreterRequest.requestId),
       sessionId: clean(interpreterRequest.session?.sessionId),
       eventId: clean(eventId),
-      generatedAt: nowIso(),
       interpretation: {
         responseClasses,
         conceptMatched,

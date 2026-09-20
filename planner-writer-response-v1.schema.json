@@ -34,9 +34,6 @@
       "type": "string",
       "minLength": 1
     },
-    "generatedAt": {
-      "type": "string"
-    },
     "selectedTarget": {
       "type": "object",
       "additionalProperties": false,
@@ -282,14 +279,16 @@
       "required": [
         "targetNaturalness",
         "targetIsNaturalForExperience",
-        "targetIsRequired"
+        "targetIsRequired",
+        "targetCommonness",
+        "commonerAlternatives"
       ],
       "properties": {
         "targetNaturalness": {
           "enum": [
             "merely-possible",
             "natural",
-            "strongly-motivated"
+            "highly-natural"
           ]
         },
         "targetIsNaturalForExperience": {
@@ -298,11 +297,21 @@
         "targetIsRequired": {
           "type": "boolean"
         },
-        "strongerDefaultAlternative": {
-          "type": [
-            "string",
-            "null"
+        "targetCommonness": {
+          "enum": [
+            "default-common",
+            "common",
+            "less-common-but-natural",
+            "specialized-or-marked"
           ]
+        },
+        "commonerAlternatives": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
         },
         "otherNaturalExpressions": {
           "type": "array",
@@ -311,9 +320,6 @@
             "minLength": 1
           },
           "uniqueItems": true
-        },
-        "wouldACommonSpeakerPreferAnotherExpression": {
-          "type": "boolean"
         }
       }
     },
