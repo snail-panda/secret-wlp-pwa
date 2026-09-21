@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.5.0';
+  const VERSION = '1.5.1';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -143,7 +143,7 @@
     return cardSnapshotFromPacket(currentTargetPacket(), state.activePlanner?.result?.response?.selectedTarget || null);
   }
 
-  function addPeekField(container, label, value) {
+  function addPeekField(container, label, value, highlightTerms = []) {
     const textValue = clean(value);
     if (!textValue) return;
     const row = document.createElement('div');
@@ -151,7 +151,8 @@
     const key = document.createElement('span');
     key.textContent = label;
     const val = document.createElement('p');
-    val.textContent = textValue;
+    if (Array.isArray(highlightTerms) && highlightTerms.some(term => clean(term))) renderHighlightedText(val, textValue, highlightTerms);
+    else val.textContent = textValue;
     row.append(key, val);
     container.appendChild(row);
   }
@@ -196,6 +197,7 @@
       eventId: clean(state.activePlanner?.eventId),
       completedAt: new Date().toISOString(),
       target: clean(selected.target),
+      targetFamily: Array.isArray(selected.targetFamily) ? selected.targetFamily.map(clean).filter(Boolean).slice(0, 8) : [],
       wordId: clean(selected.wordId),
       domain: clean(exp.domain),
       experienceType: clean(exp.type || planner.learningOpportunity?.direction),
@@ -285,7 +287,7 @@
         patterns: 'No session pattern is available yet.',
         worthRevisiting: 'Complete an experience to create reviewable learning evidence.',
         nextFocus: 'Start a new AI experience when you are ready.',
-        evidenceNote: 'No completed turn means there is no learner evidence to aggregate.'
+        evidenceNote: 'No completed turn means there is no learning evidence to summarize from this session.'
       };
     }
 
@@ -343,8 +345,8 @@
       worthRevisiting: revisit.length ? revisit.slice(0, 3).join(' ') : 'No repeated or high-priority issue stood out in the completed turn(s).',
       nextFocus: nextSteps.length ? nextSteps.join(' ') : 'Future AI Study can adapt from the saved evidence.',
       evidenceNote: total < 3
-        ? 'This is session evidence, not yet a stable long-term learner tendency. Repeated patterns across future sessions can become stronger learner-profile signals.'
-        : 'Session patterns are useful evidence, but long-term learner tendencies still require corroboration across multiple targets, contexts, and sessions.'
+        ? 'Based on this session only. If the same pattern appears again in future sessions, WLP can treat it as a stronger learning signal.'
+        : 'These patterns summarize this session. WLP will look for the same patterns across different words, contexts, and future sessions before treating them as longer-term tendencies.'
     };
   }
 
@@ -398,8 +400,9 @@
     addPeekField(article, 'Target feedback', turn?.targetFeedback);
     addPeekField(article, 'Language feedback', turn?.languageFeedback);
     addPeekField(article, 'Next step', turn?.nextStep);
-    if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm);
-    else if (clean(turn?.modelResponse)) addPeekField(article, 'Natural example', turn.modelResponse);
+    const highlightTerms = [clean(turn?.target), ...(Array.isArray(turn?.targetFamily) ? turn.targetFamily.map(clean) : [])].filter(Boolean);
+    if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm, highlightTerms);
+    else if (clean(turn?.modelResponse)) addPeekField(article, 'Natural example', turn.modelResponse, highlightTerms);
     if (includePeek && clean(turn?.wordId)) {
       const actions = document.createElement('div');
       actions.className = 'wlp-ai-turn-card-actions';
@@ -704,7 +707,7 @@
         <label class="wlp-ai-response-field" for="wlp-ai-response">
           <span id="wlp-ai-response-label">What would you naturally say?</span>
           <textarea id="wlp-ai-response" rows="3" placeholder="Type the expression or sentence that comes naturally."></textarea>
-          <small>Do not force the WLP target. A natural alternative is useful learning evidence too.</small>
+          <small>Say what comes naturally. If another expression fits better, that is useful learning evidence too.</small>
         </label>
         <div class="wlp-ai-actions">
           <button class="wlp-ai-submit-button" id="wlp-ai-submit" type="button">Interpret my response</button>
@@ -969,6 +972,34 @@
     return ms > 0 ? `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)}s` : '—';
   }
 
+  function prepareExperienceLoading(message = 'Creating a new AI experience…') {
+    const experience = $('#wlp-ai-experience');
+    if (experience) experience.hidden = false;
+    $('#wlp-ai-finished').hidden = true;
+    $('#wlp-ai-feedback').hidden = true;
+    const domainEl = $('#wlp-ai-domain');
+    if (domainEl) { domainEl.textContent = ''; domainEl.hidden = true; }
+    const labelEl = $('#wlp-ai-experience-label');
+    if (labelEl) labelEl.textContent = 'Preparing experience';
+    const promptEl = $('#wlp-ai-prompt');
+    if (promptEl) promptEl.textContent = '';
+    const frameEl = $('#wlp-ai-frame');
+    if (frameEl) { frameEl.textContent = ''; frameEl.hidden = true; }
+    const visibleTarget = $('#wlp-ai-visible-target');
+    if (visibleTarget) { visibleTarget.textContent = ''; visibleTarget.hidden = true; }
+    const responseBox = $('#wlp-ai-response');
+    if (responseBox) { responseBox.value = ''; responseBox.disabled = true; }
+    const submit = $('#wlp-ai-submit');
+    const noIdea = $('#wlp-ai-no-idea');
+    if (submit) submit.hidden = true;
+    if (noIdea) noIdea.hidden = true;
+    if (state.session) {
+      $('#wlp-ai-source-pill').textContent = state.session.source.label;
+      $('#wlp-ai-progress').textContent = `${state.session.completed + 1} / ${state.session.total}`;
+    }
+    setStatus(message);
+  }
+
   function renderExperience(plannerResult) {
     const response = plannerResult.response;
     const experience = response.experience || {};
@@ -1014,8 +1045,8 @@
 
   async function loadNextExperience() {
     if (!state.session || state.busy) return;
-    setBusy(true, 'Building a fresh learning context locally…');
-    $('#wlp-ai-feedback').hidden = true;
+    prepareExperienceLoading(`Creating a new ${practiceTypeLabel(state.session.practiceType)} experience…`);
+    setBusy(true);
     let plannerStarted = null;
     try {
       const { transport } = requireLayers();
@@ -1246,10 +1277,10 @@
     $('#wlp-ai-finished').hidden = false;
 
     const completedAll = session.completed >= session.total;
-    $('#wlp-ai-finished-title').textContent = completedAll ? 'Session complete.' : 'Session saved.';
+    $('#wlp-ai-finished-title').textContent = completedAll ? 'Session complete.' : session.completed ? 'Session saved.' : 'Session ended.';
     $('#wlp-ai-finished-summary').textContent = session.completed
       ? `You completed ${session.completed} of ${session.total} planned experience${session.total === 1 ? '' : 's'}. Learning evidence from completed turns is saved so future AI Study can adapt from it.`
-      : 'No interpreted experience was completed in this session.';
+      : 'No interpreted experience was completed, so no session review was added to AI Study History.';
 
     const stats = $('#wlp-ai-finished-stats');
     stats.textContent = '';
