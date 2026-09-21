@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.6.1';
+  const VERSION = '1.7.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -21,8 +21,16 @@
     { value: 'reformulation', label: 'Reformulation', help: 'Rewrite an idea in a more precise, natural, or target-compatible way.' },
     { value: 'free-composition', label: 'Free composition', help: 'Produce a full sentence or short passage with minimal lexical prompting.' },
     { value: 'reverse-reconstruction', label: 'Reverse reconstruction', help: 'Rebuild an expression or formulation from its intended meaning or communicative effect.' },
-    { value: 'sentence-reconstruction', label: 'Sentence reconstruction', help: 'Reorder shuffled chunks into one natural sentence. The current baseline uses every chunk once with no distractors.' },
+    { value: 'sentence-reconstruction', label: 'Sentence reconstruction', help: 'Reorder shuffled chunks into one natural sentence. Difficulty changes chunk size, distractors, and missing-word/form demands.' },
     { value: 'continuation', label: 'Continuation', help: 'Continue a sentence, thought, or exchange naturally.' }
+  ]);
+
+  const DIFFICULTIES = Object.freeze([
+    { value: 'adaptive', label: 'Adaptive · AI decides', help: 'Default. WLP adjusts support from current route evidence. It normally stays near Standard and does not jump to Hell without strong prior evidence.' },
+    { value: 'easy', label: 'Easy', help: 'More scaffolding, clearer cues, and simpler response demands. Sentence reconstruction uses larger meaning chunks with no distractors.' },
+    { value: 'standard', label: 'Standard', help: 'Normal retrieval and production demand. Sentence reconstruction uses smaller chunks and reduces obvious capitalization clues.' },
+    { value: 'hard', label: 'Hard', help: 'Less direct cueing, more form/construction control, and closer competitors. Sentence reconstruction adds distractor chunks.' },
+    { value: 'hell', label: 'Hell', help: 'Maximum fair difficulty: sparse cueing, transfer and form control, competing options, and stronger production demands. Reconstruction can include distractors plus one missing word or form.' }
   ]);
 
   const state = {
@@ -359,6 +367,7 @@
       endedAt: new Date().toISOString(),
       source: clone(session.source),
       practiceType: clean(session.practiceType || 'adaptive'),
+      difficulty: clean(session.difficulty || 'adaptive'),
       total: num(session.total),
       completed: num(session.completed),
       completedAll: num(session.completed) >= num(session.total),
@@ -473,7 +482,8 @@
       strong.textContent = formatHistoryDate(record.endedAt || record.startedAt);
       const meta = document.createElement('span');
       const typeNote = clean(record.practiceType) && clean(record.practiceType) !== 'adaptive' ? ` · ${practiceTypeLabel(clean(record.practiceType))}` : '';
-      meta.textContent = `${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}${targets ? ` · ${targets}` : ''}${typeNote}`;
+      const difficultyNote = clean(record.difficulty) && clean(record.difficulty) !== 'adaptive' ? ` · ${difficultyLabel(clean(record.difficulty))}` : '';
+      meta.textContent = `${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}${targets ? ` · ${targets}` : ''}${typeNote}${difficultyNote}`;
       button.append(strong, meta);
       list.appendChild(button);
     });
@@ -490,7 +500,8 @@
     const note = document.createElement('p');
     note.className = 'wlp-ai-history-summary';
     const historyType = clean(record.practiceType) && clean(record.practiceType) !== 'adaptive' ? ` · ${practiceTypeLabel(clean(record.practiceType))}` : '';
-    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}${historyType}. This is the original prompt, response, feedback, and session-level review from that session.`;
+    const historyDifficulty = clean(record.difficulty) && clean(record.difficulty) !== 'adaptive' ? ` · ${difficultyLabel(clean(record.difficulty))}` : '';
+    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}${historyType}${historyDifficulty}. This is the original prompt, response, feedback, and session-level review from that session.`;
     body.appendChild(note);
     const turns = Array.isArray(record.turns) ? record.turns : [];
     const insights = record.insights && typeof record.insights === 'object' ? record.insights : buildSessionInsights(turns);
@@ -593,6 +604,22 @@
     if (el) el.textContent = help;
   }
 
+  function selectedDifficulty() {
+    const value = clean($('#wlp-ai-difficulty')?.value || 'adaptive');
+    return DIFFICULTIES.some(item => item.value === value) ? value : 'adaptive';
+  }
+
+  function difficultyLabel(value) {
+    return DIFFICULTIES.find(item => item.value === value)?.label || 'Adaptive · AI decides';
+  }
+
+  function updateDifficultyHelp() {
+    const value = selectedDifficulty();
+    const help = DIFFICULTIES.find(item => item.value === value)?.help || '';
+    const el = $('#wlp-ai-difficulty-help');
+    if (el) el.textContent = help;
+  }
+
   function candidateScore(candidate, session) {
     const review = candidate?.reviewSignal || {};
     const studyQ = candidate?.studyQSignal || {};
@@ -666,25 +693,37 @@
       </section>
 
       <section class="wlp-ai-start-panel" id="wlp-ai-start-panel">
-        <div class="wlp-ai-practice-type-control">
-          <label for="wlp-ai-practice-type"><span>Experience type</span><select id="wlp-ai-practice-type" aria-describedby="wlp-ai-practice-type-help">
-            <option value="adaptive" selected>Adaptive · AI decides</option>
-            <option value="situational-production">Situational production</option>
-            <option value="open-description">Open description</option>
-            <option value="cloze">Cloze</option>
-            <option value="dialogue">Dialogue</option>
-            <option value="micro-story">Micro-story</option>
-            <option value="contrast">Contrast</option>
-            <option value="reformulation">Reformulation</option>
-            <option value="free-composition">Free composition</option>
-            <option value="reverse-reconstruction">Reverse reconstruction</option>
-            <option value="sentence-reconstruction">Sentence reconstruction</option>
-            <option value="continuation">Continuation</option>
-          </select></label>
-          <p id="wlp-ai-practice-type-help">Default. WLP chooses the experience type from your current route evidence and target context.</p>
+        <div class="wlp-ai-study-options">
+          <div class="wlp-ai-practice-type-control">
+            <label for="wlp-ai-practice-type"><span>Experience type</span><select id="wlp-ai-practice-type" aria-describedby="wlp-ai-practice-type-help">
+              <option value="adaptive" selected>Adaptive · AI decides</option>
+              <option value="situational-production">Situational production</option>
+              <option value="open-description">Open description</option>
+              <option value="cloze">Cloze</option>
+              <option value="dialogue">Dialogue</option>
+              <option value="micro-story">Micro-story</option>
+              <option value="contrast">Contrast</option>
+              <option value="reformulation">Reformulation</option>
+              <option value="free-composition">Free composition</option>
+              <option value="reverse-reconstruction">Reverse reconstruction</option>
+              <option value="sentence-reconstruction">Sentence reconstruction</option>
+              <option value="continuation">Continuation</option>
+            </select></label>
+            <p id="wlp-ai-practice-type-help">Default. WLP chooses the experience type from your current route evidence and target context.</p>
+          </div>
+          <div class="wlp-ai-practice-type-control wlp-ai-difficulty-control">
+            <label for="wlp-ai-difficulty"><span>Difficulty</span><select id="wlp-ai-difficulty" aria-describedby="wlp-ai-difficulty-help">
+              <option value="adaptive" selected>Adaptive · AI decides</option>
+              <option value="easy">Easy</option>
+              <option value="standard">Standard</option>
+              <option value="hard">Hard</option>
+              <option value="hell">Hell</option>
+            </select></label>
+            <p id="wlp-ai-difficulty-help">Default. WLP adjusts support from current route evidence and normally stays near Standard.</p>
+          </div>
         </div>
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
-        <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source, session size, and optional experience-type override are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
+        <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source, session size, optional experience-type override, and difficulty preference are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
         <details class="wlp-ai-history" id="wlp-ai-history" hidden>
           <summary id="wlp-ai-history-label">AI Study History</summary>
           <div class="wlp-ai-history-list" id="wlp-ai-history-list"></div>
@@ -709,6 +748,10 @@
             <span class="wlp-ai-reconstruction-label">Arrange the chunks</span>
             <p>Tap the chunks in the order that makes one natural sentence.</p>
             <div class="wlp-ai-reconstruction-bank" id="wlp-ai-reconstruction-bank" aria-label="Available chunks"></div>
+            <div class="wlp-ai-reconstruction-missing" id="wlp-ai-reconstruction-missing" hidden>
+              <label for="wlp-ai-reconstruction-missing-input"><span>One word or form is missing</span><input id="wlp-ai-reconstruction-missing-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type the missing word or form"></label>
+              <button type="button" id="wlp-ai-reconstruction-missing-add">Add to sentence</button>
+            </div>
             <div class="wlp-ai-reconstruction-answer-wrap">
               <span>Your sentence</span>
               <div class="wlp-ai-reconstruction-answer" id="wlp-ai-reconstruction-answer" aria-live="polite"></div>
@@ -889,16 +932,36 @@
 
   function parseReconstructionPrompt(value) {
     const source = clean(value);
-    const marker = source.match(/(?:^|\n)\s*RECONSTRUCTION_UNITS:\s*(.+?)\s*$/im);
-    if (!marker) return null;
-    const units = marker[1].split('||').map(clean).filter(Boolean);
+    const unitsMarker = source.match(/(?:^|\n)\s*RECONSTRUCTION_UNITS:\s*(.+?)\s*$/im);
+    if (!unitsMarker) return null;
+    const units = unitsMarker[1].split('||').map(clean).filter(Boolean);
     if (units.length < 3) return null;
-    const prompt = clean(source.replace(marker[0], ''));
-    return { prompt, units };
+    const distractorMarker = source.match(/(?:^|\n)\s*RECONSTRUCTION_DISTRACTORS:\s*(.+?)\s*$/im);
+    const distractors = distractorMarker ? distractorMarker[1].split('||').map(clean).filter(Boolean) : [];
+    const levelMarker = source.match(/(?:^|\n)\s*RECONSTRUCTION_LEVEL:\s*(easy|standard|hard|hell)\s*$/im);
+    const missingMarker = source.match(/(?:^|\n)\s*RECONSTRUCTION_MISSING_REQUIRED:\s*(true|false)\s*$/im);
+    const rawLevel = clean(levelMarker?.[1] || state.session?.difficulty || 'standard').toLowerCase();
+    const level = ['easy','standard','hard','hell'].includes(rawLevel) ? rawLevel : 'standard';
+    const missingRequired = clean(missingMarker?.[1]).toLowerCase() === 'true';
+    let prompt = source;
+    [unitsMarker, distractorMarker, levelMarker, missingMarker].filter(Boolean).forEach(marker => {
+      prompt = prompt.replace(marker[0], '');
+    });
+    prompt = clean(prompt.replace(/\n{3,}/g, '\n\n'));
+    return { prompt, units, distractors, level, missingRequired };
   }
 
-  function shuffleReconstructionUnits(units) {
-    const copy = units.map((text, index) => ({ id: `chunk-${index}-${Math.random().toString(36).slice(2, 7)}`, text }));
+  function shuffleReconstructionUnits(units, distractors = []) {
+    const source = [
+      ...units.map((text, index) => ({ text, required: true, sourceIndex: index })),
+      ...distractors.map((text, index) => ({ text, required: false, sourceIndex: index }))
+    ];
+    const copy = source.map((item, index) => ({
+      id: `chunk-${index}-${Math.random().toString(36).slice(2, 7)}`,
+      text: item.text,
+      required: item.required,
+      sourceIndex: item.sourceIndex
+    }));
     for (let i = copy.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -906,21 +969,36 @@
     return copy;
   }
 
-  function joinReconstructionChunks(chunks) {
-    return chunks.map(item => clean(item.text)).filter(Boolean).join(' ')
+  function joinReconstructionChunks(chunks, level = 'standard') {
+    let sentence = chunks.map(item => clean(item.text)).filter(Boolean).join(' ')
       .replace(/\s+([,.;:!?])/g, '$1')
       .replace(/([\[(“‘])\s+/g, '$1')
       .replace(/\s+([)\]”’])/g, '$1')
       .replace(/\s{2,}/g, ' ')
       .trim();
+    if (level !== 'easy') {
+      sentence = sentence.replace(/^([^A-Za-z]*)([a-z])/, (_, lead, letter) => `${lead}${letter.toUpperCase()}`);
+    }
+    return sentence;
+  }
+
+  function reconstructionSelectedMissing() {
+    return state.reconstruction?.selected?.find(item => item.userSupplied) || null;
   }
 
   function syncReconstructionResponse() {
     const responseBox = $('#wlp-ai-response');
     if (!responseBox) return;
-    responseBox.value = joinReconstructionChunks(state.reconstruction?.selected || []);
+    responseBox.value = joinReconstructionChunks(state.reconstruction?.selected || [], state.reconstruction?.level || 'standard');
     const submit = $('#wlp-ai-submit');
-    if (submit && state.reconstruction) submit.disabled = state.reconstruction.selected.length !== state.reconstruction.units.length;
+    if (submit && state.reconstruction) submit.disabled = state.reconstruction.selected.length !== state.reconstruction.requiredCount;
+  }
+
+  function reconstructionHelp(level, missingRequired, distractorCount) {
+    if (level === 'easy') return 'Large meaning chunks. Use every chunk once.';
+    if (level === 'hard') return `${distractorCount || 'Some'} extra chunk${distractorCount === 1 ? '' : 's'} do not belong. Build one natural sentence.`;
+    if (level === 'hell') return `Extra chunks are mixed in${missingRequired ? ', and one word or form is missing' : ''}. Build one natural sentence without using every option.`;
+    return 'Smaller chunks with reduced surface clues. Use every chunk once to build one natural sentence.';
   }
 
   function renderReconstruction() {
@@ -929,9 +1007,11 @@
     const answer = $('#wlp-ai-reconstruction-answer');
     if (!wrap || !bank || !answer || !state.reconstruction) return;
     wrap.hidden = false;
+    const help = wrap.querySelector(':scope > p');
+    if (help) help.textContent = reconstructionHelp(state.reconstruction.level, state.reconstruction.missingRequired, state.reconstruction.distractorCount);
     bank.replaceChildren();
     answer.replaceChildren();
-    const selectedIds = new Set(state.reconstruction.selected.map(item => item.id));
+    const selectedIds = new Set(state.reconstruction.selected.filter(item => !item.userSupplied).map(item => item.id));
     state.reconstruction.units.filter(item => !selectedIds.has(item.id)).forEach(item => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -944,9 +1024,9 @@
     state.reconstruction.selected.forEach((item, index) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'wlp-ai-reconstruction-chip is-selected';
+      button.className = `wlp-ai-reconstruction-chip is-selected${item.userSupplied ? ' is-user-supplied' : ''}`;
       button.dataset.reconstructionRemove = String(index);
-      button.title = 'Tap to remove this chunk';
+      button.title = item.userSupplied ? 'Tap to remove your supplied word or form' : 'Tap to remove this chunk';
       button.textContent = item.text;
       button.disabled = Boolean(state.reconstruction.locked);
       answer.append(button);
@@ -957,6 +1037,17 @@
       empty.textContent = 'Your selected chunks will appear here.';
       answer.append(empty);
     }
+
+    const missingWrap = $('#wlp-ai-reconstruction-missing');
+    const missingInput = $('#wlp-ai-reconstruction-missing-input');
+    const missingAdd = $('#wlp-ai-reconstruction-missing-add');
+    if (missingWrap) missingWrap.hidden = !state.reconstruction.missingRequired;
+    if (missingInput) {
+      missingInput.disabled = Boolean(state.reconstruction.locked);
+      if (missingInput.value !== state.reconstruction.missingText) missingInput.value = state.reconstruction.missingText || '';
+    }
+    if (missingAdd) missingAdd.disabled = Boolean(state.reconstruction.locked) || !clean(state.reconstruction.missingText) || Boolean(reconstructionSelectedMissing());
+
     const undo = $('#wlp-ai-reconstruction-undo');
     const clear = $('#wlp-ai-reconstruction-clear');
     if (undo) undo.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
@@ -968,6 +1059,10 @@
     state.reconstruction = null;
     const wrap = $('#wlp-ai-reconstruction');
     if (wrap) wrap.hidden = true;
+    const missingWrap = $('#wlp-ai-reconstruction-missing');
+    if (missingWrap) missingWrap.hidden = true;
+    const missingInput = $('#wlp-ai-reconstruction-missing-input');
+    if (missingInput) missingInput.value = '';
     const field = $('#wlp-ai-response-field');
     if (field) field.hidden = false;
   }
@@ -979,7 +1074,7 @@
       sessionId: session.sessionId,
       sourceMode: source.mode,
       sourceLabel: source.label,
-      difficulty: 'adaptive',
+      difficulty: session.difficulty || 'adaptive',
       maxCandidates: MAX_CANDIDATES
     };
     if (source.mode === 'review') {
@@ -1005,7 +1100,7 @@
         mode: 'ai-study',
         sourceMode: session.source.mode,
         sourceLabel: session.source.label,
-        difficulty: 'adaptive'
+        difficulty: session.difficulty || 'adaptive'
       },
       candidateContext,
       learnerSessionState: candidateContext.learnerSessionState,
@@ -1124,7 +1219,9 @@
     const domainEl = $('#wlp-ai-domain');
     domainEl.textContent = domain;
     domainEl.hidden = !domain;
-    $('#wlp-ai-experience-label').textContent = clean(experience.type || response.learningOpportunity?.direction || 'Adaptive experience').replace(/-/g, ' ');
+    const experienceLabel = clean(experience.type || response.learningOpportunity?.direction || 'Adaptive experience').replace(/-/g, ' ');
+    const difficultySuffix = state.session?.difficulty && state.session.difficulty !== 'adaptive' ? ` · ${difficultyLabel(state.session.difficulty)}` : '';
+    $('#wlp-ai-experience-label').textContent = `${experienceLabel}${difficultySuffix}`;
     const reconstruction = clean(experience.type) === 'sentence-reconstruction' ? parseReconstructionPrompt(experience.prompt) : null;
     $('#wlp-ai-prompt').textContent = reconstruction ? reconstruction.prompt : clean(experience.prompt);
     const frame = clean(experience.responseFrame);
@@ -1147,7 +1244,16 @@
     responseBox.value = '';
     const responseField = $('#wlp-ai-response-field');
     if (reconstruction) {
-      state.reconstruction = { units: shuffleReconstructionUnits(reconstruction.units), selected: [], locked: false };
+      state.reconstruction = {
+        units: shuffleReconstructionUnits(reconstruction.units, reconstruction.distractors),
+        selected: [],
+        locked: false,
+        level: reconstruction.level,
+        missingRequired: reconstruction.missingRequired,
+        missingText: '',
+        distractorCount: reconstruction.distractors.length,
+        requiredCount: reconstruction.units.length + (reconstruction.missingRequired ? 1 : 0)
+      };
       responseBox.disabled = false;
       responseField.hidden = true;
       renderReconstruction();
@@ -1166,7 +1272,8 @@
 
   async function loadNextExperience() {
     if (!state.session || state.busy) return;
-    prepareExperienceLoading(`Creating a new ${practiceTypeLabel(state.session.practiceType)} experience…`);
+    const difficultyText = state.session.difficulty && state.session.difficulty !== 'adaptive' ? ` · ${difficultyLabel(state.session.difficulty)}` : '';
+    prepareExperienceLoading(`Creating a new ${practiceTypeLabel(state.session.practiceType)}${difficultyText} experience…`);
     setBusy(true);
     let plannerStarted = null;
     try {
@@ -1374,6 +1481,7 @@
       source: snapshotSource(),
       total: selectedSessionSize(),
       practiceType: selectedPracticeType(),
+      difficulty: selectedDifficulty(),
       completed: 0,
       usedTargets: {},
       committedEvents: [],
@@ -1413,6 +1521,7 @@
     stats.textContent = '';
     const finishItems = [`${session.completed} experience${session.completed === 1 ? '' : 's'}`, session.source.label];
     if (session.practiceType && session.practiceType !== 'adaptive') finishItems.push(practiceTypeLabel(session.practiceType));
+    if (session.difficulty && session.difficulty !== 'adaptive') finishItems.push(difficultyLabel(session.difficulty));
     finishItems.forEach(itemText => {
       const span = document.createElement('span');
       span.textContent = itemText;
@@ -1474,6 +1583,7 @@
       button.addEventListener('click', () => setMode(button.dataset.wlpPracticeMode));
     });
     $('#wlp-ai-practice-type')?.addEventListener('change', updatePracticeTypeHelp);
+    $('#wlp-ai-difficulty')?.addEventListener('change', updateDifficultyHelp);
     $('#wlp-ai-start')?.addEventListener('click', beginSession);
     $('#wlp-ai-submit')?.addEventListener('click', () => interpretResponse());
     $('#wlp-ai-no-idea')?.addEventListener('click', () => interpretResponse("I don't know."));
@@ -1518,6 +1628,20 @@
       state.reconstruction.selected = [];
       renderReconstruction();
     });
+    $('#wlp-ai-reconstruction-missing-input')?.addEventListener('input', event => {
+      if (!state.reconstruction || state.busy) return;
+      state.reconstruction.missingText = clean(event.target.value);
+      const selectedMissing = reconstructionSelectedMissing();
+      if (selectedMissing) selectedMissing.text = state.reconstruction.missingText;
+      renderReconstruction();
+    });
+    $('#wlp-ai-reconstruction-missing-add')?.addEventListener('click', () => {
+      if (!state.reconstruction || state.busy || !state.reconstruction.missingRequired) return;
+      const value = clean(state.reconstruction.missingText);
+      if (!value || reconstructionSelectedMissing()) return;
+      state.reconstruction.selected.push({ id: 'user-missing', text: value, userSupplied: true, required: true });
+      renderReconstruction();
+    });
     $('#wlp-ai-response')?.addEventListener('keydown', event => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') interpretResponse();
     });
@@ -1530,6 +1654,7 @@
     try { stored = localStorage.getItem(MODE_KEY) || 'standard'; } catch (_) {}
     setMode(stored === 'ai' ? 'ai' : 'standard', false);
     updatePracticeTypeHelp();
+    updateDifficultyHelp();
     renderHistory();
     window.WLPAIStudyUI = Object.freeze({
       version: VERSION,

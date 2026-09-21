@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.8';
+  const VERSION = '1.2.0';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -14,6 +14,7 @@
     targetCommonness: ['default-common','common','less-common-but-natural','specialized-or-marked'],
     routerActions: ['DEEPEN','BRANCH','TRANSFER','CONTRAST','REVERSE','COMPOSE','PAUSE'],
     practiceTypeModes: ['adaptive','override'],
+    difficultyModes: ['adaptive','easy','standard','hard','hell'],
     responseClasses: ['exact-target','target-family','natural-neighbor','natural-alternative','partial-concept','form-mismatch','sense-mismatch','register-mismatch','construal-shift','unrelated','uncertain','stt-uncertain'],
     focusRelations: ['aligned','overlapping','shifted','conflicting','unclear'],
     interpretationConfidence: ['low','medium','high'],
@@ -112,7 +113,7 @@
       requireString(value.session, 'sessionId', '$.session', errors);
       if (value.session.mode !== 'ai-study') push(errors, '$.session.mode', 'must equal ai-study');
       requireString(value.session, 'sourceMode', '$.session', errors);
-      requireString(value.session, 'difficulty', '$.session', errors);
+      requireEnum(value.session, 'difficulty', ENUMS.difficultyModes, '$.session', errors);
     }
     requireObject(value.learnerSessionState, '$.learnerSessionState', errors);
     if (requireObject(value.candidateContext, '$.candidateContext', errors)) {
@@ -258,11 +259,30 @@
     if (type === 'sentence-reconstruction') {
       const marker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_UNITS:\s*(.+?)\s*$/im);
       const units = marker ? marker[1].split('||').map(text).filter(Boolean) : [];
+      const levelMarker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_LEVEL:\s*(easy|standard|hard|hell)\s*$/im);
+      const level = text(levelMarker?.[1]).toLowerCase();
+      const distractorMarker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_DISTRACTORS:\s*(.+?)\s*$/im);
+      const distractors = distractorMarker ? distractorMarker[1].split('||').map(text).filter(Boolean) : [];
+      const missingMarker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_MISSING_REQUIRED:\s*(true|false)\s*$/im);
+      const missingRequired = text(missingMarker?.[1]).toLowerCase() === 'true';
       if (!marker || units.length < 3 || units.length > 12) {
-        push(errors, '$.experience.prompt', 'sentence-reconstruction prompt must include RECONSTRUCTION_UNITS with 3 to 12 ||-separated chunks');
+        push(errors, '$.experience.prompt', 'sentence-reconstruction prompt must include RECONSTRUCTION_UNITS with 3 to 12 ||-separated required chunks');
+      }
+      if (distractors.length > 3) {
+        push(errors, '$.experience.prompt', 'sentence-reconstruction may include at most 3 distractor chunks');
+      }
+      if (['easy','standard'].includes(level) && (distractors.length || missingRequired)) {
+        push(errors, '$.experience.prompt', `${level} sentence-reconstruction must not use distractors or a missing-word requirement`);
+      }
+      if (level === 'hard' && !distractors.length) {
+        push(warnings, '$.experience.prompt', 'hard sentence-reconstruction should normally include at least one distractor chunk');
+      }
+      if (level === 'hell') {
+        if (!distractors.length) push(warnings, '$.experience.prompt', 'hell sentence-reconstruction should normally include distractor chunks');
+        if (!missingRequired) push(warnings, '$.experience.prompt', 'hell sentence-reconstruction should normally require one learner-supplied missing word or form');
       }
       if (visibility !== 'visible') {
-        push(errors, '$.experience.targetVisibility', 'sentence-reconstruction must use visible target because the target is part of the reconstruction material');
+        push(errors, '$.experience.targetVisibility', 'sentence-reconstruction must keep the target or target family visible to the learner');
       }
       if (responseConstraint !== 'open') {
         push(errors, '$.experience.responseConstraint', 'sentence-reconstruction must use open response constraint');
@@ -722,7 +742,15 @@
     sentenceReconstructionPlanner.experience.responseFrame = '';
     sentenceReconstructionPlanner.experience.frameCompatibleAlternatives = [];
     sentenceReconstructionPlanner.experience.frameCompatibilityVerified = true;
-    sentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence describing the scent spreading through the room.\nRECONSTRUCTION_UNITS: throughout the room. || gradually diffused || The scent || from the doorway';
+    sentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence describing the scent spreading through the room.\nRECONSTRUCTION_LEVEL: standard\nRECONSTRUCTION_UNITS: throughout the room. || gradually diffused || the scent || from the doorway';
+
+    const hardSentenceReconstructionPlanner = JSON.parse(JSON.stringify(sentenceReconstructionPlanner));
+    hardSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hard';
+    hardSentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence.\nRECONSTRUCTION_LEVEL: hard\nRECONSTRUCTION_UNITS: the scent || gradually diffused || from the doorway || throughout the room. || during the meeting\nRECONSTRUCTION_DISTRACTORS: because of || nevertheless\nRECONSTRUCTION_MISSING_REQUIRED: false';
+
+    const hellSentenceReconstructionPlanner = JSON.parse(JSON.stringify(sentenceReconstructionPlanner));
+    hellSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hell';
+    hellSentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence. One word or form is missing.\nRECONSTRUCTION_LEVEL: hell\nRECONSTRUCTION_UNITS: the scent || from the doorway || throughout the room. || by evening\nRECONSTRUCTION_DISTRACTORS: despite || abruptly\nRECONSTRUCTION_MISSING_REQUIRED: true';
 
     const goodInterpreter = {
       schemaVersion: 1, contract: 'interpreter-router-v1.response', requestId: 'self-int-1', sessionId: 'self-session', eventId: 'event-1',
@@ -826,6 +854,8 @@
       { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
       { name: 'planner-valid-fixed-frame-compatible-alternatives', expected: 'VALID', actual: validatePlannerResponse(fixedFramePlanner).status },
       { name: 'planner-valid-sentence-reconstruction', expected: 'VALID', actual: validatePlannerResponse(sentenceReconstructionPlanner).status },
+      { name: 'planner-valid-sentence-reconstruction-hard', expected: 'VALID', actual: validatePlannerResponse(hardSentenceReconstructionPlanner).status },
+      { name: 'planner-valid-sentence-reconstruction-hell', expected: 'VALID', actual: validatePlannerResponse(hellSentenceReconstructionPlanner).status },
       { name: 'planner-reject-fixed-frame-unlisted-direct-alternative', expected: 'REJECT', actual: validatePlannerResponse(badFixedFramePlanner).status },
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
