@@ -631,6 +631,21 @@
             "string",
             "null"
           ]
+        },
+        "targetFeedback": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Learner-facing feedback specifically about the target expression, its sense, form, construction, collocation, natural alternatives, or contrast in this experience."
+        },
+        "languageFeedback": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Learner-facing feedback on the learner response as English: grammar, articles, tense/aspect, number, prepositions, word order, idiomaticity, tone/register, concision, or other language-level issues. Do not invent errors; when there is no meaningful issue, say so briefly."
+        },
+        "nextStep": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A concise learner-facing suggestion for what to notice or try next. Keep internal router labels and implementation language out of this field."
         }
       }
     }

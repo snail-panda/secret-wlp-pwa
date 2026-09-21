@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study UI integration v1.8.6.53 R1
+/* WLP Stage 7 — AI Study UI refinement v1.8.6.54 R2-A
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
@@ -201,18 +201,40 @@
         </div>
         <p class="wlp-ai-status" id="wlp-ai-status"></p>
         <section class="wlp-ai-feedback" id="wlp-ai-feedback" hidden>
-          <div class="wlp-ai-feedback-head"><strong id="wlp-ai-feedback-target"></strong><span class="wlp-ai-route-pill" id="wlp-ai-route-pill"></span></div>
-          <p class="wlp-ai-feedback-text" id="wlp-ai-feedback-text"></p>
+          <div class="wlp-ai-feedback-head">
+            <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong></div>
+          </div>
+          <div class="wlp-ai-feedback-block">
+            <span class="wlp-ai-feedback-label">Target feedback</span>
+            <p class="wlp-ai-feedback-text" id="wlp-ai-target-feedback"></p>
+          </div>
+          <div class="wlp-ai-feedback-block" id="wlp-ai-language-feedback-block">
+            <span class="wlp-ai-feedback-label">Language feedback</span>
+            <p class="wlp-ai-feedback-text" id="wlp-ai-language-feedback"></p>
+          </div>
           <p class="wlp-ai-correction" id="wlp-ai-correction" hidden></p>
-          <div class="wlp-ai-evidence" id="wlp-ai-evidence"></div>
           <div class="wlp-ai-next-wrap"><small id="wlp-ai-next-note"></small><button class="wlp-ai-next-button" id="wlp-ai-next" type="button">Next experience</button></div>
+          <details class="wlp-ai-diagnostics" id="wlp-ai-diagnostics">
+            <summary>Detailed diagnostics</summary>
+            <div class="wlp-ai-diagnostics-body">
+              <div class="wlp-ai-diagnostic-row"><span>Route</span><strong class="wlp-ai-route-pill" id="wlp-ai-route-pill"></strong></div>
+              <div class="wlp-ai-diagnostic-row wlp-ai-diagnostic-stack"><span>Evidence</span><div class="wlp-ai-evidence" id="wlp-ai-evidence"></div></div>
+              <div class="wlp-ai-diagnostic-row wlp-ai-diagnostic-stack"><span>Router note</span><p id="wlp-ai-router-note"></p></div>
+              <div class="wlp-ai-diagnostic-row wlp-ai-diagnostic-stack"><span>Observation</span><p id="wlp-ai-observation-note"></p></div>
+              <div class="wlp-ai-diagnostic-row wlp-ai-diagnostic-stack"><span>Timing / provider</span><p id="wlp-ai-turn-diagnostics"></p></div>
+            </div>
+          </details>
         </section>
       </section>
 
       <section class="wlp-ai-finished" id="wlp-ai-finished" hidden>
-        <span class="section-kicker">AI Study</span><h2>Session complete.</h2>
-        <p>Each interpreted response was merged through WLP's controlled data layer. The next AI session can build from the route evidence saved here.</p>
+        <span class="section-kicker">AI Study</span><h2 id="wlp-ai-finished-title">Session complete.</h2>
+        <p id="wlp-ai-finished-summary">Learning evidence from each completed experience is saved so future AI Study can adapt from it.</p>
         <div class="wlp-ai-finished-stats" id="wlp-ai-finished-stats"></div>
+        <details class="wlp-ai-diagnostics wlp-ai-session-diagnostics" id="wlp-ai-finished-diagnostics">
+          <summary>Detailed diagnostics</summary>
+          <div class="wlp-ai-diagnostics-body" id="wlp-ai-finished-diagnostics-body"></div>
+        </details>
         <button class="wlp-ai-secondary-button" id="wlp-ai-again" type="button">Start another AI session</button>
       </section>`;
     sourcePanel.insertAdjacentElement('afterend', aiRoot);
@@ -361,12 +383,61 @@
     return { request, rankedCandidates: ranked, targetPackets };
   }
 
-  function addUsage(meta, kind) {
+  function elapsedMs(startedAt) {
+    const now = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+    return Math.max(0, Math.round(now - startedAt));
+  }
+
+  function usageCounts(meta) {
+    const usage = meta?.usage || {};
+    const input = num(usage.input_tokens ?? usage.promptTokenCount ?? usage.prompt_token_count);
+    const output = num(usage.output_tokens ?? usage.candidatesTokenCount ?? usage.candidates_token_count);
+    const total = num(usage.total_tokens ?? usage.totalTokenCount ?? usage.total_token_count) || input + output;
+    return { input, output, total };
+  }
+
+  function recordLatency(kind, ms, ok = true) {
+    const session = state.session;
+    if (!session) return;
+    const bucket = kind === 'planner' ? session.plannerLatencies : session.interpreterLatencies;
+    bucket.push({ ms, ok });
+  }
+
+  function addUsage(meta, kind, ms) {
     const session = state.session;
     if (!session) return;
     session.successfulAICalls += 1;
-    session.providerAttempts += Math.max(1, num(meta?.transportAttemptCount) || 1);
+    const attempts = Math.max(1, num(meta?.transportAttemptCount) || 1);
+    session.providerAttempts += attempts;
     session.lastCallKind = kind;
+    session.provider = clean(meta?.provider || session.provider);
+    session.model = clean(meta?.model || session.model);
+    const usage = usageCounts(meta);
+    session.inputTokens += usage.input;
+    session.outputTokens += usage.output;
+    session.totalTokens += usage.total;
+    recordLatency(kind, ms, true);
+    return attempts;
+  }
+
+  function addFailedUsage(error, kind, ms) {
+    const session = state.session;
+    if (!session) return 0;
+    session.failedAICalls += 1;
+    const attempts = Math.max(0, num(error?.attemptCount));
+    if (attempts) session.providerAttempts += attempts;
+    recordLatency(kind, ms, false);
+    return attempts;
+  }
+
+  function averageSuccessfulLatency(entries) {
+    const values = (Array.isArray(entries) ? entries : []).filter(item => item?.ok && num(item.ms) > 0).map(item => num(item.ms));
+    if (!values.length) return 0;
+    return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  }
+
+  function formatSeconds(ms) {
+    return ms > 0 ? `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)}s` : '—';
   }
 
   function renderExperience(plannerResult) {
@@ -416,21 +487,31 @@
     if (!state.session || state.busy) return;
     setBusy(true, 'Building a fresh learning context locally…');
     $('#wlp-ai-feedback').hidden = true;
+    let plannerStarted = null;
     try {
       const { transport } = requireLayers();
       const built = await buildFreshPlannerRequest(state.session);
       setStatus('Creating the next adaptive experience…');
+      plannerStarted = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
       const plannerResult = await transport.callPlannerWriter(built.request);
-      addUsage(plannerResult.meta, 'planner');
+      const plannerElapsed = elapsedMs(plannerStarted);
+      const plannerAttempts = addUsage(plannerResult.meta, 'planner', plannerElapsed);
       state.activePlanner = {
         request: built.request,
         result: plannerResult,
-        eventId: makeId('ai-study-event')
+        eventId: makeId('ai-study-event'),
+        diagnostics: {
+          elapsedMs: plannerElapsed,
+          providerAttempts: plannerAttempts,
+          provider: clean(plannerResult.meta?.provider),
+          model: clean(plannerResult.meta?.model)
+        }
       };
       const selectedId = clean(plannerResult.response?.selectedTarget?.wordId);
       if (selectedId) state.session.usedTargets[selectedId] = (state.session.usedTargets[selectedId] || 0) + 1;
       renderExperience(plannerResult);
     } catch (error) {
+      if (plannerStarted != null) addFailedUsage(error, 'planner', elapsedMs(plannerStarted));
       state.activePlanner = null;
       setStatus(formatAIError(error), true);
     } finally {
@@ -452,6 +533,7 @@
 
   async function interpretResponse(forcedText = '') {
     if (!state.session || !state.activePlanner || state.busy) return;
+    let interpreterStarted = null;
     const text = clean(forcedText || $('#wlp-ai-response')?.value);
     if (!text) {
       setStatus('Type a response, or choose “No idea.”', true);
@@ -472,8 +554,10 @@
         session: { sessionId: state.session.sessionId },
         interpretationContext
       });
+      interpreterStarted = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
       const interpreterResult = await transport.callInterpreterRouter(interpreterRequest, { eventId: state.activePlanner.eventId });
-      addUsage(interpreterResult.meta, 'interpreter');
+      const interpreterElapsed = elapsedMs(interpreterStarted);
+      const interpreterAttempts = addUsage(interpreterResult.meta, 'interpreter', interpreterElapsed);
       const committed = data.commitInterpreterTurn({
         request: interpreterRequest,
         result: interpreterResult,
@@ -481,29 +565,49 @@
       });
       state.session.completed += 1;
       state.session.committedEvents.push(committed.eventId);
-      renderFeedback(interpreterResult.response, committed);
+      renderFeedback(interpreterResult.response, committed, {
+        interpreterElapsed,
+        interpreterAttempts,
+        provider: clean(interpreterResult.meta?.provider || state.activePlanner?.diagnostics?.provider),
+        model: clean(interpreterResult.meta?.model || state.activePlanner?.diagnostics?.model)
+      });
     } catch (error) {
+      if (interpreterStarted != null) {
+        const failedAttempts = addFailedUsage(error, 'interpreter', elapsedMs(interpreterStarted));
+        if (state.activePlanner?.diagnostics) {
+          state.activePlanner.diagnostics.failedInterpreterCalls = num(state.activePlanner.diagnostics.failedInterpreterCalls) + 1;
+          state.activePlanner.diagnostics.failedInterpreterAttempts = num(state.activePlanner.diagnostics.failedInterpreterAttempts) + failedAttempts;
+        }
+      }
       setStatus(formatAIError(error), true);
     } finally {
       setBusy(false);
     }
   }
 
-  function renderFeedback(response, committed) {
-    const target = clean(response?.interpretation?.targetProduced ? state.activePlanner?.result?.response?.selectedTarget?.target : state.activePlanner?.result?.response?.selectedTarget?.target);
+  function renderFeedback(response, committed, turnDiagnostics = {}) {
+    const target = clean(state.activePlanner?.result?.response?.selectedTarget?.target);
     $('#wlp-ai-feedback-target').textContent = target || 'AI Study';
-    const action = clean(response?.router?.action || 'NEXT');
-    $('#wlp-ai-route-pill').textContent = action;
-    $('#wlp-ai-feedback-text').textContent = clean(response?.learnerFacingResponse?.feedback || response?.evidence?.observationSummary || 'Response interpreted.');
+
+    const learner = response?.learnerFacingResponse || {};
+    const legacyFeedback = clean(learner.feedback || response?.evidence?.observationSummary || 'Response interpreted.');
+    $('#wlp-ai-target-feedback').textContent = clean(learner.targetFeedback) || legacyFeedback;
+
+    const languageFeedback = clean(learner.languageFeedback);
+    const languageBlock = $('#wlp-ai-language-feedback-block');
+    $('#wlp-ai-language-feedback').textContent = languageFeedback || 'No separate language-level feedback was returned for this turn.';
+    languageBlock.hidden = false;
+
     const correction = $('#wlp-ai-correction');
-    const suggested = clean(response?.learnerFacingResponse?.suggestedNaturalForm);
-    if (response?.learnerFacingResponse?.correctionNeeded && suggested) {
+    const suggested = clean(learner.suggestedNaturalForm);
+    if (learner.correctionNeeded && suggested) {
       correction.textContent = `Natural form: ${suggested}`;
       correction.hidden = false;
     } else {
       correction.textContent = '';
       correction.hidden = true;
     }
+
     const evidence = $('#wlp-ai-evidence');
     evidence.textContent = '';
     const evidenceTypes = Array.isArray(response?.evidence?.evidenceTypes) ? response.evidence.evidenceTypes : [];
@@ -513,8 +617,29 @@
       chip.textContent = clean(value).replace(/-/g, ' ');
       evidence.appendChild(chip);
     });
+
+    const action = clean(response?.router?.action || 'NEXT');
+    $('#wlp-ai-route-pill').textContent = action;
+    $('#wlp-ai-router-note').textContent = clean(response?.router?.reason || 'No router note returned.');
+    $('#wlp-ai-observation-note').textContent = clean(response?.evidence?.observationSummary || 'No observation summary returned.');
+
+    const plannerDiag = state.activePlanner?.diagnostics || {};
+    const provider = clean(turnDiagnostics.provider || plannerDiag.provider || state.session?.provider);
+    const model = clean(turnDiagnostics.model || plannerDiag.model || state.session?.model);
+    const failedInterpreterAttempts = num(plannerDiag.failedInterpreterAttempts);
+    const failedInterpreterCalls = num(plannerDiag.failedInterpreterCalls);
+    const totalAttempts = num(plannerDiag.providerAttempts) + failedInterpreterAttempts + num(turnDiagnostics.interpreterAttempts);
+    const timingParts = [
+      `Planner ${formatSeconds(num(plannerDiag.elapsedMs))}`,
+      `Interpreter ${formatSeconds(num(turnDiagnostics.interpreterElapsed))}`,
+      `${totalAttempts || 2} provider request${(totalAttempts || 2) === 1 ? '' : 's'} this experience`
+    ];
+    if (failedInterpreterCalls) timingParts.push(`${failedInterpreterCalls} earlier interpreter failure${failedInterpreterCalls === 1 ? '' : 's'}`);
+    if (provider || model) timingParts.push([provider, model].filter(Boolean).join(' · '));
+    $('#wlp-ai-turn-diagnostics').textContent = timingParts.join(' · ');
+
     const nextNote = $('#wlp-ai-next-note');
-    nextNote.textContent = clean(response?.router?.reason || response?.evidence?.observationSummary || 'The next experience will use the newly merged route state.');
+    nextNote.textContent = clean(learner.nextStep) || 'This turn is saved as learning evidence. The next experience can adapt from it.';
     const nextButton = $('#wlp-ai-next');
     const done = state.session.completed >= state.session.total;
     nextButton.textContent = done ? 'Finish session' : 'Next experience';
@@ -550,7 +675,15 @@
       usedTargets: {},
       committedEvents: [],
       successfulAICalls: 0,
+      failedAICalls: 0,
       providerAttempts: 0,
+      provider: '',
+      model: '',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      plannerLatencies: [],
+      interpreterLatencies: [],
       startedAt: new Date().toISOString()
     };
     state.activePlanner = null;
@@ -565,18 +698,43 @@
     const session = state.session;
     $('#wlp-ai-experience').hidden = true;
     $('#wlp-ai-finished').hidden = false;
+
+    const completedAll = session.completed >= session.total;
+    $('#wlp-ai-finished-title').textContent = completedAll ? 'Session complete.' : 'Session saved.';
+    $('#wlp-ai-finished-summary').textContent = session.completed
+      ? `You completed ${session.completed} of ${session.total} planned experience${session.total === 1 ? '' : 's'}. Learning evidence from completed turns is saved so future AI Study can adapt from it.`
+      : 'No interpreted experience was completed in this session.';
+
     const stats = $('#wlp-ai-finished-stats');
     stats.textContent = '';
-    const items = [
-      `${session.completed} experiences`,
-      `${session.successfulAICalls} AI calls`,
-      `${session.providerAttempts} provider attempts`,
-      session.source.label
-    ];
-    items.forEach(text => {
+    [`${session.completed} experience${session.completed === 1 ? '' : 's'}`, session.source.label].forEach(itemText => {
       const span = document.createElement('span');
-      span.textContent = text;
+      span.textContent = itemText;
       stats.appendChild(span);
+    });
+
+    const diagnostics = $('#wlp-ai-finished-diagnostics-body');
+    diagnostics.textContent = '';
+    const plannerAvg = averageSuccessfulLatency(session.plannerLatencies);
+    const interpreterAvg = averageSuccessfulLatency(session.interpreterLatencies);
+    const rows = [
+      ['Successful AI calls', String(session.successfulAICalls)],
+      ['Provider requests', String(session.providerAttempts)],
+      ['Failed requests', String(session.failedAICalls)],
+      ['Average planner latency', formatSeconds(plannerAvg)],
+      ['Average interpreter latency', formatSeconds(interpreterAvg)]
+    ];
+    if (session.provider || session.model) rows.push(['Provider', [session.provider, session.model].filter(Boolean).join(' · ')]);
+    if (session.totalTokens > 0) rows.push(['Token usage', `${session.inputTokens} in · ${session.outputTokens} out · ${session.totalTokens} total`]);
+    rows.forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.className = 'wlp-ai-diagnostic-row';
+      const key = document.createElement('span');
+      key.textContent = label;
+      const val = document.createElement('strong');
+      val.textContent = value;
+      row.append(key, val);
+      diagnostics.appendChild(row);
     });
     state.activePlanner = null;
   }

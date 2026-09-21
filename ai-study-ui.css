@@ -1,4 +1,4 @@
-/* WLP Stage 7 — AI Study UI integration v1.8.6.53 R1
+/* WLP Stage 7 — AI Study UI refinement v1.8.6.54 R2-A
    Scope: Study Hub only. No Bottom Nav, drawer, service worker, or shared-shell changes. */
 
 .wlp-practice-mode-switch{
@@ -104,20 +104,34 @@
 
 .wlp-ai-feedback{margin-top:14px;padding:14px;border:1px solid #cfe0d3;border-radius:18px;background:#f7faf7}
 .wlp-ai-feedback[hidden]{display:none!important}
-.wlp-ai-feedback-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.wlp-ai-feedback-head strong{font-family:"EB Garamond",Georgia,serif;font-size:1.35rem;line-height:1.05;font-weight:600;color:#234b39}
-.wlp-ai-route-pill{border:.5px solid #8da697;border-radius:999px;padding:4px 8px;color:#5b7466;font-size:.61rem;font-weight:800;letter-spacing:.04em}
-.wlp-ai-feedback-text{margin:8px 0 0;color:#456654;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.42}
+.wlp-ai-feedback-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.wlp-ai-feedback-head strong{display:block;margin-top:2px;font-family:"EB Garamond",Georgia,serif;font-size:1.35rem;line-height:1.05;font-weight:600;color:#234b39}
+.wlp-ai-feedback-block{margin-top:8px;padding:11px 12px;border:1px solid #dce8df;border-radius:14px;background:rgba(255,255,255,.72)}
+.wlp-ai-feedback-block+.wlp-ai-feedback-block{margin-top:8px}
+.wlp-ai-feedback-label{display:block;color:#6f8579;font-size:.61rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.wlp-ai-feedback-text{margin:5px 0 0;color:#456654;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.45;white-space:pre-wrap}
 .wlp-ai-correction{margin:8px 0 0;padding:8px 10px;border-radius:11px;background:#fff;color:#597163;font-size:.72rem;line-height:1.4}
-.wlp-ai-evidence{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.wlp-ai-evidence span{border:1px solid #d9e5dc;border-radius:999px;background:#fff;color:#6a8074;padding:5px 8px;font-size:.61rem;font-weight:700}
 .wlp-ai-next-wrap{margin-top:12px;padding-top:12px;border-top:1px solid #dee8e1}
-.wlp-ai-next-wrap small{display:block;margin-bottom:7px;color:#829087;font-size:.64rem;line-height:1.35}
+.wlp-ai-next-wrap small{display:block;margin-bottom:7px;color:#647a6e;font-size:.68rem;line-height:1.4}
+
+.wlp-ai-diagnostics{margin-top:12px;border-top:1px solid #e0e9e2;padding-top:9px;text-align:left}
+.wlp-ai-diagnostics summary{cursor:pointer;color:#7d8b83;font-size:.64rem;font-weight:750;letter-spacing:.02em;list-style-position:inside}
+.wlp-ai-diagnostics-body{display:grid;gap:8px;margin-top:9px;padding:10px 11px;border:1px solid #e1e8e3;border-radius:13px;background:rgba(255,255,255,.62)}
+.wlp-ai-diagnostic-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;color:#667a70;font-size:.66rem;line-height:1.4}
+.wlp-ai-diagnostic-row>span:first-child{flex:0 0 auto;color:#89958e;font-weight:750}
+.wlp-ai-diagnostic-row>strong{font-size:.66rem;color:#5f7568;text-align:right}
+.wlp-ai-diagnostic-stack{display:block}
+.wlp-ai-diagnostic-stack>span:first-child{display:block;margin-bottom:5px}
+.wlp-ai-diagnostic-row p{margin:0;color:#667a70;font-size:.67rem;line-height:1.45;white-space:pre-wrap}
+.wlp-ai-route-pill{display:inline-flex;border:.5px solid #9eb1a5;border-radius:999px;padding:3px 7px;color:#64786d;font-size:.59rem!important;font-weight:800;letter-spacing:.04em}
+.wlp-ai-evidence{display:flex;flex-wrap:wrap;gap:5px;margin-top:0}
+.wlp-ai-evidence span{border:1px solid #dfe7e1;border-radius:999px;background:#fff;color:#748379;padding:4px 7px;font-size:.58rem;font-weight:700}
 
 .wlp-ai-finished{padding:19px 17px;text-align:center}
 .wlp-ai-finished p{margin:7px auto 0;max-width:520px;color:#71847a;font-size:.76rem;line-height:1.45}
 .wlp-ai-finished-stats{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .wlp-ai-finished-stats span{border:1px solid #dbe6dd;border-radius:999px;background:#fbfdfb;color:#637b6e;padding:6px 9px;font-size:.65rem;font-weight:700}
+.wlp-ai-session-diagnostics{max-width:520px;margin-left:auto;margin-right:auto}
 .wlp-ai-finished .wlp-ai-secondary-button{margin-top:13px}
 
 /* AI mode: keep Step 1 shared, leave stable Standard Practice DOM untouched. */

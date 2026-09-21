@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.4';
+  const VERSION = '1.1.5';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -369,6 +369,11 @@
     }
     if (requireObject(value.learnerFacingResponse, '$.learnerFacingResponse', errors)) {
       if (typeof value.learnerFacingResponse.feedback !== 'string') push(errors, '$.learnerFacingResponse.feedback', 'must be string');
+      ['targetFeedback','languageFeedback','nextStep'].forEach(key => {
+        if (has(value.learnerFacingResponse, key) && (typeof value.learnerFacingResponse[key] !== 'string' || !text(value.learnerFacingResponse[key]))) {
+          push(errors, `$.learnerFacingResponse.${key}`, 'must be a non-empty string when present');
+        }
+      });
       requireBoolean(value.learnerFacingResponse, 'correctionNeeded', '$.learnerFacingResponse', errors);
     }
 
@@ -665,7 +670,14 @@
       profilePatch: { operations: [] },
       diagnosticExemplarCandidate: { retain: true, type: 'neighbor-response', reason: 'Shows the learner’s strong general spreading route.' },
       router: { action: 'CONTRAST', reason: 'Contrast the broad neighbor with the more specific concentration-to-dispersion construal.' },
-      learnerFacingResponse: { feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.', correctionNeeded: false, suggestedNaturalForm: null }
+      learnerFacingResponse: {
+        feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.',
+        targetFeedback: '“Spread” is a natural broad neighbor here. The target would foreground diffusion from a more concentrated source.',
+        languageFeedback: 'The one-word response is natural in this frame; there is no additional sentence-level issue to correct.',
+        nextStep: 'Try contrasting the broad everyday verb with the more specific target in a new context.',
+        correctionNeeded: false,
+        suggestedNaturalForm: null
+      }
     };
     const promptedNeighborContext = {
       learningOpportunity: { direction: 'message-to-expression' },
