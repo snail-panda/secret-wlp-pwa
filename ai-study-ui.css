@@ -101,6 +101,10 @@
 .wlp-ai-secondary-button:disabled{opacity:.45;cursor:not-allowed}
 .wlp-ai-status{margin:9px 1px 0;color:#71847a;font-size:.68rem;line-height:1.4;min-height:1em}
 .wlp-ai-status.is-error{color:#8a5f59}
+.wlp-ai-generation-retry{display:flex;align-items:center;gap:10px;margin:10px 1px 0;flex-wrap:wrap}
+.wlp-ai-generation-retry[hidden]{display:none!important}
+.wlp-ai-generation-retry details{font-size:.68rem;color:#71847a}
+.wlp-ai-generation-retry code{display:block;max-width:min(760px,82vw);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px;line-height:1.45}
 
 .wlp-ai-feedback{margin-top:14px;padding:14px;border:1px solid #cfe0d3;border-radius:18px;background:#f7faf7}
 .wlp-ai-feedback[hidden]{display:none!important}

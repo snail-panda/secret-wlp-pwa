@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.0';
+  const VERSION = '1.7.1';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -773,6 +773,10 @@
           <button class="wlp-ai-secondary-button" id="wlp-ai-no-idea" type="button">No idea</button>
         </div>
         <p class="wlp-ai-status" id="wlp-ai-status"></p>
+        <div class="wlp-ai-generation-retry" id="wlp-ai-generation-retry" hidden>
+          <button class="wlp-ai-secondary-button" id="wlp-ai-retry-generation" type="button">Try generating again</button>
+          <details><summary>Technical details</summary><code id="wlp-ai-generation-error-detail"></code></details>
+        </div>
         <section class="wlp-ai-feedback" id="wlp-ai-feedback" hidden>
           <div class="wlp-ai-feedback-head">
             <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong><small class="wlp-ai-target-id" id="wlp-ai-target-id"></small></div>
@@ -866,6 +870,21 @@
     if (!el) return;
     el.textContent = clean(message);
     el.classList.toggle('is-error', Boolean(isError));
+  }
+
+  function hideGenerationRetry() {
+    const wrap = $('#wlp-ai-generation-retry');
+    if (wrap) wrap.hidden = true;
+    const detail = $('#wlp-ai-generation-error-detail');
+    if (detail) detail.textContent = '';
+  }
+
+  function showGenerationRetry(error) {
+    const wrap = $('#wlp-ai-generation-retry');
+    const detail = $('#wlp-ai-generation-error-detail');
+    if (detail) detail.textContent = formatAIError(error);
+    if (wrap) wrap.hidden = false;
+    setStatus("This experience did not pass WLP's generation check. Nothing from this failed generation was saved. Try generating again.", true);
   }
 
   function renderProviderWarning() {
@@ -1178,6 +1197,7 @@
   }
 
   function prepareExperienceLoading(message = 'Creating a new AI experience…') {
+    hideGenerationRetry();
     const experience = $('#wlp-ai-experience');
     if (experience) experience.hidden = false;
     $('#wlp-ai-finished').hidden = true;
@@ -1195,6 +1215,8 @@
     resetReconstruction();
     const responseBox = $('#wlp-ai-response');
     if (responseBox) { responseBox.value = ''; responseBox.disabled = true; }
+    const responseField = $('#wlp-ai-response-field');
+    if (responseField) responseField.hidden = true;
     const submit = $('#wlp-ai-submit');
     const noIdea = $('#wlp-ai-no-idea');
     if (submit) submit.hidden = true;
@@ -1207,6 +1229,7 @@
   }
 
   function renderExperience(plannerResult) {
+    hideGenerationRetry();
     const response = plannerResult.response;
     const experience = response.experience || {};
     const selected = response.selectedTarget || {};
@@ -1301,7 +1324,7 @@
     } catch (error) {
       if (plannerStarted != null) addFailedUsage(error, 'planner', elapsedMs(plannerStarted));
       state.activePlanner = null;
-      setStatus(formatAIError(error), true);
+      showGenerationRetry(error);
     } finally {
       setBusy(false);
     }
@@ -1585,6 +1608,10 @@
     $('#wlp-ai-practice-type')?.addEventListener('change', updatePracticeTypeHelp);
     $('#wlp-ai-difficulty')?.addEventListener('change', updateDifficultyHelp);
     $('#wlp-ai-start')?.addEventListener('click', beginSession);
+    $('#wlp-ai-retry-generation')?.addEventListener('click', () => {
+      if (!state.session || state.busy) return;
+      loadNextExperience();
+    });
     $('#wlp-ai-submit')?.addEventListener('click', () => interpretResponse());
     $('#wlp-ai-no-idea')?.addEventListener('click', () => interpretResponse("I don't know."));
     $('#wlp-ai-next')?.addEventListener('click', () => {
