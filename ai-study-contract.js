@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.5';
+  const VERSION = '1.1.6';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -13,6 +13,7 @@
     targetNaturalness: ['merely-possible','natural','highly-natural'],
     targetCommonness: ['default-common','common','less-common-but-natural','specialized-or-marked'],
     routerActions: ['DEEPEN','BRANCH','TRANSFER','CONTRAST','REVERSE','COMPOSE','PAUSE'],
+    practiceTypeModes: ['adaptive','override'],
     responseClasses: ['exact-target','target-family','natural-neighbor','natural-alternative','partial-concept','form-mismatch','sense-mismatch','register-mismatch','construal-shift','unrelated','uncertain','stt-uncertain'],
     focusRelations: ['aligned','overlapping','shifted','conflicting','unclear'],
     interpretationConfidence: ['low','medium','high'],
@@ -128,6 +129,17 @@
       requireBoolean(value.plannerConstraints, 'avoidRecentRouteRepetition', '$.plannerConstraints', errors);
       requireBoolean(value.plannerConstraints, 'naturalnessGateRequired', '$.plannerConstraints', errors);
       requireBoolean(value.plannerConstraints, 'targetNeedNotBeExplicit', '$.plannerConstraints', errors);
+      if (has(value.plannerConstraints, 'experienceTypeMode')) requireEnum(value.plannerConstraints, 'experienceTypeMode', ENUMS.practiceTypeModes, '$.plannerConstraints', errors);
+      if (has(value.plannerConstraints, 'requiredExperienceType')) {
+        const requiredType = value.plannerConstraints.requiredExperienceType;
+        if (!(requiredType === null || ENUMS.experienceTypes.includes(requiredType))) push(errors, '$.plannerConstraints.requiredExperienceType', `must be null or one of: ${ENUMS.experienceTypes.join(', ')}`);
+      }
+      if (value.plannerConstraints.experienceTypeMode === 'override' && !ENUMS.experienceTypes.includes(value.plannerConstraints.requiredExperienceType)) {
+        push(errors, '$.plannerConstraints.requiredExperienceType', 'must be a supported experience type when experienceTypeMode is override');
+      }
+      if (value.plannerConstraints.experienceTypeMode === 'adaptive' && value.plannerConstraints.requiredExperienceType != null) {
+        push(errors, '$.plannerConstraints.requiredExperienceType', 'must be null when experienceTypeMode is adaptive');
+      }
     }
     return result(errors, warnings);
   }
@@ -615,6 +627,8 @@
         avoidRecentRouteRepetition: true,
         naturalnessGateRequired: true,
         targetNeedNotBeExplicit: true,
+        experienceTypeMode: 'adaptive',
+        requiredExperienceType: null,
         ...(isObject(input.plannerConstraints) ? input.plannerConstraints : {})
       }
     };

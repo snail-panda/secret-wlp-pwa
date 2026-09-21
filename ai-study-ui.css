@@ -1,4 +1,4 @@
-/* WLP Stage 7 — AI Study UI refinement v1.8.6.54 R2-A
+/* WLP Stage 7 — AI Study practice type override v1.8.6.57 R2-D
    Scope: Study Hub only. No Bottom Nav, drawer, service worker, or shared-shell changes. */
 
 .wlp-practice-mode-switch{
@@ -216,3 +216,13 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 .wlp-ai-history-insight+.wlp-ai-history-insight{border-top:1px solid #edf2ee}
 .wlp-ai-history-insight>span{display:block;margin-bottom:3px;color:#89958e;font-size:.59rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
 .wlp-ai-history-insight p{margin:0!important;max-width:none!important;color:#587063!important;font-size:.7rem!important;line-height:1.45!important}
+
+
+/* R2-D — optional Practice Type Override */
+.wlp-ai-practice-type-control{margin:0 0 12px;padding:11px 12px;border:1px solid #dce7df;border-radius:14px;background:rgba(249,252,249,.9);text-align:left}
+.wlp-ai-practice-type-control label{display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,260px);align-items:center;gap:10px}
+.wlp-ai-practice-type-control label>span{color:#5f7869;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.wlp-ai-practice-type-control select{width:100%;border:1px solid #d3e0d7;border-radius:11px;background:#fff;color:#315b47;padding:8px 10px;font:700 .72rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:0}
+.wlp-ai-practice-type-control select:focus{border-color:#9db7a6;box-shadow:0 0 0 3px rgba(90,132,104,.08)}
+.wlp-ai-practice-type-control p{margin:7px 0 0!important;max-width:none!important;color:#839088!important;font-size:.65rem!important;line-height:1.38!important}
+@media(max-width:560px){.wlp-ai-practice-type-control label{grid-template-columns:1fr}.wlp-ai-practice-type-control select{font-size:.7rem}}

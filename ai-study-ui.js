@@ -1,14 +1,28 @@
-/* WLP Stage 7 — AI Study history + quick card + session insights v1.8.6.56 R2-C
+/* WLP Stage 7 — AI Study practice type override v1.8.6.57 R2-D
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
+
+  const PRACTICE_TYPES = Object.freeze([
+    { value: 'adaptive', label: 'Adaptive · AI decides', help: 'Default. WLP chooses the experience type from your current route evidence and target context.' },
+    { value: 'situational-production', label: 'Situational production', help: 'Respond naturally inside a concrete real-world situation.' },
+    { value: 'open-description', label: 'Open description', help: 'Explain or describe something freely while the target remains meaningfully motivated.' },
+    { value: 'cloze', label: 'Cloze', help: 'Complete one natural fixed frame with a word or expression that fits.' },
+    { value: 'dialogue', label: 'Dialogue', help: 'Respond inside a short conversational exchange.' },
+    { value: 'micro-story', label: 'Micro-story', help: 'Use or retrieve the target through a short story-like context.' },
+    { value: 'contrast', label: 'Contrast', help: 'Distinguish the target from a close neighbor or alternative.' },
+    { value: 'reformulation', label: 'Reformulation', help: 'Rewrite an idea in a more precise, natural, or target-compatible way.' },
+    { value: 'free-composition', label: 'Free composition', help: 'Produce a full sentence or short passage with minimal lexical prompting.' },
+    { value: 'reverse-reconstruction', label: 'Reverse reconstruction', help: 'Rebuild an expression or formulation from its intended meaning or communicative effect.' },
+    { value: 'continuation', label: 'Continuation', help: 'Continue a sentence, thought, or exchange naturally.' }
+  ]);
 
   const state = {
     mode: 'standard',
@@ -250,7 +264,11 @@
     const well = [];
     if (produced) well.push(`${produced}/${total} completed turn${total === 1 ? '' : 's'} reached the WLP target or target family.`);
     else if (concept) well.push(`${concept}/${total} completed turn${total === 1 ? '' : 's'} matched the intended concept even when the exact WLP target was not produced.`);
-    if (natural) well.push(`Your response was judged natural in ${natural}/${total} completed turn${total === 1 ? '' : 's'}.`);
+    const formMismatchTurns = turns.filter(turn => (turn?.responseClasses || []).includes('form-mismatch')).length;
+    if (natural) {
+      if (formMismatchTurns) well.push(`The target expression itself was judged natural in ${natural}/${total} completed turn${total === 1 ? '' : 's'}, while response form or construction still needed attention in ${formMismatchTurns}/${total}.`);
+      else well.push(`Your response was judged natural in ${natural}/${total} completed turn${total === 1 ? '' : 's'}.`);
+    }
     strengths.slice(0, 2).forEach(group => {
       const label = LANGUAGE_CATEGORY_LABELS[group.category] || group.category;
       const sample = group.summaries[0];
@@ -280,7 +298,7 @@
     }));
     mismatchCounts.forEach((count, cls) => {
       const label = cls === 'form-mismatch' ? 'target form / construction' : cls === 'sense-mismatch' ? 'target sense' : 'register fit';
-      if (!revisit.some(text => text.toLowerCase().includes(label))) revisit.push(`${label}: appeared in ${count} completed turn${count === 1 ? '' : 's'}.`);
+      if (!revisit.some(text => text.toLowerCase().includes(label))) revisit.push(`${label.charAt(0).toUpperCase() + label.slice(1)} still needed attention in ${count} completed turn${count === 1 ? '' : 's'}.`);
     });
 
     const nextSteps = uniqueTexts(turns.map(turn => turn?.nextStep), 2);
@@ -301,6 +319,7 @@
       startedAt: clean(session.startedAt),
       endedAt: new Date().toISOString(),
       source: clone(session.source),
+      practiceType: clean(session.practiceType || 'adaptive'),
       total: num(session.total),
       completed: num(session.completed),
       completedAll: num(session.completed) >= num(session.total),
@@ -412,7 +431,8 @@
       const strong = document.createElement('strong');
       strong.textContent = formatHistoryDate(record.endedAt || record.startedAt);
       const meta = document.createElement('span');
-      meta.textContent = `${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}${targets ? ` · ${targets}` : ''}`;
+      const typeNote = clean(record.practiceType) && clean(record.practiceType) !== 'adaptive' ? ` · ${practiceTypeLabel(clean(record.practiceType))}` : '';
+      meta.textContent = `${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}${targets ? ` · ${targets}` : ''}${typeNote}`;
       button.append(strong, meta);
       list.appendChild(button);
     });
@@ -428,7 +448,8 @@
     body.textContent = '';
     const note = document.createElement('p');
     note.className = 'wlp-ai-history-summary';
-    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}. This is the original prompt, response, feedback, and session-level review from that session.`;
+    const historyType = clean(record.practiceType) && clean(record.practiceType) !== 'adaptive' ? ` · ${practiceTypeLabel(clean(record.practiceType))}` : '';
+    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}${historyType}. This is the original prompt, response, feedback, and session-level review from that session.`;
     body.appendChild(note);
     const turns = Array.isArray(record.turns) ? record.turns : [];
     const insights = record.insights && typeof record.insights === 'object' ? record.insights : buildSessionInsights(turns);
@@ -514,6 +535,23 @@
     return [5, 10, 20].includes(size) ? size : 5;
   }
 
+
+  function selectedPracticeType() {
+    const value = clean($('#wlp-ai-practice-type')?.value || 'adaptive');
+    return PRACTICE_TYPES.some(item => item.value === value) ? value : 'adaptive';
+  }
+
+  function practiceTypeLabel(value) {
+    return PRACTICE_TYPES.find(item => item.value === value)?.label || 'Adaptive · AI decides';
+  }
+
+  function updatePracticeTypeHelp() {
+    const value = selectedPracticeType();
+    const help = PRACTICE_TYPES.find(item => item.value === value)?.help || '';
+    const el = $('#wlp-ai-practice-type-help');
+    if (el) el.textContent = help;
+  }
+
   function candidateScore(candidate, session) {
     const review = candidate?.reviewSignal || {};
     const studyQ = candidate?.studyQSignal || {};
@@ -587,8 +625,24 @@
       </section>
 
       <section class="wlp-ai-start-panel" id="wlp-ai-start-panel">
+        <div class="wlp-ai-practice-type-control">
+          <label for="wlp-ai-practice-type"><span>Experience type</span><select id="wlp-ai-practice-type" aria-describedby="wlp-ai-practice-type-help">
+            <option value="adaptive" selected>Adaptive · AI decides</option>
+            <option value="situational-production">Situational production</option>
+            <option value="open-description">Open description</option>
+            <option value="cloze">Cloze</option>
+            <option value="dialogue">Dialogue</option>
+            <option value="micro-story">Micro-story</option>
+            <option value="contrast">Contrast</option>
+            <option value="reformulation">Reformulation</option>
+            <option value="free-composition">Free composition</option>
+            <option value="reverse-reconstruction">Reverse reconstruction</option>
+            <option value="continuation">Continuation</option>
+          </select></label>
+          <p id="wlp-ai-practice-type-help">Default. WLP chooses the experience type from your current route evidence and target context.</p>
+        </div>
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
-        <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source and session size are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
+        <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source, session size, and optional experience-type override are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
         <details class="wlp-ai-history" id="wlp-ai-history" hidden>
           <summary id="wlp-ai-history-label">AI Study History</summary>
           <div class="wlp-ai-history-list" id="wlp-ai-history-list"></div>
@@ -809,7 +863,9 @@
         allowMultiTarget: false,
         avoidRecentRouteRepetition: true,
         naturalnessGateRequired: true,
-        targetNeedNotBeExplicit: true
+        targetNeedNotBeExplicit: true,
+        experienceTypeMode: session.practiceType === 'adaptive' ? 'adaptive' : 'override',
+        requiredExperienceType: session.practiceType === 'adaptive' ? null : session.practiceType
       }
     });
     const validation = contract.validatePlannerRequest(request);
@@ -1114,6 +1170,7 @@
       sessionId: makeId('ai-session'),
       source: snapshotSource(),
       total: selectedSessionSize(),
+      practiceType: selectedPracticeType(),
       completed: 0,
       usedTargets: {},
       committedEvents: [],
@@ -1151,7 +1208,9 @@
 
     const stats = $('#wlp-ai-finished-stats');
     stats.textContent = '';
-    [`${session.completed} experience${session.completed === 1 ? '' : 's'}`, session.source.label].forEach(itemText => {
+    const finishItems = [`${session.completed} experience${session.completed === 1 ? '' : 's'}`, session.source.label];
+    if (session.practiceType && session.practiceType !== 'adaptive') finishItems.push(practiceTypeLabel(session.practiceType));
+    finishItems.forEach(itemText => {
       const span = document.createElement('span');
       span.textContent = itemText;
       stats.appendChild(span);
@@ -1210,6 +1269,7 @@
     document.querySelectorAll('[data-wlp-practice-mode]').forEach(button => {
       button.addEventListener('click', () => setMode(button.dataset.wlpPracticeMode));
     });
+    $('#wlp-ai-practice-type')?.addEventListener('change', updatePracticeTypeHelp);
     $('#wlp-ai-start')?.addEventListener('click', beginSession);
     $('#wlp-ai-submit')?.addEventListener('click', () => interpretResponse());
     $('#wlp-ai-no-idea')?.addEventListener('click', () => interpretResponse("I don't know."));
@@ -1239,6 +1299,7 @@
     let stored = 'standard';
     try { stored = localStorage.getItem(MODE_KEY) || 'standard'; } catch (_) {}
     setMode(stored === 'ai' ? 'ai' : 'standard', false);
+    updatePracticeTypeHelp();
     renderHistory();
     window.WLPAIStudyUI = Object.freeze({
       version: VERSION,
