@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.1';
+  const VERSION = '1.7.2';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -777,6 +777,10 @@
           <button class="wlp-ai-secondary-button" id="wlp-ai-retry-generation" type="button">Try generating again</button>
           <details><summary>Technical details</summary><code id="wlp-ai-generation-error-detail"></code></details>
         </div>
+        <div class="wlp-ai-generation-retry" id="wlp-ai-interpreter-retry" hidden>
+          <button class="wlp-ai-secondary-button" id="wlp-ai-retry-interpreter" type="button">Try interpreting again</button>
+          <details><summary>Technical details</summary><code id="wlp-ai-interpreter-error-detail"></code></details>
+        </div>
         <section class="wlp-ai-feedback" id="wlp-ai-feedback" hidden>
           <div class="wlp-ai-feedback-head">
             <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong><small class="wlp-ai-target-id" id="wlp-ai-target-id"></small></div>
@@ -849,7 +853,7 @@
 
   function setBusy(busy, message = '') {
     state.busy = Boolean(busy);
-    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear'].forEach(selector => {
+    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear', '#wlp-ai-retry-generation', '#wlp-ai-retry-interpreter'].forEach(selector => {
       const el = $(selector);
       if (el) el.disabled = state.busy;
     });
@@ -885,6 +889,21 @@
     if (detail) detail.textContent = formatAIError(error);
     if (wrap) wrap.hidden = false;
     setStatus("This experience did not pass WLP's generation check. Nothing from this failed generation was saved. Try generating again.", true);
+  }
+
+  function hideInterpreterRetry() {
+    const wrap = $('#wlp-ai-interpreter-retry');
+    if (wrap) wrap.hidden = true;
+    const detail = $('#wlp-ai-interpreter-error-detail');
+    if (detail) detail.textContent = '';
+  }
+
+  function showInterpreterRetry(error) {
+    const wrap = $('#wlp-ai-interpreter-retry');
+    const detail = $('#wlp-ai-interpreter-error-detail');
+    if (detail) detail.textContent = formatAIError(error);
+    if (wrap) wrap.hidden = false;
+    setStatus("This interpretation did not pass WLP's response check. Your answer is still here, and nothing from this failed interpretation was saved. Try interpreting again.", true);
   }
 
   function renderProviderWarning() {
@@ -966,8 +985,33 @@
     [unitsMarker, distractorMarker, levelMarker, missingMarker].filter(Boolean).forEach(marker => {
       prompt = prompt.replace(marker[0], '');
     });
+    prompt = prompt.split(/\r?\n/).filter(line => !/\|\|/.test(line)).join('\n');
     prompt = clean(prompt.replace(/\n{3,}/g, '\n\n'));
     return { prompt, units, distractors, level, missingRequired };
+  }
+
+  function validateReconstructionAgainstSession(plannerResult) {
+    const response = plannerResult?.response || {};
+    const experience = response.experience || {};
+    if (clean(experience.type) !== 'sentence-reconstruction') return;
+    const parsed = parseReconstructionPrompt(experience.prompt);
+    if (!parsed) throw new Error('Planner response validation failed: sentence reconstruction metadata could not be parsed.');
+    const requested = clean(state.session?.difficulty || 'adaptive').toLowerCase();
+    if (!['easy','standard','hard','hell'].includes(requested)) return;
+    if (parsed.level !== requested) {
+      throw new Error(`Planner response validation failed: requested ${requested} sentence reconstruction but provider returned ${parsed.level}.`);
+    }
+    if (['easy','standard'].includes(requested) && (parsed.distractors.length || parsed.missingRequired)) {
+      throw new Error(`Planner response validation failed: ${requested} sentence reconstruction must not include distractors or a missing word/form.`);
+    }
+    if (requested === 'hard') {
+      if (parsed.missingRequired) throw new Error('Planner response validation failed: hard sentence reconstruction must not require a missing word/form.');
+      if (parsed.distractors.length < 1 || parsed.distractors.length > 2) throw new Error('Planner response validation failed: hard sentence reconstruction must include 1 to 2 distractor chunks.');
+    }
+    if (requested === 'hell') {
+      if (!parsed.missingRequired) throw new Error('Planner response validation failed: hell sentence reconstruction must require exactly one learner-supplied missing word or form.');
+      if (parsed.distractors.length < 1 || parsed.distractors.length > 3) throw new Error('Planner response validation failed: hell sentence reconstruction must include 1 to 3 distractor chunks.');
+    }
   }
 
   function shuffleReconstructionUnits(units, distractors = []) {
@@ -1198,6 +1242,7 @@
 
   function prepareExperienceLoading(message = 'Creating a new AI experience…') {
     hideGenerationRetry();
+    hideInterpreterRetry();
     const experience = $('#wlp-ai-experience');
     if (experience) experience.hidden = false;
     $('#wlp-ai-finished').hidden = true;
@@ -1230,6 +1275,7 @@
 
   function renderExperience(plannerResult) {
     hideGenerationRetry();
+    hideInterpreterRetry();
     const response = plannerResult.response;
     const experience = response.experience || {};
     const selected = response.selectedTarget || {};
@@ -1307,6 +1353,7 @@
       const plannerResult = await transport.callPlannerWriter(built.request);
       const plannerElapsed = elapsedMs(plannerStarted);
       const plannerAttempts = addUsage(plannerResult.meta, 'planner', plannerElapsed);
+      validateReconstructionAgainstSession(plannerResult);
       state.activePlanner = {
         request: built.request,
         result: plannerResult,
@@ -1350,6 +1397,7 @@
       setStatus('Type a response, or choose “No idea.”', true);
       return;
     }
+    hideInterpreterRetry();
     setBusy(true, 'Interpreting your response and updating the learning route…');
     try {
       const { data, transport } = requireLayers();
@@ -1392,7 +1440,9 @@
           state.activePlanner.diagnostics.failedInterpreterAttempts = num(state.activePlanner.diagnostics.failedInterpreterAttempts) + failedAttempts;
         }
       }
-      setStatus(formatAIError(error), true);
+      const message = formatAIError(error);
+      if (/Interpreter response validation failed/i.test(message)) showInterpreterRetry(error);
+      else setStatus(message, true);
     } finally {
       setBusy(false);
     }
@@ -1611,6 +1661,10 @@
     $('#wlp-ai-retry-generation')?.addEventListener('click', () => {
       if (!state.session || state.busy) return;
       loadNextExperience();
+    });
+    $('#wlp-ai-retry-interpreter')?.addEventListener('click', () => {
+      if (!state.session || !state.activePlanner || state.busy) return;
+      interpretResponse();
     });
     $('#wlp-ai-submit')?.addEventListener('click', () => interpretResponse());
     $('#wlp-ai-no-idea')?.addEventListener('click', () => interpretResponse("I don't know."));

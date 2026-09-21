@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -274,8 +274,10 @@
       if (['easy','standard'].includes(level) && (distractors.length || missingRequired)) {
         push(errors, '$.experience.prompt', `${level} sentence-reconstruction must not use distractors or a missing-word requirement`);
       }
-      if (level === 'hard' && !distractors.length) {
-        push(warnings, '$.experience.prompt', 'hard sentence-reconstruction should normally include at least one distractor chunk');
+      if (level === 'hard') {
+        if (!distractors.length) push(warnings, '$.experience.prompt', 'hard sentence-reconstruction should normally include at least one distractor chunk');
+        if (distractors.length > 2) push(errors, '$.experience.prompt', 'hard sentence-reconstruction may include at most 2 distractor chunks');
+        if (missingRequired) push(errors, '$.experience.prompt', 'hard sentence-reconstruction must not require a missing word or form');
       }
       if (level === 'hell') {
         if (!distractors.length) push(warnings, '$.experience.prompt', 'hell sentence-reconstruction should normally include distractor chunks');
@@ -748,6 +750,10 @@
     hardSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hard';
     hardSentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence.\nRECONSTRUCTION_LEVEL: hard\nRECONSTRUCTION_UNITS: the scent || gradually diffused || from the doorway || throughout the room. || during the meeting\nRECONSTRUCTION_DISTRACTORS: because of || nevertheless\nRECONSTRUCTION_MISSING_REQUIRED: false';
 
+    const badHardMissingSentenceReconstructionPlanner = JSON.parse(JSON.stringify(hardSentenceReconstructionPlanner));
+    badHardMissingSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hard-missing';
+    badHardMissingSentenceReconstructionPlanner.experience.prompt = hardSentenceReconstructionPlanner.experience.prompt.replace('RECONSTRUCTION_MISSING_REQUIRED: false', 'RECONSTRUCTION_MISSING_REQUIRED: true');
+
     const hellSentenceReconstructionPlanner = JSON.parse(JSON.stringify(sentenceReconstructionPlanner));
     hellSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hell';
     hellSentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence. One word or form is missing.\nRECONSTRUCTION_LEVEL: hell\nRECONSTRUCTION_UNITS: the scent || from the doorway || throughout the room. || by evening\nRECONSTRUCTION_DISTRACTORS: despite || abruptly\nRECONSTRUCTION_MISSING_REQUIRED: true';
@@ -855,6 +861,7 @@
       { name: 'planner-valid-fixed-frame-compatible-alternatives', expected: 'VALID', actual: validatePlannerResponse(fixedFramePlanner).status },
       { name: 'planner-valid-sentence-reconstruction', expected: 'VALID', actual: validatePlannerResponse(sentenceReconstructionPlanner).status },
       { name: 'planner-valid-sentence-reconstruction-hard', expected: 'VALID', actual: validatePlannerResponse(hardSentenceReconstructionPlanner).status },
+      { name: 'planner-reject-hard-reconstruction-with-missing-word', expected: 'REJECT', actual: validatePlannerResponse(badHardMissingSentenceReconstructionPlanner).status },
       { name: 'planner-valid-sentence-reconstruction-hell', expected: 'VALID', actual: validatePlannerResponse(hellSentenceReconstructionPlanner).status },
       { name: 'planner-reject-fixed-frame-unlisted-direct-alternative', expected: 'REJECT', actual: validatePlannerResponse(badFixedFramePlanner).status },
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
