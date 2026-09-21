@@ -632,6 +632,13 @@
             "null"
           ]
         },
+        "modelResponse": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "One concise natural model response that fully satisfies the requested response format. This is an example, not the only correct answer. For cloze/fixed-frame, give the complete filled sentence; for open/dialogue/composition tasks, give one natural complete response."
+        },
         "targetFeedback": {
           "type": "string",
           "minLength": 1,

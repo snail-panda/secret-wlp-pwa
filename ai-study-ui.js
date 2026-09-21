@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study practice type override v1.8.6.57 R2-D
+/* WLP Stage 7 — AI Study quality & robustness polish v1.8.6.58 R2-E
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.4.0';
+  const VERSION = '1.5.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -38,6 +38,40 @@
   const num = value => Number(value || 0);
   const makeId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
+
+  function renderHighlightedText(element, value, terms = []) {
+    if (!element) return;
+    element.replaceChildren();
+    const source = clean(value);
+    if (!source) return;
+    const candidates = (Array.isArray(terms) ? terms : [terms])
+      .map(clean).filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!candidates.length) {
+      element.textContent = source;
+      return;
+    }
+    const lower = source.toLowerCase();
+    let cursor = 0;
+    while (cursor < source.length) {
+      let best = null;
+      candidates.forEach(term => {
+        const index = lower.indexOf(term.toLowerCase(), cursor);
+        if (index < 0) return;
+        if (!best || index < best.index || (index === best.index && term.length > best.length)) {
+          best = { index, length: term.length };
+        }
+      });
+      if (!best) {
+        element.append(document.createTextNode(source.slice(cursor)));
+        break;
+      }
+      if (best.index > cursor) element.append(document.createTextNode(source.slice(cursor, best.index)));
+      const strong = document.createElement('strong');
+      strong.textContent = source.slice(best.index, best.index + best.length);
+      element.append(strong);
+      cursor = best.index + best.length;
+    }
+  }
 
   function requireLayers() {
     const data = window.WLPAIStudyData;
@@ -178,6 +212,7 @@
       nextStep: clean(learner.nextStep),
       correctionNeeded: learner.correctionNeeded === true,
       suggestedNaturalForm: clean(learner.suggestedNaturalForm),
+      modelResponse: clean(learner.modelResponse),
       responseClasses: Array.isArray(response?.interpretation?.responseClasses) ? response.interpretation.responseClasses.map(clean).filter(Boolean) : [],
       conceptMatched: response?.interpretation?.conceptMatched === true,
       targetProduced: response?.interpretation?.targetProduced === true,
@@ -364,6 +399,7 @@
     addPeekField(article, 'Language feedback', turn?.languageFeedback);
     addPeekField(article, 'Next step', turn?.nextStep);
     if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm);
+    else if (clean(turn?.modelResponse)) addPeekField(article, 'Natural example', turn.modelResponse);
     if (includePeek && clean(turn?.wordId)) {
       const actions = document.createElement('div');
       actions.className = 'wlp-ai-turn-card-actions';
@@ -688,8 +724,11 @@
             <span class="wlp-ai-feedback-label">Language feedback</span>
             <p class="wlp-ai-feedback-text" id="wlp-ai-language-feedback"></p>
           </div>
-          <p class="wlp-ai-correction" id="wlp-ai-correction" hidden></p>
-          <div class="wlp-ai-next-wrap"><small id="wlp-ai-next-note"></small><button class="wlp-ai-next-button" id="wlp-ai-next" type="button">Next experience</button></div>
+          <div class="wlp-ai-model-response" id="wlp-ai-model-response" hidden>
+            <span class="wlp-ai-feedback-label" id="wlp-ai-model-response-label">Natural example</span>
+            <p class="wlp-ai-model-response-text" id="wlp-ai-model-response-text"></p>
+          </div>
+          <div class="wlp-ai-next-wrap"><span class="wlp-ai-next-label">Next step</span><small id="wlp-ai-next-note"></small><button class="wlp-ai-next-button" id="wlp-ai-next" type="button">Next experience</button></div>
           <details class="wlp-ai-diagnostics" id="wlp-ai-diagnostics">
             <summary>Detailed diagnostics</summary>
             <div class="wlp-ai-diagnostics-body">
@@ -1097,14 +1136,20 @@
     $('#wlp-ai-language-feedback').textContent = languageFeedback || 'No separate language-level feedback was returned for this turn.';
     languageBlock.hidden = false;
 
-    const correction = $('#wlp-ai-correction');
+    const modelBlock = $('#wlp-ai-model-response');
+    const modelLabel = $('#wlp-ai-model-response-label');
+    const modelText = $('#wlp-ai-model-response-text');
     const suggested = clean(learner.suggestedNaturalForm);
-    if (learner.correctionNeeded && suggested) {
-      correction.textContent = `Natural form: ${suggested}`;
-      correction.hidden = false;
+    const modelResponse = clean(learner.modelResponse);
+    const modelDisplay = learner.correctionNeeded && suggested ? suggested : modelResponse;
+    if (modelDisplay) {
+      modelLabel.textContent = learner.correctionNeeded && suggested ? 'Natural form' : 'Natural example';
+      const family = Array.isArray(selected.targetFamily) ? selected.targetFamily : [];
+      renderHighlightedText(modelText, modelDisplay, [target, ...family]);
+      modelBlock.hidden = false;
     } else {
-      correction.textContent = '';
-      correction.hidden = true;
+      modelText.textContent = '';
+      modelBlock.hidden = true;
     }
 
     const evidence = $('#wlp-ai-evidence');

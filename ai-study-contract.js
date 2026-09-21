@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.6';
+  const VERSION = '1.1.7';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -386,6 +386,9 @@
           push(errors, `$.learnerFacingResponse.${key}`, 'must be a non-empty string when present');
         }
       });
+      if (has(value.learnerFacingResponse, 'modelResponse') && !(value.learnerFacingResponse.modelResponse === null || (typeof value.learnerFacingResponse.modelResponse === 'string' && text(value.learnerFacingResponse.modelResponse)))) {
+        push(errors, '$.learnerFacingResponse.modelResponse', 'must be null or a non-empty string when present');
+      }
       if (has(value.learnerFacingResponse, 'languageObservations')) {
         if (!Array.isArray(value.learnerFacingResponse.languageObservations) || value.learnerFacingResponse.languageObservations.length > 3) {
           push(errors, '$.learnerFacingResponse.languageObservations', 'must be an array with at most 3 items');

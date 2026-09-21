@@ -110,8 +110,11 @@
 .wlp-ai-feedback-block+.wlp-ai-feedback-block{margin-top:8px}
 .wlp-ai-feedback-label{display:block;color:#6f8579;font-size:.61rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
 .wlp-ai-feedback-text{margin:5px 0 0;color:#456654;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.45;white-space:pre-wrap}
-.wlp-ai-correction{margin:8px 0 0;padding:8px 10px;border-radius:11px;background:#fff;color:#597163;font-size:.72rem;line-height:1.4}
+.wlp-ai-model-response{margin:9px 0 0;padding:10px 12px;border:1px solid #e1e9e3;border-radius:12px;background:rgba(255,255,255,.82);text-align:left}
+.wlp-ai-model-response-text{margin:5px 0 0;color:#4f6d5c;font-family:"EB Garamond",Georgia,serif;font-size:1.04rem;line-height:1.45;white-space:pre-wrap}
+.wlp-ai-model-response-text strong{color:#2f5b45;font-weight:700}
 .wlp-ai-next-wrap{margin-top:12px;padding-top:12px;border-top:1px solid #dee8e1}
+.wlp-ai-next-label{display:block;margin-bottom:4px;color:#71867a;font-size:.61rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
 .wlp-ai-next-wrap small{display:block;margin-bottom:7px;color:#647a6e;font-size:.68rem;line-height:1.4}
 
 .wlp-ai-diagnostics{margin-top:12px;border-top:1px solid #e0e9e2;padding-top:9px;text-align:left}
