@@ -1,10 +1,12 @@
-/* WLP Stage 7 — AI Study UI refinement v1.8.6.54 R2-A
+/* WLP Stage 7 — AI Study connected review v1.8.6.55 R2-B
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
+  const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
+  const SESSION_HISTORY_LIMIT = 50;
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
@@ -39,6 +41,284 @@
     } catch (_) {
       return fallback;
     }
+  }
+
+  function writeJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function readSessionHistory() {
+    const raw = readJson(SESSION_HISTORY_KEY, []);
+    return Array.isArray(raw) ? raw : [];
+  }
+
+  function saveSessionHistory(record) {
+    if (!record?.sessionId || !num(record.completed)) return;
+    const history = readSessionHistory().filter(item => clean(item?.sessionId) !== clean(record.sessionId));
+    history.unshift(clone(record));
+    writeJson(SESSION_HISTORY_KEY, history.slice(0, SESSION_HISTORY_LIMIT));
+  }
+
+  function currentTargetPacket() {
+    const selectedId = clean(state.activePlanner?.result?.response?.selectedTarget?.wordId);
+    const packets = Array.isArray(state.activePlanner?.request?.targetPackets) ? state.activePlanner.request.targetPackets : [];
+    return packets.find(packet => clean(packet?.target?.wordId) === selectedId) || null;
+  }
+
+  function cardSnapshotFromPacket(packet, selected = null) {
+    const p = packet && typeof packet === 'object' ? packet : {};
+    const target = p.target && typeof p.target === 'object' ? p.target : {};
+    const meta = p.learningMetadata && typeof p.learningMetadata === 'object' ? p.learningMetadata : {};
+    const selectedTarget = selected && typeof selected === 'object' ? selected : {};
+    return {
+      wordId: clean(target.wordId || selectedTarget.wordId),
+      headword: clean(target.headword || selectedTarget.target),
+      pos: clean(target.pos),
+      definition: clean(target.definition),
+      synonyms: clean(target.synonyms),
+      examples: clean(target.examples),
+      notes: clean(target.notes),
+      targetFamily: Array.isArray(target.targetFamily) ? target.targetFamily.map(clean).filter(Boolean).slice(0, 8) : [],
+      learningMetadata: {
+        senseHook: clean(meta.senseHook),
+        memoryHook: clean(meta.memoryHook),
+        situations: Array.isArray(meta.situations) ? meta.situations.slice(0, 3).map(item => clone(item)) : []
+      }
+    };
+  }
+
+  function currentCardSnapshot() {
+    return cardSnapshotFromPacket(currentTargetPacket(), state.activePlanner?.result?.response?.selectedTarget || null);
+  }
+
+  function addPeekField(container, label, value) {
+    const textValue = clean(value);
+    if (!textValue) return;
+    const row = document.createElement('div');
+    row.className = 'wlp-ai-peek-row';
+    const key = document.createElement('span');
+    key.textContent = label;
+    const val = document.createElement('p');
+    val.textContent = textValue;
+    row.append(key, val);
+    container.appendChild(row);
+  }
+
+  function renderCardPeek(card, container) {
+    if (!container) return;
+    container.textContent = '';
+    const data = card && typeof card === 'object' ? card : {};
+    const head = document.createElement('div');
+    head.className = 'wlp-ai-peek-head';
+    const title = document.createElement('strong');
+    title.textContent = clean(data.headword) || 'WLP card';
+    const meta = document.createElement('small');
+    meta.textContent = [clean(data.wordId) ? `WID ${clean(data.wordId)}` : '', clean(data.pos)].filter(Boolean).join(' · ');
+    head.append(title, meta);
+    container.appendChild(head);
+    addPeekField(container, 'Definition', data.definition);
+    addPeekField(container, 'Synonyms', data.synonyms);
+    addPeekField(container, 'Examples', data.examples);
+    addPeekField(container, 'Notes', data.notes);
+    addPeekField(container, 'Sense hook', data.learningMetadata?.senseHook);
+    addPeekField(container, 'Memory hook', data.learningMetadata?.memoryHook);
+    const situations = Array.isArray(data.learningMetadata?.situations) ? data.learningMetadata.situations : [];
+    if (situations.length) {
+      const textValue = situations.map((item, index) => {
+        if (typeof item === 'string') return `${index + 1}. ${clean(item)}`;
+        const titleText = clean(item?.title || item?.label);
+        const anchor = clean(item?.anchor || item?.situation || item?.text || item?.context || item?.example);
+        return `${index + 1}. ${[titleText, anchor].filter(Boolean).join(' — ')}`;
+      }).filter(Boolean).join('\n');
+      addPeekField(container, 'Situations', textValue);
+    }
+    if (container.children.length === 1) addPeekField(container, 'Card data', 'No additional card details were available in this AI Study packet.');
+  }
+
+  function turnSnapshot(response, learnerText, turnDiagnostics = {}) {
+    const planner = state.activePlanner?.result?.response || {};
+    const selected = planner.selectedTarget || {};
+    const exp = planner.experience || {};
+    const learner = response?.learnerFacingResponse || {};
+    return {
+      eventId: clean(state.activePlanner?.eventId),
+      completedAt: new Date().toISOString(),
+      target: clean(selected.target),
+      wordId: clean(selected.wordId),
+      domain: clean(exp.domain),
+      experienceType: clean(exp.type || planner.learningOpportunity?.direction),
+      prompt: clean(exp.prompt),
+      responseFrame: clean(exp.responseFrame),
+      learnerResponse: clean(learnerText),
+      targetFeedback: clean(learner.targetFeedback || learner.feedback || response?.evidence?.observationSummary),
+      languageFeedback: clean(learner.languageFeedback),
+      nextStep: clean(learner.nextStep),
+      correctionNeeded: learner.correctionNeeded === true,
+      suggestedNaturalForm: clean(learner.suggestedNaturalForm),
+      card: currentCardSnapshot(),
+      diagnostics: {
+        routerAction: clean(response?.router?.action),
+        routerReason: clean(response?.router?.reason),
+        evidenceTypes: Array.isArray(response?.evidence?.evidenceTypes) ? response.evidence.evidenceTypes.map(clean).filter(Boolean) : [],
+        observationSummary: clean(response?.evidence?.observationSummary),
+        plannerElapsed: num(state.activePlanner?.diagnostics?.elapsedMs),
+        interpreterElapsed: num(turnDiagnostics.interpreterElapsed),
+        provider: clean(turnDiagnostics.provider || state.session?.provider),
+        model: clean(turnDiagnostics.model || state.session?.model)
+      }
+    };
+  }
+
+  function uniqueTexts(values, limit = 3) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(values) ? values : []).forEach(value => {
+      const textValue = clean(value);
+      const key = textValue.toLowerCase();
+      if (!textValue || seen.has(key) || out.length >= limit) return;
+      seen.add(key);
+      out.push(textValue);
+    });
+    return out;
+  }
+
+  function sessionRecord(session) {
+    return {
+      sessionId: clean(session.sessionId),
+      startedAt: clean(session.startedAt),
+      endedAt: new Date().toISOString(),
+      source: clone(session.source),
+      total: num(session.total),
+      completed: num(session.completed),
+      completedAll: num(session.completed) >= num(session.total),
+      turns: clone(Array.isArray(session.turns) ? session.turns : []),
+      provider: clean(session.provider),
+      model: clean(session.model),
+      diagnostics: {
+        successfulAICalls: num(session.successfulAICalls),
+        failedAICalls: num(session.failedAICalls),
+        providerAttempts: num(session.providerAttempts),
+        inputTokens: num(session.inputTokens),
+        outputTokens: num(session.outputTokens),
+        totalTokens: num(session.totalTokens),
+        plannerLatencyMs: averageSuccessfulLatency(session.plannerLatencies),
+        interpreterLatencyMs: averageSuccessfulLatency(session.interpreterLatencies)
+      }
+    };
+  }
+
+  function formatHistoryDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Saved session';
+    try { return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    catch (_) { return date.toLocaleString(); }
+  }
+
+  function makeTurnReviewCard(turn, index, { includePeek = true } = {}) {
+    const article = document.createElement('article');
+    article.className = 'wlp-ai-turn-review-card';
+    const head = document.createElement('div');
+    head.className = 'wlp-ai-turn-review-head';
+    const title = document.createElement('strong');
+    title.textContent = `${index + 1}. ${clean(turn?.target) || 'AI experience'}`;
+    const meta = document.createElement('small');
+    meta.textContent = [clean(turn?.wordId) ? `WID ${clean(turn.wordId)}` : '', clean(turn?.experienceType).replace(/-/g, ' '), clean(turn?.domain)].filter(Boolean).join(' · ');
+    head.append(title, meta);
+    article.appendChild(head);
+    addPeekField(article, 'Prompt', turn?.prompt);
+    addPeekField(article, 'Your response', turn?.learnerResponse);
+    addPeekField(article, 'Target feedback', turn?.targetFeedback);
+    addPeekField(article, 'Language feedback', turn?.languageFeedback);
+    addPeekField(article, 'Next step', turn?.nextStep);
+    if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm);
+    if (includePeek && turn?.card) {
+      const details = document.createElement('details');
+      details.className = 'wlp-ai-turn-card-peek';
+      const summary = document.createElement('summary');
+      summary.textContent = `View ${clean(turn?.target) || 'target'} card`;
+      const body = document.createElement('div');
+      body.className = 'wlp-ai-target-peek-body';
+      renderCardPeek(turn.card, body);
+      details.append(summary, body);
+      article.appendChild(details);
+    }
+    return article;
+  }
+
+  function renderSessionReview(session) {
+    const review = $('#wlp-ai-session-review');
+    if (!review) return;
+    const turns = Array.isArray(session?.turns) ? session.turns : [];
+    review.hidden = !turns.length;
+    if (!turns.length) return;
+    const targets = $('#wlp-ai-session-targets');
+    targets.textContent = '';
+    uniqueTexts(turns.map(turn => clean(turn?.target)), 8).forEach(value => {
+      const chip = document.createElement('span');
+      chip.textContent = value;
+      targets.appendChild(chip);
+    });
+    const targetNotes = uniqueTexts(turns.map(turn => turn?.targetFeedback), 3);
+    $('#wlp-ai-session-target-note').textContent = targetNotes.length
+      ? targetNotes.join(' ')
+      : 'Target-level evidence from the completed turn(s) was saved.';
+    const languageNotes = uniqueTexts(turns.map(turn => turn?.languageFeedback), 3);
+    $('#wlp-ai-session-language-note').textContent = languageNotes.length
+      ? languageNotes.join(' ')
+      : 'No separate language-level issue was highlighted in the completed turn(s).';
+    const nextSteps = uniqueTexts(turns.map(turn => turn?.nextStep), 3);
+    $('#wlp-ai-session-next-focus').textContent = nextSteps.length
+      ? nextSteps.join(' ')
+      : 'Future AI Study can adapt from the saved evidence.';
+    $('#wlp-ai-session-evidence-note').textContent = turns.length < 3
+      ? 'This is session evidence, not yet a stable long-term learner tendency. Repeated patterns across future sessions can become stronger learner-profile signals.'
+      : 'Repeated patterns across this and future sessions can contribute to stronger learner-profile signals; one session alone does not make a permanent trait.';
+    const list = $('#wlp-ai-session-turns-list');
+    list.textContent = '';
+    turns.forEach((turn, index) => list.appendChild(makeTurnReviewCard(turn, index)));
+  }
+
+  function renderHistory() {
+    const details = $('#wlp-ai-history');
+    const list = $('#wlp-ai-history-list');
+    if (!details || !list) return;
+    const history = readSessionHistory();
+    details.hidden = !history.length;
+    list.textContent = '';
+    history.slice(0, 8).forEach(record => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wlp-ai-history-item';
+      button.dataset.sessionId = clean(record.sessionId);
+      const targets = uniqueTexts((record.turns || []).map(turn => turn?.target), 3).join(', ');
+      const strong = document.createElement('strong');
+      strong.textContent = formatHistoryDate(record.endedAt || record.startedAt);
+      const meta = document.createElement('span');
+      meta.textContent = `${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}${targets ? ` · ${targets}` : ''}`;
+      button.append(strong, meta);
+      list.appendChild(button);
+    });
+  }
+
+  function openHistorySession(sessionId) {
+    const record = readSessionHistory().find(item => clean(item?.sessionId) === clean(sessionId));
+    if (!record) return;
+    const panel = $('#wlp-ai-history-review');
+    const body = $('#wlp-ai-history-review-body');
+    panel.hidden = false;
+    $('#wlp-ai-history-review-title').textContent = `${formatHistoryDate(record.endedAt || record.startedAt)} · ${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}`;
+    body.textContent = '';
+    const note = document.createElement('p');
+    note.className = 'wlp-ai-history-summary';
+    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}. This is the original prompt, response, and feedback from that session.`;
+    body.appendChild(note);
+    (Array.isArray(record.turns) ? record.turns : []).forEach((turn, index) => body.appendChild(makeTurnReviewCard(turn, index)));
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function reviewPriority(level) {
@@ -176,6 +456,14 @@
       <section class="wlp-ai-start-panel" id="wlp-ai-start-panel">
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
         <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source and session size are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
+        <details class="wlp-ai-history" id="wlp-ai-history" hidden>
+          <summary>Recent AI sessions</summary>
+          <div class="wlp-ai-history-list" id="wlp-ai-history-list"></div>
+        </details>
+        <section class="wlp-ai-history-review" id="wlp-ai-history-review" hidden>
+          <div class="wlp-ai-history-review-head"><div><span class="section-kicker">Past AI Study</span><h3 id="wlp-ai-history-review-title">Session review</h3></div><button class="wlp-ai-history-close" id="wlp-ai-history-close" type="button">Close</button></div>
+          <div id="wlp-ai-history-review-body"></div>
+        </section>
       </section>
 
       <section class="wlp-ai-experience" id="wlp-ai-experience" hidden aria-live="polite">
@@ -202,8 +490,12 @@
         <p class="wlp-ai-status" id="wlp-ai-status"></p>
         <section class="wlp-ai-feedback" id="wlp-ai-feedback" hidden>
           <div class="wlp-ai-feedback-head">
-            <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong></div>
+            <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong><small class="wlp-ai-target-id" id="wlp-ai-target-id"></small></div>
+            <button class="wlp-ai-target-peek-toggle" id="wlp-ai-target-peek-toggle" type="button">View WLP card</button>
           </div>
+          <section class="wlp-ai-target-peek" id="wlp-ai-target-peek" hidden>
+            <div id="wlp-ai-target-peek-body"></div>
+          </section>
           <div class="wlp-ai-feedback-block">
             <span class="wlp-ai-feedback-label">Target feedback</span>
             <p class="wlp-ai-feedback-text" id="wlp-ai-target-feedback"></p>
@@ -231,6 +523,14 @@
         <span class="section-kicker">AI Study</span><h2 id="wlp-ai-finished-title">Session complete.</h2>
         <p id="wlp-ai-finished-summary">Learning evidence from each completed experience is saved so future AI Study can adapt from it.</p>
         <div class="wlp-ai-finished-stats" id="wlp-ai-finished-stats"></div>
+        <section class="wlp-ai-session-review" id="wlp-ai-session-review" hidden>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Targets practiced</span><div class="wlp-ai-session-targets" id="wlp-ai-session-targets"></div></div>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Target takeaway</span><p id="wlp-ai-session-target-note"></p></div>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Language note</span><p id="wlp-ai-session-language-note"></p></div>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Next focus</span><p id="wlp-ai-session-next-focus"></p></div>
+          <p class="wlp-ai-session-evidence-note" id="wlp-ai-session-evidence-note"></p>
+          <details class="wlp-ai-session-turns"><summary>Review completed turns</summary><div id="wlp-ai-session-turns-list"></div></details>
+        </section>
         <details class="wlp-ai-diagnostics wlp-ai-session-diagnostics" id="wlp-ai-finished-diagnostics">
           <summary>Detailed diagnostics</summary>
           <div class="wlp-ai-diagnostics-body" id="wlp-ai-finished-diagnostics-body"></div>
@@ -447,6 +747,8 @@
     $('#wlp-ai-experience').hidden = false;
     $('#wlp-ai-finished').hidden = true;
     $('#wlp-ai-feedback').hidden = true;
+    $('#wlp-ai-target-peek').hidden = true;
+    $('#wlp-ai-target-peek-toggle').textContent = 'View WLP card';
     $('#wlp-ai-source-pill').textContent = state.session.source.label;
     $('#wlp-ai-progress').textContent = `${state.session.completed + 1} / ${state.session.total}`;
     const domain = clean(experience.domain);
@@ -565,12 +867,14 @@
       });
       state.session.completed += 1;
       state.session.committedEvents.push(committed.eventId);
-      renderFeedback(interpreterResult.response, committed, {
+      const turnDiagnostics = {
         interpreterElapsed,
         interpreterAttempts,
         provider: clean(interpreterResult.meta?.provider || state.activePlanner?.diagnostics?.provider),
         model: clean(interpreterResult.meta?.model || state.activePlanner?.diagnostics?.model)
-      });
+      };
+      state.session.turns.push(turnSnapshot(interpreterResult.response, text, turnDiagnostics));
+      renderFeedback(interpreterResult.response, committed, turnDiagnostics);
     } catch (error) {
       if (interpreterStarted != null) {
         const failedAttempts = addFailedUsage(error, 'interpreter', elapsedMs(interpreterStarted));
@@ -586,8 +890,13 @@
   }
 
   function renderFeedback(response, committed, turnDiagnostics = {}) {
-    const target = clean(state.activePlanner?.result?.response?.selectedTarget?.target);
+    const selected = state.activePlanner?.result?.response?.selectedTarget || {};
+    const target = clean(selected.target);
     $('#wlp-ai-feedback-target').textContent = target || 'AI Study';
+    $('#wlp-ai-target-id').textContent = clean(selected.wordId) ? `WID ${clean(selected.wordId)}` : '';
+    const card = currentCardSnapshot();
+    renderCardPeek(card, $('#wlp-ai-target-peek-body'));
+    $('#wlp-ai-target-peek-toggle').hidden = !clean(card.headword || card.definition || card.examples || card.notes);
 
     const learner = response?.learnerFacingResponse || {};
     const legacyFeedback = clean(learner.feedback || response?.evidence?.observationSummary || 'Response interpreted.');
@@ -674,6 +983,7 @@
       completed: 0,
       usedTargets: {},
       committedEvents: [],
+      turns: [],
       successfulAICalls: 0,
       failedAICalls: 0,
       providerAttempts: 0,
@@ -713,6 +1023,10 @@
       stats.appendChild(span);
     });
 
+    renderSessionReview(session);
+    if (session.completed) saveSessionHistory(sessionRecord(session));
+    renderHistory();
+
     const diagnostics = $('#wlp-ai-finished-diagnostics-body');
     diagnostics.textContent = '';
     const plannerAvg = averageSuccessfulLatency(session.plannerLatencies);
@@ -745,6 +1059,8 @@
     $('#wlp-ai-experience').hidden = true;
     $('#wlp-ai-finished').hidden = true;
     $('#wlp-ai-start-panel').hidden = false;
+    $('#wlp-ai-history-review').hidden = true;
+    renderHistory();
     $('#wlp-ai-start').disabled = !state.providerReady;
     setStatus('');
     refreshProviderStatus();
@@ -764,6 +1080,19 @@
     });
     $('#wlp-ai-end')?.addEventListener('click', finishSession);
     $('#wlp-ai-again')?.addEventListener('click', resetSession);
+    $('#wlp-ai-target-peek-toggle')?.addEventListener('click', () => {
+      const panel = $('#wlp-ai-target-peek');
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      $('#wlp-ai-target-peek-toggle').textContent = panel.hidden ? 'View WLP card' : 'Hide WLP card';
+    });
+    $('#wlp-ai-history-list')?.addEventListener('click', event => {
+      const button = event.target.closest?.('[data-session-id]');
+      if (button) openHistorySession(button.dataset.sessionId);
+    });
+    $('#wlp-ai-history-close')?.addEventListener('click', () => {
+      $('#wlp-ai-history-review').hidden = true;
+    });
     $('#wlp-ai-response')?.addEventListener('keydown', event => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') interpretResponse();
     });
@@ -775,6 +1104,7 @@
     let stored = 'standard';
     try { stored = localStorage.getItem(MODE_KEY) || 'standard'; } catch (_) {}
     setMode(stored === 'ai' ? 'ai' : 'standard', false);
+    renderHistory();
     window.WLPAIStudyUI = Object.freeze({
       version: VERSION,
       getMode: () => state.mode,
