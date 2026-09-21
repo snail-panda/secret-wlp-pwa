@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.5.1';
+  const VERSION = '1.6.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -21,6 +21,7 @@
     { value: 'reformulation', label: 'Reformulation', help: 'Rewrite an idea in a more precise, natural, or target-compatible way.' },
     { value: 'free-composition', label: 'Free composition', help: 'Produce a full sentence or short passage with minimal lexical prompting.' },
     { value: 'reverse-reconstruction', label: 'Reverse reconstruction', help: 'Rebuild an expression or formulation from its intended meaning or communicative effect.' },
+    { value: 'sentence-reconstruction', label: 'Sentence reconstruction', help: 'Reorder shuffled chunks into one natural sentence. Standard mode uses every chunk once with no distractors.' },
     { value: 'continuation', label: 'Continuation', help: 'Continue a sentence, thought, or exchange naturally.' }
   ]);
 
@@ -30,7 +31,8 @@
     providerReady: false,
     session: null,
     activePlanner: null,
-    busy: false
+    busy: false,
+    reconstruction: null
   };
 
   const $ = selector => document.querySelector(selector);
@@ -676,6 +678,7 @@
             <option value="reformulation">Reformulation</option>
             <option value="free-composition">Free composition</option>
             <option value="reverse-reconstruction">Reverse reconstruction</option>
+            <option value="sentence-reconstruction">Sentence reconstruction</option>
             <option value="continuation">Continuation</option>
           </select></label>
           <p id="wlp-ai-practice-type-help">Default. WLP chooses the experience type from your current route evidence and target context.</p>
@@ -702,9 +705,22 @@
           <h2 id="wlp-ai-domain" hidden></h2>
           <p class="wlp-ai-prompt" id="wlp-ai-prompt"></p>
           <p class="wlp-ai-frame" id="wlp-ai-frame" hidden></p>
+          <div class="wlp-ai-reconstruction" id="wlp-ai-reconstruction" hidden>
+            <span class="wlp-ai-reconstruction-label">Arrange the chunks</span>
+            <p>Tap the chunks in the order that makes one natural sentence.</p>
+            <div class="wlp-ai-reconstruction-bank" id="wlp-ai-reconstruction-bank" aria-label="Available chunks"></div>
+            <div class="wlp-ai-reconstruction-answer-wrap">
+              <span>Your sentence</span>
+              <div class="wlp-ai-reconstruction-answer" id="wlp-ai-reconstruction-answer" aria-live="polite"></div>
+            </div>
+            <div class="wlp-ai-reconstruction-controls">
+              <button type="button" id="wlp-ai-reconstruction-undo">Undo</button>
+              <button type="button" id="wlp-ai-reconstruction-clear">Clear</button>
+            </div>
+          </div>
           <span class="wlp-ai-visible-target" id="wlp-ai-visible-target" hidden></span>
         </div>
-        <label class="wlp-ai-response-field" for="wlp-ai-response">
+        <label class="wlp-ai-response-field" id="wlp-ai-response-field" for="wlp-ai-response">
           <span id="wlp-ai-response-label">What would you naturally say?</span>
           <textarea id="wlp-ai-response" rows="3" placeholder="Type the expression or sentence that comes naturally."></textarea>
           <small>Say what comes naturally. If another expression fits better, that is useful learning evidence too.</small>
@@ -786,10 +802,19 @@
 
   function setBusy(busy, message = '') {
     state.busy = Boolean(busy);
-    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end'].forEach(selector => {
+    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear'].forEach(selector => {
       const el = $(selector);
       if (el) el.disabled = state.busy;
     });
+    if (!state.busy && state.reconstruction) {
+      syncReconstructionResponse();
+      if (state.reconstruction.locked) {
+        const undo = $('#wlp-ai-reconstruction-undo');
+        const clear = $('#wlp-ai-reconstruction-clear');
+        if (undo) undo.disabled = true;
+        if (clear) clear.disabled = true;
+      }
+    }
     if (message) setStatus(message);
   }
 
@@ -860,6 +885,91 @@
       pill.classList.add('is-error');
       if (start && !state.session) start.disabled = true;
     }
+  }
+
+  function parseReconstructionPrompt(value) {
+    const source = clean(value);
+    const marker = source.match(/(?:^|\n)\s*RECONSTRUCTION_UNITS:\s*(.+?)\s*$/im);
+    if (!marker) return null;
+    const units = marker[1].split('||').map(clean).filter(Boolean);
+    if (units.length < 3) return null;
+    const prompt = clean(source.replace(marker[0], ''));
+    return { prompt, units };
+  }
+
+  function shuffleReconstructionUnits(units) {
+    const copy = units.map((text, index) => ({ id: `chunk-${index}-${Math.random().toString(36).slice(2, 7)}`, text }));
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function joinReconstructionChunks(chunks) {
+    return chunks.map(item => clean(item.text)).filter(Boolean).join(' ')
+      .replace(/\s+([,.;:!?])/g, '$1')
+      .replace(/([\[(“‘])\s+/g, '$1')
+      .replace(/\s+([)\]”’])/g, '$1')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  function syncReconstructionResponse() {
+    const responseBox = $('#wlp-ai-response');
+    if (!responseBox) return;
+    responseBox.value = joinReconstructionChunks(state.reconstruction?.selected || []);
+    const submit = $('#wlp-ai-submit');
+    if (submit && state.reconstruction) submit.disabled = state.reconstruction.selected.length !== state.reconstruction.units.length;
+  }
+
+  function renderReconstruction() {
+    const wrap = $('#wlp-ai-reconstruction');
+    const bank = $('#wlp-ai-reconstruction-bank');
+    const answer = $('#wlp-ai-reconstruction-answer');
+    if (!wrap || !bank || !answer || !state.reconstruction) return;
+    wrap.hidden = false;
+    bank.replaceChildren();
+    answer.replaceChildren();
+    const selectedIds = new Set(state.reconstruction.selected.map(item => item.id));
+    state.reconstruction.units.filter(item => !selectedIds.has(item.id)).forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wlp-ai-reconstruction-chip';
+      button.dataset.reconstructionAdd = item.id;
+      button.textContent = item.text;
+      button.disabled = Boolean(state.reconstruction.locked);
+      bank.append(button);
+    });
+    state.reconstruction.selected.forEach((item, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wlp-ai-reconstruction-chip is-selected';
+      button.dataset.reconstructionRemove = String(index);
+      button.title = 'Tap to remove this chunk';
+      button.textContent = item.text;
+      button.disabled = Boolean(state.reconstruction.locked);
+      answer.append(button);
+    });
+    if (!state.reconstruction.selected.length) {
+      const empty = document.createElement('span');
+      empty.className = 'wlp-ai-reconstruction-empty';
+      empty.textContent = 'Your selected chunks will appear here.';
+      answer.append(empty);
+    }
+    const undo = $('#wlp-ai-reconstruction-undo');
+    const clear = $('#wlp-ai-reconstruction-clear');
+    if (undo) undo.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
+    if (clear) clear.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
+    syncReconstructionResponse();
+  }
+
+  function resetReconstruction() {
+    state.reconstruction = null;
+    const wrap = $('#wlp-ai-reconstruction');
+    if (wrap) wrap.hidden = true;
+    const field = $('#wlp-ai-response-field');
+    if (field) field.hidden = false;
   }
 
   async function buildCandidateContext(session) {
@@ -987,6 +1097,7 @@
     if (frameEl) { frameEl.textContent = ''; frameEl.hidden = true; }
     const visibleTarget = $('#wlp-ai-visible-target');
     if (visibleTarget) { visibleTarget.textContent = ''; visibleTarget.hidden = true; }
+    resetReconstruction();
     const responseBox = $('#wlp-ai-response');
     if (responseBox) { responseBox.value = ''; responseBox.disabled = true; }
     const submit = $('#wlp-ai-submit');
@@ -1014,11 +1125,12 @@
     domainEl.textContent = domain;
     domainEl.hidden = !domain;
     $('#wlp-ai-experience-label').textContent = clean(experience.type || response.learningOpportunity?.direction || 'Adaptive experience').replace(/-/g, ' ');
-    $('#wlp-ai-prompt').textContent = clean(experience.prompt);
+    const reconstruction = clean(experience.type) === 'sentence-reconstruction' ? parseReconstructionPrompt(experience.prompt) : null;
+    $('#wlp-ai-prompt').textContent = reconstruction ? reconstruction.prompt : clean(experience.prompt);
     const frame = clean(experience.responseFrame);
     const frameEl = $('#wlp-ai-frame');
     frameEl.textContent = frame ? frame.replace(/\{answer\}/g, '______') : '';
-    frameEl.hidden = !frame;
+    frameEl.hidden = !frame || Boolean(reconstruction);
     const visibleTarget = $('#wlp-ai-visible-target');
     const visibility = clean(experience.targetVisibility).toLowerCase();
     if (visibility === 'visible') {
@@ -1033,10 +1145,19 @@
     }
     const responseBox = $('#wlp-ai-response');
     responseBox.value = '';
-    responseBox.disabled = false;
+    const responseField = $('#wlp-ai-response-field');
+    if (reconstruction) {
+      state.reconstruction = { units: shuffleReconstructionUnits(reconstruction.units), selected: [], locked: false };
+      responseBox.disabled = false;
+      responseField.hidden = true;
+      renderReconstruction();
+    } else {
+      resetReconstruction();
+      responseBox.disabled = false;
+    }
     $('#wlp-ai-submit').hidden = false;
     $('#wlp-ai-no-idea').hidden = false;
-    $('#wlp-ai-submit').disabled = false;
+    $('#wlp-ai-submit').disabled = Boolean(reconstruction);
     $('#wlp-ai-no-idea').disabled = false;
     setStatus('');
     responseBox.focus({ preventScroll: true });
@@ -1220,6 +1341,7 @@
     nextButton.textContent = done ? 'Finish session' : 'Next experience';
     $('#wlp-ai-feedback').hidden = false;
     $('#wlp-ai-response').disabled = true;
+    if (state.reconstruction) { state.reconstruction.locked = true; renderReconstruction(); }
     $('#wlp-ai-submit').hidden = true;
     $('#wlp-ai-no-idea').hidden = true;
     $('#wlp-ai-progress').textContent = `${state.session.completed} / ${state.session.total}`;
@@ -1329,6 +1451,7 @@
   function resetSession({ focusStart = false, scrollStart = false } = {}) {
     state.session = null;
     state.activePlanner = null;
+    resetReconstruction();
     $('#wlp-ai-experience').hidden = true;
     $('#wlp-ai-finished').hidden = true;
     $('#wlp-ai-start-panel').hidden = false;
@@ -1363,6 +1486,32 @@
     });
     $('#wlp-ai-history-close')?.addEventListener('click', () => {
       $('#wlp-ai-history-review').hidden = true;
+    });
+    $('#wlp-ai-reconstruction')?.addEventListener('click', event => {
+      if (!state.reconstruction || state.busy) return;
+      const add = event.target.closest?.('[data-reconstruction-add]');
+      if (add) {
+        const item = state.reconstruction.units.find(chunk => chunk.id === add.dataset.reconstructionAdd);
+        if (item && !state.reconstruction.selected.some(chunk => chunk.id === item.id)) state.reconstruction.selected.push(item);
+        renderReconstruction();
+        return;
+      }
+      const remove = event.target.closest?.('[data-reconstruction-remove]');
+      if (remove) {
+        const index = Number(remove.dataset.reconstructionRemove);
+        if (Number.isInteger(index) && index >= 0) state.reconstruction.selected.splice(index, 1);
+        renderReconstruction();
+      }
+    });
+    $('#wlp-ai-reconstruction-undo')?.addEventListener('click', () => {
+      if (!state.reconstruction || state.busy) return;
+      state.reconstruction.selected.pop();
+      renderReconstruction();
+    });
+    $('#wlp-ai-reconstruction-clear')?.addEventListener('click', () => {
+      if (!state.reconstruction || state.busy) return;
+      state.reconstruction.selected = [];
+      renderReconstruction();
     });
     $('#wlp-ai-response')?.addEventListener('keydown', event => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') interpretResponse();

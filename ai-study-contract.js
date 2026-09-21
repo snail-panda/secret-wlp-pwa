@@ -1,12 +1,12 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.7';
+  const VERSION = '1.1.8';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
     directions: ['world-to-expression','expression-to-world','concept-to-expression','expression-to-concept','message-to-expression','expression-to-message','neighbor-to-target','target-to-neighbor','cross-domain-transfer','cross-sense-transfer','free-composition'],
-    experienceTypes: ['situational-production','reverse-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
+    experienceTypes: ['situational-production','reverse-reconstruction','sentence-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
     targetVisibility: ['hidden','visible','partial'],
     responseConstraints: ['open','fixed-frame'],
     motivationStrength: ['weak','natural','strong'],
@@ -241,7 +241,7 @@
     }
 
     const productionDirections = new Set(['world-to-expression','concept-to-expression','message-to-expression','neighbor-to-target']);
-    const exploratoryTypes = new Set(['contrast','reformulation','reverse-reconstruction']);
+    const exploratoryTypes = new Set(['contrast','reformulation','reverse-reconstruction','sentence-reconstruction']);
     const productionOriented = productionDirections.has(direction) && !exploratoryTypes.has(type);
     if (productionOriented && motivation !== 'strong') {
       push(warnings, '$.usageMotivation.motivationStrength', 'production-oriented experience should normally make the target strongly motivated by the situation/message');
@@ -255,6 +255,20 @@
     if (clozeLikePrompt && responseConstraint !== 'fixed-frame') {
       push(errors, '$.experience.responseConstraint', 'cloze/fill-in prompts must declare fixed-frame response constraint');
     }
+    if (type === 'sentence-reconstruction') {
+      const marker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_UNITS:\s*(.+?)\s*$/im);
+      const units = marker ? marker[1].split('||').map(text).filter(Boolean) : [];
+      if (!marker || units.length < 3 || units.length > 12) {
+        push(errors, '$.experience.prompt', 'sentence-reconstruction prompt must include RECONSTRUCTION_UNITS with 3 to 12 ||-separated chunks');
+      }
+      if (visibility !== 'visible') {
+        push(errors, '$.experience.targetVisibility', 'sentence-reconstruction must use visible target because the target is part of the reconstruction material');
+      }
+      if (responseConstraint !== 'open') {
+        push(errors, '$.experience.responseConstraint', 'sentence-reconstruction must use open response constraint');
+      }
+    }
+
     if (responseConstraint === 'fixed-frame') {
       const answerMarkers = (responseFrame.match(/\{answer\}/g) || []).length;
       if (answerMarkers !== 1) {
@@ -522,6 +536,9 @@
     const promptedRetrieval = experienceType === 'cloze' || responseConstraint === 'fixed-frame';
     const responseShowsUsableMeaning = value.interpretation?.targetProduced === true || value.interpretation?.targetFamilyReached === true ||
       classes.has('natural-neighbor') || classes.has('natural-alternative');
+    if (experienceType === 'sentence-reconstruction' && responseShowsUsableMeaning && !evidenceTypes.has('reverse-reconstruction')) {
+      push(warnings, '$.evidence.evidenceTypes', 'sentence-reconstruction ordinarily demonstrates reverse-reconstruction evidence; consider recording it when the learner successfully assembles the sentence');
+    }
     if (promptedRetrieval && responseShowsUsableMeaning && !evidenceTypes.has('cue-based-retrieval')) {
       push(warnings, '$.evidence.evidenceTypes', 'cloze/fixed-frame production is ordinarily cue-based-retrieval; consider recording that evidence instead of stronger production labels');
     }
@@ -696,6 +713,17 @@
     forcedAlternativePlanner.requestId = 'self-plan-forced-alternative';
     forcedAlternativePlanner.naturalnessCheck.targetIsRequired = true;
 
+    const sentenceReconstructionPlanner = JSON.parse(JSON.stringify(goodPlanner));
+    sentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction';
+    sentenceReconstructionPlanner.experience.type = 'sentence-reconstruction';
+    sentenceReconstructionPlanner.experience.targetVisibility = 'visible';
+    sentenceReconstructionPlanner.experience.responseMode = 'reconstruction';
+    sentenceReconstructionPlanner.experience.responseConstraint = 'open';
+    sentenceReconstructionPlanner.experience.responseFrame = '';
+    sentenceReconstructionPlanner.experience.frameCompatibleAlternatives = [];
+    sentenceReconstructionPlanner.experience.frameCompatibilityVerified = true;
+    sentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence describing the scent spreading through the room.\nRECONSTRUCTION_UNITS: throughout the room. || gradually diffused || The scent || from the doorway';
+
     const goodInterpreter = {
       schemaVersion: 1, contract: 'interpreter-router-v1.response', requestId: 'self-int-1', sessionId: 'self-session', eventId: 'event-1',
       interpretation: { responseClasses: ['natural-neighbor'], conceptMatched: true, targetProduced: false, targetFamilyReached: false, naturalAlternativesObserved: ['spread'], formIssue: null, senseIssue: null, interpretationConfidence: 'high' },
@@ -797,6 +825,7 @@
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
       { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
       { name: 'planner-valid-fixed-frame-compatible-alternatives', expected: 'VALID', actual: validatePlannerResponse(fixedFramePlanner).status },
+      { name: 'planner-valid-sentence-reconstruction', expected: 'VALID', actual: validatePlannerResponse(sentenceReconstructionPlanner).status },
       { name: 'planner-reject-fixed-frame-unlisted-direct-alternative', expected: 'REJECT', actual: validatePlannerResponse(badFixedFramePlanner).status },
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
