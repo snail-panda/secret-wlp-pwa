@@ -825,6 +825,18 @@ function normalizePlannerExperienceContract(result) {
   // valid one-slot cloze frame but mislabels the response constraint, repair
   // only that metadata mismatch before the shared client contract validates it.
   if (type === 'cloze' && placeholderCount === 1) experience.responseConstraint = 'fixed-frame';
+  // Provider outputs occasionally include a frame-compatible alternative that
+  // was not also copied into anticipatedNaturalAlternatives. The shared
+  // contract intentionally requires the former to be a subset of the latter.
+  // Repair only this bookkeeping mismatch by keeping the verified intersection;
+  // broader alternatives remain available through anticipatedNaturalAlternatives.
+  if (clean(experience.responseConstraint).toLowerCase() === 'fixed-frame') {
+    const anticipated = Array.isArray(experience.anticipatedNaturalAlternatives) ? experience.anticipatedNaturalAlternatives : [];
+    const allowed = new Set(anticipated.map(item => clean(item).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ')).filter(Boolean));
+    if (Array.isArray(experience.frameCompatibleAlternatives)) {
+      experience.frameCompatibleAlternatives = experience.frameCompatibleAlternatives.filter(item => allowed.has(clean(item).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ')));
+    }
+  }
   if (type === 'sentence-reconstruction') {
     experience.targetVisibility = 'visible';
     experience.responseMode = 'reconstruction';

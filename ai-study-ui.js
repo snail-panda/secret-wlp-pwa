@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.6.0';
+  const VERSION = '1.6.1';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -21,7 +21,7 @@
     { value: 'reformulation', label: 'Reformulation', help: 'Rewrite an idea in a more precise, natural, or target-compatible way.' },
     { value: 'free-composition', label: 'Free composition', help: 'Produce a full sentence or short passage with minimal lexical prompting.' },
     { value: 'reverse-reconstruction', label: 'Reverse reconstruction', help: 'Rebuild an expression or formulation from its intended meaning or communicative effect.' },
-    { value: 'sentence-reconstruction', label: 'Sentence reconstruction', help: 'Reorder shuffled chunks into one natural sentence. Standard mode uses every chunk once with no distractors.' },
+    { value: 'sentence-reconstruction', label: 'Sentence reconstruction', help: 'Reorder shuffled chunks into one natural sentence. The current baseline uses every chunk once with no distractors.' },
     { value: 'continuation', label: 'Continuation', help: 'Continue a sentence, thought, or exchange naturally.' }
   ]);
 
@@ -404,7 +404,7 @@
     addPeekField(article, 'Next step', turn?.nextStep);
     const highlightTerms = [clean(turn?.target), ...(Array.isArray(turn?.targetFamily) ? turn.targetFamily.map(clean) : [])].filter(Boolean);
     if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm, highlightTerms);
-    else if (clean(turn?.modelResponse)) addPeekField(article, 'Natural example', turn.modelResponse, highlightTerms);
+    else if (clean(turn?.modelResponse)) addPeekField(article, clean(turn?.experienceType) === 'sentence-reconstruction' ? 'One natural answer' : 'Natural example', turn.modelResponse, highlightTerms);
     if (includePeek && clean(turn?.wordId)) {
       const actions = document.createElement('div');
       actions.className = 'wlp-ai-turn-card-actions';
@@ -1295,7 +1295,12 @@
     const modelResponse = clean(learner.modelResponse);
     const modelDisplay = learner.correctionNeeded && suggested ? suggested : modelResponse;
     if (modelDisplay) {
-      modelLabel.textContent = learner.correctionNeeded && suggested ? 'Natural form' : 'Natural example';
+      const experienceType = clean(state.activePlanner?.result?.response?.experience?.type);
+      modelLabel.textContent = learner.correctionNeeded && suggested
+        ? 'Natural form'
+        : experienceType === 'sentence-reconstruction'
+          ? 'One natural answer'
+          : 'Natural example';
       const family = Array.isArray(selected.targetFamily) ? selected.targetFamily : [];
       renderHighlightedText(modelText, modelDisplay, [target, ...family]);
       modelBlock.hidden = false;

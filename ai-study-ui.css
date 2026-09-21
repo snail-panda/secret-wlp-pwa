@@ -115,7 +115,7 @@
 .wlp-ai-model-response-text strong{color:#2f5b45;font-weight:700}
 .wlp-ai-next-wrap{margin-top:12px;padding-top:12px;border-top:1px solid #dee8e1}
 .wlp-ai-next-label{display:block;margin-bottom:4px;color:#71867a;font-size:.61rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
-.wlp-ai-next-wrap small{display:block;margin-bottom:7px;color:#647a6e;font-size:.68rem;line-height:1.4}
+.wlp-ai-next-wrap small{display:block;margin-bottom:8px;color:#647a6e;font-size:.78rem;line-height:1.5}
 
 .wlp-ai-diagnostics{margin-top:12px;border-top:1px solid #e0e9e2;padding-top:9px;text-align:left}
 .wlp-ai-diagnostics summary{cursor:pointer;color:#7d8b83;font-size:.64rem;font-weight:750;letter-spacing:.02em;list-style-position:inside}
