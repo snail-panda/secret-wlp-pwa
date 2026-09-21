@@ -646,6 +646,47 @@
           "type": "string",
           "minLength": 1,
           "description": "A concise learner-facing suggestion for what to notice or try next. Keep internal router labels and implementation language out of this field."
+        },
+        "languageObservations": {
+          "type": "array",
+          "maxItems": 3,
+          "description": "Structured language-level observations from this turn for local session aggregation. Include only high-value observations; use an empty array for short responses with no meaningful language-level signal.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "category",
+              "assessment",
+              "summary"
+            ],
+            "properties": {
+              "category": {
+                "enum": [
+                  "grammar",
+                  "articles",
+                  "tense-aspect",
+                  "number",
+                  "prepositions",
+                  "word-order",
+                  "idiomaticity",
+                  "tone-register",
+                  "concision",
+                  "sentence-packaging",
+                  "other"
+                ]
+              },
+              "assessment": {
+                "enum": [
+                  "strength",
+                  "improve"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 4
+              }
+            }
+          }
         }
       }
     }

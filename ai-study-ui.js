@@ -1,12 +1,11 @@
-/* WLP Stage 7 — AI Study connected review v1.8.6.55 R2-B
+/* WLP Stage 7 — AI Study history + quick card + session insights v1.8.6.56 R2-C
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
-  const SESSION_HISTORY_LIMIT = 50;
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
@@ -58,10 +57,10 @@
   }
 
   function saveSessionHistory(record) {
-    if (!record?.sessionId || !num(record.completed)) return;
+    if (!record?.sessionId || !num(record.completed)) return true;
     const history = readSessionHistory().filter(item => clean(item?.sessionId) !== clean(record.sessionId));
     history.unshift(clone(record));
-    writeJson(SESSION_HISTORY_KEY, history.slice(0, SESSION_HISTORY_LIMIT));
+    return writeJson(SESSION_HISTORY_KEY, history);
   }
 
   function currentTargetPacket() {
@@ -157,10 +156,19 @@
       learnerResponse: clean(learnerText),
       targetFeedback: clean(learner.targetFeedback || learner.feedback || response?.evidence?.observationSummary),
       languageFeedback: clean(learner.languageFeedback),
+      languageObservations: Array.isArray(learner.languageObservations) ? learner.languageObservations.map(item => ({
+        category: clean(item?.category),
+        assessment: clean(item?.assessment),
+        summary: clean(item?.summary)
+      })).filter(item => item.category && item.assessment && item.summary).slice(0, 3) : [],
       nextStep: clean(learner.nextStep),
       correctionNeeded: learner.correctionNeeded === true,
       suggestedNaturalForm: clean(learner.suggestedNaturalForm),
-      card: currentCardSnapshot(),
+      responseClasses: Array.isArray(response?.interpretation?.responseClasses) ? response.interpretation.responseClasses.map(clean).filter(Boolean) : [],
+      conceptMatched: response?.interpretation?.conceptMatched === true,
+      targetProduced: response?.interpretation?.targetProduced === true,
+      targetFamilyReached: response?.interpretation?.targetFamilyReached === true,
+      learnerExpressionNatural: response?.communicativeInterpretation?.learnerExpressionNatural === true,
       diagnostics: {
         routerAction: clean(response?.router?.action),
         routerReason: clean(response?.router?.reason),
@@ -187,6 +195,106 @@
     return out;
   }
 
+  const LANGUAGE_CATEGORY_LABELS = Object.freeze({
+    grammar: 'grammar',
+    articles: 'article choice',
+    'tense-aspect': 'tense / aspect',
+    number: 'singular / plural',
+    prepositions: 'preposition choice',
+    'word-order': 'word order',
+    idiomaticity: 'idiomatic wording',
+    'tone-register': 'tone / register',
+    concision: 'concision',
+    'sentence-packaging': 'sentence packaging',
+    other: 'other language use'
+  });
+
+  function languageObservationGroups(turns) {
+    const groups = new Map();
+    (Array.isArray(turns) ? turns : []).forEach((turn, turnIndex) => {
+      (Array.isArray(turn?.languageObservations) ? turn.languageObservations : []).forEach(item => {
+        const category = clean(item?.category) || 'other';
+        const assessment = clean(item?.assessment);
+        const summary = clean(item?.summary);
+        if (!summary || !['strength','improve'].includes(assessment)) return;
+        const key = `${assessment}:${category}`;
+        if (!groups.has(key)) groups.set(key, { category, assessment, summaries: [], turns: new Set() });
+        const group = groups.get(key);
+        group.turns.add(turnIndex);
+        if (!group.summaries.some(value => value.toLowerCase() === summary.toLowerCase())) group.summaries.push(summary);
+      });
+    });
+    return Array.from(groups.values()).map(group => ({ ...group, count: group.turns.size }));
+  }
+
+  function buildSessionInsights(turnsInput) {
+    const turns = Array.isArray(turnsInput) ? turnsInput : [];
+    const total = turns.length;
+    if (!total) {
+      return {
+        whatWentWell: 'No interpreted experience was completed.',
+        patterns: 'No session pattern is available yet.',
+        worthRevisiting: 'Complete an experience to create reviewable learning evidence.',
+        nextFocus: 'Start a new AI experience when you are ready.',
+        evidenceNote: 'No completed turn means there is no learner evidence to aggregate.'
+      };
+    }
+
+    const produced = turns.filter(turn => turn?.targetProduced || turn?.targetFamilyReached).length;
+    const concept = turns.filter(turn => turn?.conceptMatched).length;
+    const natural = turns.filter(turn => turn?.learnerExpressionNatural).length;
+    const groups = languageObservationGroups(turns);
+    const strengths = groups.filter(group => group.assessment === 'strength').sort((a,b) => b.count - a.count);
+    const improvements = groups.filter(group => group.assessment === 'improve').sort((a,b) => b.count - a.count);
+
+    const well = [];
+    if (produced) well.push(`${produced}/${total} completed turn${total === 1 ? '' : 's'} reached the WLP target or target family.`);
+    else if (concept) well.push(`${concept}/${total} completed turn${total === 1 ? '' : 's'} matched the intended concept even when the exact WLP target was not produced.`);
+    if (natural) well.push(`Your response was judged natural in ${natural}/${total} completed turn${total === 1 ? '' : 's'}.`);
+    strengths.slice(0, 2).forEach(group => {
+      const label = LANGUAGE_CATEGORY_LABELS[group.category] || group.category;
+      const sample = group.summaries[0];
+      well.push(total > 1 && group.count > 1 ? `${label} was a strength in ${group.count} turns. ${sample}` : sample);
+    });
+    if (!well.length) well.push('The completed turn(s) created usable learning evidence even though no broad strength was promoted from this session alone.');
+
+    let patterns = '';
+    if (total === 1) {
+      patterns = 'Only one turn was completed, so this is a session observation rather than a repeated pattern.';
+    } else {
+      const repeated = [...strengths, ...improvements].filter(group => group.count >= 2).slice(0, 3);
+      patterns = repeated.length
+        ? repeated.map(group => `${LANGUAGE_CATEGORY_LABELS[group.category] || group.category}: ${group.count}/${total} turns (${group.assessment === 'strength' ? 'strength' : 'worth attention'}).`).join(' ')
+        : 'No language issue repeated often enough inside this session to call it a session-level pattern.';
+    }
+
+    const revisit = [];
+    improvements.slice(0, 3).forEach(group => {
+      const label = LANGUAGE_CATEGORY_LABELS[group.category] || group.category;
+      revisit.push(`${label}: ${group.summaries[0]}`);
+    });
+    const mismatchCounts = new Map();
+    turns.forEach(turn => (turn?.responseClasses || []).forEach(cls => {
+      if (!['form-mismatch','sense-mismatch','register-mismatch'].includes(cls)) return;
+      mismatchCounts.set(cls, (mismatchCounts.get(cls) || 0) + 1);
+    }));
+    mismatchCounts.forEach((count, cls) => {
+      const label = cls === 'form-mismatch' ? 'target form / construction' : cls === 'sense-mismatch' ? 'target sense' : 'register fit';
+      if (!revisit.some(text => text.toLowerCase().includes(label))) revisit.push(`${label}: appeared in ${count} completed turn${count === 1 ? '' : 's'}.`);
+    });
+
+    const nextSteps = uniqueTexts(turns.map(turn => turn?.nextStep), 2);
+    return {
+      whatWentWell: well.join(' '),
+      patterns,
+      worthRevisiting: revisit.length ? revisit.slice(0, 3).join(' ') : 'No repeated or high-priority issue stood out in the completed turn(s).',
+      nextFocus: nextSteps.length ? nextSteps.join(' ') : 'Future AI Study can adapt from the saved evidence.',
+      evidenceNote: total < 3
+        ? 'This is session evidence, not yet a stable long-term learner tendency. Repeated patterns across future sessions can become stronger learner-profile signals.'
+        : 'Session patterns are useful evidence, but long-term learner tendencies still require corroboration across multiple targets, contexts, and sessions.'
+    };
+  }
+
   function sessionRecord(session) {
     return {
       sessionId: clean(session.sessionId),
@@ -197,6 +305,7 @@
       completed: num(session.completed),
       completedAll: num(session.completed) >= num(session.total),
       turns: clone(Array.isArray(session.turns) ? session.turns : []),
+      insights: buildSessionInsights(session.turns),
       provider: clean(session.provider),
       model: clean(session.model),
       diagnostics: {
@@ -236,16 +345,16 @@
     addPeekField(article, 'Language feedback', turn?.languageFeedback);
     addPeekField(article, 'Next step', turn?.nextStep);
     if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm);
-    if (includePeek && turn?.card) {
-      const details = document.createElement('details');
-      details.className = 'wlp-ai-turn-card-peek';
-      const summary = document.createElement('summary');
-      summary.textContent = `View ${clean(turn?.target) || 'target'} card`;
-      const body = document.createElement('div');
-      body.className = 'wlp-ai-target-peek-body';
-      renderCardPeek(turn.card, body);
-      details.append(summary, body);
-      article.appendChild(details);
+    if (includePeek && clean(turn?.wordId)) {
+      const actions = document.createElement('div');
+      actions.className = 'wlp-ai-turn-card-actions';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wlp-ai-quick-card-button';
+      button.dataset.quickCardWordId = clean(turn.wordId);
+      button.textContent = `View ${clean(turn?.target) || 'target'} card`;
+      actions.appendChild(button);
+      article.appendChild(actions);
     }
     return article;
   }
@@ -256,28 +365,26 @@
     const turns = Array.isArray(session?.turns) ? session.turns : [];
     review.hidden = !turns.length;
     if (!turns.length) return;
+
     const targets = $('#wlp-ai-session-targets');
     targets.textContent = '';
-    uniqueTexts(turns.map(turn => clean(turn?.target)), 8).forEach(value => {
-      const chip = document.createElement('span');
+    uniqueTexts(turns.map(turn => clean(turn?.target)), 12).forEach((value, index) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'wlp-ai-session-target-chip';
       chip.textContent = value;
+      const turn = turns.find(item => clean(item?.target).toLowerCase() === value.toLowerCase());
+      if (clean(turn?.wordId)) chip.dataset.quickCardWordId = clean(turn.wordId);
       targets.appendChild(chip);
     });
-    const targetNotes = uniqueTexts(turns.map(turn => turn?.targetFeedback), 3);
-    $('#wlp-ai-session-target-note').textContent = targetNotes.length
-      ? targetNotes.join(' ')
-      : 'Target-level evidence from the completed turn(s) was saved.';
-    const languageNotes = uniqueTexts(turns.map(turn => turn?.languageFeedback), 3);
-    $('#wlp-ai-session-language-note').textContent = languageNotes.length
-      ? languageNotes.join(' ')
-      : 'No separate language-level issue was highlighted in the completed turn(s).';
-    const nextSteps = uniqueTexts(turns.map(turn => turn?.nextStep), 3);
-    $('#wlp-ai-session-next-focus').textContent = nextSteps.length
-      ? nextSteps.join(' ')
-      : 'Future AI Study can adapt from the saved evidence.';
-    $('#wlp-ai-session-evidence-note').textContent = turns.length < 3
-      ? 'This is session evidence, not yet a stable long-term learner tendency. Repeated patterns across future sessions can become stronger learner-profile signals.'
-      : 'Repeated patterns across this and future sessions can contribute to stronger learner-profile signals; one session alone does not make a permanent trait.';
+
+    const insights = session?.insights && typeof session.insights === 'object' ? session.insights : buildSessionInsights(turns);
+    $('#wlp-ai-session-well').textContent = clean(insights.whatWentWell);
+    $('#wlp-ai-session-patterns').textContent = clean(insights.patterns);
+    $('#wlp-ai-session-revisit').textContent = clean(insights.worthRevisiting);
+    $('#wlp-ai-session-next-focus').textContent = clean(insights.nextFocus);
+    $('#wlp-ai-session-evidence-note').textContent = clean(insights.evidenceNote);
+
     const list = $('#wlp-ai-session-turns-list');
     list.textContent = '';
     turns.forEach((turn, index) => list.appendChild(makeTurnReviewCard(turn, index)));
@@ -286,11 +393,17 @@
   function renderHistory() {
     const details = $('#wlp-ai-history');
     const list = $('#wlp-ai-history-list');
+    const label = $('#wlp-ai-history-label');
     if (!details || !list) return;
-    const history = readSessionHistory();
+    const history = readSessionHistory().slice().sort((a, b) => {
+      const aTime = Date.parse(a?.endedAt || a?.startedAt || '') || 0;
+      const bTime = Date.parse(b?.endedAt || b?.startedAt || '') || 0;
+      return bTime - aTime;
+    });
     details.hidden = !history.length;
+    if (label) label.textContent = `AI Study History (${history.length})`;
     list.textContent = '';
-    history.slice(0, 8).forEach(record => {
+    history.forEach(record => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'wlp-ai-history-item';
@@ -315,9 +428,29 @@
     body.textContent = '';
     const note = document.createElement('p');
     note.className = 'wlp-ai-history-summary';
-    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}. This is the original prompt, response, and feedback from that session.`;
+    note.textContent = `Saved from ${clean(record.source?.label) || 'AI Study'}. This is the original prompt, response, feedback, and session-level review from that session.`;
     body.appendChild(note);
-    (Array.isArray(record.turns) ? record.turns : []).forEach((turn, index) => body.appendChild(makeTurnReviewCard(turn, index)));
+    const turns = Array.isArray(record.turns) ? record.turns : [];
+    const insights = record.insights && typeof record.insights === 'object' ? record.insights : buildSessionInsights(turns);
+    const summary = document.createElement('section');
+    summary.className = 'wlp-ai-history-insights';
+    [
+      ['What went well', insights.whatWentWell],
+      ['Patterns noticed', insights.patterns],
+      ['Worth revisiting', insights.worthRevisiting],
+      ['Next focus', insights.nextFocus]
+    ].forEach(([label, value]) => {
+      const block = document.createElement('div');
+      block.className = 'wlp-ai-history-insight';
+      const key = document.createElement('span');
+      key.textContent = label;
+      const copy = document.createElement('p');
+      copy.textContent = clean(value);
+      block.append(key, copy);
+      summary.appendChild(block);
+    });
+    body.appendChild(summary);
+    turns.forEach((turn, index) => body.appendChild(makeTurnReviewCard(turn, index)));
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -457,7 +590,7 @@
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
         <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source and session size are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
         <details class="wlp-ai-history" id="wlp-ai-history" hidden>
-          <summary>Recent AI sessions</summary>
+          <summary id="wlp-ai-history-label">AI Study History</summary>
           <div class="wlp-ai-history-list" id="wlp-ai-history-list"></div>
         </details>
         <section class="wlp-ai-history-review" id="wlp-ai-history-review" hidden>
@@ -493,9 +626,6 @@
             <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong><small class="wlp-ai-target-id" id="wlp-ai-target-id"></small></div>
             <button class="wlp-ai-target-peek-toggle" id="wlp-ai-target-peek-toggle" type="button">View WLP card</button>
           </div>
-          <section class="wlp-ai-target-peek" id="wlp-ai-target-peek" hidden>
-            <div id="wlp-ai-target-peek-body"></div>
-          </section>
           <div class="wlp-ai-feedback-block">
             <span class="wlp-ai-feedback-label">Target feedback</span>
             <p class="wlp-ai-feedback-text" id="wlp-ai-target-feedback"></p>
@@ -520,13 +650,17 @@
       </section>
 
       <section class="wlp-ai-finished" id="wlp-ai-finished" hidden>
-        <span class="section-kicker">AI Study</span><h2 id="wlp-ai-finished-title">Session complete.</h2>
+        <div class="wlp-ai-finished-head">
+          <div><span class="section-kicker">AI Study</span><h2 id="wlp-ai-finished-title">Session complete.</h2></div>
+          <button class="wlp-ai-finished-close" id="wlp-ai-finished-close" type="button">Close</button>
+        </div>
         <p id="wlp-ai-finished-summary">Learning evidence from each completed experience is saved so future AI Study can adapt from it.</p>
         <div class="wlp-ai-finished-stats" id="wlp-ai-finished-stats"></div>
         <section class="wlp-ai-session-review" id="wlp-ai-session-review" hidden>
           <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Targets practiced</span><div class="wlp-ai-session-targets" id="wlp-ai-session-targets"></div></div>
-          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Target takeaway</span><p id="wlp-ai-session-target-note"></p></div>
-          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Language note</span><p id="wlp-ai-session-language-note"></p></div>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">What went well</span><p id="wlp-ai-session-well"></p></div>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Patterns noticed</span><p id="wlp-ai-session-patterns"></p></div>
+          <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Worth revisiting</span><p id="wlp-ai-session-revisit"></p></div>
           <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Next focus</span><p id="wlp-ai-session-next-focus"></p></div>
           <p class="wlp-ai-session-evidence-note" id="wlp-ai-session-evidence-note"></p>
           <details class="wlp-ai-session-turns"><summary>Review completed turns</summary><div id="wlp-ai-session-turns-list"></div></details>
@@ -747,8 +881,6 @@
     $('#wlp-ai-experience').hidden = false;
     $('#wlp-ai-finished').hidden = true;
     $('#wlp-ai-feedback').hidden = true;
-    $('#wlp-ai-target-peek').hidden = true;
-    $('#wlp-ai-target-peek-toggle').textContent = 'View WLP card';
     $('#wlp-ai-source-pill').textContent = state.session.source.label;
     $('#wlp-ai-progress').textContent = `${state.session.completed + 1} / ${state.session.total}`;
     const domain = clean(experience.domain);
@@ -894,9 +1026,11 @@
     const target = clean(selected.target);
     $('#wlp-ai-feedback-target').textContent = target || 'AI Study';
     $('#wlp-ai-target-id').textContent = clean(selected.wordId) ? `WID ${clean(selected.wordId)}` : '';
-    const card = currentCardSnapshot();
-    renderCardPeek(card, $('#wlp-ai-target-peek-body'));
-    $('#wlp-ai-target-peek-toggle').hidden = !clean(card.headword || card.definition || card.examples || card.notes);
+    const quickCardButton = $('#wlp-ai-target-peek-toggle');
+    const selectedWordId = clean(selected.wordId);
+    quickCardButton.hidden = !selectedWordId;
+    if (selectedWordId) quickCardButton.dataset.quickCardWordId = selectedWordId;
+    else delete quickCardButton.dataset.quickCardWordId;
 
     const learner = response?.learnerFacingResponse || {};
     const legacyFeedback = clean(learner.feedback || response?.evidence?.observationSummary || 'Response interpreted.');
@@ -1023,9 +1157,13 @@
       stats.appendChild(span);
     });
 
-    renderSessionReview(session);
-    if (session.completed) saveSessionHistory(sessionRecord(session));
+    const record = sessionRecord(session);
+    renderSessionReview(record);
+    const historySaved = session.completed ? saveSessionHistory(record) : true;
     renderHistory();
+    if (!historySaved) {
+      $('#wlp-ai-finished-summary').textContent += ' The learning evidence is saved, but the local AI Study History snapshot could not be written on this device.';
+    }
 
     const diagnostics = $('#wlp-ai-finished-diagnostics-body');
     diagnostics.textContent = '';
@@ -1053,7 +1191,7 @@
     state.activePlanner = null;
   }
 
-  function resetSession() {
+  function resetSession({ focusStart = false, scrollStart = false } = {}) {
     state.session = null;
     state.activePlanner = null;
     $('#wlp-ai-experience').hidden = true;
@@ -1064,6 +1202,8 @@
     $('#wlp-ai-start').disabled = !state.providerReady;
     setStatus('');
     refreshProviderStatus();
+    if (scrollStart) $('#wlp-ai-start-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (focusStart) setTimeout(() => $('#wlp-ai-start')?.focus({ preventScroll: true }), 0);
   }
 
   function bindEvents() {
@@ -1079,13 +1219,8 @@
       else loadNextExperience();
     });
     $('#wlp-ai-end')?.addEventListener('click', finishSession);
-    $('#wlp-ai-again')?.addEventListener('click', resetSession);
-    $('#wlp-ai-target-peek-toggle')?.addEventListener('click', () => {
-      const panel = $('#wlp-ai-target-peek');
-      if (!panel) return;
-      panel.hidden = !panel.hidden;
-      $('#wlp-ai-target-peek-toggle').textContent = panel.hidden ? 'View WLP card' : 'Hide WLP card';
-    });
+    $('#wlp-ai-again')?.addEventListener('click', () => resetSession({ focusStart: true, scrollStart: true }));
+    $('#wlp-ai-finished-close')?.addEventListener('click', () => resetSession({ scrollStart: true }));
     $('#wlp-ai-history-list')?.addEventListener('click', event => {
       const button = event.target.closest?.('[data-session-id]');
       if (button) openHistorySession(button.dataset.sessionId);

@@ -374,6 +374,24 @@
           push(errors, `$.learnerFacingResponse.${key}`, 'must be a non-empty string when present');
         }
       });
+      if (has(value.learnerFacingResponse, 'languageObservations')) {
+        if (!Array.isArray(value.learnerFacingResponse.languageObservations) || value.learnerFacingResponse.languageObservations.length > 3) {
+          push(errors, '$.learnerFacingResponse.languageObservations', 'must be an array with at most 3 items');
+        } else {
+          const allowedCategories = ['grammar','articles','tense-aspect','number','prepositions','word-order','idiomaticity','tone-register','concision','sentence-packaging','other'];
+          const allowedAssessments = ['strength','improve'];
+          value.learnerFacingResponse.languageObservations.forEach((item, index) => {
+            const base = `$.learnerFacingResponse.languageObservations[${index}]`;
+            if (!isObject(item)) {
+              push(errors, base, 'must be an object');
+              return;
+            }
+            if (!allowedCategories.includes(item.category)) push(errors, `${base}.category`, 'unsupported language observation category');
+            if (!allowedAssessments.includes(item.assessment)) push(errors, `${base}.assessment`, 'must be strength or improve');
+            if (typeof item.summary !== 'string' || text(item.summary).length < 4) push(errors, `${base}.summary`, 'must be a meaningful string');
+          });
+        }
+      }
       requireBoolean(value.learnerFacingResponse, 'correctionNeeded', '$.learnerFacingResponse', errors);
     }
 
