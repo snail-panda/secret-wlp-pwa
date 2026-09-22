@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Complex Target Readiness calibration v1.8.6.63 R2-H.3
-   Production-card taxonomy calibration, parser refinement, and false-positive cleanup; provider-agnostic. */
+/* WLP Stage 7 — AI Study Complex Target Readiness boundary hardening v1.8.6.64 R2-H.4
+   Compact-alternation parsing, relation-note cleanup, and audit-noise reduction; provider-agnostic. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.2';
+  const VERSION = '1.8.3';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -129,9 +129,18 @@
     // Editorial labels such as “(adjective)” or “(slang)” belong in metadata/POS,
     // not in the literal practice target.
     const editorialParen = text.match(/^(.+?)\s*\(([^()]*)\)\s*$/);
-    if (editorialParen && /^(?:adj(?:ective)?|adv(?:erb)?|noun|verb|phrase|idiom|slang|informal|formal|chiefly\s+(?:british|american)|br(?:itish\s+)?e|am(?:erican\s+)?e|uk|us)(?:\s*[,;/&+]\s*(?:adj(?:ective)?|adv(?:erb)?|noun|verb|phrase|idiom|slang|informal|formal|br(?:itish\s+)?e|am(?:erican\s+)?e|uk|us))*$/i.test(clean(editorialParen[2]))) {
+    if (editorialParen && /^(?:adj(?:ective)?|adv(?:erb)?|noun|verb|phrase|idiom|slang|informal|formal|hyperbolic|figurative|literal|regional|dialectal|euphemistic|vulgar|medical|legal|law|chiefly\s+(?:british|american)|br(?:itish\s+)?e|am(?:erican\s+)?e|uk|us)(?:\s*[,;/&+]\s*(?:adj(?:ective)?|adv(?:erb)?|noun|verb|phrase|idiom|slang|informal|formal|hyperbolic|figurative|literal|regional|dialectal|euphemistic|vulgar|medical|legal|law|br(?:itish\s+)?e|am(?:erican\s+)?e|uk|us))*$/i.test(clean(editorialParen[2]))) {
       text = clean(editorialParen[1]);
       notes.push('removed parenthetical editorial label');
+    }
+
+    // Bare lookup residue such as “directive meaning” is safe to strip when the
+    // candidate before “meaning/definition” is a single lexical item. Keep real
+    // phrases such as “lose its meaning” intact.
+    const bareMeaning = text.match(/^([A-Za-zÀ-ž][A-Za-zÀ-ž'’.-]*)\s+(?:meaning|definition)$/iu);
+    if (bareMeaning) {
+      text = clean(bareMeaning[1]);
+      notes.push('removed bare meaning/definition lookup suffix');
     }
 
     const defineMatch = text.match(/^define\s+(.+)$/i);
@@ -166,36 +175,107 @@
     return uniqueClean(clean(value).split(/\s+(?:vs\.?|versus)\s+/i), 4);
   }
 
+  function protectVariableSlotSlashes(value) {
+    return clean(value).replace(/\b(something|someone|somebody|somewhere|oneself|one['’]s|sth\.?|sb\.?)\s*\/\s*(something|someone|somebody|somewhere|oneself|one['’]s|sth\.?|sb\.?)\b/gi, (_, left, right) => `${left}∕${right}`);
+  }
+
+  function restoreProtectedSlashes(value) {
+    return clean(value).replace(/∕/g, '/');
+  }
+
+  function splitOutsideParentheses(value, delimiter, { spacedOnly = false } = {}) {
+    const text = String(value ?? '');
+    const parts = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i];
+      if (ch === '(' || ch === '[' || ch === '{') { depth += 1; continue; }
+      if (ch === ')' || ch === ']' || ch === '}') { depth = Math.max(0, depth - 1); continue; }
+      if (depth !== 0 || ch !== delimiter) continue;
+      if (spacedOnly) {
+        const before = text[i - 1] || '';
+        const after = text[i + 1] || '';
+        if (!/\s/.test(before) || !/\s/.test(after)) continue;
+      }
+      parts.push(text.slice(start, i));
+      start = i + 1;
+    }
+    parts.push(text.slice(start));
+    return parts.map(part => restoreProtectedSlashes(part)).map(clean).filter(Boolean);
+  }
+
   function expandCompactSlashSegment(value) {
-    const segment = clean(value);
-    if (!segment || !segment.includes('/')) return segment ? [segment] : [];
-    if (/\s\/\s/.test(segment)) return uniqueClean(segment.split(/\s+\/\s+/), 8);
+    const protectedSegment = protectVariableSlotSlashes(value);
+    const segment = clean(protectedSegment);
+    if (!segment) return [];
 
-    const slashCount = (segment.match(/\//g) || []).length;
-    if (slashCount !== 1) return uniqueClean(segment.split(/\s*\/\s*/), 8);
-    const [leftRaw, rightRaw] = segment.split('/').map(clean);
-    if (!leftRaw || !rightRaw) return uniqueClean([leftRaw, rightRaw], 8);
+    const spaced = splitOutsideParentheses(segment, '/', { spacedOnly: true });
+    if (spaced.length >= 2) return uniqueClean(spaced, 8);
 
-    const leftTokens = leftRaw.split(/\s+/).filter(Boolean);
-    const rightTokens = rightRaw.split(/\s+/).filter(Boolean);
-    if (leftTokens.length === 1 && rightTokens.length > 1) {
-      const suffix = rightTokens.slice(1).join(' ');
-      return uniqueClean([`${leftRaw} ${suffix}`, rightRaw], 8);
+    const pieces = splitOutsideParentheses(segment, '/');
+    if (pieces.length < 2) return [restoreProtectedSlashes(segment)];
+
+    const tokenized = pieces.map(part => part.split(/\s+/).filter(Boolean));
+    // Compact alternatives at the end: “coin a word/term/phrase” →
+    // “coin a word / coin a term / coin a phrase”.
+    if (tokenized[0].length >= 2 && tokenized.slice(1).every(tokens => tokens.length === 1)) {
+      const prefix = tokenized[0].slice(0, -1).join(' ');
+      const alts = [tokenized[0].at(-1), ...tokenized.slice(1).map(tokens => tokens[0])];
+      return uniqueClean(alts.map(alt => `${prefix} ${alt}`), 8);
     }
-    if (leftTokens.length > rightTokens.length && rightTokens.length >= 1) {
-      const prefix = leftTokens.slice(0, leftTokens.length - rightTokens.length).join(' ');
-      return uniqueClean([leftRaw, `${prefix} ${rightRaw}`], 8);
+
+    // Compact alternatives at the beginning: “go/come to the brink” →
+    // “go to the brink / come to the brink”.
+    if (tokenized.at(-1).length >= 2 && tokenized.slice(0, -1).every(tokens => tokens.length === 1)) {
+      const suffix = tokenized.at(-1).slice(1).join(' ');
+      const alts = [...tokenized.slice(0, -1).map(tokens => tokens[0]), tokenized.at(-1)[0]];
+      return uniqueClean(alts.map(alt => `${alt} ${suffix}`), 8);
     }
-    return uniqueClean([leftRaw, rightRaw], 8);
+
+    // Shared prefix + compact particle/preposition: “look on/upon someone as” →
+    // “look on someone as / look upon someone as”.
+    if (pieces.length === 2 && tokenized[0].length >= 2 && tokenized[1].length >= 2) {
+      const prefix = tokenized[0].slice(0, -1).join(' ');
+      const leftAlt = tokenized[0].at(-1);
+      const rightAlt = tokenized[1][0];
+      const suffix = tokenized[1].slice(1).join(' ');
+      if (prefix && leftAlt && rightAlt && suffix) {
+        return uniqueClean([`${prefix} ${leftAlt} ${suffix}`, `${prefix} ${rightAlt} ${suffix}`], 8);
+      }
+    }
+
+    return uniqueClean(pieces, 8);
   }
 
   function splitFamilyTarget(value) {
     const text = clean(value);
     if (!text || /https?:\/\//i.test(text) || /\band\/or\b/i.test(text)) return [];
-    if (!/\//.test(text)) return [];
-    const groups = text.split(/\s*;\s*/).map(clean).filter(Boolean);
+    const protectedText = protectVariableSlotSlashes(text);
+    const groups = splitOutsideParentheses(protectedText, ';');
     const parts = groups.flatMap(expandCompactSlashSegment);
-    return uniqueClean(parts, 8);
+    return parts.length >= 2 ? uniqueClean(parts, 8) : [];
+  }
+
+  function splitRelationNoteTarget(value, pos = '') {
+    const text = clean(value);
+    if (!text || !/\b(?:word[- ]?family|derivation|related\s+(?:word|form)|relationship)\b/i.test(clean(pos))) return [];
+    const match = text.match(/^(.+?)\s*(?:→|->|=>|=)\s*(.+)$/);
+    if (!match) return [];
+    const left = stripKnownMetaResidue(match[1]).text || clean(match[1]);
+    const rightRaw = stripKnownMetaResidue(match[2]).text || clean(match[2]);
+    const rightFamily = splitFamilyTarget(rightRaw);
+    return uniqueClean([left, ...(rightFamily.length ? rightFamily : [rightRaw])], 8).filter(isSafeEnglishPracticeUnit);
+  }
+
+  function expandVocabularyCluster(value) {
+    const text = clean(value);
+    const match = text.match(/^(.+?)\s+(?:vocabulary|word)\s+cluster:\s*(.+)$/i);
+    if (!match) return [];
+    const prefix = clean(match[1]);
+    const options = splitFamilyTarget(match[2]);
+    if (!prefix || options.length < 2) return [];
+    return uniqueClean(options.map(option => /^\b/.test(option) ? `${prefix} ${option}` : `${prefix} ${option}`), 8);
   }
 
   function detectMetaQuestion(value) {
@@ -327,13 +407,31 @@
     let focus = metaClean.focus;
 
     const contrastParts = splitContrastTarget(normalizedHeadword);
+    const relationParts = splitRelationNoteTarget(normalizedHeadword, target.pos);
+    const clusterParts = expandVocabularyCluster(normalizedHeadword);
     const familyParts = splitFamilyTarget(normalizedHeadword);
     const mixedLanguage = hasJapaneseText(rawHeadword);
     const metaQuery = Boolean(metaClean.notes.some(note => /query|meta-question|lookup residue/i.test(note))) || detectMetaQuestion(rawHeadword);
     const posCategories = extractPosCategories(target);
     const multiPos = posCategories.length >= 2;
 
-    if (resolverKind === 'contrast' || contrastParts.length >= 2) {
+    if (relationParts.length >= 2) {
+      kind = 'family';
+      handling = 'alternative-expression';
+      practiceUnits = relationParts;
+      status = 'normalize';
+      rawHeadwordLiteralTargetAllowed = false;
+      hazards.push('relation or word-family notation');
+      guidance.push('The arrow/relation notation is metadata. Choose one real expression/form as the practice target; never ask the learner to reproduce the relation label itself.');
+    } else if (clusterParts.length >= 2) {
+      kind = 'family';
+      handling = 'alternative-expression';
+      practiceUnits = clusterParts;
+      status = 'normalize';
+      rawHeadwordLiteralTargetAllowed = false;
+      hazards.push('editorial vocabulary-cluster label');
+      guidance.push('The cluster label is editorial metadata. Choose one expanded practice unit for this turn rather than the literal cluster heading.');
+    } else if (resolverKind === 'contrast' || contrastParts.length >= 2) {
       kind = 'contrast';
       handling = 'contrast';
       practiceUnits = contrastParts.length >= 2 ? contrastParts : targetFamily.slice(0, 4);
@@ -371,7 +469,13 @@
 
     // Clean each unit separately, then exclude source-language-only units from
     // English production targets. The full card remains available as context.
-    const cleanedUnits = practiceUnits.map(unit => stripKnownMetaResidue(unit).text || clean(unit));
+    const cleanedUnitResults = practiceUnits.map(unit => stripKnownMetaResidue(unit));
+    const cleanedUnits = cleanedUnitResults.map((result, index) => result.text || clean(practiceUnits[index]));
+    if (cleanedUnitResults.some(result => Array.isArray(result.notes) && result.notes.length)) {
+      if (status !== 'review') status = 'normalize';
+      rawHeadwordLiteralTargetAllowed = false;
+      guidance.push('One or more family members contained editorial/lookup residue; use the cleaned practiceUnits, not the literal annotated member text.');
+    }
     const englishUnits = uniqueClean(cleanedUnits.filter(isSafeEnglishPracticeUnit), 8);
     if (mixedLanguage) {
       hazards.push('mixed-language headword');
@@ -407,7 +511,8 @@
       guidance.push(`Choose one part of speech / sense for this turn (${posCategories.join(' / ')}) and keep the prompt, expected form, and feedback consistent with that choice. Do not test all senses at once.`);
     }
 
-    if (detectSentenceExpression(normalizedHeadword) && !metaQuery) {
+    const shortQuestionExpression = /[?？]$/.test(normalizedHeadword) && /\b(?:expression|interjection|question|utterance)\b/i.test(clean(target.pos));
+    if ((detectSentenceExpression(normalizedHeadword) || shortQuestionExpression) && !metaQuery) {
       if (kind === 'simple') kind = 'sentence-expression';
       if (handling === 'single') handling = 'sentence-expression';
       hazards.push('sentence or pragmatic expression');
@@ -500,6 +605,13 @@
       ['variant', packet("bull's-eye / bullseye", 'family', 'noun'), r => r.status === 'ready' && r.handling === 'variant'],
       ['alternative-expression', packet('get a lemon / buy a lemon', 'family', 'idiom'), r => r.status === 'ready' && r.handling === 'alternative-expression'],
       ['compact-family', packet('go/come to the brink of; bring/take to the brink', 'simple', 'idiomatic phrase family'), r => r.practiceUnits.join('|') === 'go to the brink of|come to the brink of|bring to the brink|take to the brink'],
+      ['compact-multi-tail', packet('coin a word/term/phrase', 'simple', 'verb'), r => r.practiceUnits.join('|') === 'coin a word|coin a term|coin a phrase'],
+      ['compact-shared-prefix', packet('look on/upon someone or something as ...', 'simple', 'phrasal pattern'), r => r.practiceUnits.join('|') === 'look on someone or something as ...|look upon someone or something as ...'],
+      ['variable-slot-slash-safe', packet('be hung up on something/someone / get hung up on', 'family', 'idiom / phrasal expression'), r => r.practiceUnits.join('|') === 'be hung up on something/someone|get hung up on'],
+      ['parenthetical-slash-safe', packet('be terminal (slang/hyperbolic)', 'simple', 'slang / source-dependent adjective use'), r => r.status === 'normalize' && r.primaryTarget === 'be terminal' && r.practiceUnits.length === 1],
+      ['relation-note', packet('irk → irritation / annoyance (noun)', 'simple', 'word-family note'), r => r.status === 'normalize' && r.practiceUnits.join('|') === 'irk|irritation|annoyance'],
+      ['vocabulary-cluster', packet('STEM vocabulary cluster: fields / disciplines / education / workforce / sector', 'family', 'noun phrase cluster'), r => r.status === 'normalize' && r.practiceUnits.join('|') === 'STEM fields|STEM disciplines|STEM education|STEM workforce|STEM sector'],
+      ['family-lookup-echo', packet('directive / directive meaning', 'family', 'noun; adjective'), r => r.status === 'normalize' && r.practiceUnits.join('|') === 'directive'],
       ['construction', packet('blow something out of proportion', 'construction', 'verb phrase'), r => r.status === 'ready' && r.handling === 'construction'],
       ['implicit-construction', packet('set someone off', 'simple', 'phrasal verb'), r => r.status === 'ready' && r.kind === 'construction' && r.handling === 'construction'],
       ['labeled', packet('ledge: synonyms and near-synonyms', 'labeled', 'noun'), r => r.status === 'normalize' && r.handling === 'labeled' && r.primaryTarget === 'ledge'],
@@ -509,6 +621,7 @@
       ['real-meaning-phrase', packet('lose its meaning', 'simple', 'phrase'), r => r.status === 'ready' && r.primaryTarget === 'lose its meaning'],
       ['parenthetical-query', packet("garden-path sentence (why 'garden path'?)", 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'garden-path sentence'],
       ['conversational-question', packet('Why come to me about it?', 'simple', 'conversational expression'), r => r.status === 'ready' && r.kind === 'sentence-expression'],
+      ['short-question-expression', packet("What's the tea?", 'simple', 'slang expression'), r => r.status === 'ready' && r.kind === 'sentence-expression' && r.handling === 'sentence-expression'],
       ['sentence-expression', packet("You don't want to know.", 'simple', 'pragmatic expression'), r => r.status === 'ready' && r.kind === 'sentence-expression'],
       ['multi-pos-sense-selection', packet('stable', 'simple', 'noun / adjective / verb'), r => r.status === 'ready' && r.handling === 'sense-selection' && r.senseSelectionRequired === true],
       ['related-pos-not-multi', packet('staggering', 'simple', 'adjective; related verb: stagger'), r => r.status === 'ready' && r.senseSelectionRequired === false],
@@ -565,7 +678,7 @@
     if (hasJapaneseText(raw) && clean(readiness?.status) === 'ready') reasons.push('mixed-language text left ready');
     if (/\b(?:meaning|definition|define|synonyms?|difference|called)\b/i.test(raw) && clean(readiness?.status) === 'ready') reasons.push('lookup/meta wording left ready');
     if (/\s(?:—|–|->|→|=)\s/.test(raw)) reasons.push('relation separator');
-    if (raw.split(/\s+/).filter(Boolean).length >= 10 && !['sentence-expression','construction'].includes(handling)) reasons.push('very long unclassified headword');
+    if (raw.split(/\s+/).filter(Boolean).length >= 10 && !['sentence-expression','construction','alternative-expression','form-family','variant','contrast'].includes(handling)) reasons.push('very long unclassified headword');
     return uniqueClean(reasons, 12);
   }
 
@@ -608,7 +721,7 @@
 
     const report = {
       schemaVersion: 1,
-      audit: 'complex-target-readiness-v2',
+      audit: 'complex-target-readiness-v3',
       uiVersion: VERSION,
       source: TARGET_AUDIT_MASTER_URL,
       totalMasterCards: wordIds.length,
