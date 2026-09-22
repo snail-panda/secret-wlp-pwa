@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Complex Target Readiness boundary hardening v1.8.6.64 R2-H.4
-   Compact-alternation parsing, relation-note cleanup, and audit-noise reduction; provider-agnostic. */
+/* WLP Stage 7 — AI Study Assistance Tracking + Universal Target Reveal v1.8.6.66 R2-I.1
+   Preserve existing task-specific hints; add cross-type manual target reveal and assistance evidence. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.4';
+  const VERSION = '1.8.5';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -43,6 +43,7 @@
     activePlanner: null,
     busy: false,
     reconstruction: null,
+    assistance: null,
     generationEpoch: 0,
     generationController: null
   };
@@ -52,6 +53,106 @@
   const num = value => Number(value || 0);
   const makeId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
+
+  function createAssistanceState(initialTargetVisibility = 'hidden') {
+    return {
+      initialTargetVisibility: clean(initialTargetVisibility).toLowerCase() || 'hidden',
+      targetRevealed: false,
+      targetRevealedEver: false,
+      targetRevealCount: 0,
+      hintCount: 0,
+      locked: false,
+      hintEvents: []
+    };
+  }
+
+  function resetAssistanceState(initialTargetVisibility = 'hidden') {
+    state.assistance = createAssistanceState(initialTargetVisibility);
+    return state.assistance;
+  }
+
+  function noteTargetReveal() {
+    const a = state.assistance || resetAssistanceState();
+    a.targetRevealCount = num(a.targetRevealCount) + 1;
+    a.targetRevealedEver = true;
+  }
+
+  function noteHintUse(kind = 'task-hint', stage = 0) {
+    const a = state.assistance || resetAssistanceState();
+    const normalizedKind = clean(kind) || 'task-hint';
+    const normalizedStage = Math.max(1, num(stage) || 1);
+    if (!Array.isArray(a.hintEvents)) a.hintEvents = [];
+    const key = `${normalizedKind}:${normalizedStage}`;
+    if (!a.hintEvents.some(item => `${clean(item?.kind)}:${num(item?.stage)}` === key)) {
+      a.hintEvents.push({ kind: normalizedKind, stage: normalizedStage });
+      a.hintCount = num(a.hintCount) + 1;
+    }
+  }
+
+  function assistanceSnapshot(source = state.assistance) {
+    const a = source && typeof source === 'object' ? source : createAssistanceState();
+    const targetRevealed = a.targetRevealedEver === true || num(a.targetRevealCount) > 0;
+    const hintCount = Math.max(0, num(a.hintCount));
+    const initialTargetVisibility = clean(a.initialTargetVisibility).toLowerCase() || 'hidden';
+    const support = targetRevealed
+      ? 'target-assisted'
+      : hintCount > 0
+        ? 'hint-assisted'
+        : initialTargetVisibility === 'visible'
+          ? 'task-visible-target'
+          : 'unaided';
+    return {
+      support,
+      initialTargetVisibility,
+      targetRevealed,
+      targetRevealCount: Math.max(0, num(a.targetRevealCount)),
+      hintCount,
+      hintEvents: Array.isArray(a.hintEvents)
+        ? a.hintEvents.map(item => ({ kind: clean(item?.kind), stage: Math.max(1, num(item?.stage) || 1) })).filter(item => item.kind).slice(0, 12)
+        : []
+    };
+  }
+
+  function assistanceLabel(value = assistanceSnapshot()) {
+    const support = clean(value?.support || value);
+    if (support === 'target-assisted') return 'Target-assisted production';
+    if (support === 'hint-assisted') return 'Hint-assisted production';
+    if (support === 'task-visible-target') return 'Target visible by task design';
+    return 'Unaided retrieval / production';
+  }
+
+  function assistanceSummary(value = assistanceSnapshot()) {
+    const snapshot = value && typeof value === 'object' && value.support ? value : assistanceSnapshot(value);
+    const parts = [assistanceLabel(snapshot)];
+    if (snapshot.targetRevealed) parts.push(`target revealed${snapshot.targetRevealCount > 1 ? ` ×${snapshot.targetRevealCount}` : ''}`);
+    if (snapshot.hintCount) parts.push(`${snapshot.hintCount} hint${snapshot.hintCount === 1 ? '' : 's'} used`);
+    return parts.join(' · ');
+  }
+
+  function effectiveInitialTargetVisibility(experienceType, plannerVisibility = 'hidden') {
+    return clean(experienceType) === 'sentence-reconstruction'
+      ? 'hidden'
+      : (clean(plannerVisibility).toLowerCase() || 'hidden');
+  }
+
+  function runAssistanceSelfTest() {
+    const cases = [
+      ['unaided', createAssistanceState('hidden'), 'unaided'],
+      ['task-visible', createAssistanceState('visible'), 'task-visible-target'],
+      ['hint-assisted', { ...createAssistanceState('hidden'), hintCount: 1, hintEvents: [{ kind: 'reconstruction-hint', stage: 1 }] }, 'hint-assisted'],
+      ['target-assisted', { ...createAssistanceState('hidden'), targetRevealedEver: true, targetRevealCount: 1 }, 'target-assisted'],
+      ['target-outranks-hint', { ...createAssistanceState('hidden'), targetRevealedEver: true, targetRevealCount: 1, hintCount: 2 }, 'target-assisted']
+    ];
+    const checks = cases.map(([name, input, expected]) => {
+      const actual = assistanceSnapshot(input).support;
+      return { name, passed: actual === expected, expected, actual };
+    });
+    const reconstructionVisibility = effectiveInitialTargetVisibility('sentence-reconstruction', 'visible');
+    checks.push({ name: 'reconstruction-starts-hidden', passed: reconstructionVisibility === 'hidden', expected: 'hidden', actual: reconstructionVisibility });
+    const taskVisible = effectiveInitialTargetVisibility('reverse-reconstruction', 'visible');
+    checks.push({ name: 'task-designed-visible-target-preserved', passed: taskVisible === 'visible', expected: 'visible', actual: taskVisible });
+    return { passed: checks.every(item => item.passed), checks };
+  }
 
   function renderHighlightedText(element, value, terms = []) {
     if (!element) return;
@@ -1015,6 +1116,7 @@
       prompt: clean(clean(exp.type) === 'sentence-reconstruction' ? (parseReconstructionPrompt(exp.prompt)?.prompt || exp.prompt) : exp.prompt),
       responseFrame: clean(exp.responseFrame),
       learnerResponse: clean(learnerText),
+      assistance: assistanceSnapshot(),
       targetFeedback: clean(learner.targetFeedback || learner.feedback || response?.evidence?.observationSummary),
       languageFeedback: clean(learner.languageFeedback),
       languageObservations: Array.isArray(learner.languageObservations) ? learner.languageObservations.map(item => ({
@@ -1113,6 +1215,11 @@
     const produced = turns.filter(turn => turn?.targetProduced || turn?.targetFamilyReached).length;
     const concept = turns.filter(turn => turn?.conceptMatched).length;
     const natural = turns.filter(turn => turn?.learnerExpressionNatural).length;
+    const supportCounts = turns.reduce((acc, turn) => {
+      const support = clean(turn?.assistance?.support);
+      if (support) acc[support] = (acc[support] || 0) + 1;
+      return acc;
+    }, {});
     const groups = languageObservationGroups(turns);
     const strengths = groups.filter(group => group.assessment === 'strength').sort((a,b) => b.count - a.count);
     const improvements = groups.filter(group => group.assessment === 'improve').sort((a,b) => b.count - a.count);
@@ -1125,6 +1232,13 @@
       if (formMismatchTurns) well.push(`The target expression itself was judged natural in ${natural}/${total} completed turn${total === 1 ? '' : 's'}, while response form or construction still needed attention in ${formMismatchTurns}/${total}.`);
       else well.push(`Your response was judged natural in ${natural}/${total} completed turn${total === 1 ? '' : 's'}.`);
     }
+    const assistedParts = [];
+    if (supportCounts['target-assisted']) assistedParts.push(`${supportCounts['target-assisted']} target-revealed`);
+    if (supportCounts['hint-assisted']) assistedParts.push(`${supportCounts['hint-assisted']} hint-assisted`);
+    if (supportCounts['unaided']) assistedParts.push(`${supportCounts['unaided']} unaided`);
+    if (supportCounts['task-visible-target']) assistedParts.push(`${supportCounts['task-visible-target']} target-visible by task design`);
+    if (assistedParts.length) well.push(`Support used across completed turns: ${assistedParts.join(', ')}.`);
+
     strengths.slice(0, 2).forEach(group => {
       const label = LANGUAGE_CATEGORY_LABELS[group.category] || group.category;
       const sample = group.summaries[0];
@@ -1224,6 +1338,7 @@
     article.appendChild(head);
     addPeekField(article, 'Prompt', turn?.prompt);
     addPeekField(article, 'Your response', turn?.learnerResponse);
+    if (turn?.assistance) addPeekField(article, 'Assistance', assistanceSummary(turn.assistance));
     addPeekField(article, 'Target feedback', turn?.targetFeedback);
     addPeekField(article, 'Language feedback', turn?.languageFeedback);
     addPeekField(article, 'Next step', turn?.nextStep);
@@ -2001,10 +2116,16 @@
 
   function setBusy(busy, message = '') {
     state.busy = Boolean(busy);
-    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear', '#wlp-ai-retry-generation', '#wlp-ai-retry-interpreter'].forEach(selector => {
+    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear', '#wlp-ai-target-hint-button', '#wlp-ai-task-hint-button', '#wlp-ai-retry-generation', '#wlp-ai-retry-interpreter'].forEach(selector => {
       const el = $(selector);
       if (el) el.disabled = state.busy;
     });
+    if (!state.busy && state.assistance?.locked) {
+      const targetHint = $('#wlp-ai-target-hint-button');
+      const taskHint = $('#wlp-ai-task-hint-button');
+      if (targetHint) targetHint.disabled = true;
+      if (taskHint) taskHint.disabled = true;
+    }
     if (!state.busy && state.reconstruction) {
       syncReconstructionResponse();
       if (state.reconstruction.locked) {
@@ -2256,6 +2377,16 @@
     return sentence;
   }
 
+  function syncAssistancePanelVisibility() {
+    const assist = $('#wlp-ai-reconstruction-assist');
+    if (!assist) return;
+    const targetWrap = $('#wlp-ai-target-hint');
+    const taskWrap = $('#wlp-ai-task-hint');
+    const taskList = $('#wlp-ai-task-hint-list');
+    const hasVisibleControl = Boolean(targetWrap && !targetWrap.hidden) || Boolean(taskWrap && !taskWrap.hidden) || Boolean(taskList && !taskList.hidden);
+    assist.hidden = !hasVisibleControl;
+  }
+
   function resetTargetHint() {
     const assist = $('#wlp-ai-reconstruction-assist');
     const wrap = $('#wlp-ai-target-hint');
@@ -2271,6 +2402,7 @@
     if (taskWrap) taskWrap.hidden = true;
     if (taskButton) { taskButton.hidden = false; taskButton.textContent = 'Need a hint?'; }
     if (taskList) { taskList.hidden = true; taskList.replaceChildren(); }
+    if (state.assistance) state.assistance.targetRevealed = false;
     if (state.reconstruction) {
       state.reconstruction.targetRevealed = false;
       state.reconstruction.taskHintStage = 0;
@@ -2278,27 +2410,30 @@
   }
 
   function renderTargetHint(selected = null) {
-    const assist = $('#wlp-ai-reconstruction-assist');
     const wrap = $('#wlp-ai-target-hint');
     const button = $('#wlp-ai-target-hint-button');
     const textEl = $('#wlp-ai-target-hint-text');
     const target = clean(selected?.target || state.activePlanner?.result?.response?.selectedTarget?.target);
-    if (!assist || !wrap || !button || !textEl || !state.reconstruction || !target) {
-      if (assist) assist.hidden = true;
+    if (!wrap || !button || !textEl || !target) {
       if (wrap) wrap.hidden = true;
+      syncAssistancePanelVisibility();
       return;
     }
-    assist.hidden = false;
-    if (state.reconstruction.level === 'easy') {
+    const initialVisibility = clean(state.assistance?.initialTargetVisibility).toLowerCase() || 'hidden';
+    const targetIsTaskVisible = !state.reconstruction && initialVisibility === 'visible';
+    if (targetIsTaskVisible) {
       wrap.hidden = true;
+      syncAssistancePanelVisibility();
       return;
     }
     wrap.hidden = false;
-    const revealed = state.reconstruction.targetRevealed === true;
+    const revealed = state.assistance?.targetRevealed === true;
     button.hidden = false;
+    button.disabled = state.assistance?.locked === true;
     button.textContent = revealed ? 'Hide target' : 'Show target';
     textEl.textContent = `Target: ${target}`;
     textEl.hidden = !revealed;
+    syncAssistancePanelVisibility();
   }
 
   function reconstructionTargetTerms(selected = null) {
@@ -2360,20 +2495,20 @@
   }
 
   function renderTaskHints(selected = null) {
-    const assist = $('#wlp-ai-reconstruction-assist');
     const wrap = $('#wlp-ai-task-hint');
     const button = $('#wlp-ai-task-hint-button');
     const list = $('#wlp-ai-task-hint-list');
-    if (!assist || !wrap || !button || !list || !state.reconstruction) {
+    if (!wrap || !button || !list || !state.reconstruction) {
       if (wrap) wrap.hidden = true;
+      syncAssistancePanelVisibility();
       return;
     }
     const hints = buildReconstructionHints(selected);
     if (!hints.length) {
       wrap.hidden = true;
+      syncAssistancePanelVisibility();
       return;
     }
-    assist.hidden = false;
     wrap.hidden = false;
     const stage = Math.max(0, Math.min(num(state.reconstruction.taskHintStage), hints.length));
     list.replaceChildren();
@@ -2388,8 +2523,9 @@
       list.append(row);
     });
     list.hidden = stage === 0;
-    button.disabled = stage >= hints.length;
+    button.disabled = state.assistance?.locked === true || stage >= hints.length;
     button.textContent = stage === 0 ? 'Need a hint?' : stage < hints.length ? 'Give me another hint' : 'No more hints';
+    syncAssistancePanelVisibility();
   }
 
   function reconstructionSelectedMissing() {
@@ -2748,6 +2884,7 @@
     if (frameEl) { frameEl.textContent = ''; frameEl.hidden = true; }
     const visibleTarget = $('#wlp-ai-visible-target');
     if (visibleTarget) { visibleTarget.textContent = ''; visibleTarget.hidden = true; }
+    resetAssistanceState();
     resetTargetHint();
     resetReconstruction();
     const responseBox = $('#wlp-ai-response');
@@ -2792,18 +2929,17 @@
     frameEl.textContent = frame ? frame.replace(/\{answer\}/g, '______') : '';
     frameEl.hidden = !frame || Boolean(reconstruction);
     const visibleTarget = $('#wlp-ai-visible-target');
-    const visibility = clean(experience.targetVisibility).toLowerCase();
-    const reconstructionLevel = clean(reconstruction?.level || state.session?.difficulty || 'standard');
-    const reconstructionAutoTarget = Boolean(reconstruction) && reconstructionLevel === 'easy';
+    const visibility = clean(experience.targetVisibility).toLowerCase() || 'hidden';
+    const initialTargetVisibility = effectiveInitialTargetVisibility(clean(experience.type), visibility);
+    resetAssistanceState(initialTargetVisibility);
     if (reconstruction) {
-      if (reconstructionAutoTarget && clean(selected.target)) {
-        visibleTarget.textContent = `Target: ${clean(selected.target)}`;
-        visibleTarget.hidden = false;
-      } else {
-        visibleTarget.hidden = true;
-        visibleTarget.textContent = '';
-      }
+      // R2-I.1: even Easy reconstruction begins with the target hidden.
+      // Learners can reveal it manually without ending the production task.
+      visibleTarget.hidden = true;
+      visibleTarget.textContent = '';
     } else if (visibility === 'visible') {
+      // Some task designs legitimately use the target as the stimulus.
+      // That is task-visible, not learner-requested assistance.
       visibleTarget.textContent = `Target: ${clean(selected.target)}`;
       visibleTarget.hidden = false;
     } else if (visibility === 'partial') {
@@ -2837,6 +2973,7 @@
     } else {
       resetReconstruction();
       responseBox.disabled = false;
+      renderTargetHint(selected);
     }
     $('#wlp-ai-submit').hidden = false;
     $('#wlp-ai-no-idea').hidden = false;
@@ -2942,7 +3079,8 @@
       messageCore: clone(response?.messageCore || null),
       communicativeFocus: clone(response?.communicativeFocus || null),
       construal: clean(response?.communicativeFocus?.construal),
-      usageMotivation: clone(response?.usageMotivation || null)
+      usageMotivation: clone(response?.usageMotivation || null),
+      learnerAssistance: assistanceSnapshot()
     };
   }
 
@@ -3011,6 +3149,7 @@
   }
 
   function renderFeedback(response, committed, turnDiagnostics = {}) {
+    if (state.assistance) state.assistance.locked = true;
     const selected = state.activePlanner?.result?.response?.selectedTarget || {};
     const target = clean(selected.target);
     $('#wlp-ai-feedback-target').textContent = target || 'AI Study';
@@ -3066,6 +3205,9 @@
       chip.textContent = clean(value).replace(/-/g, ' ');
       evidence.appendChild(chip);
     });
+    const supportChip = document.createElement('span');
+    supportChip.textContent = assistanceLabel(assistanceSnapshot()).toLowerCase();
+    evidence.appendChild(supportChip);
 
     const action = clean(response?.router?.action || 'NEXT');
     $('#wlp-ai-route-pill').textContent = action;
@@ -3088,6 +3230,7 @@
     const readinessStatus = clean(plannerDiag.targetReadiness?.status);
     const readinessKind = clean(plannerDiag.targetReadiness?.kind);
     if (readinessStatus || readinessKind) timingParts.push(`Target readiness ${[readinessKind, readinessStatus].filter(Boolean).join(' / ')}`);
+    timingParts.push(`Support ${assistanceLabel(assistanceSnapshot())}`);
     if (provider || model) timingParts.push([provider, model].filter(Boolean).join(' · '));
     $('#wlp-ai-turn-diagnostics').textContent = timingParts.join(' · ');
 
@@ -3212,6 +3355,7 @@
     setGenerationCancelVisible(false);
     state.session = null;
     state.activePlanner = null;
+    state.assistance = null;
     resetReconstruction();
     $('#wlp-ai-experience').hidden = true;
     $('#wlp-ai-finished').hidden = true;
@@ -3264,15 +3408,20 @@
       $('#wlp-ai-history-review').hidden = true;
     });
     $('#wlp-ai-target-hint-button')?.addEventListener('click', () => {
-      if (!state.reconstruction || state.busy || state.reconstruction.level === 'easy') return;
-      state.reconstruction.targetRevealed = !state.reconstruction.targetRevealed;
+      if (!state.activePlanner || state.busy || state.assistance?.locked) return;
+      const assistance = state.assistance || resetAssistanceState();
+      assistance.targetRevealed = !assistance.targetRevealed;
+      if (assistance.targetRevealed) noteTargetReveal();
+      if (state.reconstruction) state.reconstruction.targetRevealed = assistance.targetRevealed;
       renderTargetHint();
     });
     $('#wlp-ai-task-hint-button')?.addEventListener('click', () => {
-      if (!state.reconstruction || state.busy) return;
+      if (!state.reconstruction || state.busy || state.assistance?.locked) return;
       const hints = buildReconstructionHints();
       if (!hints.length) return;
-      state.reconstruction.taskHintStage = Math.min(hints.length, num(state.reconstruction.taskHintStage) + 1);
+      const nextStage = Math.min(hints.length, num(state.reconstruction.taskHintStage) + 1);
+      state.reconstruction.taskHintStage = nextStage;
+      noteHintUse('reconstruction-hint', nextStage);
       renderTaskHints();
     });
     $('#wlp-ai-reconstruction')?.addEventListener('click', event => {
@@ -3352,7 +3501,9 @@
       setMode,
       analyzeTargetReadiness: packet => clone(analyzeTargetReadiness(packet)),
       runTargetReadinessSelfTest,
-      runTargetReadinessAudit
+      runTargetReadinessAudit,
+      runAssistanceSelfTest,
+      getAssistance: () => clone(assistanceSnapshot())
     });
   }
 
