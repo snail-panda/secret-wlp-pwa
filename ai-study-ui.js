@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Feedback Roles + Hint Priority v1.8.6.72 R2-I.3.2
-   Separate revision from optional natural routes; keep Standard neighbor-initial hints lower priority. */
+/* WLP Stage 7 — AI Study Complex E2E Grounding + Cloze Hints v1.8.6.74 R2-I.4.1
+   Tighten prompt/revision grounding, keep useful natural routes, and add a separate Cloze hint profile. */
 (() => {
   'use strict';
 
-  const VERSION = '1.9.2';
+  const VERSION = '1.9.3';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -151,7 +151,8 @@
       taskHintStage: 0,
       locked: false,
       hintEvents: [],
-      openProductionHintPlan: []
+      openProductionHintPlan: [],
+      clozeHintPlan: []
     };
   }
 
@@ -2802,6 +2803,10 @@
     return OPEN_PRODUCTION_HINT_TYPES.has(clean(experienceType).toLowerCase());
   }
 
+  function isClozeHintType(experienceType = currentExperienceType()) {
+    return clean(experienceType).toLowerCase() === 'cloze';
+  }
+
   function targetWordTokens(target) {
     return clean(target).match(/[A-Za-z][A-Za-z'’-]*/g) || [];
   }
@@ -3110,6 +3115,163 @@
     return buildOpenProductionHintPlan(selected).map(item => item.text);
   }
 
+  function clozeGrammarHint(readiness = {}) {
+    const pos = Array.isArray(readiness?.posCategories) ? readiness.posCategories.map(clean).filter(Boolean) : [];
+    const handling = clean(readiness?.handling).toLowerCase();
+    if (handling === 'construction' || pos.includes('verb')) return 'Make the head verb agree with the subject before the blank.';
+    return 'Use the grammatical form that fits the surrounding sentence.';
+  }
+
+  function clozeConstructionHint(target, readiness = {}) {
+    const handling = clean(readiness?.handling).toLowerCase();
+    if (handling !== 'construction' && variableSlotCount(target) < 1) return '';
+    return 'The blank needs the complete construction for this sentence, not just the isolated head word.';
+  }
+
+  function clozeRoleHint(target, readiness = {}) {
+    const handling = clean(readiness?.handling).toLowerCase();
+    const slots = variableSlotCount(target);
+    if (handling !== 'construction' && slots < 1) return '';
+    if (slots >= 2) return 'The construction needs two sides or roles to be filled from the situation.';
+    if (slots === 1) return 'The construction includes one variable role that must be filled from the situation.';
+    return '';
+  }
+
+  function clozeHintCandidates({ target = '', readiness = {}, context = {} } = {}) {
+    const value = clean(target);
+    if (!value) return [];
+    const candidates = [
+      hintCandidate('cloze-grammar', 'grammar', 1, clozeGrammarHint(readiness)),
+      hintCandidate('target-shape', 'core', 1, targetShapeHint(value, readiness)),
+      hintCandidate('part-of-speech', 'core', 1, targetPosHint(readiness)),
+      hintCandidate('cloze-construction', 'structure', 2, clozeConstructionHint(value, readiness)),
+      hintCandidate('variable-roles', 'structure', 2, clozeRoleHint(value, readiness)),
+      hintCandidate('fixed-preposition', 'structure', 2, targetPrepositionHint(value, readiness)),
+      hintCandidate('fixed-connector', 'structure', 2, targetConnectorHint(value, readiness)),
+      hintCandidate('family-handling', 'structure', 2, targetFamilyHint(readiness)),
+      hintCandidate('letter-count', 'lexical', 2, targetLengthHint(value)),
+      hintCandidate('semantic-focus', 'semantic', 3, semanticFocusHint(context, value, readiness)),
+      hintCandidate('initial-letter', 'lexical', 3, targetInitialHint(value)),
+      hintCandidate('ending-letter', 'lexical', 3, targetEndingHint(value)),
+      hintCandidate('neighbor-initial', 'neighbor', 4, neighborInitialHint(context, value)),
+      hintCandidate('named-neighbor', 'neighbor', 4, namedNeighborHint(context, value))
+    ].filter(Boolean);
+    const seen = new Set();
+    return candidates.filter(candidate => {
+      const key = `${candidate.category}:${candidate.text.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function selectClozeHintPlan({ target = '', readiness = {}, difficulty = 'standard', experienceType = 'cloze', context = {}, hintLimit = DEFAULT_HINT_LIMIT, seed = '' } = {}) {
+    if (!isClozeHintType(experienceType)) return [];
+    const limit = normalizeHintLimit(hintLimit, DEFAULT_HINT_LIMIT);
+    if (!limit) return [];
+    const candidates = clozeHintCandidates({ target, readiness, context });
+    if (!candidates.length) return [];
+    const caps = hintStrengthCaps(difficulty, limit);
+    const chosen = [];
+    const usedCategories = new Set();
+    const usedFamilies = new Map();
+    const priority = {
+      'cloze-grammar': 0,
+      'cloze-construction': -12,
+      'variable-roles': -8,
+      'fixed-preposition': 12,
+      'fixed-connector': 14,
+      'target-shape': 18,
+      'part-of-speech': 20,
+      'family-handling': 24,
+      'semantic-focus': 34,
+      'letter-count': 46,
+      'initial-letter': 56,
+      'ending-letter': 62,
+      'neighbor-initial': 100,
+      'named-neighbor': 130
+    };
+    let previousStrength = 1;
+    for (let stage = 0; stage < limit; stage += 1) {
+      const cap = caps[stage] || 4;
+      let eligible = candidates.filter(candidate => !usedCategories.has(candidate.category) && candidate.strength <= cap && candidate.strength >= previousStrength);
+      if (!eligible.length) eligible = candidates.filter(candidate => !usedCategories.has(candidate.category) && candidate.strength >= previousStrength);
+      if (!eligible.length) eligible = candidates.filter(candidate => !usedCategories.has(candidate.category));
+      if (!eligible.length) break;
+      if (stage === 0) {
+        const grammarFirst = eligible.filter(candidate => candidate.category === 'cloze-grammar');
+        if (grammarFirst.length) eligible = grammarFirst;
+        else {
+          const low = eligible.filter(candidate => candidate.strength === 1);
+          if (low.length) eligible = low;
+        }
+      }
+      eligible.sort((a, b) => {
+        const familyPenaltyA = (usedFamilies.get(a.family) || 0) * (a.family === 'neighbor' ? 160 : 26);
+        const familyPenaltyB = (usedFamilies.get(b.family) || 0) * (b.family === 'neighbor' ? 160 : 26);
+        const scoreA = (priority[a.category] ?? 70) + a.strength * 24 + familyPenaltyA + (stringHash(`${seed}|${stage}|${a.category}|${a.text}`) % 13);
+        const scoreB = (priority[b.category] ?? 70) + b.strength * 24 + familyPenaltyB + (stringHash(`${seed}|${stage}|${b.category}|${b.text}`) % 13);
+        return scoreA - scoreB || a.category.localeCompare(b.category);
+      });
+      const selected = eligible[0];
+      chosen.push(selected);
+      previousStrength = Math.max(previousStrength, selected.strength);
+      usedCategories.add(selected.category);
+      usedFamilies.set(selected.family, (usedFamilies.get(selected.family) || 0) + 1);
+    }
+    return chosen;
+  }
+
+  function buildClozeHintPlan(selected = null) {
+    const assistance = state.assistance || resetAssistanceState();
+    if (Array.isArray(assistance.clozeHintPlan) && assistance.clozeHintPlan.length) return assistance.clozeHintPlan;
+    const response = state.activePlanner?.result?.response || {};
+    const experience = response.experience || {};
+    const target = clean(selected?.target || response.selectedTarget?.target);
+    const plan = selectClozeHintPlan({
+      target,
+      readiness: state.activePlanner?.diagnostics?.targetReadiness || {},
+      difficulty: state.session?.difficulty || 'standard',
+      experienceType: experience.type,
+      context: response,
+      hintLimit: activeHintLimit(),
+      seed: `${state.session?.sessionId || 'session'}|${state.session?.completed || 0}|${clean(response.selectedTarget?.wordId)}|${target}`
+    });
+    assistance.clozeHintPlan = plan;
+    return plan;
+  }
+
+  function buildClozeHints(selected = null) {
+    return buildClozeHintPlan(selected).map(item => item.text);
+  }
+
+  function runClozeHintSelfTest() {
+    const constructionReadiness = { kind: 'construction', handling: 'construction', posCategories: ['verb'] };
+    const context = {
+      communicativeFocus: { foreground: 'opposition between two groups' },
+      experience: { type: 'cloze', anticipatedNaturalAlternatives: ['set the two groups against each other'] }
+    };
+    const standard = selectClozeHintPlan({
+      target: 'pit someone/something against someone/something', readiness: constructionReadiness,
+      difficulty: 'standard', experienceType: 'cloze', context, hintLimit: 4, seed: 'wid419'
+    });
+    const simple = selectClozeHintPlan({
+      target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] },
+      difficulty: 'standard', experienceType: 'cloze', context: {}, hintLimit: 4, seed: 'simple'
+    });
+    const checks = [
+      { name: 'standard-cloze-has-four-hints', passed: standard.length === 4, result: standard },
+      { name: 'construction-cloze-starts-with-grammar-fit', passed: standard[0]?.category === 'cloze-grammar', result: standard[0] },
+      { name: 'construction-cloze-includes-role-or-structure-help', passed: standard.some(item => ['cloze-construction','variable-roles','fixed-preposition'].includes(item.category)), result: standard },
+      { name: 'construction-cloze-does-not-reveal-full-target', passed: standard.every(item => !item.text.includes('pit someone/something against someone/something')), result: standard },
+      { name: 'simple-cloze-also-has-hints', passed: simple.length >= 2, result: simple },
+      { name: 'cloze-hint-limit-two', passed: selectClozeHintPlan({ target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'cloze', hintLimit: 2, seed: 'two' }).length === 2, result: true },
+      { name: 'cloze-hint-limit-zero', passed: selectClozeHintPlan({ target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'cloze', hintLimit: 0, seed: 'zero' }).length === 0, result: true },
+      { name: 'non-cloze-type-is-untouched', passed: selectClozeHintPlan({ target: 'hiatus', readiness: {}, difficulty: 'standard', experienceType: 'open-description', hintLimit: 4, seed: 'not-cloze' }).length === 0, result: true }
+    ];
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
   function runOpenProductionHintSelfTest() {
     const context = {
       communicativeFocus: { foreground: 'a feeling gradually spreading throughout an entire room' },
@@ -3220,7 +3382,8 @@
 
     const isReconstruction = Boolean(state.reconstruction);
     const isOpenProduction = !isReconstruction && isOpenProductionHintType();
-    if (!isReconstruction && !isOpenProduction) {
+    const isCloze = !isReconstruction && isClozeHintType();
+    if (!isReconstruction && !isOpenProduction && !isCloze) {
       wrap.hidden = true;
       list.hidden = true;
       list.replaceChildren();
@@ -3230,7 +3393,9 @@
 
     const hints = isReconstruction
       ? limitHints(buildReconstructionHints(selected), activeHintLimit())
-      : buildOpenProductionHints(selected);
+      : isCloze
+        ? buildClozeHints(selected)
+        : buildOpenProductionHints(selected);
     if (!hints.length) {
       wrap.hidden = true;
       list.hidden = true;
@@ -4201,6 +4366,17 @@
         renderTaskHints();
         return;
       }
+      if (isClozeHintType()) {
+        const plan = buildClozeHintPlan();
+        if (!plan.length) return;
+        const assistance = state.assistance || resetAssistanceState();
+        const nextStage = Math.min(plan.length, num(assistance.taskHintStage) + 1);
+        assistance.taskHintStage = nextStage;
+        const currentHint = plan[nextStage - 1] || {};
+        noteHintUse(`cloze:${clean(currentHint.category) || 'hint'}`, nextStage);
+        renderTaskHints();
+        return;
+      }
       if (!isOpenProductionHintType()) return;
       const plan = buildOpenProductionHintPlan();
       if (!plan.length) return;
@@ -4294,12 +4470,14 @@
       runTargetReadinessAudit,
       runAssistanceSelfTest,
       runOpenProductionHintSelfTest,
+      runClozeHintSelfTest,
       runFeedbackLayerSelfTest,
       runExactWIDHookSelfTest,
       armExactWIDTest,
       clearExactWIDTest,
       getExactWIDTest: () => clone(exactWIDTestState()),
       getOpenProductionHintPlan: () => clone(buildOpenProductionHintPlan()),
+      getClozeHintPlan: () => clone(buildClozeHintPlan()),
       getAssistance: () => clone(assistanceSnapshot())
     });
   }
