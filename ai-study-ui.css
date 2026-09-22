@@ -343,3 +343,19 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
   .wlp-ai-task-hint-item{grid-template-columns:1fr;gap:2px}
   .wlp-ai-generation-cancel-row{align-items:flex-start;justify-content:flex-start}
 }
+
+/* R2-G.9 — clearer session-size copy + cost visibility */
+.wlp-ai-session-size-summary-text{white-space:pre-line;line-height:1.5}
+.wlp-ai-finished-cost{max-width:620px;margin:8px auto 2px;text-align:center;color:#587565;font:650 .69rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.45}
+.wlp-ai-cost-details{margin-top:10px;border-top:1px solid #e0e9e2;padding-top:9px}
+.wlp-ai-cost-details>summary{cursor:pointer;color:#6f8277;font:750 .65rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.01em;list-style-position:inside}
+.wlp-ai-cost-details-body{display:grid;gap:6px;margin-top:8px;padding:9px 10px;border:1px solid #e1e8e3;border-radius:12px;background:rgba(255,255,255,.58)}
+.wlp-ai-cost-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;color:#6a7e73;font:500 .65rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.4}
+.wlp-ai-cost-row span{color:#829087}
+.wlp-ai-cost-row strong{color:#536f61;text-align:right;font-weight:750}
+.wlp-ai-cost-note{margin:4px 0 0;padding-top:7px;border-top:1px solid #e7eee9;color:#8a9a91;font:500 .59rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.45}
+@media(max-width:620px){
+  .wlp-ai-cost-row{gap:8px}
+  .wlp-ai-cost-row span{max-width:62%}
+  .wlp-ai-finished-cost{padding:0 8px}
+}

@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.8';
+  const VERSION = '1.7.9';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -316,7 +316,11 @@
         plannerElapsed: num(state.activePlanner?.diagnostics?.elapsedMs),
         interpreterElapsed: num(turnDiagnostics.interpreterElapsed),
         provider: clean(turnDiagnostics.provider || state.session?.provider),
-        model: clean(turnDiagnostics.model || state.session?.model)
+        model: clean(turnDiagnostics.model || state.session?.model),
+        inputTokens: num(turnDiagnostics.inputTokens),
+        cachedInputTokens: num(turnDiagnostics.cachedInputTokens),
+        outputTokens: num(turnDiagnostics.outputTokens),
+        estimatedCostUsd: Number.isFinite(turnDiagnostics.estimatedCostUsd) ? turnDiagnostics.estimatedCostUsd : null
       }
     };
   }
@@ -457,7 +461,10 @@
         successfulAICalls: num(session.successfulAICalls),
         failedAICalls: num(session.failedAICalls),
         providerAttempts: num(session.providerAttempts),
+        provider: clean(session.provider),
+        model: clean(session.model),
         inputTokens: num(session.inputTokens),
+        cachedInputTokens: num(session.cachedInputTokens),
         outputTokens: num(session.outputTokens),
         totalTokens: num(session.totalTokens),
         plannerLatencyMs: averageSuccessfulLatency(session.plannerLatencies),
@@ -606,6 +613,7 @@
     });
     body.appendChild(summary);
     turns.forEach((turn, index) => body.appendChild(makeTurnReviewCard(turn, index)));
+    appendCostDetails(body, record);
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -691,6 +699,124 @@
     return `${size} experience${size === 1 ? '' : 's'}`;
   }
 
+  const COST_PRICING = Object.freeze({
+    'openai:gpt-5.6-luna': Object.freeze({ inputPerMillion: 0.20, cachedInputPerMillion: 0.02, outputPerMillion: 1.20, label: 'GPT-5.6 Luna', asOf: '2026-09-21' })
+  });
+
+  function costPricing(provider, model) {
+    return COST_PRICING[`${clean(provider).toLowerCase()}:${clean(model).toLowerCase()}`] || null;
+  }
+
+  function estimatedCostUsd({ inputTokens = 0, cachedInputTokens = 0, outputTokens = 0 } = {}, provider = '', model = '') {
+    const pricing = costPricing(provider, model);
+    if (!pricing) return null;
+    const input = Math.max(0, num(inputTokens));
+    const cached = Math.min(input, Math.max(0, num(cachedInputTokens)));
+    const uncached = Math.max(0, input - cached);
+    const output = Math.max(0, num(outputTokens));
+    return ((uncached * pricing.inputPerMillion) + (cached * pricing.cachedInputPerMillion) + (output * pricing.outputPerMillion)) / 1000000;
+  }
+
+  function formatUsd(value, { compact = false } = {}) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '—';
+    if (amount === 0) return '$0.000';
+    if (compact && amount >= 1) return `$${amount.toFixed(2)}`;
+    if (amount >= 1) return `$${amount.toFixed(2)}`;
+    if (amount >= 0.1) return `$${amount.toFixed(3)}`;
+    return `$${amount.toFixed(4)}`;
+  }
+
+  function sessionCost(sessionLike) {
+    const diag = sessionLike?.diagnostics && typeof sessionLike.diagnostics === 'object' ? sessionLike.diagnostics : sessionLike || {};
+    return estimatedCostUsd({
+      inputTokens: diag.inputTokens,
+      cachedInputTokens: diag.cachedInputTokens,
+      outputTokens: diag.outputTokens
+    }, clean(sessionLike?.provider || diag.provider), clean(sessionLike?.model || diag.model));
+  }
+
+  function costHistoryStats(currentRecord = null) {
+    const records = readSessionHistory().slice();
+    if (currentRecord?.sessionId && !records.some(item => clean(item?.sessionId) === clean(currentRecord.sessionId))) records.push(currentRecord);
+    const now = Date.now();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let todayCost = 0;
+    let weekCost = 0;
+    let totalCost = 0;
+    let totalExperiences = 0;
+    let matchedCost = 0;
+    let matchedExperiences = 0;
+    records.forEach(record => {
+      const cost = sessionCost(record);
+      if (!Number.isFinite(cost)) return;
+      const ended = Date.parse(record?.endedAt || record?.startedAt || '') || 0;
+      const completed = Math.max(0, num(record?.completed));
+      totalCost += cost;
+      totalExperiences += completed;
+      if (ended >= today.getTime()) todayCost += cost;
+      if (ended >= now - 7 * 24 * 60 * 60 * 1000) weekCost += cost;
+      if (currentRecord && clean(record?.practiceType) === clean(currentRecord?.practiceType) && clean(record?.difficulty) === clean(currentRecord?.difficulty)) {
+        matchedCost += cost;
+        matchedExperiences += completed;
+      }
+    });
+    return {
+      todayCost,
+      weekCost,
+      averagePerExperience: totalExperiences ? totalCost / totalExperiences : null,
+      matchedAverage: matchedExperiences ? matchedCost / matchedExperiences : null,
+      totalExperiences
+    };
+  }
+
+  function appendCostDetails(container, record) {
+    if (!container) return;
+    const cost = sessionCost(record);
+    if (!Number.isFinite(cost)) return;
+    const completed = Math.max(0, num(record?.completed));
+    const sessionAvg = completed ? cost / completed : null;
+    const historyStats = costHistoryStats(record);
+    const basis = sessionAvg ?? historyStats.averagePerExperience;
+    const details = document.createElement('details');
+    details.className = 'wlp-ai-cost-details';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Cost details & projections';
+    details.appendChild(summary);
+    const body = document.createElement('div');
+    body.className = 'wlp-ai-cost-details-body';
+    const addRow = (label, value) => {
+      if (value == null || value === '') return;
+      const row = document.createElement('div');
+      row.className = 'wlp-ai-cost-row';
+      const key = document.createElement('span'); key.textContent = label;
+      const val = document.createElement('strong'); val.textContent = value;
+      row.append(key, val); body.appendChild(row);
+    };
+    addRow('This session', formatUsd(cost));
+    if (sessionAvg != null) addRow('Average / completed experience', formatUsd(sessionAvg));
+    addRow('Today (local AI Study history)', formatUsd(historyStats.todayCost));
+    addRow('Last 7 days (local AI Study history)', formatUsd(historyStats.weekCost));
+    if (historyStats.averagePerExperience != null) addRow('Local history average / experience', formatUsd(historyStats.averagePerExperience));
+    if (historyStats.matchedAverage != null) addRow(`${practiceTypeLabel(clean(record?.practiceType || 'adaptive'))} / ${difficultyLabel(clean(record?.difficulty || 'adaptive'))} avg`, formatUsd(historyStats.matchedAverage));
+    if (basis != null) {
+      addRow('5 experiences at current average', `≈ ${formatUsd(basis * 5, { compact: true })}`);
+      addRow('10 experiences at current average', `≈ ${formatUsd(basis * 10, { compact: true })}`);
+      addRow('10 experiences/day × 30 days', `≈ ${formatUsd(basis * 300, { compact: true })}`);
+      addRow('30 experiences/day × 30 days', `≈ ${formatUsd(basis * 900, { compact: true })}`);
+    }
+    const note = document.createElement('p');
+    note.className = 'wlp-ai-cost-note';
+    const pricing = costPricing(clean(record?.provider || record?.diagnostics?.provider), clean(record?.model || record?.diagnostics?.model));
+    note.textContent = pricing
+      ? `Estimate from token usage reported to WLP using ${pricing.label} pricing (${formatUsd(pricing.inputPerMillion, { compact: true })}/1M input, ${formatUsd(pricing.outputPerMillion, { compact: true })}/1M output; cached input handled when reported). OpenAI Usage remains the billing source of truth.`
+      : 'Estimated cost is unavailable for this provider/model. OpenAI Usage remains the billing source of truth.';
+    body.appendChild(note);
+    details.appendChild(body);
+    container.appendChild(details);
+  }
+
   function ensureSessionSizePreferenceUI() {
     const select = $('#study-session-size');
     const footer = select?.closest('.study-source-footer');
@@ -721,18 +847,18 @@
     const summaryText = $('#wlp-ai-session-size-summary-text');
     const useButton = $('#wlp-ai-session-size-use-current');
     if (remember) remember.checked = saved === size;
-    if (label) label.textContent = `Use ${sessionSizeText(size)} as my AI Study default`;
-    if (status) status.textContent = saved ? `Current AI default: ${sessionSizeText(saved)}` : 'No AI Study default saved yet.';
+    if (label) label.textContent = `Use current choice (${sessionSizeText(size)}) as my AI Study default`;
+    if (status) status.textContent = saved ? `Saved AI Study default: ${sessionSizeText(saved)}` : 'No AI Study default saved yet.';
     if (summary) summary.hidden = false;
     if (summaryText) {
       summaryText.textContent = saved
-        ? `This AI session: ${sessionSizeText(size)} · AI default: ${sessionSizeText(saved)}`
-        : `This AI session: ${sessionSizeText(size)} · No AI default saved`;
+        ? `Current session: ${sessionSizeText(size)}\nAI Study default: ${sessionSizeText(saved)}`
+        : `Current session: ${sessionSizeText(size)}\nAI Study default: Not set`;
     }
     if (useButton) {
       const same = saved === size;
       useButton.hidden = same;
-      useButton.textContent = `Use ${size} as default`;
+      useButton.textContent = 'Make current choice the default';
     }
   }
 
@@ -907,7 +1033,7 @@
           </div>
         </div>
         <div class="wlp-ai-session-size-summary" id="wlp-ai-session-size-summary">
-          <span id="wlp-ai-session-size-summary-text">This AI session: 10 experiences</span>
+          <span class="wlp-ai-session-size-summary-text" id="wlp-ai-session-size-summary-text">Current session: 10 experiences\nAI Study default: Not set</span>
           <button class="wlp-ai-session-size-use-current" id="wlp-ai-session-size-use-current" type="button">Use 10 as default</button>
         </div>
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
@@ -1021,6 +1147,7 @@
         </div>
         <p id="wlp-ai-finished-summary">Learning evidence from each completed experience is saved so future AI Study can adapt from it.</p>
         <div class="wlp-ai-finished-stats" id="wlp-ai-finished-stats"></div>
+        <p class="wlp-ai-finished-cost" id="wlp-ai-finished-cost" hidden></p>
         <section class="wlp-ai-session-review" id="wlp-ai-session-review" hidden>
           <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">Targets practiced</span><div class="wlp-ai-session-targets" id="wlp-ai-session-targets"></div></div>
           <div class="wlp-ai-session-review-block"><span class="wlp-ai-feedback-label">What went well</span><p id="wlp-ai-session-well"></p></div>
@@ -1577,8 +1704,29 @@
     const usage = meta?.usage || {};
     const input = num(usage.input_tokens ?? usage.promptTokenCount ?? usage.prompt_token_count);
     const output = num(usage.output_tokens ?? usage.candidatesTokenCount ?? usage.candidates_token_count);
+    const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
+    const cachedInput = num(details.cached_tokens ?? details.cachedTokens ?? usage.cached_input_tokens ?? usage.cachedInputTokens);
     const total = num(usage.total_tokens ?? usage.totalTokenCount ?? usage.total_token_count) || input + output;
-    return { input, output, total };
+    return { input, cachedInput, output, total };
+  }
+
+  function usageSnapshot(session = state.session) {
+    return {
+      inputTokens: num(session?.inputTokens),
+      cachedInputTokens: num(session?.cachedInputTokens),
+      outputTokens: num(session?.outputTokens),
+      totalTokens: num(session?.totalTokens)
+    };
+  }
+
+  function usageDelta(start, session = state.session) {
+    const now = usageSnapshot(session);
+    return {
+      inputTokens: Math.max(0, now.inputTokens - num(start?.inputTokens)),
+      cachedInputTokens: Math.max(0, now.cachedInputTokens - num(start?.cachedInputTokens)),
+      outputTokens: Math.max(0, now.outputTokens - num(start?.outputTokens)),
+      totalTokens: Math.max(0, now.totalTokens - num(start?.totalTokens))
+    };
   }
 
   function recordLatency(kind, ms, ok = true) {
@@ -1599,6 +1747,7 @@
     session.model = clean(meta?.model || session.model);
     const usage = usageCounts(meta);
     session.inputTokens += usage.input;
+    session.cachedInputTokens += usage.cachedInput;
     session.outputTokens += usage.output;
     session.totalTokens += usage.total;
     recordLatency(kind, ms, true);
@@ -1616,6 +1765,7 @@
     session.model = clean(meta?.model || session.model);
     const usage = usageCounts(meta);
     session.inputTokens += usage.input;
+    session.cachedInputTokens += usage.cachedInput;
     session.outputTokens += usage.output;
     session.totalTokens += usage.total;
     recordLatency(kind, ms, false);
@@ -1775,6 +1925,7 @@
     prepareExperienceLoading(`Creating a new ${practiceTypeLabel(state.session.practiceType)}${difficultyText} experience…`);
     setBusy(true);
     let plannerStarted = null;
+    const experienceUsageStart = usageSnapshot(state.session);
     try {
       const { transport } = requireLayers();
       const built = await buildFreshPlannerRequest(state.session);
@@ -1811,7 +1962,8 @@
               providerAttempts: plannerAttempts,
               provider: clean(plannerResult.meta?.provider),
               model: clean(plannerResult.meta?.model),
-              generationAttempt
+              generationAttempt,
+              usageStart: experienceUsageStart
             }
           };
           const selectedId = clean(plannerResult.response?.selectedTarget?.wordId);
@@ -1887,11 +2039,16 @@
       });
       state.session.completed += 1;
       state.session.committedEvents.push(committed.eventId);
+      const turnUsage = usageDelta(state.activePlanner?.diagnostics?.usageStart, state.session);
+      const turnProvider = clean(interpreterResult.meta?.provider || state.activePlanner?.diagnostics?.provider);
+      const turnModel = clean(interpreterResult.meta?.model || state.activePlanner?.diagnostics?.model);
       const turnDiagnostics = {
         interpreterElapsed,
         interpreterAttempts,
-        provider: clean(interpreterResult.meta?.provider || state.activePlanner?.diagnostics?.provider),
-        model: clean(interpreterResult.meta?.model || state.activePlanner?.diagnostics?.model)
+        provider: turnProvider,
+        model: turnModel,
+        ...turnUsage,
+        estimatedCostUsd: estimatedCostUsd(turnUsage, turnProvider, turnModel)
       };
       state.session.turns.push(turnSnapshot(interpreterResult.response, text, turnDiagnostics));
       renderFeedback(interpreterResult.response, committed, turnDiagnostics);
@@ -1985,6 +2142,7 @@
       `${totalAttempts || 2} provider request${(totalAttempts || 2) === 1 ? '' : 's'} this experience`
     ];
     if (failedInterpreterCalls) timingParts.push(`${failedInterpreterCalls} earlier interpreter failure${failedInterpreterCalls === 1 ? '' : 's'}`);
+    if (Number.isFinite(turnDiagnostics.estimatedCostUsd)) timingParts.push(`Estimated cost ${formatUsd(turnDiagnostics.estimatedCostUsd)}`);
     if (provider || model) timingParts.push([provider, model].filter(Boolean).join(' · '));
     $('#wlp-ai-turn-diagnostics').textContent = timingParts.join(' · ');
 
@@ -2035,6 +2193,7 @@
       provider: '',
       model: '',
       inputTokens: 0,
+      cachedInputTokens: 0,
       outputTokens: 0,
       totalTokens: 0,
       plannerLatencies: [],
@@ -2072,6 +2231,20 @@
     });
 
     const record = sessionRecord(session);
+    const finishedCost = $('#wlp-ai-finished-cost');
+    const estimatedSessionCost = sessionCost(record);
+    if (finishedCost) {
+      if (Number.isFinite(estimatedSessionCost)) {
+        const avg = session.completed ? estimatedSessionCost / session.completed : null;
+        finishedCost.textContent = avg != null
+          ? `Estimated session cost: ${formatUsd(estimatedSessionCost)} · Average ${formatUsd(avg)} / completed experience`
+          : `Estimated session cost: ${formatUsd(estimatedSessionCost)}`;
+        finishedCost.hidden = false;
+      } else {
+        finishedCost.textContent = '';
+        finishedCost.hidden = true;
+      }
+    }
     renderSessionReview(record);
     const historySaved = session.completed ? saveSessionHistory(record) : true;
     renderHistory();
@@ -2092,6 +2265,8 @@
     ];
     if (session.provider || session.model) rows.push(['Provider', [session.provider, session.model].filter(Boolean).join(' · ')]);
     if (session.totalTokens > 0) rows.push(['Token usage', `${session.inputTokens} in · ${session.outputTokens} out · ${session.totalTokens} total`]);
+    if (session.cachedInputTokens > 0) rows.push(['Cached input', `${session.cachedInputTokens} tokens`]);
+    if (Number.isFinite(estimatedSessionCost)) rows.push(['Estimated session cost', formatUsd(estimatedSessionCost)]);
     rows.forEach(([label, value]) => {
       const row = document.createElement('div');
       row.className = 'wlp-ai-diagnostic-row';
@@ -2102,6 +2277,7 @@
       row.append(key, val);
       diagnostics.appendChild(row);
     });
+    appendCostDetails(diagnostics, record);
     state.activePlanner = null;
   }
 
