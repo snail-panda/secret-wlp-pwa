@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.6';
+  const VERSION = '1.1.7';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -741,6 +741,16 @@
     goodNaturalOptionsInterpreter.requestId = 'self-int-natural-options';
     goodNaturalOptionsInterpreter.learnerFacingResponse.naturalOptions = ['The scent spread through the room.', 'The fragrance permeated the space.'];
 
+    const correctionWithNaturalOptionsInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    correctionWithNaturalOptionsInterpreter.requestId = 'self-int-correction-with-natural-options';
+    correctionWithNaturalOptionsInterpreter.interpretation.responseClasses = ['exact-target','form-mismatch'];
+    correctionWithNaturalOptionsInterpreter.interpretation.targetProduced = true;
+    correctionWithNaturalOptionsInterpreter.interpretation.targetFamilyReached = true;
+    correctionWithNaturalOptionsInterpreter.communicativeInterpretation.learnerExpressionNatural = false;
+    correctionWithNaturalOptionsInterpreter.learnerFacingResponse.correctionNeeded = true;
+    correctionWithNaturalOptionsInterpreter.learnerFacingResponse.suggestedNaturalForm = 'A mood of distrust permeated the laboratory.';
+    correctionWithNaturalOptionsInterpreter.learnerFacingResponse.naturalOptions = ['Distrust spread through the laboratory.', 'Distrust took hold across the organization.'];
+
     const tooManyNaturalOptionsInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
     tooManyNaturalOptionsInterpreter.requestId = 'self-int-too-many-natural-options';
     tooManyNaturalOptionsInterpreter.learnerFacingResponse.naturalOptions = ['one','two','three','four'];
@@ -787,6 +797,7 @@
       { name: 'interpreter-reject-empty-neighbor-payload', expected: 'REJECT', actual: validateInterpreterResponse(emptyNeighborPayloadInterpreter).status },
       { name: 'interpreter-reject-suggestion-when-no-correction', expected: 'REJECT', actual: validateInterpreterResponse(falseCorrectionSuggestionInterpreter).status },
       { name: 'interpreter-valid-natural-options-up-to-three', expected: 'VALID', actual: validateInterpreterResponse(goodNaturalOptionsInterpreter, promptedNeighborContext).status },
+      { name: 'interpreter-valid-correction-with-distinct-natural-options', expected: 'VALID', actual: validateInterpreterResponse(correctionWithNaturalOptionsInterpreter, promptedNeighborContext).status },
       { name: 'interpreter-reject-more-than-three-natural-options', expected: 'REJECT', actual: validateInterpreterResponse(tooManyNaturalOptionsInterpreter, promptedNeighborContext).status },
       { name: 'interpreter-valid-first-profile-observation-without-promotion', expected: 'VALID', actual: validateInterpreterResponse(firstObservationInterpreter, emptyProfileContext).status },
       { name: 'interpreter-reject-uncorroborated-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(uncorroboratedPromotionInterpreter, emptyProfileContext).status },

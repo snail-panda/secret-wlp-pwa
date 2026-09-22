@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Feedback Natural Options v1.8.6.71 R2-I.3.1
-   Preserve target connection-building while surfacing only meaningfully distinct optional natural routes. */
+/* WLP Stage 7 — AI Study Feedback Roles + Hint Priority v1.8.6.72 R2-I.3.2
+   Separate revision from optional natural routes; keep Standard neighbor-initial hints lower priority. */
 (() => {
   'use strict';
 
-  const VERSION = '1.9.0';
+  const VERSION = '1.9.1';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -1143,13 +1143,11 @@
       modelResponse
     ], 4);
     const naturalOptions = [];
-    if (!correctionNeeded) {
-      sourceOptions.forEach(option => {
-        if (naturalOptions.length >= 3) return;
-        const references = [rawLearner, intendedExample, ...naturalOptions];
-        if (meaningfullyDistinctFeedbackOption(option, references)) naturalOptions.push(option);
-      });
-    }
+    sourceOptions.forEach(option => {
+      if (naturalOptions.length >= 3) return;
+      const references = [rawLearner, intendedExample, suggestedNaturalForm, ...naturalOptions];
+      if (meaningfullyDistinctFeedbackOption(option, references)) naturalOptions.push(option);
+    });
     return {
       yourAnswer: showYourAnswer ? rawLearner : '',
       intendedExample,
@@ -1191,7 +1189,12 @@
     nearDuplicate.learnerFacingResponse.modelResponse = '';
     const corrected = {
       communicativeInterpretation: { learnerExpressionNatural: false },
-      learnerFacingResponse: { correctionNeeded: true, suggestedNaturalForm: 'The podcast is on hiatus while the host recovers.', modelResponse: 'The podcast is taking a temporary break.', naturalOptions: ['The show is taking a temporary break.'] }
+      learnerFacingResponse: {
+        correctionNeeded: true,
+        suggestedNaturalForm: 'The podcast is on hiatus while the host recovers.',
+        modelResponse: 'The podcast is taking a temporary break.',
+        naturalOptions: ['New episodes are paused while the host recovers.']
+      }
     };
     const testLabel = JSON.parse(JSON.stringify(natural));
     const many = JSON.parse(JSON.stringify(natural));
@@ -1216,8 +1219,9 @@
       { name: 'planner-intended-answer-is-preserved', passed: a.intendedExample === planner.experience.intendedExample, result: a },
       { name: 'multiple-distinct-natural-options-are-preserved', passed: a.naturalOptions.length >= 2, result: a },
       { name: 'near-copy-of-intended-answer-is-suppressed', passed: b.naturalOptions.length === 0, result: b },
-      { name: 'correction-shows-natural-form', passed: c.naturalForm === corrected.learnerFacingResponse.suggestedNaturalForm, result: c },
-      { name: 'correction-does-not-add-extra-options', passed: c.naturalOptions.length === 0, result: c },
+      { name: 'correction-shows-natural-revision', passed: c.naturalForm === corrected.learnerFacingResponse.suggestedNaturalForm, result: c },
+      { name: 'correction-can-also-preserve-distinct-natural-options', passed: c.naturalOptions.length >= 1, result: c },
+      { name: 'correction-options-stay-distinct-from-revision', passed: c.naturalOptions.every(option => meaningfullyDistinctFeedbackOption(option, [c.naturalForm])), result: c },
       { name: 'debug-target-label-is-not-presented-as-natural-answer', passed: !d.yourAnswer, result: d },
       { name: 'natural-options-are-capped-at-three', passed: e.naturalOptions.length === 3, result: e },
       { name: 'legacy-model-response-remains-a-fallback', passed: f.naturalOptions.includes(legacy.learnerFacingResponse.modelResponse), result: f }
@@ -1498,12 +1502,22 @@
     addPeekField(article, 'Next step', turn?.nextStep);
     const highlightTerms = [clean(turn?.target), ...(Array.isArray(turn?.targetFamily) ? turn.targetFamily.map(clean) : [])].filter(Boolean);
     if (clean(turn?.intendedExample)) addPeekField(article, 'One intended answer', turn.intendedExample, highlightTerms);
-    if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm, highlightTerms);
-    else {
-      const storedOptions = Array.isArray(turn?.naturalOptions) ? turn.naturalOptions.map(clean).filter(Boolean).slice(0, 3) : [];
-      const fallbackOptions = storedOptions.length ? storedOptions : feedbackExampleBundle({ experience: { intendedExample: turn?.intendedExample } }, { learnerFacingResponse: { correctionNeeded: false, modelResponse: turn?.modelResponse, naturalOptions: [] }, communicativeInterpretation: { learnerExpressionNatural: turn?.learnerExpressionNatural === true } }, turn?.learnerResponse).naturalOptions;
-      fallbackOptions.forEach((option, optionIndex) => addPeekField(article, fallbackOptions.length > 1 ? `Natural option ${optionIndex + 1}` : 'Another natural option', option, highlightTerms));
-    }
+    if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'A natural revision of your answer', turn.suggestedNaturalForm, highlightTerms);
+    const storedOptions = Array.isArray(turn?.naturalOptions) ? turn.naturalOptions.map(clean).filter(Boolean).slice(0, 3) : [];
+    const fallbackOptions = storedOptions.length ? storedOptions : feedbackExampleBundle(
+      { experience: { intendedExample: turn?.intendedExample } },
+      {
+        learnerFacingResponse: {
+          correctionNeeded: turn?.correctionNeeded === true,
+          suggestedNaturalForm: turn?.suggestedNaturalForm || null,
+          modelResponse: turn?.modelResponse,
+          naturalOptions: []
+        },
+        communicativeInterpretation: { learnerExpressionNatural: turn?.learnerExpressionNatural === true }
+      },
+      turn?.learnerResponse
+    ).naturalOptions;
+    fallbackOptions.forEach((option, optionIndex) => addPeekField(article, fallbackOptions.length > 1 ? `Natural option ${optionIndex + 1}` : 'Another natural option', option, highlightTerms));
     if (includePeek && clean(turn?.wordId)) {
       const actions = document.createElement('div');
       actions.className = 'wlp-ai-turn-card-actions';
@@ -2261,6 +2275,10 @@
             <span class="wlp-ai-feedback-label">One intended answer</span>
             <p class="wlp-ai-model-response-text" id="wlp-ai-intended-answer-text"></p>
           </div>
+          <div class="wlp-ai-model-response" id="wlp-ai-natural-revision" hidden>
+            <span class="wlp-ai-feedback-label">A natural revision of your answer</span>
+            <p class="wlp-ai-model-response-text" id="wlp-ai-natural-revision-text"></p>
+          </div>
           <div class="wlp-ai-model-response" id="wlp-ai-model-response" hidden>
             <span class="wlp-ai-feedback-label" id="wlp-ai-model-response-label">Another natural option</span>
             <p class="wlp-ai-model-response-text" id="wlp-ai-model-response-text"></p>
@@ -2958,8 +2976,10 @@
       // Prefer the least revealing clue that still adds a new axis.
       // Difficulty controls when stronger clues become eligible; it does not force them early.
       const strengthPenalty = candidate.strength * 28;
+      const level = clean(difficulty).toLowerCase() || 'standard';
+      const standardNeighborPenalty = ['standard', 'adaptive'].includes(level) ? (candidate.category === 'neighbor-initial' ? 65 : candidate.category === 'named-neighbor' ? 110 : 0) : 0;
       const seeded = stringHash(`${seed}|${stageIndex}|${candidate.category}|${candidate.text}`) % 31;
-      return recentPenalty + familyPenalty + strengthPenalty + seeded;
+      return recentPenalty + familyPenalty + strengthPenalty + standardNeighborPenalty + seeded;
     }
 
     let previousStrength = 1;
@@ -3086,6 +3106,14 @@
           const partial = candidates.find(h => h.category === 'neighbor-initial');
           const explicit = candidates.find(h => h.category === 'named-neighbor');
           return Boolean(partial && explicit && partial.strength < explicit.strength);
+        }
+      },
+      {
+        name: 'standard-neighbor-initial-is-lower-priority',
+        input: { target: 'permeate', readiness: { kind: 'simple', handling: 'single', posCategories: ['verb'] }, difficulty: 'standard', experienceType: 'open-description', context, hintLimit: 4, seed: 'std-neighbor-low-priority', recentCategories: [] },
+        test: plan => {
+          const index = plan.findIndex(h => h.category === 'neighbor-initial');
+          return index === -1 || index >= 3;
         }
       },
       {
@@ -3836,14 +3864,20 @@
       intendedBlock.hidden = true;
     }
 
+    const revisionBlock = $('#wlp-ai-natural-revision');
+    const revisionText = $('#wlp-ai-natural-revision-text');
+    if (examples.naturalForm) {
+      renderHighlightedText(revisionText, examples.naturalForm, highlightTerms);
+      revisionBlock.hidden = false;
+    } else {
+      revisionText.textContent = '';
+      revisionBlock.hidden = true;
+    }
+
     const modelBlock = $('#wlp-ai-model-response');
     const modelLabel = $('#wlp-ai-model-response-label');
     const modelText = $('#wlp-ai-model-response-text');
-    if (examples.naturalForm) {
-      modelLabel.textContent = 'Natural form';
-      renderHighlightedText(modelText, examples.naturalForm, highlightTerms);
-      modelBlock.hidden = false;
-    } else if (examples.naturalOptions.length) {
+    if (examples.naturalOptions.length) {
       modelLabel.textContent = examples.naturalOptions.length > 1 ? 'Other natural options' : 'Another natural option';
       renderHighlightedOptions(modelText, examples.naturalOptions, highlightTerms);
       modelBlock.hidden = false;
