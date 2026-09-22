@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.8.8';
+  const VERSION = '1.8.9';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -1094,6 +1094,69 @@
     return { key: 'needs-revision', label: 'Needs revision', tone: 'revise' };
   }
 
+  function normalizeFeedbackText(value) {
+    return clean(value).normalize('NFKC').toLowerCase().replace(/[\s\u2018\u2019\u201c\u201d"'.,!?;:()\[\]{}-]+/g, ' ').trim();
+  }
+
+  function sameFeedbackText(a, b) {
+    const left = normalizeFeedbackText(a);
+    const right = normalizeFeedbackText(b);
+    return Boolean(left && right && left === right);
+  }
+
+  function feedbackExampleBundle(plannerResponse, response, learnerText = '') {
+    const planner = plannerResponse && typeof plannerResponse === 'object' ? plannerResponse : {};
+    const experience = planner.experience && typeof planner.experience === 'object' ? planner.experience : {};
+    const learner = response?.learnerFacingResponse || {};
+    const rawLearner = clean(learnerText);
+    const correctionNeeded = learner.correctionNeeded === true;
+    const natural = response?.communicativeInterpretation?.learnerExpressionNatural === true;
+    const noResponse = /^i don['’]?t know\.?$/i.test(rawLearner);
+    const testLabelOnly = /^target\s*:/i.test(rawLearner);
+    const intendedExample = clean(experience.intendedExample);
+    const suggestedNaturalForm = clean(learner.suggestedNaturalForm);
+    const modelResponse = clean(learner.modelResponse);
+    const showYourAnswer = Boolean(rawLearner && natural && !correctionNeeded && !noResponse && !testLabelOnly);
+    const anotherNaturalOption = !correctionNeeded && modelResponse && !sameFeedbackText(modelResponse, rawLearner) && !sameFeedbackText(modelResponse, intendedExample)
+      ? modelResponse
+      : '';
+    return {
+      yourAnswer: showYourAnswer ? rawLearner : '',
+      intendedExample,
+      naturalForm: correctionNeeded ? suggestedNaturalForm : '',
+      anotherNaturalOption
+    };
+  }
+
+  function runFeedbackLayerSelfTest() {
+    const planner = { experience: { intendedExample: 'The podcast is on hiatus while the host recovers.' } };
+    const natural = {
+      communicativeInterpretation: { learnerExpressionNatural: true },
+      learnerFacingResponse: { correctionNeeded: false, suggestedNaturalForm: null, modelResponse: 'The podcast is temporarily on hold while the host recovers.' }
+    };
+    const sameModel = JSON.parse(JSON.stringify(natural));
+    sameModel.learnerFacingResponse.modelResponse = 'The podcast is currently on hiatus while the host recovers.';
+    const corrected = {
+      communicativeInterpretation: { learnerExpressionNatural: false },
+      learnerFacingResponse: { correctionNeeded: true, suggestedNaturalForm: 'The podcast is on hiatus while the host recovers.', modelResponse: 'The podcast is taking a temporary break.' }
+    };
+    const testLabel = JSON.parse(JSON.stringify(natural));
+    const a = feedbackExampleBundle(planner, natural, 'The podcast is currently on hiatus while the host recovers.');
+    const b = feedbackExampleBundle(planner, sameModel, 'The podcast is currently on hiatus while the host recovers.');
+    const c = feedbackExampleBundle(planner, corrected, 'The podcast is in hiatus while the host recovers.');
+    const d = feedbackExampleBundle(planner, testLabel, 'Target: hiatus');
+    const checks = [
+      { name: 'natural-learner-answer-is-repeated', passed: Boolean(a.yourAnswer), result: a },
+      { name: 'planner-intended-answer-is-preserved', passed: a.intendedExample === planner.experience.intendedExample, result: a },
+      { name: 'distinct-model-becomes-another-option', passed: Boolean(a.anotherNaturalOption), result: a },
+      { name: 'duplicate-model-is-suppressed', passed: !b.anotherNaturalOption, result: b },
+      { name: 'correction-shows-natural-form', passed: c.naturalForm === corrected.learnerFacingResponse.suggestedNaturalForm, result: c },
+      { name: 'correction-does-not-add-extra-option', passed: !c.anotherNaturalOption, result: c },
+      { name: 'debug-target-label-is-not-presented-as-natural-answer', passed: !d.yourAnswer, result: d }
+    ];
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
   function makeOutcomeChip(outcome, className = 'wlp-ai-outcome-chip') {
     const info = outcome && typeof outcome === 'object' ? outcome : { label: '' };
     const chip = document.createElement('span');
@@ -1135,6 +1198,7 @@
       experienceType: clean(exp.type || planner.learningOpportunity?.direction),
       prompt: clean(clean(exp.type) === 'sentence-reconstruction' ? (parseReconstructionPrompt(exp.prompt)?.prompt || exp.prompt) : exp.prompt),
       responseFrame: clean(exp.responseFrame),
+      intendedExample: clean(exp.intendedExample),
       learnerResponse: clean(learnerText),
       assistance: assistanceSnapshot(),
       targetFeedback: clean(learner.targetFeedback || learner.feedback || response?.evidence?.observationSummary),
@@ -1364,8 +1428,9 @@
     addPeekField(article, 'Language feedback', turn?.languageFeedback);
     addPeekField(article, 'Next step', turn?.nextStep);
     const highlightTerms = [clean(turn?.target), ...(Array.isArray(turn?.targetFamily) ? turn.targetFamily.map(clean) : [])].filter(Boolean);
+    if (clean(turn?.intendedExample)) addPeekField(article, 'One intended answer', turn.intendedExample, highlightTerms);
     if (turn?.correctionNeeded && clean(turn?.suggestedNaturalForm)) addPeekField(article, 'Natural form', turn.suggestedNaturalForm, highlightTerms);
-    else if (clean(turn?.modelResponse)) addPeekField(article, clean(turn?.experienceType) === 'sentence-reconstruction' ? 'One natural answer' : 'Natural example', turn.modelResponse, highlightTerms);
+    else if (clean(turn?.modelResponse) && !sameFeedbackText(turn.modelResponse, turn?.learnerResponse) && !sameFeedbackText(turn.modelResponse, turn?.intendedExample)) addPeekField(article, 'Another natural option', turn.modelResponse, highlightTerms);
     if (includePeek && clean(turn?.wordId)) {
       const actions = document.createElement('div');
       actions.className = 'wlp-ai-turn-card-actions';
@@ -2115,8 +2180,16 @@
             <span class="wlp-ai-feedback-label">Language feedback</span>
             <p class="wlp-ai-feedback-text" id="wlp-ai-language-feedback"></p>
           </div>
+          <div class="wlp-ai-model-response" id="wlp-ai-your-answer" hidden>
+            <span class="wlp-ai-feedback-label">Your answer</span>
+            <p class="wlp-ai-model-response-text" id="wlp-ai-your-answer-text"></p>
+          </div>
+          <div class="wlp-ai-model-response" id="wlp-ai-intended-answer" hidden>
+            <span class="wlp-ai-feedback-label">One intended answer</span>
+            <p class="wlp-ai-model-response-text" id="wlp-ai-intended-answer-text"></p>
+          </div>
           <div class="wlp-ai-model-response" id="wlp-ai-model-response" hidden>
-            <span class="wlp-ai-feedback-label" id="wlp-ai-model-response-label">Natural example</span>
+            <span class="wlp-ai-feedback-label" id="wlp-ai-model-response-label">Another natural option</span>
             <p class="wlp-ai-model-response-text" id="wlp-ai-model-response-text"></p>
           </div>
           <div class="wlp-ai-next-wrap"><span class="wlp-ai-next-label">Next step</span><small id="wlp-ai-next-note"></small><button class="wlp-ai-next-button" id="wlp-ai-next" type="button">Next experience</button></div>
@@ -3664,21 +3737,39 @@
     $('#wlp-ai-language-feedback').textContent = languageFeedback || 'No separate language-level feedback was returned for this turn.';
     languageBlock.hidden = false;
 
+    const plannerResponse = state.activePlanner?.result?.response || {};
+    const learnerText = clean($('#wlp-ai-response')?.value);
+    const examples = feedbackExampleBundle(plannerResponse, response, learnerText);
+    const family = Array.isArray(selected.targetFamily) ? selected.targetFamily : [];
+    const highlightTerms = [target, ...family];
+
+    const yourAnswerBlock = $('#wlp-ai-your-answer');
+    const yourAnswerText = $('#wlp-ai-your-answer-text');
+    if (examples.yourAnswer) {
+      renderHighlightedText(yourAnswerText, examples.yourAnswer, highlightTerms);
+      yourAnswerBlock.hidden = false;
+    } else {
+      yourAnswerText.textContent = '';
+      yourAnswerBlock.hidden = true;
+    }
+
+    const intendedBlock = $('#wlp-ai-intended-answer');
+    const intendedText = $('#wlp-ai-intended-answer-text');
+    if (examples.intendedExample) {
+      renderHighlightedText(intendedText, examples.intendedExample, highlightTerms);
+      intendedBlock.hidden = false;
+    } else {
+      intendedText.textContent = '';
+      intendedBlock.hidden = true;
+    }
+
     const modelBlock = $('#wlp-ai-model-response');
     const modelLabel = $('#wlp-ai-model-response-label');
     const modelText = $('#wlp-ai-model-response-text');
-    const suggested = clean(learner.suggestedNaturalForm);
-    const modelResponse = clean(learner.modelResponse);
-    const modelDisplay = learner.correctionNeeded && suggested ? suggested : modelResponse;
+    const modelDisplay = examples.naturalForm || examples.anotherNaturalOption;
     if (modelDisplay) {
-      const experienceType = clean(state.activePlanner?.result?.response?.experience?.type);
-      modelLabel.textContent = learner.correctionNeeded && suggested
-        ? 'Natural form'
-        : experienceType === 'sentence-reconstruction'
-          ? 'One natural answer'
-          : 'Natural example';
-      const family = Array.isArray(selected.targetFamily) ? selected.targetFamily : [];
-      renderHighlightedText(modelText, modelDisplay, [target, ...family]);
+      modelLabel.textContent = examples.naturalForm ? 'Natural form' : 'Another natural option';
+      renderHighlightedText(modelText, modelDisplay, highlightTerms);
       modelBlock.hidden = false;
     } else {
       modelText.textContent = '';
@@ -4010,6 +4101,7 @@
       runTargetReadinessAudit,
       runAssistanceSelfTest,
       runOpenProductionHintSelfTest,
+      runFeedbackLayerSelfTest,
       getOpenProductionHintPlan: () => clone(buildOpenProductionHintPlan()),
       getAssistance: () => clone(assistanceSnapshot())
     });

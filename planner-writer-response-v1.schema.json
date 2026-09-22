@@ -217,6 +217,7 @@
         "responseMode",
         "responseConstraint",
         "responseFrame",
+        "intendedExample",
         "anticipatedNaturalAlternatives",
         "frameCompatibleAlternatives",
         "frameCompatibilityVerified"
@@ -284,6 +285,11 @@
         },
         "responseFrame": {
           "type": "string"
+        },
+        "intendedExample": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One natural complete response the Planner had in mind when composing this Experience. It is a hidden post-response reference example, not an answer key or required wording."
         },
         "frameCompatibleAlternatives": {
           "type": "array",

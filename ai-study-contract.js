@@ -1,20 +1,18 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.1';
+  const VERSION = '1.1.5';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
     directions: ['world-to-expression','expression-to-world','concept-to-expression','expression-to-concept','message-to-expression','expression-to-message','neighbor-to-target','target-to-neighbor','cross-domain-transfer','cross-sense-transfer','free-composition'],
-    experienceTypes: ['situational-production','reverse-reconstruction','sentence-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
+    experienceTypes: ['situational-production','reverse-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
     targetVisibility: ['hidden','visible','partial'],
     responseConstraints: ['open','fixed-frame'],
     motivationStrength: ['weak','natural','strong'],
     targetNaturalness: ['merely-possible','natural','highly-natural'],
     targetCommonness: ['default-common','common','less-common-but-natural','specialized-or-marked'],
     routerActions: ['DEEPEN','BRANCH','TRANSFER','CONTRAST','REVERSE','COMPOSE','PAUSE'],
-    practiceTypeModes: ['adaptive','override'],
-    difficultyModes: ['adaptive','easy','standard','hard','hell'],
     responseClasses: ['exact-target','target-family','natural-neighbor','natural-alternative','partial-concept','form-mismatch','sense-mismatch','register-mismatch','construal-shift','unrelated','uncertain','stt-uncertain'],
     focusRelations: ['aligned','overlapping','shifted','conflicting','unclear'],
     interpretationConfidence: ['low','medium','high'],
@@ -113,7 +111,7 @@
       requireString(value.session, 'sessionId', '$.session', errors);
       if (value.session.mode !== 'ai-study') push(errors, '$.session.mode', 'must equal ai-study');
       requireString(value.session, 'sourceMode', '$.session', errors);
-      requireEnum(value.session, 'difficulty', ENUMS.difficultyModes, '$.session', errors);
+      requireString(value.session, 'difficulty', '$.session', errors);
     }
     requireObject(value.learnerSessionState, '$.learnerSessionState', errors);
     if (requireObject(value.candidateContext, '$.candidateContext', errors)) {
@@ -130,17 +128,6 @@
       requireBoolean(value.plannerConstraints, 'avoidRecentRouteRepetition', '$.plannerConstraints', errors);
       requireBoolean(value.plannerConstraints, 'naturalnessGateRequired', '$.plannerConstraints', errors);
       requireBoolean(value.plannerConstraints, 'targetNeedNotBeExplicit', '$.plannerConstraints', errors);
-      if (has(value.plannerConstraints, 'experienceTypeMode')) requireEnum(value.plannerConstraints, 'experienceTypeMode', ENUMS.practiceTypeModes, '$.plannerConstraints', errors);
-      if (has(value.plannerConstraints, 'requiredExperienceType')) {
-        const requiredType = value.plannerConstraints.requiredExperienceType;
-        if (!(requiredType === null || ENUMS.experienceTypes.includes(requiredType))) push(errors, '$.plannerConstraints.requiredExperienceType', `must be null or one of: ${ENUMS.experienceTypes.join(', ')}`);
-      }
-      if (value.plannerConstraints.experienceTypeMode === 'override' && !ENUMS.experienceTypes.includes(value.plannerConstraints.requiredExperienceType)) {
-        push(errors, '$.plannerConstraints.requiredExperienceType', 'must be a supported experience type when experienceTypeMode is override');
-      }
-      if (value.plannerConstraints.experienceTypeMode === 'adaptive' && value.plannerConstraints.requiredExperienceType != null) {
-        push(errors, '$.plannerConstraints.requiredExperienceType', 'must be null when experienceTypeMode is adaptive');
-      }
     }
     return result(errors, warnings);
   }
@@ -185,6 +172,7 @@
       requireString(value.experience, 'responseMode', '$.experience', errors);
       requireEnum(value.experience, 'responseConstraint', ENUMS.responseConstraints, '$.experience', errors);
       if (!has(value.experience, 'responseFrame') || typeof value.experience.responseFrame !== 'string') push(errors, '$.experience.responseFrame', 'must be a string');
+      requireString(value.experience, 'intendedExample', '$.experience', errors);
       requireArray(value.experience, 'anticipatedNaturalAlternatives', '$.experience', errors, 0);
       requireArray(value.experience, 'frameCompatibleAlternatives', '$.experience', errors, 0);
       requireBoolean(value.experience, 'frameCompatibilityVerified', '$.experience', errors);
@@ -242,7 +230,7 @@
     }
 
     const productionDirections = new Set(['world-to-expression','concept-to-expression','message-to-expression','neighbor-to-target']);
-    const exploratoryTypes = new Set(['contrast','reformulation','reverse-reconstruction','sentence-reconstruction']);
+    const exploratoryTypes = new Set(['contrast','reformulation','reverse-reconstruction']);
     const productionOriented = productionDirections.has(direction) && !exploratoryTypes.has(type);
     if (productionOriented && motivation !== 'strong') {
       push(warnings, '$.usageMotivation.motivationStrength', 'production-oriented experience should normally make the target strongly motivated by the situation/message');
@@ -256,41 +244,6 @@
     if (clozeLikePrompt && responseConstraint !== 'fixed-frame') {
       push(errors, '$.experience.responseConstraint', 'cloze/fill-in prompts must declare fixed-frame response constraint');
     }
-    if (type === 'sentence-reconstruction') {
-      const marker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_UNITS:\s*(.+?)\s*$/im);
-      const units = marker ? marker[1].split('||').map(text).filter(Boolean) : [];
-      const levelMarker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_LEVEL:\s*(easy|standard|hard|hell)\s*$/im);
-      const level = text(levelMarker?.[1]).toLowerCase();
-      const distractorMarker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_DISTRACTORS:\s*(.+?)\s*$/im);
-      const distractors = distractorMarker ? distractorMarker[1].split('||').map(text).filter(Boolean) : [];
-      const missingMarker = promptText.match(/(?:^|\n)\s*RECONSTRUCTION_MISSING_REQUIRED:\s*(true|false)\s*$/im);
-      const missingRequired = text(missingMarker?.[1]).toLowerCase() === 'true';
-      if (!marker || units.length < 3 || units.length > 12) {
-        push(errors, '$.experience.prompt', 'sentence-reconstruction prompt must include RECONSTRUCTION_UNITS with 3 to 12 ||-separated required chunks');
-      }
-      if (distractors.length > 3) {
-        push(errors, '$.experience.prompt', 'sentence-reconstruction may include at most 3 distractor chunks');
-      }
-      if (['easy','standard'].includes(level) && (distractors.length || missingRequired)) {
-        push(errors, '$.experience.prompt', `${level} sentence-reconstruction must not use distractors or a missing-word requirement`);
-      }
-      if (level === 'hard') {
-        if (!distractors.length) push(warnings, '$.experience.prompt', 'hard sentence-reconstruction should normally include at least one distractor chunk');
-        if (distractors.length > 2) push(errors, '$.experience.prompt', 'hard sentence-reconstruction may include at most 2 distractor chunks');
-        if (missingRequired) push(errors, '$.experience.prompt', 'hard sentence-reconstruction must not require a missing word or form');
-      }
-      if (level === 'hell') {
-        if (!distractors.length) push(warnings, '$.experience.prompt', 'hell sentence-reconstruction should normally include distractor chunks');
-        if (!missingRequired) push(warnings, '$.experience.prompt', 'hell sentence-reconstruction should normally require one learner-supplied missing word or form');
-      }
-      if (visibility !== 'visible') {
-        push(errors, '$.experience.targetVisibility', 'sentence-reconstruction must keep the target or target family visible to the learner');
-      }
-      if (responseConstraint !== 'open') {
-        push(errors, '$.experience.responseConstraint', 'sentence-reconstruction must use open response constraint');
-      }
-    }
-
     if (responseConstraint === 'fixed-frame') {
       const answerMarkers = (responseFrame.match(/\{answer\}/g) || []).length;
       if (answerMarkers !== 1) {
@@ -417,32 +370,6 @@
     }
     if (requireObject(value.learnerFacingResponse, '$.learnerFacingResponse', errors)) {
       if (typeof value.learnerFacingResponse.feedback !== 'string') push(errors, '$.learnerFacingResponse.feedback', 'must be string');
-      ['targetFeedback','languageFeedback','nextStep'].forEach(key => {
-        if (has(value.learnerFacingResponse, key) && (typeof value.learnerFacingResponse[key] !== 'string' || !text(value.learnerFacingResponse[key]))) {
-          push(errors, `$.learnerFacingResponse.${key}`, 'must be a non-empty string when present');
-        }
-      });
-      if (has(value.learnerFacingResponse, 'modelResponse') && !(value.learnerFacingResponse.modelResponse === null || (typeof value.learnerFacingResponse.modelResponse === 'string' && text(value.learnerFacingResponse.modelResponse)))) {
-        push(errors, '$.learnerFacingResponse.modelResponse', 'must be null or a non-empty string when present');
-      }
-      if (has(value.learnerFacingResponse, 'languageObservations')) {
-        if (!Array.isArray(value.learnerFacingResponse.languageObservations) || value.learnerFacingResponse.languageObservations.length > 3) {
-          push(errors, '$.learnerFacingResponse.languageObservations', 'must be an array with at most 3 items');
-        } else {
-          const allowedCategories = ['grammar','articles','tense-aspect','number','prepositions','word-order','idiomaticity','tone-register','concision','sentence-packaging','other'];
-          const allowedAssessments = ['strength','improve'];
-          value.learnerFacingResponse.languageObservations.forEach((item, index) => {
-            const base = `$.learnerFacingResponse.languageObservations[${index}]`;
-            if (!isObject(item)) {
-              push(errors, base, 'must be an object');
-              return;
-            }
-            if (!allowedCategories.includes(item.category)) push(errors, `${base}.category`, 'unsupported language observation category');
-            if (!allowedAssessments.includes(item.assessment)) push(errors, `${base}.assessment`, 'must be strength or improve');
-            if (typeof item.summary !== 'string' || text(item.summary).length < 4) push(errors, `${base}.summary`, 'must be a meaningful string');
-          });
-        }
-      }
       requireBoolean(value.learnerFacingResponse, 'correctionNeeded', '$.learnerFacingResponse', errors);
     }
 
@@ -558,9 +485,6 @@
     const promptedRetrieval = experienceType === 'cloze' || responseConstraint === 'fixed-frame';
     const responseShowsUsableMeaning = value.interpretation?.targetProduced === true || value.interpretation?.targetFamilyReached === true ||
       classes.has('natural-neighbor') || classes.has('natural-alternative');
-    if (experienceType === 'sentence-reconstruction' && responseShowsUsableMeaning && !evidenceTypes.has('reverse-reconstruction')) {
-      push(warnings, '$.evidence.evidenceTypes', 'sentence-reconstruction ordinarily demonstrates reverse-reconstruction evidence; consider recording it when the learner successfully assembles the sentence');
-    }
     if (promptedRetrieval && responseShowsUsableMeaning && !evidenceTypes.has('cue-based-retrieval')) {
       push(warnings, '$.evidence.evidenceTypes', 'cloze/fixed-frame production is ordinarily cue-based-retrieval; consider recording that evidence instead of stronger production labels');
     }
@@ -669,8 +593,6 @@
         avoidRecentRouteRepetition: true,
         naturalnessGateRequired: true,
         targetNeedNotBeExplicit: true,
-        experienceTypeMode: 'adaptive',
-        requiredExperienceType: null,
         ...(isObject(input.plannerConstraints) ? input.plannerConstraints : {})
       }
     };
@@ -699,7 +621,7 @@
       messageCore: { summary: 'Something concentrated becomes distributed across a wider area.' },
       communicativeFocus: { foreground: 'change from concentration to distribution', speakerIntent: 'describe how the scent gradually fills the space', construal: 'concentration-to-dispersion' },
       usageMotivation: { communicativeNeed: 'describe the scent becoming distributed through the room', targetContribution: 'foregrounds the transition from concentration to dispersion', whyThisExpressionNow: 'the scene makes that distribution pattern perceptually salient', motivationStrength: 'strong' },
-      experience: { experienceId: 'self-exp-1', type: 'situational-production', domain: 'home / scent', targetVisibility: 'hidden', prompt: 'You spray fragrance near the doorway. Ten minutes later you can smell it throughout the room. Describe what happened to the scent.', responseMode: 'open-production', responseConstraint: 'open', responseFrame: '', frameCompatibilityVerified: true, frameCompatibleAlternatives: [], acceptableSemanticTerritory: ['gradual distribution from a concentrated source through a wider space'], anticipatedNaturalAlternatives: ['spread','permeate'] },
+      experience: { experienceId: 'self-exp-1', type: 'situational-production', domain: 'home / scent', targetVisibility: 'hidden', prompt: 'You spray fragrance near the doorway. Ten minutes later you can smell it throughout the room. Describe what happened to the scent.', responseMode: 'open-production', responseConstraint: 'open', responseFrame: '', intendedExample: 'The scent gradually diffused throughout the room.', frameCompatibilityVerified: true, frameCompatibleAlternatives: [], acceptableSemanticTerritory: ['gradual distribution from a concentrated source through a wider space'], anticipatedNaturalAlternatives: ['spread','permeate'] },
       naturalnessCheck: { targetNaturalness: 'natural', targetIsNaturalForExperience: true, targetIsRequired: false, targetCommonness: 'less-common-but-natural', commonerAlternatives: ['spread'], otherNaturalExpressions: ['spread','permeate'] },
       antiRoteCheck: { duplicatesRecentRoute: false, duplicatesRecentFrame: false }
     };
@@ -708,11 +630,16 @@
     badPlanner.learningOpportunity.goal = 'Make the learner say diffuse';
     badPlanner.naturalnessCheck.targetNaturalness = 'merely-possible';
 
+    const missingIntendedExamplePlanner = JSON.parse(JSON.stringify(goodPlanner));
+    missingIntendedExamplePlanner.requestId = 'self-plan-missing-intended-example';
+    delete missingIntendedExamplePlanner.experience.intendedExample;
+
     const lessCommonButMotivated = JSON.parse(JSON.stringify(goodPlanner));
     lessCommonButMotivated.requestId = 'self-plan-less-common';
     lessCommonButMotivated.selectedTarget = { wordId: '5578', target: 'overwrought', targetFamily: ['overwrought'] };
     lessCommonButMotivated.learningOpportunity.goal = 'connect excessive dramatic elaboration with a precise evaluative adjective';
     lessCommonButMotivated.experience.prompt = 'A climactic monologue is so elaborate and emotionally strained that it feels overdone rather than moving. Describe the style.';
+    lessCommonButMotivated.experience.intendedExample = 'The monologue feels overwrought.';
     lessCommonButMotivated.experience.acceptableSemanticTerritory = ['excessively dramatic, elaborate, emotionally strained, or overdone'];
     lessCommonButMotivated.experience.anticipatedNaturalAlternatives = ['melodramatic','over-the-top','overdone'];
     lessCommonButMotivated.naturalnessCheck = { targetNaturalness: 'natural', targetIsNaturalForExperience: true, targetIsRequired: false, targetCommonness: 'less-common-but-natural', commonerAlternatives: ['melodramatic','over-the-top','overdone'], otherNaturalExpressions: ['melodramatic','over-the-top','overdone'] };
@@ -723,6 +650,7 @@
     fixedFramePlanner.experience.responseMode = 'text';
     fixedFramePlanner.experience.responseConstraint = 'fixed-frame';
     fixedFramePlanner.experience.responseFrame = 'The scene felt completely {answer}.';
+    fixedFramePlanner.experience.intendedExample = 'The scene felt completely overwrought.';
     fixedFramePlanner.experience.anticipatedNaturalAlternatives = ['melodramatic','over-the-top','overdone','too dramatic'];
     fixedFramePlanner.experience.frameCompatibleAlternatives = ['melodramatic','over-the-top','overdone'];
     fixedFramePlanner.experience.frameCompatibilityVerified = true;
@@ -735,29 +663,6 @@
     forcedAlternativePlanner.requestId = 'self-plan-forced-alternative';
     forcedAlternativePlanner.naturalnessCheck.targetIsRequired = true;
 
-    const sentenceReconstructionPlanner = JSON.parse(JSON.stringify(goodPlanner));
-    sentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction';
-    sentenceReconstructionPlanner.experience.type = 'sentence-reconstruction';
-    sentenceReconstructionPlanner.experience.targetVisibility = 'visible';
-    sentenceReconstructionPlanner.experience.responseMode = 'reconstruction';
-    sentenceReconstructionPlanner.experience.responseConstraint = 'open';
-    sentenceReconstructionPlanner.experience.responseFrame = '';
-    sentenceReconstructionPlanner.experience.frameCompatibleAlternatives = [];
-    sentenceReconstructionPlanner.experience.frameCompatibilityVerified = true;
-    sentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence describing the scent spreading through the room.\nRECONSTRUCTION_LEVEL: standard\nRECONSTRUCTION_UNITS: throughout the room. || gradually diffused || the scent || from the doorway';
-
-    const hardSentenceReconstructionPlanner = JSON.parse(JSON.stringify(sentenceReconstructionPlanner));
-    hardSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hard';
-    hardSentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence.\nRECONSTRUCTION_LEVEL: hard\nRECONSTRUCTION_UNITS: the scent || gradually diffused || from the doorway || throughout the room. || during the meeting\nRECONSTRUCTION_DISTRACTORS: because of || nevertheless\nRECONSTRUCTION_MISSING_REQUIRED: false';
-
-    const badHardMissingSentenceReconstructionPlanner = JSON.parse(JSON.stringify(hardSentenceReconstructionPlanner));
-    badHardMissingSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hard-missing';
-    badHardMissingSentenceReconstructionPlanner.experience.prompt = hardSentenceReconstructionPlanner.experience.prompt.replace('RECONSTRUCTION_MISSING_REQUIRED: false', 'RECONSTRUCTION_MISSING_REQUIRED: true');
-
-    const hellSentenceReconstructionPlanner = JSON.parse(JSON.stringify(sentenceReconstructionPlanner));
-    hellSentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction-hell';
-    hellSentenceReconstructionPlanner.experience.prompt = 'Rebuild one natural sentence. One word or form is missing.\nRECONSTRUCTION_LEVEL: hell\nRECONSTRUCTION_UNITS: the scent || from the doorway || throughout the room. || by evening\nRECONSTRUCTION_DISTRACTORS: despite || abruptly\nRECONSTRUCTION_MISSING_REQUIRED: true';
-
     const goodInterpreter = {
       schemaVersion: 1, contract: 'interpreter-router-v1.response', requestId: 'self-int-1', sessionId: 'self-session', eventId: 'event-1',
       interpretation: { responseClasses: ['natural-neighbor'], conceptMatched: true, targetProduced: false, targetFamilyReached: false, naturalAlternativesObserved: ['spread'], formIssue: null, senseIssue: null, interpretationConfidence: 'high' },
@@ -767,14 +672,7 @@
       profilePatch: { operations: [] },
       diagnosticExemplarCandidate: { retain: true, type: 'neighbor-response', reason: 'Shows the learner’s strong general spreading route.' },
       router: { action: 'CONTRAST', reason: 'Contrast the broad neighbor with the more specific concentration-to-dispersion construal.' },
-      learnerFacingResponse: {
-        feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.',
-        targetFeedback: '“Spread” is a natural broad neighbor here. The target would foreground diffusion from a more concentrated source.',
-        languageFeedback: 'The one-word response is natural in this frame; there is no additional sentence-level issue to correct.',
-        nextStep: 'Try contrasting the broad everyday verb with the more specific target in a new context.',
-        correctionNeeded: false,
-        suggestedNaturalForm: null
-      }
+      learnerFacingResponse: { feedback: '“Spread” is completely natural here; the useful distinction is what part of the spreading event you want to foreground.', correctionNeeded: false, suggestedNaturalForm: null }
     };
     const promptedNeighborContext = {
       learningOpportunity: { direction: 'message-to-expression' },
@@ -857,12 +755,9 @@
 
     const checks = [
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
+      { name: 'planner-reject-missing-intended-example', expected: 'REJECT', actual: validatePlannerResponse(missingIntendedExamplePlanner).status },
       { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
       { name: 'planner-valid-fixed-frame-compatible-alternatives', expected: 'VALID', actual: validatePlannerResponse(fixedFramePlanner).status },
-      { name: 'planner-valid-sentence-reconstruction', expected: 'VALID', actual: validatePlannerResponse(sentenceReconstructionPlanner).status },
-      { name: 'planner-valid-sentence-reconstruction-hard', expected: 'VALID', actual: validatePlannerResponse(hardSentenceReconstructionPlanner).status },
-      { name: 'planner-reject-hard-reconstruction-with-missing-word', expected: 'REJECT', actual: validatePlannerResponse(badHardMissingSentenceReconstructionPlanner).status },
-      { name: 'planner-valid-sentence-reconstruction-hell', expected: 'VALID', actual: validatePlannerResponse(hellSentenceReconstructionPlanner).status },
       { name: 'planner-reject-fixed-frame-unlisted-direct-alternative', expected: 'REJECT', actual: validatePlannerResponse(badFixedFramePlanner).status },
       { name: 'planner-reject-forced-natural-alternative', expected: 'REJECT', actual: validatePlannerResponse(forcedAlternativePlanner).status },
       { name: 'planner-reject-target-only', expected: 'REJECT', actual: validatePlannerResponse(badPlanner).status },
