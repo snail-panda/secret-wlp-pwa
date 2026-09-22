@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study session-size preference placement v1.8.6.60h R2-G.8
+/* WLP Stage 7 — AI Study diagnostics balance + difficulty width v1.8.6.60j R2-G.10
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.7.9';
+  const VERSION = '1.7.10';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -613,7 +613,7 @@
     });
     body.appendChild(summary);
     turns.forEach((turn, index) => body.appendChild(makeTurnReviewCard(turn, index)));
-    appendCostDetails(body, record);
+    appendHistoryDiagnostics(body, record);
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -769,6 +769,49 @@
       matchedAverage: matchedExperiences ? matchedCost / matchedExperiences : null,
       totalExperiences
     };
+  }
+
+  function appendSessionDiagnosticRows(container, record, { includeCostDetails = true } = {}) {
+    if (!container) return;
+    const diag = record?.diagnostics && typeof record.diagnostics === 'object' ? record.diagnostics : {};
+    const estimatedSessionCost = sessionCost(record);
+    const rows = [
+      ['Successful AI calls', String(num(diag.successfulAICalls))],
+      ['Provider requests', String(num(diag.providerAttempts))],
+      ['Failed requests', String(num(diag.failedAICalls))],
+      ['Average planner latency', formatSeconds(num(diag.plannerLatencyMs))],
+      ['Average interpreter latency', formatSeconds(num(diag.interpreterLatencyMs))]
+    ];
+    const provider = clean(record?.provider || diag.provider);
+    const model = clean(record?.model || diag.model);
+    if (provider || model) rows.push(['Provider', [provider, model].filter(Boolean).join(' · ')]);
+    if (num(diag.totalTokens) > 0) rows.push(['Token usage', `${num(diag.inputTokens)} in · ${num(diag.outputTokens)} out · ${num(diag.totalTokens)} total`]);
+    if (num(diag.cachedInputTokens) > 0) rows.push(['Cached input', `${num(diag.cachedInputTokens)} tokens`]);
+    if (Number.isFinite(estimatedSessionCost)) rows.push(['Estimated session cost', formatUsd(estimatedSessionCost)]);
+    rows.forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.className = 'wlp-ai-diagnostic-row';
+      const key = document.createElement('span');
+      key.textContent = label;
+      const val = document.createElement('strong');
+      val.textContent = value;
+      row.append(key, val);
+      container.appendChild(row);
+    });
+    if (includeCostDetails) appendCostDetails(container, record);
+  }
+
+  function appendHistoryDiagnostics(container, record) {
+    if (!container || !record?.diagnostics) return;
+    const details = document.createElement('details');
+    details.className = 'wlp-ai-diagnostics wlp-ai-history-diagnostics';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Detailed diagnostics';
+    const body = document.createElement('div');
+    body.className = 'wlp-ai-diagnostics-body';
+    appendSessionDiagnosticRows(body, record);
+    details.append(summary, body);
+    container.appendChild(details);
   }
 
   function appendCostDetails(container, record) {
@@ -2254,30 +2297,7 @@
 
     const diagnostics = $('#wlp-ai-finished-diagnostics-body');
     diagnostics.textContent = '';
-    const plannerAvg = averageSuccessfulLatency(session.plannerLatencies);
-    const interpreterAvg = averageSuccessfulLatency(session.interpreterLatencies);
-    const rows = [
-      ['Successful AI calls', String(session.successfulAICalls)],
-      ['Provider requests', String(session.providerAttempts)],
-      ['Failed requests', String(session.failedAICalls)],
-      ['Average planner latency', formatSeconds(plannerAvg)],
-      ['Average interpreter latency', formatSeconds(interpreterAvg)]
-    ];
-    if (session.provider || session.model) rows.push(['Provider', [session.provider, session.model].filter(Boolean).join(' · ')]);
-    if (session.totalTokens > 0) rows.push(['Token usage', `${session.inputTokens} in · ${session.outputTokens} out · ${session.totalTokens} total`]);
-    if (session.cachedInputTokens > 0) rows.push(['Cached input', `${session.cachedInputTokens} tokens`]);
-    if (Number.isFinite(estimatedSessionCost)) rows.push(['Estimated session cost', formatUsd(estimatedSessionCost)]);
-    rows.forEach(([label, value]) => {
-      const row = document.createElement('div');
-      row.className = 'wlp-ai-diagnostic-row';
-      const key = document.createElement('span');
-      key.textContent = label;
-      const val = document.createElement('strong');
-      val.textContent = value;
-      row.append(key, val);
-      diagnostics.appendChild(row);
-    });
-    appendCostDetails(diagnostics, record);
+    appendSessionDiagnosticRows(diagnostics, record);
     state.activePlanner = null;
   }
 

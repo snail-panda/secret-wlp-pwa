@@ -278,7 +278,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 /* R2-G.4 — target hint ladder, reconstruction input clarity, compact difficulty control */
 .wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:minmax(0,1fr) auto}
 #wlp-ai-practice-type{width:min(250px,100%);justify-self:end}
-#wlp-ai-difficulty{width:150px;justify-self:end}
+#wlp-ai-difficulty{width:min(195px,100%);justify-self:end}
 .wlp-ai-target-hint{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}
 .wlp-ai-target-hint[hidden]{display:none!important}
 .wlp-ai-target-hint button{border:1px solid #d1ded5;border-radius:999px;background:#fff;color:#5d7668;padding:5px 9px;font:700 .62rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
@@ -288,7 +288,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 @media(max-width:720px){
   .wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:minmax(0,1fr) auto}
   #wlp-ai-practice-type{width:min(235px,100%)}
-  #wlp-ai-difficulty{width:132px}
+  #wlp-ai-difficulty{width:min(185px,100%)}
 }
 @media(max-width:480px){
   .wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:1fr}
@@ -359,3 +359,8 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
   .wlp-ai-cost-row span{max-width:62%}
   .wlp-ai-finished-cost{padding:0 8px}
 }
+
+
+/* R2-G.10 — preserve core diagnostics; cost remains a nested optional detail */
+.wlp-ai-history-diagnostics{margin-top:14px}
+.wlp-ai-history-diagnostics .wlp-ai-cost-details{margin-top:8px}
