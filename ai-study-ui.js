@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Complex E2E Grounding + Cloze Hints v1.8.6.74 R2-I.4.1
-   Tighten prompt/revision grounding, keep useful natural routes, and add a separate Cloze hint profile. */
+/* WLP Stage 7 — AI Study Natural Options Recovery v1.8.6.75 R2-I.4.2
+   Preserve meaningful lexical-route alternatives, recover verified Cloze options, and polish Cloze hint wording. */
 (() => {
   'use strict';
 
-  const VERSION = '1.9.3';
+  const VERSION = '1.9.4';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -1195,6 +1195,41 @@
     });
   }
 
+  const FEEDBACK_ROUTE_STOPWORDS = new Set([
+    'a','an','the','and','or','but','if','then','than','that','this','these','those','of','to','for','from','in','on','at','by','with','without','as','while','when','where','who','whom','whose','which','is','are','was','were','be','been','being','am','do','does','did','have','has','had','can','could','will','would','shall','should','may','might','must','it','its','they','them','their','theirs','he','him','his','she','her','hers','we','us','our','ours','you','your','yours','i','me','my','mine','one','ones','some','any'
+  ]);
+
+  function feedbackRouteToken(token) {
+    let value = clean(token).toLowerCase();
+    if (value.length > 3 && value.endsWith('s') && !value.endsWith('ss')) value = value.slice(0, -1);
+    return value;
+  }
+
+  function feedbackContentTokenSet(value) {
+    const tokens = normalizeFeedbackText(value).split(' ').map(feedbackRouteToken).filter(token => token && !FEEDBACK_ROUTE_STOPWORDS.has(token));
+    return new Set(tokens);
+  }
+
+  function meaningfullyDistinctExplicitNaturalOption(candidate, references = []) {
+    const value = clean(candidate);
+    if (!value) return false;
+    const list = Array.isArray(references) ? references : [references];
+    for (const reference of list) {
+      if (!clean(reference)) continue;
+      if (sameFeedbackText(value, reference)) return false;
+      if (feedbackTokenOverlap(value, reference) < 0.82) continue;
+      const candidateTokens = feedbackContentTokenSet(value);
+      const referenceTokens = feedbackContentTokenSet(reference);
+      const candidateOnly = [...candidateTokens].filter(token => !referenceTokens.has(token));
+      const referenceOnly = [...referenceTokens].filter(token => !candidateTokens.has(token));
+      // High-overlap options are still useful when they substitute a real content
+      // route (for example pits -> sets), but not when they merely add/drop a
+      // determiner, modifier, or other cosmetic wording.
+      if (!(candidateOnly.length && referenceOnly.length)) return false;
+    }
+    return true;
+  }
+
   function feedbackExampleBundle(plannerResponse, response, learnerText = '') {
     const planner = plannerResponse && typeof plannerResponse === 'object' ? plannerResponse : {};
     const experience = planner.experience && typeof planner.experience === 'object' ? planner.experience : {};
@@ -1208,16 +1243,17 @@
     const suggestedNaturalForm = clean(learner.suggestedNaturalForm);
     const modelResponse = clean(learner.modelResponse);
     const showYourAnswer = Boolean(rawLearner && natural && !correctionNeeded && !noResponse && !testLabelOnly);
-    const sourceOptions = uniqueClean([
-      ...(Array.isArray(learner.naturalOptions) ? learner.naturalOptions : []),
-      modelResponse
-    ], 4);
+    const explicitOptions = uniqueClean(Array.isArray(learner.naturalOptions) ? learner.naturalOptions : [], 3);
     const naturalOptions = [];
-    sourceOptions.forEach(option => {
+    explicitOptions.forEach(option => {
       if (naturalOptions.length >= 3) return;
       const references = [rawLearner, intendedExample, suggestedNaturalForm, ...naturalOptions];
-      if (meaningfullyDistinctFeedbackOption(option, references)) naturalOptions.push(option);
+      if (meaningfullyDistinctExplicitNaturalOption(option, references)) naturalOptions.push(option);
     });
+    if (naturalOptions.length < 3 && modelResponse) {
+      const references = [rawLearner, intendedExample, suggestedNaturalForm, ...naturalOptions];
+      if (meaningfullyDistinctFeedbackOption(modelResponse, references)) naturalOptions.push(modelResponse);
+    }
     return {
       yourAnswer: showYourAnswer ? rawLearner : '',
       intendedExample,
@@ -1278,12 +1314,17 @@
     const legacy = JSON.parse(JSON.stringify(natural));
     legacy.learnerFacingResponse.naturalOptions = [];
     legacy.learnerFacingResponse.modelResponse = 'The show is temporarily paused while the host recovers.';
+    const lexicalPlanner = { experience: { intendedExample: 'The policy pits permanent staff against contract workers.' } };
+    const lexicalRoute = JSON.parse(JSON.stringify(natural));
+    lexicalRoute.learnerFacingResponse.modelResponse = '';
+    lexicalRoute.learnerFacingResponse.naturalOptions = ['The policy sets permanent staff against contract workers.'];
     const a = feedbackExampleBundle(planner, natural, 'The podcast is currently on hiatus while the host recovers.');
     const b = feedbackExampleBundle(planner, nearDuplicate, 'The podcast is currently on hiatus while the host recovers.');
     const c = feedbackExampleBundle(planner, corrected, 'The podcast is in hiatus while the host recovers.');
     const d = feedbackExampleBundle(planner, testLabel, 'Target: hiatus');
     const e = feedbackExampleBundle(planner, many, 'The podcast is currently on hiatus while the host recovers.');
     const f = feedbackExampleBundle(planner, legacy, 'The podcast is currently on hiatus while the host recovers.');
+    const g = feedbackExampleBundle(lexicalPlanner, lexicalRoute, 'The policy pits permanent staff against contract workers.');
     const checks = [
       { name: 'natural-learner-answer-is-repeated', passed: Boolean(a.yourAnswer), result: a },
       { name: 'planner-intended-answer-is-preserved', passed: a.intendedExample === planner.experience.intendedExample, result: a },
@@ -1294,7 +1335,8 @@
       { name: 'correction-options-stay-distinct-from-revision', passed: c.naturalOptions.every(option => meaningfullyDistinctFeedbackOption(option, [c.naturalForm])), result: c },
       { name: 'debug-target-label-is-not-presented-as-natural-answer', passed: !d.yourAnswer, result: d },
       { name: 'natural-options-are-capped-at-three', passed: e.naturalOptions.length === 3, result: e },
-      { name: 'legacy-model-response-remains-a-fallback', passed: f.naturalOptions.includes(legacy.learnerFacingResponse.modelResponse), result: f }
+      { name: 'legacy-model-response-remains-a-fallback', passed: f.naturalOptions.includes(legacy.learnerFacingResponse.modelResponse), result: f },
+      { name: 'high-overlap-lexical-route-is-preserved', passed: g.naturalOptions.includes('The policy sets permanent staff against contract workers.'), result: g }
     ];
     return { passed: checks.every(item => item.passed), checks };
   }
@@ -2940,7 +2982,7 @@
       || context?.experience?.acceptableSemanticTerritory?.[0]
     );
     if (!source || source.length > 180 || textLeaksTarget(source, target, readiness)) return '';
-    return `Focus on wording that foregrounds ${source.replace(/[.!?]+$/, '')}.`;
+    return `Focus on wording that foregrounds this idea: ${source.replace(/[.!?]+$/, '')}.`;
   }
 
   function nearbyAlternative(context = {}, target = '') {
