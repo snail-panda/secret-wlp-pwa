@@ -24,7 +24,8 @@
   </style>
 
   <style id="study-standard-preprogress-polish">
-    .study-standard-session-limit-note{margin:6px 0 0;color:#7b8e83;font-size:.65rem;line-height:1.35}
+    .study-standard-session-limit-note{margin:7px 0 0;padding-top:7px;border-top:.5px solid #dce6df;color:#74877c;font-size:.65rem;line-height:1.35}
+    .study-standard-session-limit-note strong{color:#5f786a;font-weight:700}
     .study-standard-session-default{margin:6px 0 0;padding:0;border:0;background:transparent;color:#5f786a;font-size:.72rem;line-height:1.35}
     .study-standard-session-default label{display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer}
     .study-standard-session-default input{margin:0;accent-color:#2f6950}
@@ -105,7 +106,7 @@
           <label class="study-session-size"><span>Session size</span><select id="study-session-size"><option value="5">5 experiences</option><option value="10" selected>10 experiences</option><option value="20">20 experiences</option></select></label>
           <div class="study-eligibility" id="study-eligibility" aria-live="polite"><strong>Loading…</strong><span>Checking available card material.</span></div>
         </div>
-        <p class="study-standard-session-limit-note study-standard-only">Session size is an upper limit. Your session may be shorter if fewer eligible entries are available.</p>
+        <p class="study-standard-session-limit-note study-standard-only"><strong>Session size is an upper limit.</strong> Your session may be shorter if fewer eligible entries are available.</p>
         <div class="study-standard-session-default study-standard-only" id="study-standard-session-default">
           <label for="study-standard-remember-session-size"><input id="study-standard-remember-session-size" type="checkbox"><span id="study-standard-session-default-label">Use current choice as my Standard Practice default</span></label>
           <small id="study-standard-session-default-status">No Standard Practice default saved yet.</small>
