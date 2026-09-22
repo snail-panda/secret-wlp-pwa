@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.3';
+  const VERSION = '1.7.4';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -749,7 +749,7 @@
             <p>Tap the chunks in the order that makes one natural sentence.</p>
             <div class="wlp-ai-reconstruction-bank" id="wlp-ai-reconstruction-bank" aria-label="Available chunks"></div>
             <div class="wlp-ai-reconstruction-missing" id="wlp-ai-reconstruction-missing" hidden>
-              <label for="wlp-ai-reconstruction-missing-input"><span>One word or form is missing</span><input id="wlp-ai-reconstruction-missing-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type the missing word or form"></label>
+              <label for="wlp-ai-reconstruction-missing-input"><span>One word or form is missing</span><input id="wlp-ai-reconstruction-missing-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type the missing word or form"><small>Type it, then tap Add to sentence — or press Enter.</small></label>
               <button type="button" id="wlp-ai-reconstruction-missing-add">Add to sentence</button>
             </div>
             <div class="wlp-ai-reconstruction-answer-wrap">
@@ -762,6 +762,10 @@
             </div>
           </div>
           <span class="wlp-ai-visible-target" id="wlp-ai-visible-target" hidden></span>
+          <div class="wlp-ai-target-hint" id="wlp-ai-target-hint" hidden>
+            <button type="button" id="wlp-ai-target-hint-button">Need a hint?</button>
+            <span id="wlp-ai-target-hint-text" hidden></span>
+          </div>
         </div>
         <label class="wlp-ai-response-field" id="wlp-ai-response-field" for="wlp-ai-response">
           <span id="wlp-ai-response-label">What would you naturally say?</span>
@@ -1045,6 +1049,48 @@
     return sentence;
   }
 
+  function resetTargetHint() {
+    const wrap = $('#wlp-ai-target-hint');
+    const button = $('#wlp-ai-target-hint-button');
+    const textEl = $('#wlp-ai-target-hint-text');
+    if (wrap) wrap.hidden = true;
+    if (button) { button.hidden = false; button.textContent = 'Need a hint?'; }
+    if (textEl) { textEl.hidden = true; textEl.textContent = ''; }
+    if (state.reconstruction) state.reconstruction.hintStage = 0;
+  }
+
+  function renderTargetHint(selected = null) {
+    const wrap = $('#wlp-ai-target-hint');
+    const button = $('#wlp-ai-target-hint-button');
+    const textEl = $('#wlp-ai-target-hint-text');
+    const target = clean(selected?.target || state.activePlanner?.result?.response?.selectedTarget?.target);
+    if (!wrap || !button || !textEl || !state.reconstruction || !target || state.reconstruction.level === 'easy') {
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    wrap.hidden = false;
+    const stage = num(state.reconstruction.hintStage);
+    if (stage <= 0) {
+      textEl.hidden = true;
+      textEl.textContent = '';
+      button.hidden = false;
+      button.textContent = 'Need a hint?';
+      return;
+    }
+    if (stage === 1) {
+      const wordCount = target.split(/\s+/).filter(Boolean).length;
+      const first = target.charAt(0);
+      textEl.textContent = `First letter: ${first.toUpperCase()}${wordCount > 1 ? ` · ${wordCount} words` : ''}`;
+      textEl.hidden = false;
+      button.hidden = false;
+      button.textContent = 'Reveal target';
+      return;
+    }
+    textEl.textContent = `Target: ${target}`;
+    textEl.hidden = false;
+    button.hidden = true;
+  }
+
   function reconstructionSelectedMissing() {
     return state.reconstruction?.selected?.find(item => item.userSupplied) || null;
   }
@@ -1115,6 +1161,7 @@
     const clear = $('#wlp-ai-reconstruction-clear');
     if (undo) undo.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
     if (clear) clear.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
+    renderTargetHint();
     syncReconstructionResponse();
   }
 
@@ -1128,6 +1175,7 @@
     if (missingInput) missingInput.value = '';
     const field = $('#wlp-ai-response-field');
     if (field) field.hidden = false;
+    resetTargetHint();
   }
 
   async function buildCandidateContext(session) {
@@ -1279,6 +1327,7 @@
     if (frameEl) { frameEl.textContent = ''; frameEl.hidden = true; }
     const visibleTarget = $('#wlp-ai-visible-target');
     if (visibleTarget) { visibleTarget.textContent = ''; visibleTarget.hidden = true; }
+    resetTargetHint();
     resetReconstruction();
     const responseBox = $('#wlp-ai-response');
     if (responseBox) { responseBox.value = ''; responseBox.disabled = true; }
@@ -1321,7 +1370,17 @@
     frameEl.hidden = !frame || Boolean(reconstruction);
     const visibleTarget = $('#wlp-ai-visible-target');
     const visibility = clean(experience.targetVisibility).toLowerCase();
-    if (visibility === 'visible') {
+    const reconstructionLevel = clean(reconstruction?.level || state.session?.difficulty || 'standard');
+    const reconstructionAutoTarget = Boolean(reconstruction) && reconstructionLevel === 'easy';
+    if (reconstruction) {
+      if (reconstructionAutoTarget && clean(selected.target)) {
+        visibleTarget.textContent = `Target: ${clean(selected.target)}`;
+        visibleTarget.hidden = false;
+      } else {
+        visibleTarget.hidden = true;
+        visibleTarget.textContent = '';
+      }
+    } else if (visibility === 'visible') {
       visibleTarget.textContent = `Target: ${clean(selected.target)}`;
       visibleTarget.hidden = false;
     } else if (visibility === 'partial') {
@@ -1342,6 +1401,7 @@
         level: reconstruction.level,
         missingRequired: reconstruction.missingRequired,
         missingText: '',
+        hintStage: 0,
         distractorCount: reconstruction.distractors.length,
         requiredCount: reconstruction.units.length + (reconstruction.missingRequired ? 1 : 0)
       };
@@ -1728,6 +1788,11 @@
     $('#wlp-ai-history-close')?.addEventListener('click', () => {
       $('#wlp-ai-history-review').hidden = true;
     });
+    $('#wlp-ai-target-hint-button')?.addEventListener('click', () => {
+      if (!state.reconstruction || state.busy || state.reconstruction.level === 'easy') return;
+      state.reconstruction.hintStage = Math.min(2, num(state.reconstruction.hintStage) + 1);
+      renderTargetHint();
+    });
     $('#wlp-ai-reconstruction')?.addEventListener('click', event => {
       if (!state.reconstruction || state.busy) return;
       const add = event.target.closest?.('[data-reconstruction-add]');
@@ -1767,6 +1832,11 @@
       if (!value || reconstructionSelectedMissing()) return;
       state.reconstruction.selected.push({ id: 'user-missing', text: value, userSupplied: true, required: true });
       renderReconstruction();
+    });
+    $('#wlp-ai-reconstruction-missing-input')?.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      $('#wlp-ai-reconstruction-missing-add')?.click();
     });
     $('#wlp-ai-response')?.addEventListener('keydown', event => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') interpretResponse();

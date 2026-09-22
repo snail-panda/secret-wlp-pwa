@@ -261,3 +261,24 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 .wlp-ai-reconstruction-missing button{border:1px solid #d5e1d8;border-radius:999px;background:#fff;color:#5c7467;padding:7px 10px;font:700 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap}
 .wlp-ai-reconstruction-chip.is-user-supplied{border-style:dashed;background:#f6faf7}
 @media(max-width:720px){.wlp-ai-study-options{grid-template-columns:1fr}.wlp-ai-reconstruction-missing{grid-template-columns:1fr}.wlp-ai-reconstruction-missing button{justify-self:start}}
+
+
+/* R2-G.4 — target hint ladder, reconstruction input clarity, compact difficulty control */
+.wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:minmax(0,1fr) auto}
+#wlp-ai-practice-type{width:min(250px,100%);justify-self:end}
+#wlp-ai-difficulty{width:150px;justify-self:end}
+.wlp-ai-target-hint{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}
+.wlp-ai-target-hint[hidden]{display:none!important}
+.wlp-ai-target-hint button{border:1px solid #d1ded5;border-radius:999px;background:#fff;color:#5d7668;padding:5px 9px;font:700 .62rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.wlp-ai-target-hint span{color:#6d8175;font-size:.65rem;font-weight:700}
+.wlp-ai-reconstruction-missing label small{color:#89978f;font-size:.6rem;line-height:1.35}
+.wlp-ai-reconstruction-missing button{border-color:#b9cebf;background:#f7fbf8;color:#426550}
+@media(max-width:720px){
+  .wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:minmax(0,1fr) auto}
+  #wlp-ai-practice-type{width:min(235px,100%)}
+  #wlp-ai-difficulty{width:132px}
+}
+@media(max-width:480px){
+  .wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:1fr}
+  #wlp-ai-practice-type,#wlp-ai-difficulty{width:100%;justify-self:stretch}
+}
