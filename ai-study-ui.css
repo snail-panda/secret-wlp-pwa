@@ -282,3 +282,20 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
   .wlp-ai-study-options .wlp-ai-practice-type-control label{grid-template-columns:1fr}
   #wlp-ai-practice-type,#wlp-ai-difficulty{width:100%;justify-self:stretch}
 }
+
+/* R2-G.5 — separate target reveal from task-specific progressive hints */
+.wlp-ai-reconstruction-assist{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap;margin-top:10px}
+.wlp-ai-reconstruction-assist[hidden]{display:none!important}
+.wlp-ai-target-hint,.wlp-ai-task-hint{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.wlp-ai-task-hint[hidden]{display:none!important}
+.wlp-ai-task-hint button{border:1px solid #d1ded5;border-radius:999px;background:#fff;color:#5d7668;padding:5px 9px;font:700 .62rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
+.wlp-ai-task-hint button:disabled{opacity:.52;cursor:default}
+.wlp-ai-task-hint-list{display:grid;gap:5px;flex:1 1 100%;width:100%;padding:8px 10px;border:1px solid #e0e9e3;border-radius:10px;background:rgba(255,255,255,.62)}
+.wlp-ai-task-hint-list[hidden]{display:none!important}
+.wlp-ai-task-hint-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;color:#637a6d;font-size:.66rem;line-height:1.45}
+.wlp-ai-task-hint-item b{color:#4f6c5c;font-size:.61rem;letter-spacing:.03em;text-transform:uppercase}
+.wlp-ai-task-hint-item span{min-width:0}
+@media(max-width:480px){
+  .wlp-ai-reconstruction-assist{display:grid;grid-template-columns:1fr;gap:7px}
+  .wlp-ai-task-hint-item{grid-template-columns:1fr;gap:2px}
+}

@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.4';
+  const VERSION = '1.7.5';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -762,9 +762,15 @@
             </div>
           </div>
           <span class="wlp-ai-visible-target" id="wlp-ai-visible-target" hidden></span>
-          <div class="wlp-ai-target-hint" id="wlp-ai-target-hint" hidden>
-            <button type="button" id="wlp-ai-target-hint-button">Need a hint?</button>
-            <span id="wlp-ai-target-hint-text" hidden></span>
+          <div class="wlp-ai-reconstruction-assist" id="wlp-ai-reconstruction-assist" hidden>
+            <div class="wlp-ai-target-hint" id="wlp-ai-target-hint" hidden>
+              <button type="button" id="wlp-ai-target-hint-button">Show target</button>
+              <span id="wlp-ai-target-hint-text" hidden></span>
+            </div>
+            <div class="wlp-ai-task-hint" id="wlp-ai-task-hint" hidden>
+              <button type="button" id="wlp-ai-task-hint-button">Need a hint?</button>
+              <div class="wlp-ai-task-hint-list" id="wlp-ai-task-hint-list" hidden></div>
+            </div>
           </div>
         </div>
         <label class="wlp-ai-response-field" id="wlp-ai-response-field" for="wlp-ai-response">
@@ -1050,45 +1056,142 @@
   }
 
   function resetTargetHint() {
+    const assist = $('#wlp-ai-reconstruction-assist');
     const wrap = $('#wlp-ai-target-hint');
     const button = $('#wlp-ai-target-hint-button');
     const textEl = $('#wlp-ai-target-hint-text');
+    const taskWrap = $('#wlp-ai-task-hint');
+    const taskButton = $('#wlp-ai-task-hint-button');
+    const taskList = $('#wlp-ai-task-hint-list');
+    if (assist) assist.hidden = true;
     if (wrap) wrap.hidden = true;
-    if (button) { button.hidden = false; button.textContent = 'Need a hint?'; }
+    if (button) { button.hidden = false; button.textContent = 'Show target'; }
     if (textEl) { textEl.hidden = true; textEl.textContent = ''; }
-    if (state.reconstruction) state.reconstruction.hintStage = 0;
+    if (taskWrap) taskWrap.hidden = true;
+    if (taskButton) { taskButton.hidden = false; taskButton.textContent = 'Need a hint?'; }
+    if (taskList) { taskList.hidden = true; taskList.replaceChildren(); }
+    if (state.reconstruction) {
+      state.reconstruction.targetRevealed = false;
+      state.reconstruction.taskHintStage = 0;
+    }
   }
 
   function renderTargetHint(selected = null) {
+    const assist = $('#wlp-ai-reconstruction-assist');
     const wrap = $('#wlp-ai-target-hint');
     const button = $('#wlp-ai-target-hint-button');
     const textEl = $('#wlp-ai-target-hint-text');
     const target = clean(selected?.target || state.activePlanner?.result?.response?.selectedTarget?.target);
-    if (!wrap || !button || !textEl || !state.reconstruction || !target || state.reconstruction.level === 'easy') {
+    if (!assist || !wrap || !button || !textEl || !state.reconstruction || !target) {
+      if (assist) assist.hidden = true;
       if (wrap) wrap.hidden = true;
       return;
     }
+    assist.hidden = false;
+    if (state.reconstruction.level === 'easy') {
+      wrap.hidden = true;
+      return;
+    }
     wrap.hidden = false;
-    const stage = num(state.reconstruction.hintStage);
-    if (stage <= 0) {
-      textEl.hidden = true;
-      textEl.textContent = '';
-      button.hidden = false;
-      button.textContent = 'Need a hint?';
-      return;
-    }
-    if (stage === 1) {
-      const wordCount = target.split(/\s+/).filter(Boolean).length;
-      const first = target.charAt(0);
-      textEl.textContent = `First letter: ${first.toUpperCase()}${wordCount > 1 ? ` · ${wordCount} words` : ''}`;
-      textEl.hidden = false;
-      button.hidden = false;
-      button.textContent = 'Reveal target';
-      return;
-    }
+    const revealed = state.reconstruction.targetRevealed === true;
+    button.hidden = false;
+    button.textContent = revealed ? 'Hide target' : 'Show target';
     textEl.textContent = `Target: ${target}`;
-    textEl.hidden = false;
-    button.hidden = true;
+    textEl.hidden = !revealed;
+  }
+
+  function reconstructionTargetTerms(selected = null) {
+    const target = clean(selected?.target || state.activePlanner?.result?.response?.selectedTarget?.target);
+    const family = Array.isArray(selected?.targetFamily)
+      ? selected.targetFamily
+      : Array.isArray(state.activePlanner?.result?.response?.selectedTarget?.targetFamily)
+        ? state.activePlanner.result.response.selectedTarget.targetFamily
+        : [];
+    return [target, ...family.map(clean)].filter(Boolean);
+  }
+
+  function chunkContainsTarget(chunk, selected = null) {
+    const source = clean(chunk).toLowerCase();
+    if (!source) return false;
+    return reconstructionTargetTerms(selected).some(term => {
+      const t = clean(term).toLowerCase();
+      return t && (source === t || source.includes(t));
+    });
+  }
+
+  function buildReconstructionHints(selected = null) {
+    const r = state.reconstruction;
+    if (!r) return [];
+    const required = Array.isArray(r.requiredUnits) ? r.requiredUnits.map(clean).filter(Boolean) : [];
+    const distractors = Array.isArray(r.distractors) ? r.distractors.map(clean).filter(Boolean) : [];
+    if (!required.length) return [];
+    const hints = [];
+    const first = required[0];
+    const firstLetter = first.match(/[A-Za-z]/)?.[0]?.toUpperCase();
+    const targetIndex = required.findIndex(chunk => chunkContainsTarget(chunk, selected));
+    let pairIndex = targetIndex >= 0 ? Math.min(Math.max(0, targetIndex), Math.max(0, required.length - 2)) : Math.floor(Math.max(0, required.length - 2) / 2);
+    if (pairIndex >= required.length - 1) pairIndex = Math.max(0, required.length - 2);
+    const pairA = required[pairIndex];
+    const pairB = required[pairIndex + 1];
+
+    if (firstLetter) hints.push(`The first required chunk begins with “${firstLetter}”.`);
+
+    if (r.level === 'easy') {
+      if (pairA && pairB) hints.push(`Keep “${pairA}” directly before “${pairB}”.`);
+      hints.push(`The sentence begins with “${first}”.`);
+      return uniqueTexts(hints, 5);
+    }
+
+    if (distractors.length) {
+      hints.push(`“${distractors[0]}” is one distractor; leave it out.`);
+    }
+
+    if (pairA && pairB) {
+      hints.push(`Keep “${pairA}” directly before “${pairB}”.`);
+    }
+
+    if (r.level === 'hell' && r.missingRequired) {
+      const targetInVisibleRequired = required.some(chunk => chunkContainsTarget(chunk, selected));
+      if (!targetInVisibleRequired) hints.push('The missing word or form comes from the target expression or its word family.');
+      else hints.push('The missing word or form is not the visible target chunk; use the sentence structure to work out what is absent.');
+    }
+
+    distractors.slice(1).forEach(item => hints.push(`Another distractor is “${item}”.`));
+    hints.push(`The sentence begins with “${first}”.`);
+    return uniqueTexts(hints, 8);
+  }
+
+  function renderTaskHints(selected = null) {
+    const assist = $('#wlp-ai-reconstruction-assist');
+    const wrap = $('#wlp-ai-task-hint');
+    const button = $('#wlp-ai-task-hint-button');
+    const list = $('#wlp-ai-task-hint-list');
+    if (!assist || !wrap || !button || !list || !state.reconstruction) {
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    const hints = buildReconstructionHints(selected);
+    if (!hints.length) {
+      wrap.hidden = true;
+      return;
+    }
+    assist.hidden = false;
+    wrap.hidden = false;
+    const stage = Math.max(0, Math.min(num(state.reconstruction.taskHintStage), hints.length));
+    list.replaceChildren();
+    hints.slice(0, stage).forEach((hint, index) => {
+      const row = document.createElement('div');
+      row.className = 'wlp-ai-task-hint-item';
+      const label = document.createElement('b');
+      label.textContent = `Hint ${index + 1}`;
+      const copy = document.createElement('span');
+      copy.textContent = hint;
+      row.append(label, copy);
+      list.append(row);
+    });
+    list.hidden = stage === 0;
+    button.disabled = stage >= hints.length;
+    button.textContent = stage === 0 ? 'Need a hint?' : stage < hints.length ? 'Give me another hint' : 'No more hints';
   }
 
   function reconstructionSelectedMissing() {
@@ -1162,6 +1265,7 @@
     if (undo) undo.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
     if (clear) clear.disabled = Boolean(state.reconstruction.locked) || !state.reconstruction.selected.length;
     renderTargetHint();
+    renderTaskHints();
     syncReconstructionResponse();
   }
 
@@ -1401,7 +1505,10 @@
         level: reconstruction.level,
         missingRequired: reconstruction.missingRequired,
         missingText: '',
-        hintStage: 0,
+        targetRevealed: false,
+        taskHintStage: 0,
+        requiredUnits: reconstruction.units.slice(),
+        distractors: reconstruction.distractors.slice(),
         distractorCount: reconstruction.distractors.length,
         requiredCount: reconstruction.units.length + (reconstruction.missingRequired ? 1 : 0)
       };
@@ -1790,8 +1897,15 @@
     });
     $('#wlp-ai-target-hint-button')?.addEventListener('click', () => {
       if (!state.reconstruction || state.busy || state.reconstruction.level === 'easy') return;
-      state.reconstruction.hintStage = Math.min(2, num(state.reconstruction.hintStage) + 1);
+      state.reconstruction.targetRevealed = !state.reconstruction.targetRevealed;
       renderTargetHint();
+    });
+    $('#wlp-ai-task-hint-button')?.addEventListener('click', () => {
+      if (!state.reconstruction || state.busy) return;
+      const hints = buildReconstructionHints();
+      if (!hints.length) return;
+      state.reconstruction.taskHintStage = Math.min(hints.length, num(state.reconstruction.taskHintStage) + 1);
+      renderTaskHints();
     });
     $('#wlp-ai-reconstruction')?.addEventListener('click', event => {
       if (!state.reconstruction || state.busy) return;
