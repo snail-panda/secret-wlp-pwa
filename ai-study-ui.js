@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study controls & clue polish v1.8.6.60f R2-G.6
+/* WLP Stage 7 — AI Study outcome & hint safety polish v1.8.6.60g R2-G.7
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.7.6';
+  const VERSION = '1.7.7';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -201,11 +201,85 @@
     if (container.children.length === 1) addPeekField(container, 'Card data', 'No additional card details were available in this AI Study packet.');
   }
 
+  const CLOSED_RESPONSE_TYPES = new Set(['cloze','sentence-reconstruction','reverse-reconstruction']);
+
+  function deriveTurnOutcome(response, learnerText = '', experienceType = '') {
+    const interpretation = response?.interpretation || {};
+    const learner = response?.learnerFacingResponse || {};
+    const classes = Array.isArray(interpretation.responseClasses) ? interpretation.responseClasses.map(clean).filter(Boolean) : [];
+    const hasMismatch = learner.correctionNeeded === true || classes.some(value => ['form-mismatch','sense-mismatch','register-mismatch'].includes(value));
+    const exactTarget = interpretation.targetProduced === true;
+    const targetFamily = interpretation.targetFamilyReached === true;
+    const conceptMatched = interpretation.conceptMatched === true;
+    const natural = response?.communicativeInterpretation?.learnerExpressionNatural === true;
+    const noResponse = /^i don['’]?t know\.?$/i.test(clean(learnerText));
+    const closed = CLOSED_RESPONSE_TYPES.has(clean(experienceType));
+
+    if (noResponse) return { key: 'no-response', label: 'No response', tone: 'neutral' };
+    if (closed && exactTarget && natural && !hasMismatch) return { key: 'expected-natural', label: 'Expected answer / Natural', tone: 'success' };
+    if (closed && !exactTarget && targetFamily && natural && !hasMismatch) return { key: 'accepted-target-form', label: 'Accepted target form / Natural', tone: 'success' };
+    if (!closed && exactTarget && natural && !hasMismatch) return { key: 'target-natural', label: 'Target hit / Natural', tone: 'success' };
+    if (!closed && !exactTarget && targetFamily && natural && !hasMismatch) return { key: 'target-family-natural', label: 'Target-family match / Natural', tone: 'success' };
+    if (conceptMatched && natural && !hasMismatch) return { key: 'natural-alternative', label: 'Natural alternative', tone: 'alternative' };
+    if ((exactTarget || targetFamily) && hasMismatch) return { key: 'target-needs-work', label: 'Target hit / Needs revision', tone: 'partial' };
+    if (conceptMatched) return { key: 'meaning-needs-work', label: 'Meaning works / Needs revision', tone: 'partial' };
+    return { key: 'needs-revision', label: 'Needs revision', tone: 'revise' };
+  }
+
+  function normalizedTurnOutcome(turn) {
+    const stored = turn?.outcome && typeof turn.outcome === 'object' ? turn.outcome : null;
+    if (stored && clean(stored.label)) return { key: clean(stored.key), label: clean(stored.label), tone: clean(stored.tone) || 'neutral' };
+    if (!turn || typeof turn !== 'object') return { key: '', label: '', tone: 'neutral' };
+    const classes = Array.isArray(turn.responseClasses) ? turn.responseClasses.map(clean).filter(Boolean) : [];
+    const hasMismatch = turn.correctionNeeded === true || classes.some(value => ['form-mismatch','sense-mismatch','register-mismatch'].includes(value));
+    const exactTarget = turn.targetProduced === true;
+    const targetFamily = turn.targetFamilyReached === true;
+    const conceptMatched = turn.conceptMatched === true;
+    const natural = turn.learnerExpressionNatural === true;
+    const noResponse = /^i don['’]?t know\.?$/i.test(clean(turn.learnerResponse));
+    const closed = CLOSED_RESPONSE_TYPES.has(clean(turn.experienceType));
+    if (noResponse) return { key: 'no-response', label: 'No response', tone: 'neutral' };
+    if (closed && exactTarget && natural && !hasMismatch) return { key: 'expected-natural', label: 'Expected answer / Natural', tone: 'success' };
+    if (closed && !exactTarget && targetFamily && natural && !hasMismatch) return { key: 'accepted-target-form', label: 'Accepted target form / Natural', tone: 'success' };
+    if (!closed && exactTarget && natural && !hasMismatch) return { key: 'target-natural', label: 'Target hit / Natural', tone: 'success' };
+    if (!closed && !exactTarget && targetFamily && natural && !hasMismatch) return { key: 'target-family-natural', label: 'Target-family match / Natural', tone: 'success' };
+    if (conceptMatched && natural && !hasMismatch) return { key: 'natural-alternative', label: 'Natural alternative', tone: 'alternative' };
+    if ((exactTarget || targetFamily) && hasMismatch) return { key: 'target-needs-work', label: 'Target hit / Needs revision', tone: 'partial' };
+    if (conceptMatched) return { key: 'meaning-needs-work', label: 'Meaning works / Needs revision', tone: 'partial' };
+    return { key: 'needs-revision', label: 'Needs revision', tone: 'revise' };
+  }
+
+  function makeOutcomeChip(outcome, className = 'wlp-ai-outcome-chip') {
+    const info = outcome && typeof outcome === 'object' ? outcome : { label: '' };
+    const chip = document.createElement('span');
+    chip.className = `${className} is-${clean(info.tone) || 'neutral'}`;
+    const prefix = clean(info.tone) === 'success' ? '✓ ' : clean(info.tone) === 'alternative' ? '↔ ' : clean(info.tone) === 'partial' ? '△ ' : '';
+    chip.textContent = `${prefix}${clean(info.label) || 'Learning evidence saved'}`;
+    return chip;
+  }
+
+  function sessionOutcome(record) {
+    const turns = Array.isArray(record?.turns) ? record.turns : [];
+    if (!turns.length) return null;
+    if (turns.length === 1) return normalizedTurnOutcome(turns[0]);
+    const outcomes = turns.map(normalizedTurnOutcome).filter(item => item.label);
+    if (!outcomes.length) return null;
+    const strong = outcomes.filter(item => item.tone === 'success').length;
+    const alternative = outcomes.filter(item => item.tone === 'alternative').length;
+    const revisit = outcomes.length - strong - alternative;
+    const parts = [];
+    if (strong) parts.push(`${strong} strong`);
+    if (alternative) parts.push(`${alternative} alternative`);
+    if (revisit) parts.push(`${revisit} revisit`);
+    return { key: 'session-summary', label: parts.join(' / '), tone: revisit ? 'partial' : alternative ? 'alternative' : 'success' };
+  }
+
   function turnSnapshot(response, learnerText, turnDiagnostics = {}) {
     const planner = state.activePlanner?.result?.response || {};
     const selected = planner.selectedTarget || {};
     const exp = planner.experience || {};
     const learner = response?.learnerFacingResponse || {};
+    const outcome = deriveTurnOutcome(response, learnerText, clean(exp.type || planner.learningOpportunity?.direction));
     return {
       eventId: clean(state.activePlanner?.eventId),
       completedAt: new Date().toISOString(),
@@ -233,6 +307,7 @@
       targetProduced: response?.interpretation?.targetProduced === true,
       targetFamilyReached: response?.interpretation?.targetFamilyReached === true,
       learnerExpressionNatural: response?.communicativeInterpretation?.learnerExpressionNatural === true,
+      outcome,
       diagnostics: {
         routerAction: clean(response?.router?.action),
         routerReason: clean(response?.router?.reason),
@@ -408,6 +483,8 @@
     const meta = document.createElement('small');
     meta.textContent = [clean(turn?.wordId) ? `WID ${clean(turn.wordId)}` : '', clean(turn?.experienceType).replace(/-/g, ' '), clean(turn?.domain)].filter(Boolean).join(' · ');
     head.append(title, meta);
+    const turnOutcome = normalizedTurnOutcome(turn);
+    if (turnOutcome.label) head.appendChild(makeOutcomeChip(turnOutcome));
     article.appendChild(head);
     addPeekField(article, 'Prompt', turn?.prompt);
     addPeekField(article, 'Your response', turn?.learnerResponse);
@@ -488,6 +565,8 @@
       const difficultyNote = clean(record.difficulty) && clean(record.difficulty) !== 'adaptive' ? ` · ${difficultyLabel(clean(record.difficulty))}` : '';
       meta.textContent = `${num(record.completed)} experience${num(record.completed) === 1 ? '' : 's'}${targets ? ` · ${targets}` : ''}${typeNote}${difficultyNote}`;
       button.append(strong, meta);
+      const historyOutcome = sessionOutcome(record);
+      if (historyOutcome?.label) button.appendChild(makeOutcomeChip(historyOutcome, 'wlp-ai-history-outcome'));
       list.appendChild(button);
     });
   }
@@ -846,6 +925,7 @@
             <div><span class="section-kicker">Feedback</span><strong id="wlp-ai-feedback-target"></strong><small class="wlp-ai-target-id" id="wlp-ai-target-id"></small></div>
             <button class="wlp-ai-target-peek-toggle" id="wlp-ai-target-peek-toggle" type="button">View WLP card</button>
           </div>
+          <div class="wlp-ai-turn-outcome" id="wlp-ai-turn-outcome" hidden></div>
           <div class="wlp-ai-feedback-block">
             <span class="wlp-ai-feedback-label">Target feedback</span>
             <p class="wlp-ai-feedback-text" id="wlp-ai-target-feedback"></p>
@@ -1209,31 +1289,28 @@
     const first = required[0];
     const firstLetter = first.match(/[A-Za-z]/)?.[0]?.toUpperCase();
     const targetIndex = required.findIndex(chunk => chunkContainsTarget(chunk, selected));
-    let pairIndex = targetIndex >= 0 ? Math.min(Math.max(0, targetIndex), Math.max(0, required.length - 2)) : Math.floor(Math.max(0, required.length - 2) / 2);
-    if (pairIndex >= required.length - 1) pairIndex = Math.max(0, required.length - 2);
-    const pairA = required[pairIndex];
-    const pairB = required[pairIndex + 1];
 
     if (firstLetter) hints.push(`The first required chunk begins with “${firstLetter}”.`);
 
     if (r.level === 'easy') {
-      if (pairA && pairB) hints.push(`Keep “${pairA}” directly before “${pairB}”.`);
+      if (required.length >= 2) hints.push(`Keep “${required[0]}” directly before “${required[1]}”.`);
       hints.push(`The sentence begins with “${first}”.`);
       return uniqueTexts(hints, 5);
     }
 
-    if (distractors.length) {
-      hints.push(`“${distractors[0]}” is one distractor; leave it out.`);
-    }
-
-    if (pairA && pairB) {
-      hints.push(`Keep “${pairA}” directly before “${pairB}”.`);
-    }
+    if (distractors.length) hints.push(`“${distractors[0]}” is one distractor; leave it out.`);
 
     if (r.level === 'hell' && r.missingRequired) {
       const targetInVisibleRequired = required.some(chunk => chunkContainsTarget(chunk, selected));
-      if (!targetInVisibleRequired) hints.push('The missing word or form comes from the target expression or its word family.');
-      else hints.push('The missing word or form is not the visible target chunk; use the sentence structure to work out what is absent.');
+      if (!targetInVisibleRequired) hints.push('The missing word or form carries the target meaning or comes from the target word family.');
+      else hints.push('The target is already visible; the missing item is a different word or form required by the sentence structure.');
+      hints.push('Do not assume two visible chunks are directly adjacent: the missing item may belong between them.');
+    } else if (required.length >= 2) {
+      let pairIndex = targetIndex >= 0 ? Math.min(Math.max(0, targetIndex), Math.max(0, required.length - 2)) : Math.floor(Math.max(0, required.length - 2) / 2);
+      if (pairIndex >= required.length - 1) pairIndex = Math.max(0, required.length - 2);
+      const pairA = required[pairIndex];
+      const pairB = required[pairIndex + 1];
+      if (pairA && pairB) hints.push(`Keep “${pairA}” directly before “${pairB}”.`);
     }
 
     distractors.slice(1).forEach(item => hints.push(`Another distractor is “${item}”.`));
@@ -1513,6 +1590,8 @@
     if (experience) experience.hidden = false;
     $('#wlp-ai-finished').hidden = true;
     $('#wlp-ai-feedback').hidden = true;
+    const outcomeEl = $('#wlp-ai-turn-outcome');
+    if (outcomeEl) { outcomeEl.hidden = true; outcomeEl.textContent = ''; }
     const domainEl = $('#wlp-ai-domain');
     if (domainEl) { domainEl.textContent = ''; domainEl.hidden = true; }
     const labelEl = $('#wlp-ai-experience-label');
@@ -1780,6 +1859,12 @@
     else delete quickCardButton.dataset.quickCardWordId;
 
     const learner = response?.learnerFacingResponse || {};
+    const outcome = deriveTurnOutcome(response, clean($('#wlp-ai-response')?.value), clean(state.activePlanner?.result?.response?.experience?.type));
+    const outcomeEl = $('#wlp-ai-turn-outcome');
+    if (outcomeEl) {
+      outcomeEl.replaceChildren(makeOutcomeChip(outcome));
+      outcomeEl.hidden = !clean(outcome.label);
+    }
     const legacyFeedback = clean(learner.feedback || response?.evidence?.observationSummary || 'Response interpreted.');
     $('#wlp-ai-target-feedback').textContent = clean(learner.targetFeedback) || legacyFeedback;
 

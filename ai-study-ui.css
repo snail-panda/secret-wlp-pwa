@@ -90,6 +90,7 @@
 .wlp-ai-prompt{margin:5px 0 0;font-family:"EB Garamond",Georgia,serif;font-size:1.12rem;line-height:1.42;color:#244a38;white-space:pre-wrap}
 .wlp-ai-frame{margin:12px 0 0;padding:10px 12px;border-left:2px solid #b8cdbd;border-radius:0 12px 12px 0;background:#fff;color:#365b49;font-family:"EB Garamond",Georgia,serif;font-size:1rem;line-height:1.4;white-space:pre-wrap}
 .wlp-ai-visible-target{display:inline-flex;margin-top:10px;border:1px solid #cddfd2;border-radius:999px;background:#fff;padding:5px 9px;color:#466957;font-size:.66rem;font-weight:750}
+.wlp-ai-visible-target[hidden]{display:none!important}
 .wlp-ai-response-field{display:grid;gap:6px;margin-top:13px}
 .wlp-ai-response-field>span{font-family:"EB Garamond",Georgia,serif;font-size:1rem;font-weight:600;color:#365c49}
 .wlp-ai-response-field textarea{width:100%;resize:vertical;min-height:88px;border:1px solid #d7e2da;border-radius:14px;background:#fff;padding:11px 12px;color:#284c3b;font:inherit;font-size:.88rem;line-height:1.45;outline:0;box-sizing:border-box}
@@ -106,6 +107,15 @@
 .wlp-ai-feedback[hidden]{display:none!important}
 .wlp-ai-feedback-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
 .wlp-ai-feedback-head strong{display:block;margin-top:2px;font-family:"EB Garamond",Georgia,serif;font-size:1.35rem;line-height:1.05;font-weight:600;color:#234b39}
+
+.wlp-ai-turn-outcome{margin:0 0 9px}
+.wlp-ai-turn-outcome[hidden]{display:none!important}
+.wlp-ai-outcome-chip,.wlp-ai-history-outcome{display:inline-flex;align-items:center;width:max-content;max-width:100%;border:1px solid #d9e5dd;border-radius:999px;background:#fff;padding:5px 9px;color:#60776a;font:750 .64rem/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.wlp-ai-outcome-chip.is-success,.wlp-ai-history-outcome.is-success{border-color:#c8ddce;background:#f1f7f2;color:#37654d}
+.wlp-ai-outcome-chip.is-alternative,.wlp-ai-history-outcome.is-alternative{border-color:#d6dfca;background:#f7f8f1;color:#687451}
+.wlp-ai-outcome-chip.is-partial,.wlp-ai-history-outcome.is-partial{border-color:#e3ddc8;background:#fbf8ef;color:#7b6d43}
+.wlp-ai-outcome-chip.is-revise,.wlp-ai-history-outcome.is-revise{border-color:#e4d4d0;background:#fbf5f3;color:#805e56}
+.wlp-ai-outcome-chip.is-neutral,.wlp-ai-history-outcome.is-neutral{color:#74847b}
 .wlp-ai-feedback-block{margin-top:8px;padding:11px 12px;border:1px solid #dce8df;border-radius:14px;background:rgba(255,255,255,.72)}
 .wlp-ai-feedback-block+.wlp-ai-feedback-block{margin-top:8px}
 .wlp-ai-feedback-label{display:block;color:#6f8579;font-size:.61rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
@@ -186,6 +196,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 .wlp-ai-turn-review-head{display:grid;gap:2px;margin-bottom:7px}
 .wlp-ai-turn-review-head strong{font-family:"EB Garamond",Georgia,serif;font-size:1rem;color:#315b47}
 .wlp-ai-turn-review-head small{color:#87948c;font-size:.59rem;line-height:1.35}
+.wlp-ai-turn-review-head .wlp-ai-outcome-chip{margin-top:3px}
 .wlp-ai-turn-card-actions{margin-top:8px;padding-top:8px;border-top:1px solid #edf2ee}
 .wlp-ai-quick-card-button{border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#61796b;padding:6px 9px;font:700 .61rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
 
@@ -196,6 +207,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 .wlp-ai-history-item{width:100%;display:grid;gap:2px;text-align:left;border:1px solid #dce7df;border-radius:12px;background:#fff;color:#60776a;padding:9px 10px;cursor:pointer}
 .wlp-ai-history-item strong{font-size:.68rem;color:#4f6d5d}
 .wlp-ai-history-item span{font-size:.61rem;line-height:1.35;color:#87948c}
+.wlp-ai-history-item .wlp-ai-history-outcome{margin-top:4px;font-size:.6rem;line-height:1.2}
 .wlp-ai-history-review{margin-top:12px;padding:12px;border:1px solid #dce7df;border-radius:14px;background:#fbfdfb;text-align:left}
 .wlp-ai-history-review[hidden]{display:none!important}
 .wlp-ai-history-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:9px}
@@ -312,6 +324,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 .wlp-ai-reconstruction-assist-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .wlp-ai-target-hint,.wlp-ai-task-hint{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;margin-top:0}
 .wlp-ai-target-hint span{display:inline-flex;align-items:center;min-height:28px;border:1px solid #dde7e0;border-radius:999px;background:#f8fbf9;padding:4px 9px;color:#587064;font-size:.63rem;font-weight:700;white-space:nowrap}
+.wlp-ai-target-hint span[hidden]{display:none!important}
 .wlp-ai-task-hint-list{display:grid;gap:5px;width:100%;box-sizing:border-box;margin:0;padding:8px 10px;border:1px solid #e0e9e3;border-radius:10px;background:rgba(255,255,255,.72)}
 .wlp-ai-task-hint-item{grid-template-columns:52px minmax(0,1fr)}
 @media(max-width:480px){
