@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study failure classification + retry policy v1.8.6.60k R2-G.11
-   Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
+/* WLP Stage 7 — AI Study Complex Target Readiness phase 1 v1.8.6.61 R2-H.1
+   Deterministic target-shape analysis before Planner selection; provider-agnostic. */
 (() => {
   'use strict';
 
-  const VERSION = '1.7.11';
+  const VERSION = '1.8.0';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -84,6 +84,272 @@
       element.append(strong);
       cursor = best.index + best.length;
     }
+  }
+
+  function uniqueClean(values, limit = 8) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(values) ? values : []).forEach(value => {
+      const text = clean(value).replace(/\s+/g, ' ');
+      const key = text.toLowerCase();
+      if (!text || seen.has(key) || out.length >= limit) return;
+      seen.add(key);
+      out.push(text);
+    });
+    return out;
+  }
+
+  function hasJapaneseText(value) {
+    return /[\u3040-\u30ff\u3400-\u9fff]/u.test(clean(value));
+  }
+
+  function stripKnownMetaResidue(value) {
+    let text = clean(value).replace(/\s+/g, ' ');
+    const notes = [];
+    let focus = '';
+    if (!text) return { text: '', notes, focus };
+
+    const original = text;
+    text = text
+      .replace(/\s*(?:日本語で|日本語|意味|とは)\s*[?？]?$/u, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text !== original) notes.push('removed Japanese lookup residue');
+
+    const defineMatch = text.match(/^define\s+(.+)$/i);
+    if (defineMatch) {
+      text = clean(defineMatch[1]);
+      notes.push('removed define-query wrapper');
+    }
+
+    const meaningMatch = text.match(/^(.+?)\s+(?:meaning|definition)(?:\s+as\s+(?:a|an)\s+(.+?))?\s*[?？]?$/i);
+    if (meaningMatch) {
+      text = clean(meaningMatch[1]);
+      focus = clean(meaningMatch[2]);
+      notes.push('removed meaning/definition query residue');
+    }
+
+    const parentheticalMeta = text.match(/^(.+?)\s*\(([^)]*(?:why|what|how|meaning|mean|called|difference)[^)]*)\)\s*$/i);
+    if (parentheticalMeta) {
+      text = clean(parentheticalMeta[1]);
+      notes.push('removed parenthetical meta-question');
+    }
+
+    return { text, notes, focus };
+  }
+
+  function splitContrastTarget(value) {
+    return uniqueClean(clean(value).split(/\s+(?:vs\.?|versus)\s+/i), 4);
+  }
+
+  function splitFamilyTarget(value) {
+    const text = clean(value);
+    if (!text || /https?:\/\//i.test(text) || /\band\/or\b/i.test(text)) return [];
+    if (!/\s*\/\s*/.test(text)) return [];
+    const parts = uniqueClean(text.split(/\s*\/\s*/), 6);
+    return parts.length >= 2 ? parts : [];
+  }
+
+  function detectMetaQuestion(value) {
+    const text = clean(value);
+    if (!text) return false;
+    return /(?:\?|？)\s*$/.test(text) && /\b(?:meaning|mean|define|definition|difference|called|why|what is|what are|how is|how are)\b/i.test(text);
+  }
+
+  function detectSentenceExpression(value) {
+    const text = clean(value);
+    if (!text) return false;
+    const words = text.split(/\s+/).filter(Boolean);
+    return words.length >= 4 && (/[.!?]$/.test(text) || /^(?:i|you|we|they|he|she|it|there|that|this)\b/i.test(text));
+  }
+
+  function detectMultiPos(target) {
+    const pos = clean(target?.pos);
+    if (!pos) return false;
+    const tags = uniqueClean(pos.split(/\s*(?:\/|;|,)\s*/).filter(Boolean), 8);
+    if (tags.length < 2) return false;
+    const normalized = tags.map(tag => tag.toLowerCase());
+    return new Set(normalized).size >= 2;
+  }
+
+  function analyzeTargetReadiness(packet) {
+    const p = packet && typeof packet === 'object' ? packet : {};
+    const target = p.target && typeof p.target === 'object' ? p.target : {};
+    const rawHeadword = clean(target.headword);
+    const resolverKind = clean(target.targetKind).toLowerCase() || 'simple';
+    const targetFamily = uniqueClean(target.targetFamily, 8);
+    const hazards = [];
+    const guidance = [];
+    const metaClean = stripKnownMetaResidue(rawHeadword);
+    let normalizedHeadword = metaClean.text || rawHeadword;
+    let kind = resolverKind;
+    let status = 'ready';
+    let practiceUnits = [];
+    let rawHeadwordLiteralTargetAllowed = true;
+    let focus = metaClean.focus;
+
+    const contrastParts = splitContrastTarget(normalizedHeadword);
+    const familyParts = splitFamilyTarget(normalizedHeadword);
+    const mixedLanguage = hasJapaneseText(rawHeadword);
+    const metaQuery = Boolean(metaClean.notes.length) || detectMetaQuestion(rawHeadword);
+    const multiPos = detectMultiPos(target);
+
+    if (resolverKind === 'contrast' || contrastParts.length >= 2) {
+      kind = 'contrast';
+      status = 'decompose';
+      practiceUnits = contrastParts.length >= 2 ? contrastParts : targetFamily.slice(0, 2);
+      rawHeadwordLiteralTargetAllowed = false;
+      hazards.push('multi-target contrast');
+      guidance.push('Treat the two expressions as separate practice units. A contrast experience may compare both, but selectedTarget.target must be one expression, never the literal “X vs Y” label.');
+    } else if (resolverKind === 'family' || familyParts.length >= 2) {
+      kind = 'family';
+      status = 'decompose';
+      practiceUnits = familyParts.length >= 2 ? familyParts : targetFamily.slice(0, 6);
+      rawHeadwordLiteralTargetAllowed = false;
+      hazards.push('multi-form or multi-expression family');
+      guidance.push('Practice one family member or construction realization per turn. Do not require every slash-separated form in one answer.');
+    } else if (resolverKind === 'construction') {
+      kind = 'construction';
+      practiceUnits = [normalizedHeadword];
+      hazards.push('construction with variable slot');
+      guidance.push('Preserve the constructional relationship and let the variable slot inflect or change naturally; do not reduce the card to an isolated content word.');
+    } else if (resolverKind === 'labeled') {
+      kind = 'labeled';
+      status = 'decompose';
+      const stripped = normalizedHeadword.replace(/\s*:\s*(?:synonyms?(?:\s*(?:and|&|\/)\s*near[- ]synonyms?)?|near[- ]synonyms?|usage(?:\s+notes?)?|contrast(?:s)?|related expressions?)\s*$/i, '').trim();
+      normalizedHeadword = stripped || normalizedHeadword;
+      practiceUnits = [normalizedHeadword];
+      rawHeadwordLiteralTargetAllowed = false;
+      hazards.push('editorial label in headword');
+      guidance.push('The colon label is metadata, not learner language. Practice the underlying expression and use the label only to shape comparison/neighbor work.');
+    } else {
+      practiceUnits = [normalizedHeadword];
+    }
+
+    if (mixedLanguage) {
+      hazards.push('mixed-language headword');
+      rawHeadwordLiteralTargetAllowed = false;
+      if (normalizedHeadword && !hasJapaneseText(normalizedHeadword)) {
+        status = status === 'decompose' ? status : 'normalize';
+        guidance.push('Use the cleaned English expression as the practice target; Japanese lookup residue is metadata, not part of the answer.');
+      } else {
+        status = 'review';
+        guidance.push('The headword still contains mixed-language material after deterministic cleanup. Prefer another candidate unless the card provides a clear English practice unit.');
+      }
+    }
+
+    if (metaQuery) {
+      hazards.push('lookup/meta-query residue');
+      rawHeadwordLiteralTargetAllowed = false;
+      if (normalizedHeadword) {
+        status = status === 'decompose' ? status : 'normalize';
+        guidance.push('Do not make the learner reproduce search-query wording such as “meaning”, “define”, or a parenthetical why-question. Practice the underlying expression/concept.');
+      } else {
+        status = 'review';
+      }
+    }
+
+    if (multiPos) {
+      hazards.push('multiple parts of speech');
+      if (status === 'ready') status = 'decompose';
+      guidance.push('Choose one part of speech / sense for this turn and make the prompt, expected form, and feedback consistent with that choice. Do not test all POS values at once.');
+    }
+
+    if (detectSentenceExpression(normalizedHeadword) && !metaQuery) {
+      if (kind === 'simple') kind = 'sentence-expression';
+      hazards.push('sentence or pragmatic expression');
+      guidance.push('The full sentence-like expression may itself be the legitimate target. Do not automatically extract a single content word from it.');
+    }
+
+    practiceUnits = uniqueClean(practiceUnits.map(unit => stripKnownMetaResidue(unit).text || unit), 8);
+    if (!practiceUnits.length && targetFamily.length) practiceUnits = targetFamily.slice(0, 8);
+    if (!practiceUnits.length && normalizedHeadword) practiceUnits = [normalizedHeadword];
+    if (!practiceUnits.length) {
+      status = 'review';
+      hazards.push('no deterministic practice unit');
+      guidance.push('No safe practice unit could be derived locally. Prefer another candidate rather than inventing a target.');
+    }
+
+    let primaryTarget = clean(practiceUnits[0] || normalizedHeadword);
+    if (kind === 'construction' && targetFamily.length) {
+      const familyCandidate = targetFamily.find(item => clean(item) && !/[/:]/.test(item));
+      if (familyCandidate) primaryTarget = clean(familyCandidate);
+    }
+
+    return {
+      schemaVersion: 1,
+      status,
+      kind,
+      resolverKind,
+      rawHeadword,
+      normalizedHeadword,
+      primaryTarget,
+      practiceUnits,
+      targetFamily,
+      pos: clean(target.pos),
+      entryType: clean(target.entryType),
+      focus,
+      rawHeadwordLiteralTargetAllowed,
+      hazards: uniqueClean(hazards, 8),
+      guidance: uniqueClean(guidance, 6)
+    };
+  }
+
+  function annotateTargetPacketsForReadiness(packets) {
+    return (Array.isArray(packets) ? packets : []).map(packet => ({
+      ...packet,
+      targetReadiness: analyzeTargetReadiness(packet)
+    }));
+  }
+
+  function normalizeTargetKey(value) {
+    return clean(value).toLowerCase().replace(/[“”"'’`]/g, '').replace(/[.?!,:;()\[\]{}]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function validateComplexTargetSelection(plannerResult, request) {
+    const selected = plannerResult?.response?.selectedTarget || {};
+    const selectedId = clean(selected.wordId);
+    const packets = Array.isArray(request?.targetPackets) ? request.targetPackets : [];
+    const packet = packets.find(item => clean(item?.target?.wordId) === selectedId);
+    const readiness = packet?.targetReadiness;
+    if (!readiness || typeof readiness !== 'object') return;
+    if (clean(readiness.status) === 'review' && !(Array.isArray(readiness.practiceUnits) && readiness.practiceUnits.length)) {
+      throw new Error('Planner response validation failed: selected target has no safe Complex Target Readiness practice unit.');
+    }
+    const selectedKey = normalizeTargetKey(selected.target);
+    const rawKey = normalizeTargetKey(readiness.rawHeadword);
+    if (readiness.rawHeadwordLiteralTargetAllowed === false && selectedKey && rawKey && selectedKey === rawKey) {
+      throw new Error(`Planner response validation failed: complex target label “${clean(readiness.rawHeadword)}” was selected literally instead of one safe practice unit.`);
+    }
+    if (clean(readiness.kind) === 'contrast' && /\b(?:vs\.?|versus)\b/i.test(clean(selected.target))) {
+      throw new Error('Planner response validation failed: a contrast card must select one expression as selectedTarget.target, not the literal comparison label.');
+    }
+    if (clean(readiness.kind) === 'family' && /\//.test(clean(selected.target))) {
+      throw new Error('Planner response validation failed: a family card must select one practiceable family member/form, not the slash-joined headword.');
+    }
+  }
+
+  function runTargetReadinessSelfTest() {
+    const packet = (headword, targetKind = 'simple', pos = '', family = []) => ({ target: { headword, targetKind, pos, targetFamily: family } });
+    const cases = [
+      ['simple', packet('overwrought'), r => r.status === 'ready' && r.kind === 'simple' && r.primaryTarget === 'overwrought'],
+      ['contrast', packet('flop vs hit', 'contrast'), r => r.status === 'decompose' && r.kind === 'contrast' && r.practiceUnits.join('|') === 'flop|hit'],
+      ['family', packet('abrogate / abrogated', 'family', 'verb / adjective'), r => r.status === 'decompose' && r.kind === 'family' && r.practiceUnits.length === 2],
+      ['construction', packet('blow something out of proportion', 'construction', 'verb phrase'), r => r.kind === 'construction' && r.status === 'ready'],
+      ['labeled', packet('ledge: synonyms and near-synonyms', 'labeled', 'noun'), r => r.kind === 'labeled' && r.primaryTarget === 'ledge' && r.rawHeadwordLiteralTargetAllowed === false],
+      ['japanese-residue', packet('hyperosmia 日本語で', 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'hyperosmia'],
+      ['meaning-query', packet('disconnect meaning as a noun', 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'disconnect' && r.focus === 'noun'],
+      ['parenthetical-query', packet("garden-path sentence (why 'garden path'?)", 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'garden-path sentence'],
+      ['sentence-expression', packet("You don't want to know.", 'simple', 'pragmatic expression'), r => r.status === 'ready' && r.kind === 'sentence-expression'],
+      ['multi-pos', packet('stable', 'simple', 'noun / adjective / verb'), r => r.status === 'decompose' && r.hazards.includes('multiple parts of speech')]
+    ];
+    const checks = cases.map(([name, input, test]) => {
+      const result = analyzeTargetReadiness(input);
+      let passed = false;
+      try { passed = Boolean(test(result)); } catch (_) {}
+      return { name, passed, result };
+    });
+    return { passed: checks.every(item => item.passed), checks };
   }
 
   function requireLayers() {
@@ -320,7 +586,10 @@
         inputTokens: num(turnDiagnostics.inputTokens),
         cachedInputTokens: num(turnDiagnostics.cachedInputTokens),
         outputTokens: num(turnDiagnostics.outputTokens),
-        estimatedCostUsd: Number.isFinite(turnDiagnostics.estimatedCostUsd) ? turnDiagnostics.estimatedCostUsd : null
+        estimatedCostUsd: Number.isFinite(turnDiagnostics.estimatedCostUsd) ? turnDiagnostics.estimatedCostUsd : null,
+        targetReadinessStatus: clean(state.activePlanner?.diagnostics?.targetReadiness?.status),
+        targetReadinessKind: clean(state.activePlanner?.diagnostics?.targetReadiness?.kind),
+        targetReadinessHazards: Array.isArray(state.activePlanner?.diagnostics?.targetReadiness?.hazards) ? state.activePlanner.diagnostics.targetReadiness.hazards.map(clean).filter(Boolean).slice(0, 8) : []
       }
     };
   }
@@ -1791,7 +2060,8 @@
     if (!candidateContext?.candidates?.length) throw new Error('No AI Study candidates were found for this source.');
     const ranked = rankCandidates(candidateContext.candidates, session);
     const packetCandidates = ranked.slice(0, MAX_TARGET_PACKETS);
-    const targetPackets = await Promise.all(packetCandidates.map(item => data.assembleTargetContext(item.wordId)));
+    const assembledTargetPackets = await Promise.all(packetCandidates.map(item => data.assembleTargetContext(item.wordId)));
+    const targetPackets = annotateTargetPacketsForReadiness(assembledTargetPackets);
     const request = data.buildPlannerWriterRequest({
       session: {
         sessionId: session.sessionId,
@@ -1813,6 +2083,7 @@
         requiredExperienceType: session.practiceType === 'adaptive' ? null : session.practiceType
       }
     });
+    request.targetPackets = targetPackets;
     const validation = contract.validatePlannerRequest(request);
     if (!validation.valid) throw new Error(`Planner request rejected: ${validation.errors.map(item => `${item.path}: ${item.message}`).join('; ')}`);
     return { request, rankedCandidates: ranked, targetPackets };
@@ -2148,6 +2419,7 @@
           const plannerElapsed = elapsedMs(plannerStarted);
           try {
             validateReconstructionAgainstSession(plannerResult);
+            validateComplexTargetSelection(plannerResult, built.request);
           } catch (validationError) {
             const willAutoRetry = generationAttempt < maxGenerationAttempts;
             addRejectedUsage(plannerResult.meta, 'planner', plannerElapsed, validationError, willAutoRetry ? 'automatic' : 'manual');
@@ -2170,7 +2442,8 @@
               provider: clean(plannerResult.meta?.provider),
               model: clean(plannerResult.meta?.model),
               generationAttempt,
-              usageStart: experienceUsageStart
+              usageStart: experienceUsageStart,
+              targetReadiness: clone((built.request.targetPackets || []).find(packet => clean(packet?.target?.wordId) === clean(plannerResult.response?.selectedTarget?.wordId))?.targetReadiness || null)
             }
           };
           const selectedId = clean(plannerResult.response?.selectedTarget?.wordId);
@@ -2354,6 +2627,9 @@
     ];
     if (failedInterpreterCalls) timingParts.push(`${failedInterpreterCalls} earlier interpreter failure${failedInterpreterCalls === 1 ? '' : 's'}`);
     if (Number.isFinite(turnDiagnostics.estimatedCostUsd)) timingParts.push(`Estimated cost ${formatUsd(turnDiagnostics.estimatedCostUsd)}`);
+    const readinessStatus = clean(plannerDiag.targetReadiness?.status);
+    const readinessKind = clean(plannerDiag.targetReadiness?.kind);
+    if (readinessStatus || readinessKind) timingParts.push(`Target readiness ${[readinessKind, readinessStatus].filter(Boolean).join(' / ')}`);
     if (provider || model) timingParts.push([provider, model].filter(Boolean).join(' · '));
     $('#wlp-ai-turn-diagnostics').textContent = timingParts.join(' · ');
 
@@ -2615,7 +2891,9 @@
         busy: state.busy
       }),
       refreshProviderStatus,
-      setMode
+      setMode,
+      analyzeTargetReadiness: packet => clone(analyzeTargetReadiness(packet)),
+      runTargetReadinessSelfTest
     });
   }
 
