@@ -299,3 +299,25 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
   .wlp-ai-reconstruction-assist{display:grid;grid-template-columns:1fr;gap:7px}
   .wlp-ai-task-hint-item{grid-template-columns:1fr;gap:2px}
 }
+
+/* R2-G.6 — generation cancel, stable assist layout, session-size preference, clue masking */
+.wlp-ai-session-size-default{display:flex;align-items:center;gap:8px;margin:0 0 11px;padding:0 2px;color:#72877b;font:600 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.35;text-align:left}
+.wlp-ai-session-size-default input{margin:0;accent-color:#356b52}
+.wlp-ai-generation-cancel-row[hidden]{display:none!important}
+.wlp-ai-generation-cancel-row{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;margin:8px 0 2px}
+.wlp-ai-generation-cancel-row button{border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#687e72;padding:6px 10px;font:700 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.wlp-ai-generation-cancel-row span{color:#8a968f;font-size:.61rem;line-height:1.35}
+
+.wlp-ai-reconstruction-assist{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
+.wlp-ai-reconstruction-assist-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wlp-ai-target-hint,.wlp-ai-task-hint{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;margin-top:0}
+.wlp-ai-target-hint span{display:inline-flex;align-items:center;min-height:28px;border:1px solid #dde7e0;border-radius:999px;background:#f8fbf9;padding:4px 9px;color:#587064;font-size:.63rem;font-weight:700;white-space:nowrap}
+.wlp-ai-task-hint-list{display:grid;gap:5px;width:100%;box-sizing:border-box;margin:0;padding:8px 10px;border:1px solid #e0e9e3;border-radius:10px;background:rgba(255,255,255,.72)}
+.wlp-ai-task-hint-item{grid-template-columns:52px minmax(0,1fr)}
+@media(max-width:480px){
+  .wlp-ai-reconstruction-assist-actions{align-items:flex-start}
+  .wlp-ai-target-hint,.wlp-ai-task-hint{flex-wrap:wrap}
+  .wlp-ai-target-hint span{white-space:normal}
+  .wlp-ai-task-hint-item{grid-template-columns:1fr;gap:2px}
+  .wlp-ai-generation-cancel-row{align-items:flex-start;justify-content:flex-start}
+}

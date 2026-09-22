@@ -1,11 +1,12 @@
-/* WLP Stage 7 — AI Study quality & robustness polish v1.8.6.58 R2-E
+/* WLP Stage 7 — AI Study controls & clue polish v1.8.6.60f R2-G.6
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.7.5';
+  const VERSION = '1.7.6';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
+  const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
@@ -40,7 +41,9 @@
     session: null,
     activePlanner: null,
     busy: false,
-    reconstruction: null
+    reconstruction: null,
+    generationEpoch: 0,
+    generationController: null
   };
 
   const $ = selector => document.querySelector(selector);
@@ -582,9 +585,51 @@
     return { mode: 'review', label: 'Review' };
   }
 
+  function ensureSessionSizeOptions() {
+    const select = $('#study-session-size');
+    if (!select) return;
+    [1, 3].forEach(value => {
+      if ([...select.options].some(option => Number(option.value) === value)) return;
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = `${value} experience${value === 1 ? '' : 's'}`;
+      const before = [...select.options].find(item => Number(item.value) > value);
+      select.insertBefore(option, before || null);
+    });
+  }
+
+  function savedAISessionSize() {
+    try {
+      const value = Math.floor(num(localStorage.getItem(AI_SESSION_SIZE_KEY)));
+      return [1, 3, 5, 10, 20].includes(value) ? value : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applySavedAISessionSize() {
+    ensureSessionSizeOptions();
+    const saved = savedAISessionSize();
+    const select = $('#study-session-size');
+    const remember = $('#wlp-ai-remember-session-size');
+    if (remember) remember.checked = Boolean(saved);
+    if (!saved || !select) return;
+    select.value = String(saved);
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function persistAISessionSizePreference() {
+    const remember = $('#wlp-ai-remember-session-size');
+    const size = Math.floor(num($('#study-session-size')?.value));
+    try {
+      if (remember?.checked && [1, 3, 5, 10, 20].includes(size)) localStorage.setItem(AI_SESSION_SIZE_KEY, String(size));
+      else localStorage.removeItem(AI_SESSION_SIZE_KEY);
+    } catch (_) {}
+  }
+
   function selectedSessionSize() {
     const size = Math.floor(num($('#study-session-size')?.value));
-    return [5, 10, 20].includes(size) ? size : 5;
+    return [1, 3, 5, 10, 20].includes(size) ? size : 5;
   }
 
 
@@ -652,6 +697,7 @@
   }
 
   function injectUI() {
+    ensureSessionSizeOptions();
     const main = $('main.study-hub-main');
     const sourcePanel = $('.study-hub-panel[aria-labelledby="study-source-title"]');
     if (!main || !sourcePanel || $('#wlp-practice-mode-switch')) return;
@@ -722,6 +768,7 @@
             <p id="wlp-ai-difficulty-help">Default. WLP adjusts support from current route evidence and normally stays near Standard.</p>
           </div>
         </div>
+        <label class="wlp-ai-session-size-default" for="wlp-ai-remember-session-size"><input id="wlp-ai-remember-session-size" type="checkbox"><span>Remember the Step 1 session size above as my AI Study default</span></label>
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
         <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source, session size, optional experience-type override, and difficulty preference are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
         <details class="wlp-ai-history" id="wlp-ai-history" hidden>
@@ -763,16 +810,19 @@
           </div>
           <span class="wlp-ai-visible-target" id="wlp-ai-visible-target" hidden></span>
           <div class="wlp-ai-reconstruction-assist" id="wlp-ai-reconstruction-assist" hidden>
-            <div class="wlp-ai-target-hint" id="wlp-ai-target-hint" hidden>
-              <button type="button" id="wlp-ai-target-hint-button">Show target</button>
-              <span id="wlp-ai-target-hint-text" hidden></span>
+            <div class="wlp-ai-reconstruction-assist-actions">
+              <div class="wlp-ai-target-hint" id="wlp-ai-target-hint" hidden>
+                <button type="button" id="wlp-ai-target-hint-button">Show target</button>
+                <span id="wlp-ai-target-hint-text" hidden></span>
+              </div>
+              <div class="wlp-ai-task-hint" id="wlp-ai-task-hint" hidden>
+                <button type="button" id="wlp-ai-task-hint-button">Need a hint?</button>
+              </div>
             </div>
-            <div class="wlp-ai-task-hint" id="wlp-ai-task-hint" hidden>
-              <button type="button" id="wlp-ai-task-hint-button">Need a hint?</button>
-              <div class="wlp-ai-task-hint-list" id="wlp-ai-task-hint-list" hidden></div>
-            </div>
+            <div class="wlp-ai-task-hint-list" id="wlp-ai-task-hint-list" hidden></div>
           </div>
         </div>
+        <div class="wlp-ai-generation-cancel-row" id="wlp-ai-generation-cancel-row" hidden><button type="button" id="wlp-ai-cancel-generation">Stop generation</button><span>Stop the pending generation. Completed turns stay saved.</span></div>
         <label class="wlp-ai-response-field" id="wlp-ai-response-field" for="wlp-ai-response">
           <span id="wlp-ai-response-label">What would you naturally say?</span>
           <textarea id="wlp-ai-response" rows="3" placeholder="Type the expression or sentence that comes naturally."></textarea>
@@ -858,7 +908,10 @@
     if (persist) {
       try { localStorage.setItem(MODE_KEY, state.mode); } catch (_) {}
     }
-    if (state.mode === 'ai') refreshProviderStatus();
+    if (state.mode === 'ai') {
+      applySavedAISessionSize();
+      refreshProviderStatus();
+    }
   }
 
   function setBusy(busy, message = '') {
@@ -879,6 +932,32 @@
     if (message) setStatus(message);
   }
 
+  function setGenerationCancelVisible(visible) {
+    const row = $('#wlp-ai-generation-cancel-row');
+    const button = $('#wlp-ai-cancel-generation');
+    if (row) row.hidden = !visible;
+    if (button) button.disabled = !visible;
+  }
+
+  function cancelActiveGeneration() {
+    if (!state.session || !state.busy) return;
+    const completed = num(state.session.completed);
+    state.generationEpoch += 1;
+    try { state.generationController?.abort?.(); } catch (_) {}
+    state.generationController = null;
+    state.busy = false;
+    setGenerationCancelVisible(false);
+    if (completed > 0) {
+      finishSession();
+      return;
+    }
+    resetSession({ scrollStart: true });
+  }
+
+  function generationStillCurrent(epoch) {
+    return epoch === state.generationEpoch && Boolean(state.session);
+  }
+
   function setStatus(message, isError = false) {
     const el = $('#wlp-ai-status');
     if (!el) return;
@@ -894,6 +973,7 @@
   }
 
   function showGenerationRetry(error) {
+    setGenerationCancelVisible(false);
     const wrap = $('#wlp-ai-generation-retry');
     const detail = $('#wlp-ai-generation-error-detail');
     if (detail) detail.textContent = formatAIError(error);
@@ -1213,6 +1293,18 @@
     return 'Smaller chunks with reduced surface clues. Use every chunk once to build one natural sentence.';
   }
 
+  function reconstructionBankText(item) {
+    let value = clean(item?.text);
+    const level = clean(state.reconstruction?.level || 'standard');
+    if (!value || level === 'easy' || !item?.required) return value;
+    const requiredTotal = Array.isArray(state.reconstruction?.requiredUnits) ? state.reconstruction.requiredUnits.length : 0;
+    if (item.sourceIndex === 0) {
+      value = value.replace(/^([^A-Za-z]*)([A-Z])/, (_, lead, letter) => `${lead}${letter.toLowerCase()}`);
+    }
+    if (requiredTotal && item.sourceIndex === requiredTotal - 1) value = value.replace(/[.!?]+$/, '');
+    return value;
+  }
+
   function renderReconstruction() {
     const wrap = $('#wlp-ai-reconstruction');
     const bank = $('#wlp-ai-reconstruction-bank');
@@ -1229,7 +1321,7 @@
       button.type = 'button';
       button.className = 'wlp-ai-reconstruction-chip';
       button.dataset.reconstructionAdd = item.id;
-      button.textContent = item.text;
+      button.textContent = reconstructionBankText(item);
       button.disabled = Boolean(state.reconstruction.locked);
       bank.append(button);
     });
@@ -1445,12 +1537,14 @@
       $('#wlp-ai-source-pill').textContent = state.session.source.label;
       $('#wlp-ai-progress').textContent = `${state.session.completed + 1} / ${state.session.total}`;
     }
+    setGenerationCancelVisible(true);
     setStatus(message);
   }
 
   function renderExperience(plannerResult) {
     hideGenerationRetry();
     hideInterpreterRetry();
+    setGenerationCancelVisible(false);
     const response = plannerResult.response;
     const experience = response.experience || {};
     const selected = response.selectedTarget || {};
@@ -1530,6 +1624,10 @@
 
   async function loadNextExperience() {
     if (!state.session || state.busy) return;
+    const generationEpoch = state.generationEpoch + 1;
+    state.generationEpoch = generationEpoch;
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    state.generationController = controller;
     const difficultyText = state.session.difficulty && state.session.difficulty !== 'adaptive' ? ` · ${difficultyLabel(state.session.difficulty)}` : '';
     prepareExperienceLoading(`Creating a new ${practiceTypeLabel(state.session.practiceType)}${difficultyText} experience…`);
     setBusy(true);
@@ -1537,9 +1635,11 @@
     try {
       const { transport } = requireLayers();
       const built = await buildFreshPlannerRequest(state.session);
+      if (!generationStillCurrent(generationEpoch)) return;
       const maxGenerationAttempts = 3;
       let lastError = null;
       for (let generationAttempt = 1; generationAttempt <= maxGenerationAttempts; generationAttempt += 1) {
+        if (!generationStillCurrent(generationEpoch) || controller?.signal?.aborted) return;
         let plannerResult = null;
         plannerStarted = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
         try {
@@ -1547,6 +1647,7 @@
             ? 'Creating the next adaptive experience…'
             : `The previous generation missed WLP's format check. Regenerating automatically… (${generationAttempt}/${maxGenerationAttempts})`);
           plannerResult = await transport.callPlannerWriter(built.request);
+          if (!generationStillCurrent(generationEpoch) || controller?.signal?.aborted) return;
           const plannerElapsed = elapsedMs(plannerStarted);
           try {
             validateReconstructionAgainstSession(plannerResult);
@@ -1557,6 +1658,7 @@
             throw validationError;
           }
           const plannerAttempts = addUsage(plannerResult.meta, 'planner', plannerElapsed);
+          if (!generationStillCurrent(generationEpoch)) return;
           state.activePlanner = {
             request: built.request,
             result: plannerResult,
@@ -1574,6 +1676,7 @@
           renderExperience(plannerResult);
           return;
         } catch (error) {
+          if (!generationStillCurrent(generationEpoch) || controller?.signal?.aborted || clean(error?.name) === 'AbortError') return;
           if (!plannerResult) addFailedUsage(error, 'planner', elapsedMs(plannerStarted));
           lastError = error;
           if (isRetryablePlannerGenerationError(error) && generationAttempt < maxGenerationAttempts) continue;
@@ -1582,10 +1685,15 @@
       }
       if (lastError) throw lastError;
     } catch (error) {
+      if (!generationStillCurrent(generationEpoch) || controller?.signal?.aborted || clean(error?.name) === 'AbortError') return;
       state.activePlanner = null;
       showGenerationRetry(error);
     } finally {
-      setBusy(false);
+      if (generationEpoch === state.generationEpoch) {
+        state.generationController = null;
+        setGenerationCancelVisible(false);
+        setBusy(false);
+      }
     }
   }
 
@@ -1755,6 +1863,7 @@
 
   function beginSession() {
     if (state.busy) return;
+    persistAISessionSizePreference();
     const transportMode = window.WLPAIStudyTransport?.getMode?.() || 'mock';
     if (transportMode !== 'real') {
       setStatus('Switch AI transport to Real mode before starting a general WLP AI Study session.', true);
@@ -1848,6 +1957,10 @@
   }
 
   function resetSession({ focusStart = false, scrollStart = false } = {}) {
+    state.generationEpoch += 1;
+    try { state.generationController?.abort?.(); } catch (_) {}
+    state.generationController = null;
+    setGenerationCancelVisible(false);
     state.session = null;
     state.activePlanner = null;
     resetReconstruction();
@@ -1869,7 +1982,10 @@
     });
     $('#wlp-ai-practice-type')?.addEventListener('change', updatePracticeTypeHelp);
     $('#wlp-ai-difficulty')?.addEventListener('change', updateDifficultyHelp);
+    $('#wlp-ai-remember-session-size')?.addEventListener('change', persistAISessionSizePreference);
+    $('#study-session-size')?.addEventListener('change', () => { if ($('#wlp-ai-remember-session-size')?.checked) persistAISessionSizePreference(); });
     $('#wlp-ai-start')?.addEventListener('click', beginSession);
+    $('#wlp-ai-cancel-generation')?.addEventListener('click', cancelActiveGeneration);
     $('#wlp-ai-retry-generation')?.addEventListener('click', () => {
       if (!state.session || state.busy) return;
       loadNextExperience();
@@ -1960,6 +2076,11 @@
   function init() {
     injectUI();
     bindEvents();
+    if (state.mode === 'ai') applySavedAISessionSize();
+    else {
+      const remember = $('#wlp-ai-remember-session-size');
+      if (remember) remember.checked = Boolean(savedAISessionSize());
+    }
     let stored = 'standard';
     try { stored = localStorage.getItem(MODE_KEY) || 'standard'; } catch (_) {}
     setMode(stored === 'ai' ? 'ai' : 'standard', false);
