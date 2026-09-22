@@ -1,12 +1,15 @@
-/* WLP Stage 7 — AI Study Open Production Hint Profiles v1.8.6.67 R2-I.2
-   Keep existing reconstruction hints intact; add deterministic hint profiles for open-production experience types. */
+/* WLP Stage 7 — AI Study Open Production Hint Pool Calibration v1.8.6.68 R2-I.2.1
+   Preserve Sentence Reconstruction hints; add constrained variation, strength gating, and learner-selected hint allowance for open-production types. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.6';
+  const VERSION = '1.8.7';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
+  const AI_HINT_LIMIT_KEY = 'wlp:ai-study-hint-limit:v1';
+  const DEFAULT_HINT_LIMIT = 4;
+  const VALID_HINT_LIMITS = new Set([0, 2, 4, 6]);
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
@@ -78,7 +81,8 @@
       hintCount: 0,
       taskHintStage: 0,
       locked: false,
-      hintEvents: []
+      hintEvents: [],
+      openProductionHintPlan: []
     };
   }
 
@@ -1307,6 +1311,7 @@
       source: clone(session.source),
       practiceType: clean(session.practiceType || 'adaptive'),
       difficulty: clean(session.difficulty || 'adaptive'),
+      hintLimit: normalizeHintLimit(session.hintLimit, DEFAULT_HINT_LIMIT),
       total: num(session.total),
       completed: num(session.completed),
       completedAll: num(session.completed) >= num(session.total),
@@ -1874,6 +1879,40 @@
     if (el) el.textContent = help;
   }
 
+  function normalizeHintLimit(value, fallback = DEFAULT_HINT_LIMIT) {
+    const limit = Math.floor(num(value));
+    return VALID_HINT_LIMITS.has(limit) ? limit : fallback;
+  }
+
+  function selectedHintLimit() {
+    return normalizeHintLimit($('#wlp-ai-hint-limit')?.value, DEFAULT_HINT_LIMIT);
+  }
+
+  function savedHintLimit() {
+    try { return normalizeHintLimit(localStorage.getItem(AI_HINT_LIMIT_KEY), DEFAULT_HINT_LIMIT); }
+    catch (_) { return DEFAULT_HINT_LIMIT; }
+  }
+
+  function applySavedHintLimit() {
+    const select = $('#wlp-ai-hint-limit');
+    if (!select) return;
+    select.value = String(savedHintLimit());
+  }
+
+  function persistHintLimit() {
+    const limit = selectedHintLimit();
+    try { localStorage.setItem(AI_HINT_LIMIT_KEY, String(limit)); } catch (_) {}
+  }
+
+  function activeHintLimit() {
+    return normalizeHintLimit(state.session?.hintLimit, selectedHintLimit());
+  }
+
+  function limitHints(hints, limit = activeHintLimit()) {
+    const list = Array.isArray(hints) ? hints.slice() : [];
+    return list.slice(0, Math.max(0, normalizeHintLimit(limit, DEFAULT_HINT_LIMIT)));
+  }
+
   function candidateScore(candidate, session) {
     const review = candidate?.reviewSignal || {};
     const studyQ = candidate?.studyQSignal || {};
@@ -1975,6 +2014,15 @@
               <option value="hell">Hell</option>
             </select></label>
             <p id="wlp-ai-difficulty-help">Default. WLP adjusts support from current route evidence and normally stays near Standard.</p>
+          </div>
+          <div class="wlp-ai-practice-type-control wlp-ai-hint-limit-control">
+            <label for="wlp-ai-hint-limit"><span>Hints available</span><select id="wlp-ai-hint-limit" aria-describedby="wlp-ai-hint-limit-help">
+              <option value="0">No hints</option>
+              <option value="2">Up to 2</option>
+              <option value="4" selected>Up to 4 · default</option>
+              <option value="6">Up to 6</option>
+            </select></label>
+            <p id="wlp-ai-hint-limit-help">Sets the maximum available hints, not the difficulty. Sentence Reconstruction keeps its existing hint wording and order; this setting only caps how many can be shown. Show target stays separate.</p>
           </div>
         </div>
         <div class="wlp-ai-session-size-summary" id="wlp-ai-session-size-summary">
@@ -2537,43 +2585,56 @@
     return count + matches.length;
   }
 
-  function targetKindHint(target, readiness = {}) {
-    const handling = clean(readiness?.handling).toLowerCase();
-    const kind = clean(readiness?.kind).toLowerCase();
-    const pos = Array.isArray(readiness?.posCategories) ? readiness.posCategories.map(clean).filter(Boolean) : [];
-    const words = targetWordTokens(target);
-    const slots = variableSlotCount(target);
-    const posLabel = pos.length === 1 ? pos[0] : '';
-
-    if (handling === 'construction' || kind === 'construction' || slots > 0) {
-      const slotText = slots ? ` with ${slots} variable slot${slots === 1 ? '' : 's'}` : '';
-      return `The target is${posLabel ? ` a ${posLabel}` : ' a'} construction${slotText}.`;
-    }
-    if (handling === 'sentence-expression' || kind === 'sentence-expression') {
-      return 'The target is a whole expression or sentence, not an isolated word.';
-    }
-    if (words.length <= 1) {
-      return `The target is a single${posLabel ? ` ${posLabel}` : ' word'}.`;
-    }
-    return `The target is a ${words.length}-word${posLabel ? ` ${posLabel}` : ' expression'}.`;
+  function hintCandidate(category, family, strength, textValue) {
+    const value = clean(textValue);
+    if (!value) return null;
+    return {
+      category: clean(category),
+      family: clean(family || category),
+      strength: Math.max(1, Math.min(4, Math.floor(num(strength) || 1))),
+      text: value
+    };
   }
 
-  function targetStructureHint(target, readiness = {}) {
+  function targetShapeHint(target, readiness = {}) {
+    const handling = clean(readiness?.handling).toLowerCase();
+    const kind = clean(readiness?.kind).toLowerCase();
     const words = targetWordTokens(target);
     const slots = variableSlotCount(target);
+
+    if (handling === 'construction' || kind === 'construction' || slots > 0) return 'The target is a construction rather than an isolated word.';
+    if (handling === 'sentence-expression' || kind === 'sentence-expression') return 'The target is a whole expression or sentence.';
+    if (words.length <= 1) return 'The target is a single word.';
+    return `The target is a ${words.length}-word expression.`;
+  }
+
+  function targetPosHint(readiness = {}) {
+    const pos = Array.isArray(readiness?.posCategories) ? readiness.posCategories.map(clean).filter(Boolean) : [];
+    if (pos.length !== 1) return '';
+    return `It functions as a ${pos[0]}.`;
+  }
+
+  function targetSlotHint(target) {
+    const slots = variableSlotCount(target);
+    if (!slots) return '';
+    return `The construction has ${slots} variable slot${slots === 1 ? '' : 's'} to fit the situation.`;
+  }
+
+  function targetPrepositionHint(target, readiness = {}) {
     const handling = clean(readiness?.handling).toLowerCase();
-    if ((handling === 'construction' || slots > 0) && words.length) {
-      const lowerWords = words.map(word => word.toLowerCase());
-      const fixedPrep = lowerWords.find(word => PREPOSITION_WORDS.has(word));
-      if (slots >= 2 && fixedPrep) return 'A fixed preposition links or frames the variable parts of the construction.';
-      if (slots) return `The construction contains ${slots} variable slot${slots === 1 ? '' : 's'} that must fit the situation.`;
-    }
-    if (words.length === 1) {
-      const letters = clean(target).replace(/[^A-Za-z]/g, '');
-      if (letters.length >= 4) return `The word has ${letters.length} letters.`;
-    }
-    if (words.length >= 2) return `The expression contains ${words.length} words.`;
-    return '';
+    const slots = variableSlotCount(target);
+    if (handling !== 'construction' && slots < 1) return '';
+    const lowerWords = targetWordTokens(target).map(word => word.toLowerCase());
+    return lowerWords.some(word => PREPOSITION_WORDS.has(word))
+      ? 'A fixed preposition is part of the construction.'
+      : '';
+  }
+
+  function targetLengthHint(target) {
+    const words = targetWordTokens(target);
+    if (words.length !== 1) return '';
+    const letters = clean(target).replace(/[^A-Za-z]/g, '');
+    return letters.length >= 4 ? `The word has ${letters.length} letters.` : '';
   }
 
   function targetInitialHint(target) {
@@ -2583,77 +2644,277 @@
     return `${words.length > 1 ? 'The first fixed word' : 'It'} begins with “${match[0].toUpperCase()}”.`;
   }
 
-  function buildOpenProductionHintsFor({ target = '', readiness = {}, difficulty = 'standard', experienceType = 'open-description' } = {}) {
-    const type = clean(experienceType).toLowerCase();
-    if (!OPEN_PRODUCTION_HINT_TYPES.has(type)) return [];
-    const value = clean(target);
-    if (!value) return [];
-    const level = clean(difficulty).toLowerCase() || 'standard';
-    const kindHint = targetKindHint(value, readiness);
-    const structureHint = targetStructureHint(value, readiness);
-    const initialHint = targetInitialHint(value);
-    let hints = [];
-
-    if (level === 'easy') hints = [kindHint, initialHint, structureHint];
-    else if (level === 'hard') hints = [kindHint, structureHint, initialHint];
-    else if (level === 'hell') hints = [kindHint, initialHint];
-    else hints = [kindHint, structureHint, initialHint];
-
-    return uniqueTexts(hints.filter(Boolean), 4);
+  function targetEndingHint(target) {
+    const letters = clean(target).replace(/[^A-Za-z]/g, '');
+    if (letters.length < 4) return '';
+    return `It ends with “${letters.slice(-1).toUpperCase()}”.`;
   }
 
-  function buildOpenProductionHints(selected = null) {
-    const response = state.activePlanner?.result?.response || {};
-    const experience = response.experience || {};
-    const target = clean(selected?.target || response.selectedTarget?.target);
-    return buildOpenProductionHintsFor({
-      target,
-      readiness: state.activePlanner?.diagnostics?.targetReadiness || {},
-      difficulty: state.session?.difficulty || 'standard',
-      experienceType: experience.type
+  function targetFamilyHint(readiness = {}) {
+    const handling = clean(readiness?.handling).toLowerCase();
+    if (handling === 'form-family') return 'This source card contains related forms; use the form that fits the sentence you want to produce.';
+    if (handling === 'variant') return 'This source card contains equivalent spelling or form variants.';
+    if (handling === 'alternative-expression') return 'This source card contains more than one usable expression; the current experience is built around one of them.';
+    if (handling === 'contrast') return 'The source card contrasts neighboring expressions; this experience is built around one side of that contrast.';
+    return '';
+  }
+
+  function targetLeakTerms(target, readiness = {}) {
+    return uniqueTexts([
+      clean(target),
+      ...(Array.isArray(readiness?.practiceUnits) ? readiness.practiceUnits.map(clean) : []),
+      ...(Array.isArray(readiness?.targetFamily) ? readiness.targetFamily.map(clean) : [])
+    ], 16).filter(term => term.length >= 3);
+  }
+
+  function textLeaksTarget(value, target, readiness = {}) {
+    const source = clean(value).toLowerCase();
+    if (!source) return false;
+    return targetLeakTerms(target, readiness).some(term => {
+      const needle = clean(term).toLowerCase();
+      return needle && source.includes(needle);
     });
   }
 
+  function semanticFocusHint(context = {}, target = '', readiness = {}) {
+    const source = clean(
+      context?.communicativeFocus?.foreground
+      || context?.messageCore?.summary
+      || context?.experience?.acceptableSemanticTerritory?.[0]
+    );
+    if (!source || source.length > 180 || textLeaksTarget(source, target, readiness)) return '';
+    return `Focus on wording that foregrounds ${source.replace(/[.!?]+$/, '')}.`;
+  }
+
+  function nearbyAlternative(context = {}, target = '') {
+    const candidates = [
+      ...(Array.isArray(context?.naturalnessCheck?.commonerAlternatives) ? context.naturalnessCheck.commonerAlternatives : []),
+      ...(Array.isArray(context?.experience?.anticipatedNaturalAlternatives) ? context.experience.anticipatedNaturalAlternatives : [])
+    ].map(clean).filter(Boolean);
+    const targetKey = clean(target).toLowerCase();
+    return candidates.find(item => item.toLowerCase() !== targetKey) || '';
+  }
+
+  function namedNeighborHint(context = {}, target = '') {
+    const neighbor = nearbyAlternative(context, target);
+    return neighbor ? `One nearby natural alternative is “${neighbor}”.` : '';
+  }
+
+  function stringHash(value) {
+    let hash = 2166136261;
+    const source = String(value ?? '');
+    for (let i = 0; i < source.length; i += 1) {
+      hash ^= source.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function hintStrengthCaps(difficulty = 'standard', count = DEFAULT_HINT_LIMIT) {
+    const level = clean(difficulty).toLowerCase() || 'standard';
+    const presets = {
+      easy: [2, 3, 4, 4, 4, 4],
+      standard: [1, 2, 3, 4, 4, 4],
+      hard: [1, 1, 2, 3, 4, 4],
+      hell: [1, 1, 2, 3, 3, 4],
+      adaptive: [1, 2, 3, 4, 4, 4]
+    };
+    const source = presets[level] || presets.standard;
+    return Array.from({ length: Math.max(0, count) }, (_, index) => source[Math.min(index, source.length - 1)]);
+  }
+
+  function openProductionHintCandidates({ target = '', readiness = {}, context = {} } = {}) {
+    const value = clean(target);
+    if (!value) return [];
+    const candidates = [
+      hintCandidate('target-shape', 'core', 1, targetShapeHint(value, readiness)),
+      hintCandidate('part-of-speech', 'core', 1, targetPosHint(readiness)),
+      hintCandidate('variable-slots', 'structure', 2, targetSlotHint(value)),
+      hintCandidate('fixed-preposition', 'structure', 2, targetPrepositionHint(value, readiness)),
+      hintCandidate('family-handling', 'structure', 2, targetFamilyHint(readiness)),
+      hintCandidate('letter-count', 'lexical', 2, targetLengthHint(value)),
+      hintCandidate('semantic-focus', 'semantic', 3, semanticFocusHint(context, value, readiness)),
+      hintCandidate('initial-letter', 'lexical', 3, targetInitialHint(value)),
+      hintCandidate('ending-letter', 'lexical', 3, targetEndingHint(value)),
+      hintCandidate('named-neighbor', 'neighbor', 4, namedNeighborHint(context, value))
+    ].filter(Boolean);
+
+    const seen = new Set();
+    return candidates.filter(candidate => {
+      const key = `${candidate.category}:${candidate.text.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function recentHintCategories() {
+    return Array.isArray(state.session?.recentHintCategories)
+      ? state.session.recentHintCategories.map(clean).filter(Boolean).slice(-8)
+      : [];
+  }
+
+  function rememberHintCategory(category) {
+    if (!state.session || !clean(category)) return;
+    if (!Array.isArray(state.session.recentHintCategories)) state.session.recentHintCategories = [];
+    state.session.recentHintCategories.push(clean(category));
+    if (state.session.recentHintCategories.length > 12) state.session.recentHintCategories.splice(0, state.session.recentHintCategories.length - 12);
+  }
+
+  function selectOpenProductionHintPlan({ target = '', readiness = {}, difficulty = 'standard', experienceType = 'open-description', context = {}, hintLimit = DEFAULT_HINT_LIMIT, seed = '', recentCategories = [] } = {}) {
+    const type = clean(experienceType).toLowerCase();
+    if (!OPEN_PRODUCTION_HINT_TYPES.has(type)) return [];
+    const limit = normalizeHintLimit(hintLimit, DEFAULT_HINT_LIMIT);
+    if (!limit) return [];
+
+    const candidates = openProductionHintCandidates({ target, readiness, context });
+    if (!candidates.length) return [];
+    const caps = hintStrengthCaps(difficulty, limit);
+    const recent = recentCategories.map(clean).filter(Boolean);
+    const chosen = [];
+    const usedCategories = new Set();
+    const usedFamilies = new Map();
+
+    function candidateScore(candidate, stageIndex) {
+      const recentIndex = recent.lastIndexOf(candidate.category);
+      const recentPenalty = recentIndex >= 0 ? 240 - Math.min(160, (recent.length - 1 - recentIndex) * 30) : 0;
+      const familyCount = usedFamilies.get(candidate.family) || 0;
+      const familyPenalty = familyCount * (candidate.family === 'lexical' ? 65 : 35);
+      // Prefer the least revealing clue that still adds a new axis.
+      // Difficulty controls when stronger clues become eligible; it does not force them early.
+      const strengthPenalty = candidate.strength * 28;
+      const seeded = stringHash(`${seed}|${stageIndex}|${candidate.category}|${candidate.text}`) % 31;
+      return recentPenalty + familyPenalty + strengthPenalty + seeded;
+    }
+
+    let previousStrength = 1;
+    for (let stage = 0; stage < limit; stage += 1) {
+      const cap = caps[stage] || 4;
+      let eligible = candidates.filter(candidate => !usedCategories.has(candidate.category) && candidate.strength <= cap && candidate.strength >= previousStrength);
+      if (!eligible.length) {
+        eligible = candidates.filter(candidate => !usedCategories.has(candidate.category) && candidate.strength >= previousStrength);
+      }
+      if (!eligible.length) {
+        eligible = candidates.filter(candidate => !usedCategories.has(candidate.category));
+      }
+      if (!eligible.length) break;
+
+      // Hint 1 always stays in the low-leakage band when such a clue exists.
+      if (stage === 0) {
+        const lowLeakage = eligible.filter(candidate => candidate.strength === 1);
+        if (lowLeakage.length) eligible = lowLeakage;
+      }
+
+      eligible.sort((a, b) => {
+        const delta = candidateScore(a, stage) - candidateScore(b, stage);
+        if (delta) return delta;
+        return a.category.localeCompare(b.category);
+      });
+
+      const selected = eligible[0];
+      chosen.push(selected);
+      previousStrength = Math.max(previousStrength, selected.strength);
+      usedCategories.add(selected.category);
+      usedFamilies.set(selected.family, (usedFamilies.get(selected.family) || 0) + 1);
+    }
+
+    return chosen;
+  }
+
+  function buildOpenProductionHintPlan(selected = null) {
+    const assistance = state.assistance || resetAssistanceState();
+    if (Array.isArray(assistance.openProductionHintPlan) && assistance.openProductionHintPlan.length) return assistance.openProductionHintPlan;
+
+    const response = state.activePlanner?.result?.response || {};
+    const experience = response.experience || {};
+    const target = clean(selected?.target || response.selectedTarget?.target);
+    const plan = selectOpenProductionHintPlan({
+      target,
+      readiness: state.activePlanner?.diagnostics?.targetReadiness || {},
+      difficulty: state.session?.difficulty || 'standard',
+      experienceType: experience.type,
+      context: response,
+      hintLimit: activeHintLimit(),
+      seed: `${state.session?.sessionId || 'session'}|${state.session?.completed || 0}|${clean(response.selectedTarget?.wordId)}|${target}`,
+      recentCategories: recentHintCategories()
+    });
+    assistance.openProductionHintPlan = plan;
+    return plan;
+  }
+
+  function buildOpenProductionHints(selected = null) {
+    return buildOpenProductionHintPlan(selected).map(item => item.text);
+  }
+
   function runOpenProductionHintSelfTest() {
+    const context = {
+      communicativeFocus: { foreground: 'a feeling gradually spreading throughout an entire room' },
+      naturalnessCheck: { commonerAlternatives: ['spread'] },
+      experience: { anticipatedNaturalAlternatives: ['spread', 'fill'] }
+    };
     const cases = [
       {
-        name: 'standard-single-noun',
-        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'open-description' },
-        test: hints => hints.length === 3 && hints[0] === 'The target is a single noun.' && hints.some(h => h.includes('6 letters')) && hints.some(h => h.includes('“H”'))
+        name: 'standard-varied-four',
+        input: { target: 'permeate', readiness: { kind: 'simple', handling: 'single', posCategories: ['verb'] }, difficulty: 'standard', experienceType: 'open-description', context, hintLimit: 4, seed: 'std-1', recentCategories: [] },
+        test: plan => plan.length === 4 && plan[0].strength === 1 && new Set(plan.map(h => h.category)).size === plan.length
       },
       {
-        name: 'easy-single-noun',
-        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'easy', experienceType: 'situational-production' },
-        test: hints => hints.length === 3 && hints[1].includes('“H”')
+        name: 'easy-can-strengthen-earlier',
+        input: { target: 'permeate', readiness: { kind: 'simple', handling: 'single', posCategories: ['verb'] }, difficulty: 'easy', experienceType: 'situational-production', context, hintLimit: 4, seed: 'easy-1', recentCategories: [] },
+        test: plan => plan.length === 4 && plan[0].strength === 1 && Math.max(...plan.slice(0, 2).map(h => h.strength)) <= 3
       },
       {
-        name: 'hell-stays-sparse',
-        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'hell', experienceType: 'dialogue' },
-        test: hints => hints.length === 2 && !hints.some(h => h.includes('letters'))
+        name: 'hell-first-hint-low-leakage',
+        input: { target: 'permeate', readiness: { kind: 'simple', handling: 'single', posCategories: ['verb'] }, difficulty: 'hell', experienceType: 'dialogue', context, hintLimit: 4, seed: 'hell-1', recentCategories: [] },
+        test: plan => plan.length === 4 && plan[0].strength === 1 && plan[1].strength <= 1
       },
       {
-        name: 'construction-preserves-slots',
-        input: { target: 'pit someone/something against someone/something', readiness: { kind: 'construction', handling: 'construction', posCategories: ['verb'] }, difficulty: 'standard', experienceType: 'open-description' },
-        test: hints => hints[0].includes('construction with 2 variable slots') && hints.some(h => h.includes('preposition')) && hints.some(h => h.includes('“P”'))
+        name: 'construction-preserves-structure-clues',
+        input: { target: 'pit someone/something against someone/something', readiness: { kind: 'construction', handling: 'construction', posCategories: ['verb'] }, difficulty: 'standard', experienceType: 'open-description', context: {}, hintLimit: 6, seed: 'construction', recentCategories: [] },
+        test: plan => plan.some(h => h.category === 'variable-slots') && plan.some(h => h.category === 'fixed-preposition') && plan.every(h => !h.text.includes('pit someone/something against someone/something'))
+      },
+      {
+        name: 'rotation-avoids-recent-first-category',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'open-description', context: {}, hintLimit: 4, seed: 'rotate', recentCategories: ['target-shape'] },
+        test: plan => plan.length >= 1 && plan[0].category !== 'target-shape'
+      },
+      {
+        name: 'hint-limit-two',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'open-description', context: {}, hintLimit: 2, seed: 'two', recentCategories: [] },
+        test: plan => plan.length === 2
+      },
+      {
+        name: 'hint-limit-zero',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'open-description', context: {}, hintLimit: 0, seed: 'zero', recentCategories: [] },
+        test: plan => plan.length === 0
       },
       {
         name: 'whole-expression',
-        input: { target: "You don't want to know.", readiness: { kind: 'sentence-expression', handling: 'sentence-expression', posCategories: [] }, difficulty: 'standard', experienceType: 'dialogue' },
-        test: hints => hints[0].includes('whole expression or sentence')
+        input: { target: "You don't want to know.", readiness: { kind: 'sentence-expression', handling: 'sentence-expression', posCategories: [] }, difficulty: 'standard', experienceType: 'dialogue', context: {}, hintLimit: 4, seed: 'whole', recentCategories: [] },
+        test: plan => plan.some(h => h.text.includes('whole expression or sentence'))
       },
       {
         name: 'non-open-type-untouched',
-        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'cloze' },
-        test: hints => hints.length === 0
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'cloze', context: {}, hintLimit: 4, seed: 'cloze', recentCategories: [] },
+        test: plan => plan.length === 0
       },
       {
         name: 'sentence-reconstruction-untouched',
-        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'easy', experienceType: 'sentence-reconstruction' },
-        test: hints => hints.length === 0
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'easy', experienceType: 'sentence-reconstruction', context: {}, hintLimit: 6, seed: 'recon', recentCategories: [] },
+        test: plan => plan.length === 0
+      },
+      {
+        name: 'reconstruction-limit-does-not-invent-hints',
+        testOnly: true,
+        test: () => limitHints(['A', 'B', 'C'], 6).join('|') === 'A|B|C' && limitHints(['A', 'B', 'C'], 2).join('|') === 'A|B'
       }
     ];
     const checks = cases.map(item => {
-      const result = buildOpenProductionHintsFor(item.input);
+      if (item.testOnly) {
+        const passed = Boolean(item.test());
+        return { name: item.name, passed, result: passed };
+      }
+      const result = selectOpenProductionHintPlan(item.input);
       return { name: item.name, passed: Boolean(item.test(result)), result };
     });
     return { passed: checks.every(item => item.passed), checks };
@@ -2675,7 +2936,9 @@
       return;
     }
 
-    const hints = isReconstruction ? buildReconstructionHints(selected) : buildOpenProductionHints(selected);
+    const hints = isReconstruction
+      ? limitHints(buildReconstructionHints(selected), activeHintLimit())
+      : buildOpenProductionHints(selected);
     if (!hints.length) {
       wrap.hidden = true;
       list.hidden = true;
@@ -3448,6 +3711,8 @@
       total: selectedSessionSize(),
       practiceType: selectedPracticeType(),
       difficulty: selectedDifficulty(),
+      hintLimit: selectedHintLimit(),
+      recentHintCategories: [],
       completed: 0,
       usedTargets: {},
       committedEvents: [],
@@ -3552,6 +3817,7 @@
     });
     $('#wlp-ai-practice-type')?.addEventListener('change', updatePracticeTypeHelp);
     $('#wlp-ai-difficulty')?.addEventListener('change', updateDifficultyHelp);
+    $('#wlp-ai-hint-limit')?.addEventListener('change', persistHintLimit);
     $('#wlp-ai-remember-session-size')?.addEventListener('change', persistAISessionSizePreference);
     $('#study-session-size')?.addEventListener('change', syncAISessionSizePreferenceUI);
     $('#wlp-ai-session-size-use-current')?.addEventListener('click', setCurrentAISessionSizeAsDefault);
@@ -3604,12 +3870,14 @@
         return;
       }
       if (!isOpenProductionHintType()) return;
-      const hints = buildOpenProductionHints();
-      if (!hints.length) return;
+      const plan = buildOpenProductionHintPlan();
+      if (!plan.length) return;
       const assistance = state.assistance || resetAssistanceState();
-      const nextStage = Math.min(hints.length, num(assistance.taskHintStage) + 1);
+      const nextStage = Math.min(plan.length, num(assistance.taskHintStage) + 1);
       assistance.taskHintStage = nextStage;
-      noteHintUse('open-production-hint', nextStage);
+      const currentHint = plan[nextStage - 1] || {};
+      noteHintUse(`open-production:${clean(currentHint.category) || 'hint'}`, nextStage);
+      rememberHintCategory(currentHint.category);
       renderTaskHints();
     });
     $('#wlp-ai-reconstruction')?.addEventListener('click', event => {
@@ -3673,6 +3941,7 @@
     setMode(stored === 'ai' ? 'ai' : 'standard', false);
     updatePracticeTypeHelp();
     updateDifficultyHelp();
+    applySavedHintLimit();
     renderHistory();
     window.WLPAIStudyUI = Object.freeze({
       version: VERSION,
@@ -3692,6 +3961,7 @@
       runTargetReadinessAudit,
       runAssistanceSelfTest,
       runOpenProductionHintSelfTest,
+      getOpenProductionHintPlan: () => clone(buildOpenProductionHintPlan()),
       getAssistance: () => clone(assistanceSnapshot())
     });
   }
