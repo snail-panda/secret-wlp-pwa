@@ -16,11 +16,25 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
   <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r9">
-  <link rel="stylesheet" href="./ai-study-ui.css?v=20260921-s7-ai-ui-v18659-r2f">
+  <link rel="stylesheet" href="./ai-study-ui.css?v=20260920-s7-ai-ui-v18653-r1">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
     .stage7-page-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}
+  </style>
+
+  <style id="study-standard-preprogress-polish">
+    .study-standard-session-default{margin:10px 0 0;padding:9px 11px;border:1px solid #dbe6dd;border-radius:12px;background:#fbfdfb;color:#5f786a;font-size:.72rem;line-height:1.35}
+    .study-standard-session-default label{display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer}
+    .study-standard-session-default input{margin:0;accent-color:#2f6950}
+    .study-standard-session-default small{display:block;margin:4px 0 0 24px;color:#849389;font-size:.63rem}
+    body.wlp-ai-study-mode .study-standard-only{display:none!important}
+    .study-session-rating-edit{margin-top:10px;padding-top:9px;border-top:1px solid #e1e9e3}
+    .study-session-rating-edit>span{display:block;margin-bottom:6px;color:#71847a;font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+    .study-session-rating-edit-options{display:flex;flex-wrap:wrap;gap:6px}
+    .study-session-rating-edit-options button{border:1px solid #d4e1d8;border-radius:999px;background:#fff;color:#5f786a;padding:5px 8px;font:inherit;font-size:.65rem;font-weight:700;cursor:pointer}
+    .study-session-rating-edit-options button.is-selected{border-color:#7e9f8c;background:#eef6f0;color:#294f3e}
+    .study-session-rating-edit small{display:block;margin-top:6px;color:#87958d;font-size:.61rem;line-height:1.35}
   </style>
 </head>
 <body class="app-body study-hub-page stage7-bottom-nav-page">
@@ -89,6 +103,10 @@
         <div class="study-source-footer">
           <label class="study-session-size"><span>Session size</span><select id="study-session-size"><option value="5">5 experiences</option><option value="10" selected>10 experiences</option><option value="20">20 experiences</option></select></label>
           <div class="study-eligibility" id="study-eligibility" aria-live="polite"><strong>Loading…</strong><span>Checking available card material.</span></div>
+        </div>
+        <div class="study-standard-session-default study-standard-only" id="study-standard-session-default">
+          <label for="study-standard-remember-session-size"><input id="study-standard-remember-session-size" type="checkbox"><span id="study-standard-session-default-label">Use current choice as my Standard Practice default</span></label>
+          <small id="study-standard-session-default-status">No Standard Practice default saved yet.</small>
         </div>
       </section>
 
@@ -206,7 +224,7 @@
           <div class="study-finished-deck-links" id="study-finished-deck-links"></div>
         </section>
         <section class="study-session-review" id="study-session-review" hidden>
-          <div class="study-session-review-head"><span>Session answers</span><small>Compare what you wrote with the WLP target. Open any card without leaving this session.</small></div>
+          <div class="study-session-review-head"><span>Session answers</span><small>Compare what you wrote with the WLP target. Unrated attempts can be filled in here; an existing rating can be changed only on the latest attempt for that card.</small></div>
           <div class="study-session-review-list" id="study-session-review-list"></div>
         </section>
         <div class="study-finished-actions"><button type="button" id="study-again">Practice this set again</button><button type="button" id="study-change-set">Change study set</button></div>
@@ -332,12 +350,12 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./ai-study-contract.js?v=20260921-s7-ai-quality-v18659-r18"></script>
+  <script src="./ai-study-contract.js?v=20260920-s7-ai-evidence-semantics-v18652-r11"></script>
   <script src="./ai-study-data.js?v=20260920-s7-ai-controlled-merge-v18652-r12"></script>
   <script src="./ai-study-mock-flow.js?v=20260920-s7-ai-evidence-semantics-v18652-r11"></script>
   <script src="./ai-study-transport.js?v=20260920-s7-ai-daily-quota-v18652-r14"></script>
-  <script src="./study-hub.js?v=20260919-s7-studyq-v18647-r8"></script>
-  <script src="./ai-study-ui.js?v=20260921-s7-ai-ui-v18659-r2f"></script>
+  <script src="./study-hub.js?v=20260922-s7-standard-preprogress-v18676-r1"></script>
+  <script src="./ai-study-ui.js?v=20260920-s7-ai-ui-v18653-r1"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

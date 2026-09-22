@@ -8,6 +8,8 @@
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const STUDYQ_SESSION_LIMIT = 80;
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
+  const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
+  const STUDYQ_STANDARD_VERSION = '1.0.0';
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -39,10 +41,67 @@
   let studyVoiceListening = false;
   let studyVoiceTimeout = 0;
   let studyVoiceMicPrimed = false;
+  const historyRatingEditGrace = new Set();
+  const historyRatingNotice = new Map();
 
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
   const clampDeck = value => Math.max(1, Math.min(maxDeck, Math.round(Number(value) || 1)));
+
+
+  function standardSessionSizeValue() {
+    const select = $('study-session-size');
+    const value = Math.max(1, Math.floor(Number(select?.value) || 10));
+    return value;
+  }
+
+  function standardSessionSizeText(value) {
+    const size = Math.max(1, Math.floor(Number(value) || 1));
+    return `${size} ${size === 1 ? 'experience' : 'experiences'}`;
+  }
+
+  function savedStandardSessionSize() {
+    try {
+      const value = Math.max(0, Math.floor(Number(localStorage.getItem(STUDYQ_SESSION_SIZE_DEFAULT_KEY)) || 0));
+      return value || 0;
+    } catch { return 0; }
+  }
+
+  function syncStandardSessionSizePreferenceUI() {
+    const remember = $('study-standard-remember-session-size');
+    const label = $('study-standard-session-default-label');
+    const status = $('study-standard-session-default-status');
+    if (!remember || !label || !status) return;
+    const size = standardSessionSizeValue();
+    const saved = savedStandardSessionSize();
+    remember.checked = saved === size;
+    label.textContent = `Use current choice (${standardSessionSizeText(size)}) as my Standard Practice default`;
+    status.textContent = saved
+      ? `Saved Standard Practice default: ${standardSessionSizeText(saved)}`
+      : 'No Standard Practice default saved yet.';
+  }
+
+  function applySavedStandardSessionSize() {
+    const saved = savedStandardSessionSize();
+    const select = $('study-session-size');
+    if (saved && select) {
+      const option = Array.from(select.options || []).find(item => Number(item.value) === saved);
+      if (option) select.value = String(saved);
+    }
+    syncStandardSessionSizePreferenceUI();
+  }
+
+  function persistStandardSessionSizePreference() {
+    const remember = $('study-standard-remember-session-size');
+    if (!remember) return;
+    const size = standardSessionSizeValue();
+    const saved = savedStandardSessionSize();
+    try {
+      if (remember.checked) localStorage.setItem(STUDYQ_SESSION_SIZE_DEFAULT_KEY, String(size));
+      else if (saved === size) localStorage.removeItem(STUDYQ_SESSION_SIZE_DEFAULT_KEY);
+    } catch (_) {}
+    syncStandardSessionSizePreferenceUI();
+  }
 
   function parseTSV(text) {
     const table = [];
@@ -844,6 +903,8 @@
         ? '<strong>No safe saved situations here</strong><span>Try All eligible cards, another source, or add Situation metadata.</span>'
         : '<strong>No eligible card material here</strong><span>Try another source or deck.</span>';
       $('study-start').disabled = true;
+      $('study-start').textContent = 'Start Experience';
+      syncStandardSessionSizePreferenceUI();
       return;
     }
     const savedSituations = currentPool.filter(item => item.kind === 'situation').length;
@@ -857,6 +918,8 @@
     else detail = `${cardCues} card-based ${cardCues === 1 ? 'cue' : 'cues'} · one target appears once per session`;
     box.innerHTML = `<strong>${entries} eligible ${entries === 1 ? 'entry' : 'entries'} · ${sessionLength} this session</strong><span>${detail}</span>`;
     $('study-start').disabled = false;
+    $('study-start').textContent = `Start ${standardSessionSizeText(sessionLength)}`;
+    syncStandardSessionSizePreferenceUI();
   }
 
   function setSourceMode(mode) {
@@ -1053,6 +1116,87 @@
     return new Date(session?.completedAt || session?.endedAt || session?.startedAt || 0).getTime() || 0;
   }
 
+
+  function validStudyRating(value) {
+    return ['got-it', 'almost', 'not-yet', 'no-idea'].includes(clean(value));
+  }
+
+  function latestSavedAttemptForWord(wordId, sessions = readStudySessions()) {
+    const target = clean(wordId);
+    if (!target) return null;
+    const ordered = (Array.isArray(sessions) ? sessions.slice() : [])
+      .sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a));
+    for (const session of ordered) {
+      const experience = Array.isArray(session?.experiences)
+        ? session.experiences.find(item => clean(item?.wordId) === target)
+        : null;
+      if (experience) return { session, experience, attempt: experience.attempt || {} };
+    }
+    return null;
+  }
+
+  function historyRatingEditPolicy(sessionId, wordId, attempt, sessions = readStudySessions()) {
+    const rating = clean(attempt?.selfRating);
+    const eventId = clean(attempt?.eventId);
+    if (!eventId) return { editable: false, reason: 'missing-event' };
+    if (!rating) return { editable: true, reason: 'unrated' };
+    if (eventId && historyRatingEditGrace.has(eventId)) return { editable: true, reason: 'filled-this-view' };
+    const latest = latestSavedAttemptForWord(wordId, sessions);
+    const editable = Boolean(
+      latest &&
+      clean(latest.session?.sessionId) === clean(sessionId) &&
+      clean(latest.attempt?.eventId) === eventId
+    );
+    return { editable, reason: editable ? 'latest' : 'older-rated' };
+  }
+
+  function updateSavedSessionRating(sessionId, eventId, rating) {
+    if (!validStudyRating(rating)) return { ok: false, reason: 'invalid-rating' };
+    const sessions = readStudySessions();
+    const sessionIndexSaved = sessions.findIndex(item => clean(item?.sessionId) === clean(sessionId));
+    if (sessionIndexSaved < 0) return { ok: false, reason: 'session-not-found' };
+    const record = sessions[sessionIndexSaved];
+    const experience = Array.isArray(record.experiences)
+      ? record.experiences.find(item => clean(item?.attempt?.eventId) === clean(eventId))
+      : null;
+    if (!experience) return { ok: false, reason: 'attempt-not-found' };
+    const attempt = experience.attempt || (experience.attempt = {});
+    const policy = historyRatingEditPolicy(record.sessionId, experience.wordId, attempt, sessions);
+    if (!policy.editable) return { ok: false, reason: policy.reason };
+
+    const wasUnrated = !clean(attempt.selfRating);
+    attempt.selfRating = rating;
+    if (wasUnrated && clean(eventId)) historyRatingEditGrace.add(clean(eventId));
+    record.counts = ratingCounts(record.experiences.map(item => item?.attempt || {}));
+    sessions[sessionIndexSaved] = record;
+    writeStudySessions(sessions);
+
+    try {
+      const events = readStudyEvents();
+      const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
+      if (eventIndex >= 0) {
+        events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt: new Date().toISOString() };
+        localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
+      }
+    } catch (error) {
+      console.warn('Could not update Study Q activity rating', error);
+    }
+
+    const liveIndex = sessionAttempts.findIndex(item => clean(item?.eventId) === clean(eventId));
+    if (liveIndex >= 0) sessionAttempts[liveIndex].selfRating = rating;
+    if (clean(currentAttempt?.eventId) === clean(eventId)) currentAttempt.selfRating = rating;
+    historyRatingNotice.set(clean(eventId), 'Rating saved in Standard Practice history. Review attention is unchanged for now.');
+    return { ok: true, reason: policy.reason, record };
+  }
+
+  function refreshOpenSessionSummary() {
+    const record = readStudySessions().find(item => clean(item?.sessionId) === clean(currentSessionId));
+    if (!record) return;
+    const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
+    $('study-finished-summary').hidden = false;
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`);
+  }
+
   function persistCurrentSession({ status = 'completed', queue = sessionQueue, attempts = sessionAttempts, plannedCount = currentSessionPlannedCount || sessionQueue.length } = {}) {
     if (!currentSessionId || !queue.length || viewingSavedSession) return null;
     const now = new Date().toISOString();
@@ -1176,6 +1320,8 @@
   }
 
   function showSavedSession(sessionId) {
+    historyRatingEditGrace.clear();
+    historyRatingNotice.clear();
     const record = readStudySessions().find(item => clean(item?.sessionId) === clean(sessionId));
     if (!record || !Array.isArray(record.experiences)) return false;
     viewingSavedSession = true;
@@ -1695,6 +1841,40 @@
     document.body.classList.remove('study-quick-card-open');
   }
 
+  function buildSessionRatingEditor(item, attempt) {
+    const policy = historyRatingEditPolicy(currentSessionId, item.wordId, attempt);
+    if (!policy.editable) return null;
+    const eventId = clean(attempt?.eventId);
+    const wrap = document.createElement('div');
+    wrap.className = 'study-session-rating-edit';
+    const title = document.createElement('span');
+    title.textContent = clean(attempt?.selfRating) ? 'Change rating' : 'Rate this attempt';
+    const options = document.createElement('div');
+    options.className = 'study-session-rating-edit-options';
+    ['got-it', 'almost', 'not-yet', 'no-idea'].forEach(value => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.studyHistoryRating = value;
+      button.dataset.studyqSessionId = currentSessionId;
+      button.dataset.studyqEventId = eventId;
+      button.textContent = ratingLabel(value);
+      const selected = clean(attempt?.selfRating) === value;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      options.append(button);
+    });
+    const note = document.createElement('small');
+    note.textContent = historyRatingNotice.get(eventId) || (
+      policy.reason === 'unrated'
+        ? 'This attempt was left unrated, so you can fill it in even if the session is older.'
+        : policy.reason === 'filled-this-view'
+          ? 'Saved. You can still adjust it while this session review stays open.'
+          : 'This is the latest Standard Practice attempt for this card, so its rating can be corrected.'
+    );
+    wrap.append(title, options, note);
+    return wrap;
+  }
+
   function renderSessionReview() {
     const list = $('study-session-review-list');
     list.replaceChildren();
@@ -1756,6 +1936,8 @@
       answerBox.append(answerLabel, answerRow, match);
 
       article.append(top, prompt, target, answerBox);
+      const ratingEditor = buildSessionRatingEditor(item, attempt);
+      if (ratingEditor) article.append(ratingEditor);
       list.append(article);
     });
     $('study-session-review').hidden = !sessionQueue.length;
@@ -1943,6 +2125,8 @@
   }
 
   function changeSet() {
+    historyRatingEditGrace.clear();
+    historyRatingNotice.clear();
     viewingSavedSession = false;
     $('study-finished').hidden = true;
     $('study-finished-decks').hidden = true;
@@ -2138,6 +2322,7 @@
     document.querySelectorAll('[data-coverage-mode]').forEach(button => button.addEventListener('click', () => setCoverageMode(button.dataset.coverageMode)));
     ['study-deck', 'study-range-start', 'study-range-end', 'study-session-size'].forEach(id => $(id).addEventListener('change', updateEligibility));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => $(id).addEventListener('input', updateEligibility));
+    $('study-standard-remember-session-size')?.addEventListener('change', persistStandardSessionSizePreference);
     $('study-start').addEventListener('click', startSession);
     $('study-show-need').addEventListener('click', () => {
       $('study-need-block').hidden = false;
@@ -2169,6 +2354,24 @@
     $('study-quick-card-done').addEventListener('click', closeQuickCard);
     $('study-quick-card-modal').addEventListener('click', event => { if (event.target === $('study-quick-card-modal')) closeQuickCard(); });
     document.addEventListener('click', event => {
+      const standardModeButton = event.target.closest('[data-wlp-practice-mode="standard"]');
+      if (standardModeButton) setTimeout(() => { applySavedStandardSessionSize(); updateEligibility(); }, 0);
+
+      const ratingButton = event.target.closest('[data-study-history-rating]');
+      if (ratingButton) {
+        const result = updateSavedSessionRating(
+          ratingButton.dataset.studyqSessionId,
+          ratingButton.dataset.studyqEventId,
+          ratingButton.dataset.studyHistoryRating
+        );
+        if (result.ok) {
+          renderSessionReview();
+          refreshOpenSessionSummary();
+          renderRecentSessions();
+        }
+        return;
+      }
+
       const button = event.target.closest('[data-quick-card-word-id]');
       if (button) openQuickCard(button.dataset.quickCardWordId);
       const historyButton = event.target.closest('[data-studyq-session-id]');
@@ -2199,11 +2402,44 @@
     $('study-range-start').value = String(initialDeck);
     $('study-range-end').value = String(Math.min(maxDeck, initialDeck + 4));
 
+    if (!document.body.classList.contains('wlp-ai-study-mode')) applySavedStandardSessionSize();
+    else syncStandardSessionSizePreferenceUI();
     setCoverageMode('all');
     renderRecentSessions();
     const reviewExperiences = experiencePoolFor('review');
     setSourceMode(reviewExperiences.length ? 'review' : 'deck');
   }
+
+  function runPreProgressPolishSelfTest() {
+    const checks = [];
+    const check = (name, passed) => checks.push({ name, passed: Boolean(passed) });
+    const oldSession = {
+      sessionId: 'self-old', startedAt: '2026-01-01T00:00:00.000Z',
+      experiences: [{ wordId: '419', attempt: { eventId: 'self-old-event', selfRating: '' } }]
+    };
+    const newSession = {
+      sessionId: 'self-new', startedAt: '2026-01-02T00:00:00.000Z',
+      experiences: [{ wordId: '419', attempt: { eventId: 'self-new-event', selfRating: 'got-it' } }]
+    };
+    const fixtures = [oldSession, newSession];
+    check('session-size singular label', standardSessionSizeText(1) === '1 experience');
+    check('session-size plural label', standardSessionSizeText(5) === '5 experiences');
+    check('valid rating accepted', validStudyRating('almost') === true);
+    check('invalid rating rejected', validStudyRating('maybe') === false);
+    check('older unrated attempt is editable', historyRatingEditPolicy('self-old', '419', oldSession.experiences[0].attempt, fixtures).editable === true);
+    const oldRated = { eventId: 'self-old-event', selfRating: 'not-yet' };
+    check('older rated attempt is locked', historyRatingEditPolicy('self-old', '419', oldRated, fixtures).editable === false);
+    check('latest rated attempt is editable', historyRatingEditPolicy('self-new', '419', newSession.experiences[0].attempt, fixtures).editable === true);
+    historyRatingEditGrace.add('self-old-event');
+    check('just-filled older attempt stays editable in current review', historyRatingEditPolicy('self-old', '419', oldRated, fixtures).editable === true);
+    historyRatingEditGrace.delete('self-old-event');
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
+  window.WLPStudyQStandard = Object.freeze({
+    version: STUDYQ_STANDARD_VERSION,
+    runPreProgressPolishSelfTest
+  });
 
   installEvents();
   (async () => {
