@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study diagnostics balance + difficulty width v1.8.6.60j R2-G.10
+/* WLP Stage 7 — AI Study failure classification + retry policy v1.8.6.60k R2-G.11
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.7.10';
+  const VERSION = '1.7.11';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -468,7 +468,9 @@
         outputTokens: num(session.outputTokens),
         totalTokens: num(session.totalTokens),
         plannerLatencyMs: averageSuccessfulLatency(session.plannerLatencies),
-        interpreterLatencyMs: averageSuccessfulLatency(session.interpreterLatencies)
+        interpreterLatencyMs: averageSuccessfulLatency(session.interpreterLatencies),
+        failureEvents: clone(Array.isArray(session.failureEvents) ? session.failureEvents : []),
+        retryStats: clone(session.retryStats || { automaticGeneration: 0, manualGeneration: 0, manualInterpreter: 0 })
       }
     };
   }
@@ -771,6 +773,47 @@
     };
   }
 
+  function appendFailureDetails(container, record) {
+    if (!container) return;
+    const diag = record?.diagnostics && typeof record.diagnostics === 'object' ? record.diagnostics : {};
+    const events = Array.isArray(diag.failureEvents) ? diag.failureEvents : [];
+    const retries = diag.retryStats && typeof diag.retryStats === 'object' ? diag.retryStats : {};
+    const retryTotal = num(retries.automaticGeneration) + num(retries.manualGeneration) + num(retries.manualInterpreter);
+    if (!events.length && !retryTotal) return;
+
+    const details = document.createElement('details');
+    details.className = 'wlp-ai-cost-details wlp-ai-failure-details';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Failure & retry details';
+    details.appendChild(summary);
+    const body = document.createElement('div');
+    body.className = 'wlp-ai-cost-details-body';
+    const addRow = (label, value) => {
+      const row = document.createElement('div');
+      row.className = 'wlp-ai-cost-row';
+      const key = document.createElement('span'); key.textContent = label;
+      const val = document.createElement('strong'); val.textContent = value;
+      row.append(key, val); body.appendChild(row);
+    };
+
+    const counts = new Map();
+    events.forEach(event => {
+      const key = clean(event?.category) || 'other';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    counts.forEach((count, key) => addRow(FAILURE_CATEGORY_LABELS[key] || clean(events.find(item => clean(item?.category) === key)?.label) || key, String(count)));
+    if (num(retries.automaticGeneration)) addRow('Automatic generation retries', String(num(retries.automaticGeneration)));
+    if (num(retries.manualGeneration)) addRow('Manual generation retries', String(num(retries.manualGeneration)));
+    if (num(retries.manualInterpreter)) addRow('Manual interpretation retries', String(num(retries.manualInterpreter)));
+
+    const note = document.createElement('p');
+    note.className = 'wlp-ai-cost-note';
+    note.textContent = 'Retry policy: WLP automatically regenerates only planner/reconstruction format failures (up to 3 generation attempts). Provider/network failures wait for a manual retry. Interpreter retries are manual so your response stays visible and is not silently re-submitted.';
+    body.appendChild(note);
+    details.appendChild(body);
+    container.appendChild(details);
+  }
+
   function appendSessionDiagnosticRows(container, record, { includeCostDetails = true } = {}) {
     if (!container) return;
     const diag = record?.diagnostics && typeof record.diagnostics === 'object' ? record.diagnostics : {};
@@ -778,7 +821,7 @@
     const rows = [
       ['Successful AI calls', String(num(diag.successfulAICalls))],
       ['Provider requests', String(num(diag.providerAttempts))],
-      ['Failed requests', String(num(diag.failedAICalls))],
+      ['Failed AI calls', String(num(diag.failedAICalls))],
       ['Average planner latency', formatSeconds(num(diag.plannerLatencyMs))],
       ['Average interpreter latency', formatSeconds(num(diag.interpreterLatencyMs))]
     ];
@@ -798,6 +841,7 @@
       row.append(key, val);
       container.appendChild(row);
     });
+    appendFailureDetails(container, record);
     if (includeCostDetails) appendCostDetails(container, record);
   }
 
@@ -1282,32 +1326,68 @@
   function hideGenerationRetry() {
     const wrap = $('#wlp-ai-generation-retry');
     if (wrap) wrap.hidden = true;
+    const button = $('#wlp-ai-retry-generation');
+    if (button) button.hidden = false;
     const detail = $('#wlp-ai-generation-error-detail');
     if (detail) detail.textContent = '';
   }
 
   function showGenerationRetry(error) {
     setGenerationCancelVisible(false);
+    const info = classifyAIError(error, 'planner');
     const wrap = $('#wlp-ai-generation-retry');
+    const button = $('#wlp-ai-retry-generation');
     const detail = $('#wlp-ai-generation-error-detail');
-    if (detail) detail.textContent = formatAIError(error);
+    if (detail) detail.textContent = `[${info.label}] ${formatAIError(error)}`;
+    if (button) button.hidden = info.retryMode === 'blocked';
     if (wrap) wrap.hidden = false;
-    setStatus("This experience did not pass WLP's generation check. Nothing from this failed generation was saved. Try generating again.", true);
+    const lead = info.key === 'reconstruction-contract'
+      ? 'The generated reconstruction did not match WLP’s required structure.'
+      : info.key === 'planner-contract'
+        ? 'The generated experience did not match WLP’s planner format.'
+        : info.key === 'provider-temporary' || info.key === 'network'
+          ? 'The AI provider or endpoint did not complete this generation.'
+          : info.key === 'provider-rate-limit'
+            ? 'The AI provider is currently limiting requests.'
+            : info.key === 'configuration'
+              ? 'AI Study is not fully configured for this request.'
+              : 'This experience could not be generated.';
+    const tail = info.retryMode === 'blocked'
+      ? ' Nothing from this failed generation was saved.'
+      : ' Nothing from this failed generation was saved. Try generating again.';
+    setStatus(`${lead}${tail}`, true);
   }
 
   function hideInterpreterRetry() {
     const wrap = $('#wlp-ai-interpreter-retry');
     if (wrap) wrap.hidden = true;
+    const button = $('#wlp-ai-retry-interpreter');
+    if (button) button.hidden = false;
     const detail = $('#wlp-ai-interpreter-error-detail');
     if (detail) detail.textContent = '';
   }
 
   function showInterpreterRetry(error) {
+    const info = classifyAIError(error, 'interpreter');
     const wrap = $('#wlp-ai-interpreter-retry');
+    const button = $('#wlp-ai-retry-interpreter');
     const detail = $('#wlp-ai-interpreter-error-detail');
-    if (detail) detail.textContent = formatAIError(error);
+    if (detail) detail.textContent = `[${info.label}] ${formatAIError(error)}`;
+    if (button) button.hidden = info.retryMode === 'blocked';
     if (wrap) wrap.hidden = false;
-    setStatus("This interpretation did not pass WLP's response check. Your answer is still here, and nothing from this failed interpretation was saved. Try interpreting again.", true);
+    const lead = info.key === 'interpreter-contract'
+      ? 'The AI feedback did not match WLP’s interpreter format.'
+      : info.key === 'provider-temporary' || info.key === 'network'
+        ? 'The AI provider or endpoint did not complete the interpretation.'
+        : info.key === 'provider-rate-limit'
+          ? 'The AI provider is currently limiting requests.'
+          : info.key === 'configuration'
+            ? 'AI Study is not fully configured for this request.'
+            : 'This interpretation could not be completed.';
+    const tail = info.retryMode === 'blocked'
+      ? ' Your answer is still here, and nothing from the failed interpretation was saved.'
+      : ' Your answer is still here, and nothing from the failed interpretation was saved. Try interpreting again.';
+    setStatus(`${lead}${tail}`, true);
   }
 
   function renderProviderWarning() {
@@ -1779,6 +1859,84 @@
     bucket.push({ ms, ok });
   }
 
+  const FAILURE_CATEGORY_LABELS = Object.freeze({
+    'reconstruction-contract': 'Reconstruction contract',
+    'planner-contract': 'Planner format check',
+    'interpreter-contract': 'Interpreter format check',
+    'provider-temporary': 'Provider / endpoint temporary failure',
+    'provider-rate-limit': 'Provider rate / quota limit',
+    'provider-output': 'Provider output failure',
+    'network': 'Network / transport failure',
+    'configuration': 'Configuration failure',
+    'other': 'Other failure'
+  });
+
+  function classifyAIError(error, stage = '') {
+    const message = clean(error?.message || error);
+    const code = clean(error?.code).toLowerCase();
+    const quotaScope = clean(error?.quotaScope).toLowerCase();
+    const status = num(error?.statusCode || error?.providerHttpStatus);
+    const haystack = `${code} ${message}`.toLowerCase();
+    const plannerStage = clean(stage).toLowerCase() === 'planner';
+
+    if (/not configured|api[_ -]?key/.test(haystack)) {
+      return { key: 'configuration', label: FAILURE_CATEGORY_LABELS.configuration, retryMode: 'blocked' };
+    }
+    if (quotaScope === 'daily' || /daily(?: provider)? quota|daily request limit|requests-per-day/.test(haystack)) {
+      return { key: 'provider-rate-limit', label: 'Provider daily quota', retryMode: 'blocked' };
+    }
+    if (status === 429 || /rate limit|quota/.test(haystack)) {
+      return { key: 'provider-rate-limit', label: FAILURE_CATEGORY_LABELS['provider-rate-limit'], retryMode: 'manual' };
+    }
+    if (/sentence[- ]reconstruction|reconstruction_(?:units|level|distractors|missing)|reconstruction metadata/.test(haystack)) {
+      return { key: 'reconstruction-contract', label: FAILURE_CATEGORY_LABELS['reconstruction-contract'], retryMode: plannerStage ? 'automatic' : 'manual' };
+    }
+    if (/planner response validation failed|planner response rejected|planner.*(?:validation|format)/.test(haystack)) {
+      return { key: 'planner-contract', label: FAILURE_CATEGORY_LABELS['planner-contract'], retryMode: 'automatic' };
+    }
+    if (/interpreter response validation failed|unsupported language observation|routepatch|learnerfacingresponse/.test(haystack)) {
+      return { key: 'interpreter-contract', label: FAILURE_CATEGORY_LABELS['interpreter-contract'], retryMode: 'manual' };
+    }
+    if (status >= 500 || /http 50[0234]|endpoint returned http 50|temporarily unavailable|provider.*busy|server error/.test(haystack)) {
+      return { key: 'provider-temporary', label: FAILURE_CATEGORY_LABELS['provider-temporary'], retryMode: 'manual' };
+    }
+    if (/failed to fetch|networkerror|network request|network failure|timed out|timeout/.test(haystack)) {
+      return { key: 'network', label: FAILURE_CATEGORY_LABELS.network, retryMode: 'manual' };
+    }
+    if (/provider_bad_json|could not be parsed as json|no text output|provider_empty|provider_refusal|declined to produce/.test(haystack)) {
+      return { key: 'provider-output', label: FAILURE_CATEGORY_LABELS['provider-output'], retryMode: 'manual' };
+    }
+    return { key: 'other', label: FAILURE_CATEGORY_LABELS.other, retryMode: 'manual' };
+  }
+
+  function recordFailure(error, stage, { attempts = 1, retryMode = '' } = {}) {
+    const session = state.session;
+    if (!session) return null;
+    const info = classifyAIError(error, stage);
+    const event = {
+      at: new Date().toISOString(),
+      stage: clean(stage) || 'unknown',
+      category: info.key,
+      label: info.label,
+      retryMode: clean(retryMode) || info.retryMode,
+      attempts: Math.max(1, num(attempts) || 1),
+      message: clean(error?.message || error).slice(0, 420)
+    };
+    if (!Array.isArray(session.failureEvents)) session.failureEvents = [];
+    session.failureEvents.push(event);
+    if (session.failureEvents.length > 40) session.failureEvents.splice(0, session.failureEvents.length - 40);
+    return event;
+  }
+
+  function noteRetry(kind) {
+    const session = state.session;
+    if (!session) return;
+    if (!session.retryStats || typeof session.retryStats !== 'object') {
+      session.retryStats = { automaticGeneration: 0, manualGeneration: 0, manualInterpreter: 0 };
+    }
+    if (Object.prototype.hasOwnProperty.call(session.retryStats, kind)) session.retryStats[kind] = num(session.retryStats[kind]) + 1;
+  }
+
   function addUsage(meta, kind, ms) {
     const session = state.session;
     if (!session) return;
@@ -1797,7 +1955,7 @@
     return attempts;
   }
 
-  function addRejectedUsage(meta, kind, ms) {
+  function addRejectedUsage(meta, kind, ms, error = null, retryMode = 'automatic') {
     const session = state.session;
     if (!session) return 0;
     session.failedAICalls += 1;
@@ -1812,6 +1970,7 @@
     session.outputTokens += usage.output;
     session.totalTokens += usage.total;
     recordLatency(kind, ms, false);
+    if (error) recordFailure(error, kind, { attempts, retryMode });
     return attempts;
   }
 
@@ -1820,13 +1979,14 @@
     return /Planner response validation failed|Planner response rejected|sentence reconstruction metadata could not be parsed/i.test(message);
   }
 
-  function addFailedUsage(error, kind, ms) {
+  function addFailedUsage(error, kind, ms, retryMode = 'manual') {
     const session = state.session;
     if (!session) return 0;
     session.failedAICalls += 1;
     const attempts = Math.max(0, num(error?.attemptCount));
     if (attempts) session.providerAttempts += attempts;
     recordLatency(kind, ms, false);
+    recordFailure(error, kind, { attempts: attempts || 1, retryMode });
     return attempts;
   }
 
@@ -1989,9 +2149,13 @@
           try {
             validateReconstructionAgainstSession(plannerResult);
           } catch (validationError) {
-            addRejectedUsage(plannerResult.meta, 'planner', plannerElapsed);
+            const willAutoRetry = generationAttempt < maxGenerationAttempts;
+            addRejectedUsage(plannerResult.meta, 'planner', plannerElapsed, validationError, willAutoRetry ? 'automatic' : 'manual');
             lastError = validationError;
-            if (generationAttempt < maxGenerationAttempts) continue;
+            if (willAutoRetry) {
+              noteRetry('automaticGeneration');
+              continue;
+            }
             throw validationError;
           }
           const plannerAttempts = addUsage(plannerResult.meta, 'planner', plannerElapsed);
@@ -2015,9 +2179,13 @@
           return;
         } catch (error) {
           if (!generationStillCurrent(generationEpoch) || controller?.signal?.aborted || clean(error?.name) === 'AbortError') return;
-          if (!plannerResult) addFailedUsage(error, 'planner', elapsedMs(plannerStarted));
+          const willAutoRetry = isRetryablePlannerGenerationError(error) && generationAttempt < maxGenerationAttempts;
+          if (!plannerResult) addFailedUsage(error, 'planner', elapsedMs(plannerStarted), willAutoRetry ? 'automatic' : 'manual');
           lastError = error;
-          if (isRetryablePlannerGenerationError(error) && generationAttempt < maxGenerationAttempts) continue;
+          if (willAutoRetry) {
+            noteRetry('automaticGeneration');
+            continue;
+          }
           throw error;
         }
       }
@@ -2097,15 +2265,15 @@
       renderFeedback(interpreterResult.response, committed, turnDiagnostics);
     } catch (error) {
       if (interpreterStarted != null) {
-        const failedAttempts = addFailedUsage(error, 'interpreter', elapsedMs(interpreterStarted));
+        const failedAttempts = addFailedUsage(error, 'interpreter', elapsedMs(interpreterStarted), 'manual');
         if (state.activePlanner?.diagnostics) {
           state.activePlanner.diagnostics.failedInterpreterCalls = num(state.activePlanner.diagnostics.failedInterpreterCalls) + 1;
           state.activePlanner.diagnostics.failedInterpreterAttempts = num(state.activePlanner.diagnostics.failedInterpreterAttempts) + failedAttempts;
         }
       }
-      const message = formatAIError(error);
-      if (/Interpreter response validation failed/i.test(message)) showInterpreterRetry(error);
-      else setStatus(message, true);
+      const failure = classifyAIError(error, 'interpreter');
+      if (failure.retryMode === 'blocked') setStatus(formatAIError(error), true);
+      else showInterpreterRetry(error);
     } finally {
       setBusy(false);
     }
@@ -2241,6 +2409,8 @@
       totalTokens: 0,
       plannerLatencies: [],
       interpreterLatencies: [],
+      failureEvents: [],
+      retryStats: { automaticGeneration: 0, manualGeneration: 0, manualInterpreter: 0 },
       startedAt: new Date().toISOString()
     };
     state.activePlanner = null;
@@ -2334,10 +2504,12 @@
     $('#wlp-ai-cancel-generation')?.addEventListener('click', cancelActiveGeneration);
     $('#wlp-ai-retry-generation')?.addEventListener('click', () => {
       if (!state.session || state.busy) return;
+      noteRetry('manualGeneration');
       loadNextExperience();
     });
     $('#wlp-ai-retry-interpreter')?.addEventListener('click', () => {
       if (!state.session || !state.activePlanner || state.busy) return;
+      noteRetry('manualInterpreter');
       interpretResponse();
     });
     $('#wlp-ai-submit')?.addEventListener('click', () => interpretResponse());
