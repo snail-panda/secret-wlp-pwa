@@ -313,8 +313,17 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 }
 
 /* R2-G.6 — generation cancel, stable assist layout, session-size preference, clue masking */
-.wlp-ai-session-size-default{display:flex;align-items:center;gap:8px;margin:0 0 11px;padding:0 2px;color:#72877b;font:600 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.35;text-align:left}
-.wlp-ai-session-size-default input{margin:0;accent-color:#356b52}
+.wlp-ai-session-size-preference{align-self:flex-end;display:flex;flex-direction:column;gap:3px;min-width:230px;margin:0 0 1px}
+.wlp-ai-session-size-preference label{display:flex;align-items:center;gap:7px;color:#557265;font:600 .66rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.3;cursor:pointer}
+.wlp-ai-session-size-preference input{margin:0;accent-color:#356b52}
+.wlp-ai-session-size-preference small{padding-left:22px;color:#82978d;font:500 .6rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.3}
+.wlp-ai-session-size-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 11px;padding:8px 10px;border:1px solid #d9e7de;border-radius:12px;background:#f8fbf8;color:#647e71;font:600 .66rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.35}
+.wlp-ai-session-size-use-current{flex:0 0 auto;border:1px solid #c9ddd0;border-radius:999px;background:#fff;color:#356b52;padding:5px 9px;font:700 .62rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.wlp-ai-session-size-use-current[hidden]{display:none!important}
+@media(max-width:700px){
+  .wlp-ai-session-size-preference{align-self:stretch;min-width:0}
+  .wlp-ai-session-size-summary{align-items:flex-start;flex-direction:column}
+}
 .wlp-ai-generation-cancel-row[hidden]{display:none!important}
 .wlp-ai-generation-cancel-row{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;margin:8px 0 2px}
 .wlp-ai-generation-cancel-row button{border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#687e72;padding:6px 10px;font:700 .64rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}

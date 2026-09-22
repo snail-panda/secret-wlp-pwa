@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study outcome & hint safety polish v1.8.6.60g R2-G.7
+/* WLP Stage 7 — AI Study session-size preference placement v1.8.6.60h R2-G.8
    Provider-agnostic UI adapter for existing AI Study Data / Contract / Transport layers. */
 (() => {
   'use strict';
 
-  const VERSION = '1.7.7';
+  const VERSION = '1.7.8';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -686,24 +686,83 @@
     }
   }
 
+  function sessionSizeText(value) {
+    const size = Math.max(1, Math.floor(num(value)));
+    return `${size} experience${size === 1 ? '' : 's'}`;
+  }
+
+  function ensureSessionSizePreferenceUI() {
+    const select = $('#study-session-size');
+    const footer = select?.closest('.study-source-footer');
+    if (!select || !footer || $('#wlp-ai-session-size-preference')) return;
+    const box = document.createElement('div');
+    box.id = 'wlp-ai-session-size-preference';
+    box.className = 'wlp-ai-session-size-preference wlp-ai-only';
+    box.innerHTML = `
+      <label for="wlp-ai-remember-session-size">
+        <input id="wlp-ai-remember-session-size" type="checkbox">
+        <span id="wlp-ai-session-size-preference-label">Use this as my AI Study default</span>
+      </label>
+      <small id="wlp-ai-session-size-preference-status"></small>`;
+    const sizeLabel = select.closest('.study-session-size');
+    if (sizeLabel) sizeLabel.insertAdjacentElement('afterend', box);
+    else footer.prepend(box);
+  }
+
+  function syncAISessionSizePreferenceUI() {
+    ensureSessionSizeOptions();
+    ensureSessionSizePreferenceUI();
+    const size = selectedSessionSize();
+    const saved = savedAISessionSize();
+    const remember = $('#wlp-ai-remember-session-size');
+    const label = $('#wlp-ai-session-size-preference-label');
+    const status = $('#wlp-ai-session-size-preference-status');
+    const summary = $('#wlp-ai-session-size-summary');
+    const summaryText = $('#wlp-ai-session-size-summary-text');
+    const useButton = $('#wlp-ai-session-size-use-current');
+    if (remember) remember.checked = saved === size;
+    if (label) label.textContent = `Use ${sessionSizeText(size)} as my AI Study default`;
+    if (status) status.textContent = saved ? `Current AI default: ${sessionSizeText(saved)}` : 'No AI Study default saved yet.';
+    if (summary) summary.hidden = false;
+    if (summaryText) {
+      summaryText.textContent = saved
+        ? `This AI session: ${sessionSizeText(size)} · AI default: ${sessionSizeText(saved)}`
+        : `This AI session: ${sessionSizeText(size)} · No AI default saved`;
+    }
+    if (useButton) {
+      const same = saved === size;
+      useButton.hidden = same;
+      useButton.textContent = `Use ${size} as default`;
+    }
+  }
+
   function applySavedAISessionSize() {
     ensureSessionSizeOptions();
+    ensureSessionSizePreferenceUI();
     const saved = savedAISessionSize();
     const select = $('#study-session-size');
-    const remember = $('#wlp-ai-remember-session-size');
-    if (remember) remember.checked = Boolean(saved);
-    if (!saved || !select) return;
-    select.value = String(saved);
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    if (saved && select) {
+      select.value = String(saved);
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    syncAISessionSizePreferenceUI();
   }
 
   function persistAISessionSizePreference() {
     const remember = $('#wlp-ai-remember-session-size');
-    const size = Math.floor(num($('#study-session-size')?.value));
+    const size = selectedSessionSize();
+    const saved = savedAISessionSize();
     try {
-      if (remember?.checked && [1, 3, 5, 10, 20].includes(size)) localStorage.setItem(AI_SESSION_SIZE_KEY, String(size));
-      else localStorage.removeItem(AI_SESSION_SIZE_KEY);
+      if (remember?.checked) localStorage.setItem(AI_SESSION_SIZE_KEY, String(size));
+      else if (saved === size) localStorage.removeItem(AI_SESSION_SIZE_KEY);
     } catch (_) {}
+    syncAISessionSizePreferenceUI();
+  }
+
+  function setCurrentAISessionSizeAsDefault() {
+    const size = selectedSessionSize();
+    try { localStorage.setItem(AI_SESSION_SIZE_KEY, String(size)); } catch (_) {}
+    syncAISessionSizePreferenceUI();
   }
 
   function selectedSessionSize() {
@@ -847,7 +906,10 @@
             <p id="wlp-ai-difficulty-help">Default. WLP adjusts support from current route evidence and normally stays near Standard.</p>
           </div>
         </div>
-        <label class="wlp-ai-session-size-default" for="wlp-ai-remember-session-size"><input id="wlp-ai-remember-session-size" type="checkbox"><span>Remember the Step 1 session size above as my AI Study default</span></label>
+        <div class="wlp-ai-session-size-summary" id="wlp-ai-session-size-summary">
+          <span id="wlp-ai-session-size-summary-text">This AI session: 10 experiences</span>
+          <button class="wlp-ai-session-size-use-current" id="wlp-ai-session-size-use-current" type="button">Use 10 as default</button>
+        </div>
         <button class="wlp-ai-start-button" id="wlp-ai-start" type="button">Start AI Experience</button>
         <p class="wlp-ai-start-note" id="wlp-ai-start-note">Your selected source, session size, optional experience-type override, and difficulty preference are captured when the AI session starts. Standard Practice remains fully usable without AI.</p>
         <details class="wlp-ai-history" id="wlp-ai-history" hidden>
@@ -991,6 +1053,8 @@
     if (state.mode === 'ai') {
       applySavedAISessionSize();
       refreshProviderStatus();
+    } else {
+      syncAISessionSizePreferenceUI();
     }
   }
 
@@ -2068,7 +2132,8 @@
     $('#wlp-ai-practice-type')?.addEventListener('change', updatePracticeTypeHelp);
     $('#wlp-ai-difficulty')?.addEventListener('change', updateDifficultyHelp);
     $('#wlp-ai-remember-session-size')?.addEventListener('change', persistAISessionSizePreference);
-    $('#study-session-size')?.addEventListener('change', () => { if ($('#wlp-ai-remember-session-size')?.checked) persistAISessionSizePreference(); });
+    $('#study-session-size')?.addEventListener('change', syncAISessionSizePreferenceUI);
+    $('#wlp-ai-session-size-use-current')?.addEventListener('click', setCurrentAISessionSizeAsDefault);
     $('#wlp-ai-start')?.addEventListener('click', beginSession);
     $('#wlp-ai-cancel-generation')?.addEventListener('click', cancelActiveGeneration);
     $('#wlp-ai-retry-generation')?.addEventListener('click', () => {
@@ -2160,12 +2225,10 @@
 
   function init() {
     injectUI();
+    ensureSessionSizePreferenceUI();
     bindEvents();
     if (state.mode === 'ai') applySavedAISessionSize();
-    else {
-      const remember = $('#wlp-ai-remember-session-size');
-      if (remember) remember.checked = Boolean(savedAISessionSize());
-    }
+    else syncAISessionSizePreferenceUI();
     let stored = 'standard';
     try { stored = localStorage.getItem(MODE_KEY) || 'standard'; } catch (_) {}
     setMode(stored === 'ai' ? 'ai' : 'standard', false);
