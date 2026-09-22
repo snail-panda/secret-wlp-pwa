@@ -10,7 +10,7 @@
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const INTERACTION_EVENTS_KEY = 'wlp:stage7:interaction-events:v1';
-  const STUDYQ_STANDARD_VERSION = '1.2.0';
+  const STUDYQ_STANDARD_VERSION = '1.2.1';
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -2708,7 +2708,12 @@
     $('study-previous').addEventListener('click', previousExperience);
     $('study-next').addEventListener('click', nextExperience);
     $('study-again').addEventListener('click', restoreSessionSpecAndRestart);
-    $('study-change-set').addEventListener('click', changeSet);
+    const closeChangeSetButton = $('study-change-set');
+    if (closeChangeSetButton) {
+      closeChangeSetButton.textContent = 'Close / Change study set';
+      closeChangeSetButton.setAttribute('aria-label', 'Close session summary and change study set');
+      closeChangeSetButton.addEventListener('click', changeSet);
+    }
     $('study-quick-card-close').addEventListener('click', closeQuickCard);
     $('study-quick-card-done').addEventListener('click', closeQuickCard);
     $('study-quick-card-modal').addEventListener('click', event => { if (event.target === $('study-quick-card-modal')) closeQuickCard(); });
