@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.9.1';
+  const VERSION = '1.9.2';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -63,7 +63,8 @@
     reconstruction: null,
     assistance: null,
     generationEpoch: 0,
-    generationController: null
+    generationController: null,
+    devExactWID: ''
   };
 
   const $ = selector => document.querySelector(selector);
@@ -71,6 +72,74 @@
   const num = value => Number(value || 0);
   const makeId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
+
+
+  function normalizeDevExactWID(value) {
+    const raw = clean(value);
+    const match = raw.match(/^(?:wid\s*)?(\d+)$/i);
+    if (!match) throw new Error('Exact WID test expects a numeric WordID such as 419 or WID419.');
+    const normalized = String(Number(match[1]));
+    if (!normalized || normalized === '0') throw new Error('Exact WID test expects a WordID greater than 0.');
+    return normalized;
+  }
+
+  function exactWIDCandidates(candidates, wordId) {
+    const wanted = clean(wordId);
+    return (Array.isArray(candidates) ? candidates : []).filter(item => clean(item?.wordId) === wanted);
+  }
+
+  function validateExactWIDSelection(plannerResult, exactWordId) {
+    const wanted = clean(exactWordId);
+    if (!wanted) return true;
+    const selected = clean(plannerResult?.response?.selectedTarget?.wordId);
+    if (selected !== wanted) {
+      throw new Error(`Planner response validation failed: exact WID test expected WID${wanted}, but the Planner selected ${selected ? `WID${selected}` : 'no WordID'}.`);
+    }
+    return true;
+  }
+
+  function armExactWIDTest(value) {
+    if (state.busy) throw new Error('Wait for the current AI request to finish before arming an exact WID test.');
+    const wordId = normalizeDevExactWID(value);
+    state.devExactWID = wordId;
+    setStatus(`DEV exact-WID test armed for WID${wordId}. The next generated AI Experience will use only this WLP card.`);
+    return { armed: true, wordId, oneShot: true };
+  }
+
+  function clearExactWIDTest() {
+    const previous = clean(state.devExactWID);
+    state.devExactWID = '';
+    if (previous) setStatus(`DEV exact-WID test cleared (WID${previous}).`);
+    return { armed: false, previousWordId: previous || null };
+  }
+
+  function exactWIDTestState() {
+    return {
+      armedWordId: clean(state.devExactWID) || null,
+      activeWordId: clean(state.activePlanner?.diagnostics?.exactWIDTest) || null,
+      oneShot: true
+    };
+  }
+
+  function runExactWIDHookSelfTest() {
+    const checks = [];
+    const add = (name, passed, actual = null) => checks.push({ name, passed: Boolean(passed), actual });
+    try { add('normalizes-numeric', normalizeDevExactWID(419) === '419', normalizeDevExactWID(419)); } catch (error) { add('normalizes-numeric', false, clean(error?.message)); }
+    try { add('normalizes-prefixed', normalizeDevExactWID('WID419') === '419', normalizeDevExactWID('WID419')); } catch (error) { add('normalizes-prefixed', false, clean(error?.message)); }
+    let invalidRejected = false;
+    try { normalizeDevExactWID('pit'); } catch (_) { invalidRejected = true; }
+    add('rejects-non-wid-input', invalidRejected, invalidRejected);
+    const sample = [{ wordId: '418' }, { wordId: '419' }, { wordId: '420' }];
+    const narrowed = exactWIDCandidates(sample, '419');
+    add('narrows-to-one-exact-candidate', narrowed.length === 1 && clean(narrowed[0]?.wordId) === '419', narrowed.map(item => clean(item?.wordId)));
+    let exactAccepted = false;
+    try { exactAccepted = validateExactWIDSelection({ response: { selectedTarget: { wordId: '419' } } }, '419') === true; } catch (_) {}
+    add('accepts-exact-planner-selection', exactAccepted, exactAccepted);
+    let mismatchRejected = false;
+    try { validateExactWIDSelection({ response: { selectedTarget: { wordId: '420' } } }, '419'); } catch (_) { mismatchRejected = true; }
+    add('rejects-planner-target-drift', mismatchRejected, mismatchRejected);
+    return { passed: checks.every(item => item.passed), checks };
+  }
 
   function createAssistanceState(initialTargetVisibility = 'hidden') {
     return {
@@ -3300,6 +3369,13 @@
       difficulty: session.difficulty || 'adaptive',
       maxCandidates: MAX_CANDIDATES
     };
+    const exactWordId = clean(state.devExactWID);
+    if (exactWordId) {
+      const context = await data.assembleCandidateContext({ ...base, wordIds: [exactWordId] });
+      const exact = exactWIDCandidates(context?.candidates, exactWordId);
+      if (!exact.length) throw new Error(`DEV exact-WID test could not find WID${exactWordId} in the current WLP data.`);
+      return { ...context, candidates: exact };
+    }
     if (source.mode === 'review') {
       const wordIds = reviewWordIds(MAX_CANDIDATES);
       if (!wordIds.length) throw new Error('No cards are currently marked Review. Choose a deck or deck range, or mark cards for Review first.');
@@ -3312,10 +3388,12 @@
 
   async function buildFreshPlannerRequest(session) {
     const { data, contract } = requireLayers();
+    const exactWordId = clean(state.devExactWID);
     const candidateContext = await buildCandidateContext(session);
     if (!candidateContext?.candidates?.length) throw new Error('No AI Study candidates were found for this source.');
-    const ranked = rankCandidates(candidateContext.candidates, session);
-    const packetCandidates = ranked.slice(0, MAX_TARGET_PACKETS);
+    const ranked = exactWordId ? exactWIDCandidates(candidateContext.candidates, exactWordId) : rankCandidates(candidateContext.candidates, session);
+    if (exactWordId && !ranked.length) throw new Error(`DEV exact-WID test could not prepare WID${exactWordId} as a Planner candidate.`);
+    const packetCandidates = ranked.slice(0, exactWordId ? 1 : MAX_TARGET_PACKETS);
     const assembledTargetPackets = await Promise.all(packetCandidates.map(item => data.assembleTargetContext(item.wordId)));
     const targetPackets = annotateTargetPacketsForReadiness(assembledTargetPackets);
     const request = data.buildPlannerWriterRequest({
@@ -3342,7 +3420,7 @@
     request.targetPackets = targetPackets;
     const validation = contract.validatePlannerRequest(request);
     if (!validation.valid) throw new Error(`Planner request rejected: ${validation.errors.map(item => `${item.path}: ${item.message}`).join('; ')}`);
-    return { request, rankedCandidates: ranked, targetPackets };
+    return { request, rankedCandidates: ranked, targetPackets, exactWordId: exactWordId || null };
   }
 
   function elapsedMs(startedAt) {
@@ -3678,6 +3756,7 @@
           try {
             validateReconstructionAgainstSession(plannerResult);
             validateComplexTargetSelection(plannerResult, built.request);
+            validateExactWIDSelection(plannerResult, built.exactWordId);
           } catch (validationError) {
             const willAutoRetry = generationAttempt < maxGenerationAttempts;
             addRejectedUsage(plannerResult.meta, 'planner', plannerElapsed, validationError, willAutoRetry ? 'automatic' : 'manual');
@@ -3701,11 +3780,13 @@
               model: clean(plannerResult.meta?.model),
               generationAttempt,
               usageStart: experienceUsageStart,
-              targetReadiness: clone((built.request.targetPackets || []).find(packet => clean(packet?.target?.wordId) === clean(plannerResult.response?.selectedTarget?.wordId))?.targetReadiness || null)
+              targetReadiness: clone((built.request.targetPackets || []).find(packet => clean(packet?.target?.wordId) === clean(plannerResult.response?.selectedTarget?.wordId))?.targetReadiness || null),
+              exactWIDTest: built.exactWordId || null
             }
           };
           const selectedId = clean(plannerResult.response?.selectedTarget?.wordId);
           if (selectedId) state.session.usedTargets[selectedId] = (state.session.usedTargets[selectedId] || 0) + 1;
+          if (built.exactWordId && clean(state.devExactWID) === clean(built.exactWordId)) state.devExactWID = '';
           renderExperience(plannerResult);
           return;
         } catch (error) {
@@ -3920,6 +4001,7 @@
     const readinessStatus = clean(plannerDiag.targetReadiness?.status);
     const readinessKind = clean(plannerDiag.targetReadiness?.kind);
     if (readinessStatus || readinessKind) timingParts.push(`Target readiness ${[readinessKind, readinessStatus].filter(Boolean).join(' / ')}`);
+    if (clean(plannerDiag.exactWIDTest)) timingParts.push(`Exact WID test WID${clean(plannerDiag.exactWIDTest)}`);
     timingParts.push(`Support ${assistanceLabel(assistanceSnapshot())}`);
     if (provider || model) timingParts.push([provider, model].filter(Boolean).join(' · '));
     $('#wlp-ai-turn-diagnostics').textContent = timingParts.join(' · ');
@@ -4202,6 +4284,7 @@
         providerInfo: state.providerInfo,
         session: state.session,
         activeTarget: state.activePlanner?.result?.response?.selectedTarget || null,
+        exactWIDTest: exactWIDTestState(),
         busy: state.busy
       }),
       refreshProviderStatus,
@@ -4212,6 +4295,10 @@
       runAssistanceSelfTest,
       runOpenProductionHintSelfTest,
       runFeedbackLayerSelfTest,
+      runExactWIDHookSelfTest,
+      armExactWIDTest,
+      clearExactWIDTest,
+      getExactWIDTest: () => clone(exactWIDTestState()),
       getOpenProductionHintPlan: () => clone(buildOpenProductionHintPlan()),
       getAssistance: () => clone(assistanceSnapshot())
     });
