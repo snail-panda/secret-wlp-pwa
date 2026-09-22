@@ -10,7 +10,7 @@
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const INTERACTION_EVENTS_KEY = 'wlp:stage7:interaction-events:v1';
-  const STUDYQ_STANDARD_VERSION = '1.1.0';
+  const STUDYQ_STANDARD_VERSION = '1.2.0';
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -1044,36 +1044,63 @@
     return timestampMs(event.completedAt) || timestampMs(event.startedAt) || timestampMs(event.updatedAt);
   }
 
-  function standardRatingStateLabel(rating) {
+  const STANDARD_ATTENTION_VALUES = ['none', 'light', 'medium', 'high'];
+
+  function validStandardAttention(value) {
+    return STANDARD_ATTENTION_VALUES.includes(clean(value));
+  }
+
+  function defaultStandardAttentionForRating(rating) {
     return ({
-      'got-it': 'Studied for now',
-      almost: 'Review Light',
-      'not-yet': 'Review Medium',
-      'no-idea': 'Review High'
+      'got-it': 'none',
+      almost: 'light',
+      'not-yet': 'medium',
+      'no-idea': 'high'
     })[clean(rating)] || '';
   }
 
-  function standardRatingStatePatch(current, wordId, rating, now = Date.now()) {
+  function standardAttentionLabel(attention) {
+    return ({ none: 'None', light: 'Light', medium: 'Medium', high: 'High' })[clean(attention)] || '';
+  }
+
+  function applyStandardAttentionDefault(attempt, rating) {
+    if (!attempt || !validStudyRating(rating)) return '';
+    const hasManual = attempt.reviewAttentionSource === 'manual' && validStandardAttention(attempt.reviewAttention);
+    if (!hasManual) {
+      attempt.reviewAttention = defaultStandardAttentionForRating(rating);
+      attempt.reviewAttentionSource = 'rating-default';
+    }
+    return clean(attempt.reviewAttention);
+  }
+
+  function standardRatingStateLabel(rating, attention = defaultStandardAttentionForRating(rating)) {
+    const normalizedRating = clean(rating);
+    const normalizedAttention = validStandardAttention(attention) ? clean(attention) : defaultStandardAttentionForRating(normalizedRating);
+    if (normalizedAttention === 'high') return 'Review High';
+    if (normalizedAttention === 'medium') return 'Review Medium';
+    if (normalizedAttention === 'light') return 'Review Light';
+    return normalizedRating === 'got-it' ? 'Studied for now' : 'No Review attention';
+  }
+
+  function standardRatingStatePatch(current, wordId, rating, attention = defaultStandardAttentionForRating(rating), now = Date.now()) {
     const cur = current && typeof current === 'object' ? current : {};
     const normalizedRating = clean(rating);
-    const levels = { almost: 'light', 'not-yet': 'medium', 'no-idea': 'high' };
-    const reviewLevel = levels[normalizedRating] || '';
-    const isStudied = normalizedRating === 'got-it';
-    const isReview = Boolean(reviewLevel);
-    if (!isStudied && !isReview) return null;
+    const normalizedAttention = validStandardAttention(attention) ? clean(attention) : defaultStandardAttentionForRating(normalizedRating);
+    if (!validStudyRating(normalizedRating) || !validStandardAttention(normalizedAttention)) return null;
+    const isReview = normalizedAttention !== 'none';
+    const isStudied = normalizedAttention === 'none' && normalizedRating === 'got-it';
+    const isNeutral = normalizedAttention === 'none' && !isStudied;
     return {
       ...cur,
       wordId: clean(wordId),
       known: isStudied,
       review: isReview,
-      reviewLevel: isReview ? reviewLevel : '',
-      reviewReasons: isReview
-        ? (Array.isArray(cur.reviewReasons) ? cur.reviewReasons : [])
-        : [],
+      reviewLevel: isReview ? normalizedAttention : '',
+      reviewReasons: Array.isArray(cur.reviewReasons) ? cur.reviewReasons : [],
       lastReviewed: isReview ? now : Number(cur.lastReviewed || 0),
       lastStudied: isStudied ? now : Number(cur.lastStudied || 0),
-      lastAttentionUpdated: isReview ? now : Number(cur.lastAttentionUpdated || 0),
-      lastResult: isStudied ? 'studied' : 'review',
+      lastAttentionUpdated: now,
+      lastResult: isStudied ? 'studied' : (isReview ? 'review' : (isNeutral ? 'neutral' : clean(cur.lastResult))),
       firstSeen: Number(cur.firstSeen || 0) || now,
       lastSeen: now
     };
@@ -1130,23 +1157,24 @@
     }
   }
 
-  function syncStandardRatingToCurrentState({ wordId, eventId, rating, authorityTimestamp, studyEvents = readStudyEvents(), interactionEvents = readInteractionEvents() } = {}) {
+  function syncStandardRatingToCurrentState({ wordId, eventId, rating, attention, authorityTimestamp, studyEvents = readStudyEvents(), interactionEvents = readInteractionEvents() } = {}) {
     if (!validStudyRating(rating)) return { applied: false, reason: 'invalid-rating', label: '' };
+    const normalizedAttention = validStandardAttention(attention) ? clean(attention) : defaultStandardAttentionForRating(rating);
     const policy = standardStateSyncPolicy({ wordId, eventId, authorityTimestamp, studyEvents, interactionEvents });
-    const label = standardRatingStateLabel(rating);
-    if (!policy.apply) return { applied: false, reason: policy.reason, label };
+    const label = standardRatingStateLabel(rating, normalizedAttention);
+    if (!policy.apply) return { applied: false, reason: policy.reason, label, attention: normalizedAttention };
     const now = Date.now();
     const current = readProgressRecordForWord(wordId);
-    const next = standardRatingStatePatch(current, wordId, rating, now);
-    if (!next || !writeProgressRecordForWord(wordId, next)) return { applied: false, reason: 'write-failed', label };
-    return { applied: true, reason: 'updated-current-state', label, record: next };
+    const next = standardRatingStatePatch(current, wordId, rating, normalizedAttention, now);
+    if (!next || !writeProgressRecordForWord(wordId, next)) return { applied: false, reason: 'write-failed', label, attention: normalizedAttention };
+    return { applied: true, reason: 'updated-current-state', label, attention: normalizedAttention, record: next };
   }
 
   function standardStateSyncNotice(result) {
-    if (result?.applied) return `Rating saved in Standard Practice history. Current state updated to ${result.label}.`;
-    if (result?.reason === 'newer-standard-attempt') return 'Rating saved in Standard Practice history. Current state was kept because a newer Standard Practice attempt exists.';
-    if (result?.reason === 'newer-manual-state') return 'Rating saved in Standard Practice history. Current state was kept because a newer manual Studied / Review change exists.';
-    return 'Rating saved in Standard Practice history. Current state is unchanged.';
+    if (result?.applied) return `Standard Practice history saved. Current state updated to ${result.label}.`;
+    if (result?.reason === 'newer-standard-attempt') return 'Standard Practice history saved. Current state was kept because a newer Standard Practice attempt exists.';
+    if (result?.reason === 'newer-manual-state') return 'Standard Practice history saved. Current state was kept because a newer manual Studied / Review change exists.';
+    return 'Standard Practice history saved. Current state is unchanged.';
   }
 
   function readStudySessions() {
@@ -1187,6 +1215,8 @@
       matchedAlternative: clean(attempt.matchedAlternative),
       matchedTarget: clean(attempt.matchedTarget),
       selfRating: clean(attempt.selfRating),
+      reviewAttention: validStandardAttention(attempt.reviewAttention) ? clean(attempt.reviewAttention) : '',
+      reviewAttentionSource: clean(attempt.reviewAttentionSource),
       communicativeNeedShown: attempt.communicativeNeedShown === true,
       hintShown: attempt.hintShown === true,
       hintCount: Number(attempt.hintCount) || 0,
@@ -1294,6 +1324,7 @@
 
     const wasUnrated = !clean(attempt.selfRating);
     attempt.selfRating = rating;
+    applyStandardAttentionDefault(attempt, rating);
     if (wasUnrated && clean(eventId)) historyRatingEditGrace.add(clean(eventId));
     record.counts = ratingCounts(record.experiences.map(item => item?.attempt || {}));
     sessions[sessionIndexSaved] = record;
@@ -1301,7 +1332,7 @@
 
     try {
       if (eventIndex >= 0) {
-        events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt: new Date().toISOString() };
+        events[eventIndex] = { ...events[eventIndex], selfRating: rating, reviewAttention: attempt.reviewAttention, reviewAttentionSource: attempt.reviewAttentionSource, ratingUpdatedAt: new Date().toISOString() };
         localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
       }
     } catch (error) {
@@ -1312,14 +1343,80 @@
       wordId: experience.wordId,
       eventId,
       rating,
+      attention: attempt.reviewAttention,
       authorityTimestamp,
       studyEvents: events,
       interactionEvents: readInteractionEvents()
     });
 
     const liveIndex = sessionAttempts.findIndex(item => clean(item?.eventId) === clean(eventId));
-    if (liveIndex >= 0) sessionAttempts[liveIndex].selfRating = rating;
-    if (clean(currentAttempt?.eventId) === clean(eventId)) currentAttempt.selfRating = rating;
+    if (liveIndex >= 0) {
+      sessionAttempts[liveIndex].selfRating = rating;
+      sessionAttempts[liveIndex].reviewAttention = attempt.reviewAttention;
+      sessionAttempts[liveIndex].reviewAttentionSource = attempt.reviewAttentionSource;
+    }
+    if (clean(currentAttempt?.eventId) === clean(eventId)) {
+      currentAttempt.selfRating = rating;
+      currentAttempt.reviewAttention = attempt.reviewAttention;
+      currentAttempt.reviewAttentionSource = attempt.reviewAttentionSource;
+    }
+    historyRatingNotice.set(clean(eventId), standardStateSyncNotice(stateSync));
+    return { ok: true, reason: policy.reason, stateSync, record };
+  }
+
+  function updateSavedSessionAttention(sessionId, eventId, attention) {
+    if (!validStandardAttention(attention)) return { ok: false, reason: 'invalid-attention' };
+    const sessions = readStudySessions();
+    const sessionIndexSaved = sessions.findIndex(item => clean(item?.sessionId) === clean(sessionId));
+    if (sessionIndexSaved < 0) return { ok: false, reason: 'session-not-found' };
+    const record = sessions[sessionIndexSaved];
+    const experience = Array.isArray(record.experiences)
+      ? record.experiences.find(item => clean(item?.attempt?.eventId) === clean(eventId))
+      : null;
+    if (!experience) return { ok: false, reason: 'attempt-not-found' };
+    const attempt = experience.attempt || (experience.attempt = {});
+    if (!validStudyRating(attempt.selfRating)) return { ok: false, reason: 'missing-rating' };
+    const policy = historyRatingEditPolicy(record.sessionId, experience.wordId, attempt, sessions);
+    if (!policy.editable) return { ok: false, reason: policy.reason };
+
+    const events = readStudyEvents();
+    const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
+    const sourceEvent = eventIndex >= 0 ? events[eventIndex] : null;
+    const authorityTimestamp = standardAttemptTimestamp(sourceEvent);
+
+    attempt.reviewAttention = clean(attention);
+    attempt.reviewAttentionSource = 'manual';
+    sessions[sessionIndexSaved] = record;
+    writeStudySessions(sessions);
+
+    try {
+      if (eventIndex >= 0) {
+        events[eventIndex] = { ...events[eventIndex], reviewAttention: attempt.reviewAttention, reviewAttentionSource: 'manual', attentionUpdatedAt: new Date().toISOString() };
+        localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
+      }
+    } catch (error) {
+      console.warn('Could not update Study Q Review Attention', error);
+    }
+
+    const stateSync = syncStandardRatingToCurrentState({
+      wordId: experience.wordId,
+      eventId,
+      rating: attempt.selfRating,
+      attention: attempt.reviewAttention,
+      authorityTimestamp,
+      studyEvents: events,
+      interactionEvents: readInteractionEvents()
+    });
+
+    const liveIndex = sessionAttempts.findIndex(item => clean(item?.eventId) === clean(eventId));
+    if (liveIndex >= 0) {
+      sessionAttempts[liveIndex].reviewAttention = attempt.reviewAttention;
+      sessionAttempts[liveIndex].reviewAttentionSource = 'manual';
+    }
+    if (clean(currentAttempt?.eventId) === clean(eventId)) {
+      currentAttempt.reviewAttention = attempt.reviewAttention;
+      currentAttempt.reviewAttentionSource = 'manual';
+    }
     historyRatingNotice.set(clean(eventId), standardStateSyncNotice(stateSync));
     return { ok: true, reason: policy.reason, stateSync, record };
   }
@@ -1566,28 +1663,118 @@
     currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
   }
 
+  function ensureStandardAttentionUI() {
+    const selfCheck = $('study-self-check');
+    if (!selfCheck) return null;
+    let wrap = $('study-review-attention');
+    if (wrap) return wrap;
+
+    if (!document.getElementById('study-review-attention-style')) {
+      const style = document.createElement('style');
+      style.id = 'study-review-attention-style';
+      style.textContent = `
+        .study-review-attention{margin-top:11px;padding-top:10px;border-top:1px solid rgba(91,120,102,.16)}
+        .study-review-attention[hidden]{display:none!important}
+        .study-review-attention-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:7px}
+        .study-review-attention-head span{font-family:var(--serif);font-size:12px;font-weight:600;color:#536b5d}
+        .study-review-attention-head small{font-size:10px;color:#89978f;text-align:right}
+        .study-review-attention-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+        .study-review-attention-options button{min-height:32px;border:1px solid #dce7df;border-radius:999px;background:rgba(250,252,250,.72);color:#708078;font:600 11px/1 var(--serif);padding:7px 5px;cursor:pointer}
+        .study-review-attention-options button.is-selected{background:#edf5ef;border-color:#91b39d;color:#345f47;box-shadow:0 0 0 1px rgba(80,130,96,.06) inset}
+        .study-review-attention-options button[data-study-attention="high"].is-selected{background:#f8eded;border-color:#ddb6b6;color:#8a4e4e}
+        .study-review-attention-options button[data-study-attention="medium"].is-selected{background:#faf4e8;border-color:#dfca9b;color:#7f632f}
+        .study-review-attention-options button[data-study-attention="light"].is-selected{background:#edf6ef;border-color:#a6c5af;color:#426f52}
+        .study-session-attention-edit{margin-top:8px;padding-top:8px;border-top:1px solid #e5ece7}
+        .study-session-attention-edit>span{display:block;font-size:.67rem;font-weight:700;color:#697b70;margin-bottom:6px}
+        .study-session-attention-edit-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+        .study-session-attention-edit-options button{border:1px solid #dce5df;border-radius:999px;background:#fafcfa;color:#6e7d75;padding:6px 4px;font-size:.63rem;font-weight:700}
+        .study-session-attention-edit-options button.is-selected{background:#edf5ef;border-color:#91b39d;color:#345f47}
+        @media(max-width:420px){.study-review-attention-options,.study-session-attention-edit-options{gap:4px}.study-review-attention-options button{font-size:10px;padding-inline:3px}}
+      `;
+      document.head.append(style);
+    }
+
+    wrap = document.createElement('div');
+    wrap.id = 'study-review-attention';
+    wrap.className = 'study-review-attention';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+      <div class="study-review-attention-head"><span>Review Attention</span><small id="study-review-attention-note">Separate from your self-rating.</small></div>
+      <div class="study-review-attention-options" role="group" aria-label="Review Attention">
+        <button type="button" data-study-attention="none" aria-pressed="false">None</button>
+        <button type="button" data-study-attention="light" aria-pressed="false">Light</button>
+        <button type="button" data-study-attention="medium" aria-pressed="false">Medium</button>
+        <button type="button" data-study-attention="high" aria-pressed="false">High</button>
+      </div>`;
+    const status = $('study-self-check-status');
+    selfCheck.insertBefore(wrap, status || null);
+    return wrap;
+  }
+
+  function renderStandardAttentionUI(attempt = currentAttempt) {
+    const wrap = ensureStandardAttentionUI();
+    if (!wrap) return;
+    const rating = clean(attempt?.selfRating);
+    if (!validStudyRating(rating)) {
+      wrap.hidden = true;
+      return;
+    }
+    const attention = validStandardAttention(attempt?.reviewAttention)
+      ? clean(attempt.reviewAttention)
+      : defaultStandardAttentionForRating(rating);
+    wrap.hidden = false;
+    wrap.querySelectorAll('[data-study-attention]').forEach(button => {
+      const selected = button.dataset.studyAttention === attention;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    const note = $('study-review-attention-note');
+    if (note) note.textContent = attempt?.reviewAttentionSource === 'manual'
+      ? 'Your attention choice.'
+      : `Suggested from ${ratingLabel(rating)}. Change it if needed.`;
+  }
+
+  function setReviewAttention(attention) {
+    if (!currentAttempt || !validStudyRating(currentAttempt.selfRating) || !validStandardAttention(attention)) return;
+    currentAttempt.reviewAttention = clean(attention);
+    currentAttempt.reviewAttentionSource = 'manual';
+    currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
+    persistAttempt(currentAttempt, false);
+    const stateSync = syncStandardRatingToCurrentState({
+      wordId: currentAttempt.wordId,
+      eventId: currentAttempt.eventId,
+      rating: currentAttempt.selfRating,
+      attention: currentAttempt.reviewAttention,
+      authorityTimestamp: Date.now()
+    });
+    renderStandardAttentionUI(currentAttempt);
+    $('study-self-check-status').textContent = `Saved locally · self-check: ${ratingLabel(currentAttempt.selfRating)} · Review Attention: ${standardAttentionLabel(currentAttempt.reviewAttention)}${stateSync.applied ? ` · current state: ${stateSync.label}` : ''}.`;
+  }
+
   function setSelfRating(rating) {
-    if (!currentAttempt || !['got-it', 'almost', 'not-yet', 'no-idea'].includes(rating)) return;
+    if (!currentAttempt || !validStudyRating(rating)) return;
     const item = sessionQueue[sessionIndex];
     if (item) { snapshotResponse(item); renderCurrentAnswerReview(item); }
     currentAttempt.selfRating = rating;
+    applyStandardAttentionDefault(currentAttempt, rating);
     currentAttempt.elapsedMs = Math.max(0, (Number(currentAttempt._elapsedBaseMs) || 0) + Date.now() - (currentAttempt._visitStartedMs || Date.now()));
     document.querySelectorAll('[data-study-rating]').forEach(button => {
       const selected = button.dataset.studyRating === rating;
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
-    const labels = { 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet', 'no-idea': 'No idea' };
     persistAttempt(currentAttempt, false);
     const stateSync = syncStandardRatingToCurrentState({
       wordId: currentAttempt.wordId,
       eventId: currentAttempt.eventId,
       rating,
+      attention: currentAttempt.reviewAttention,
       authorityTimestamp: Date.now()
     });
+    renderStandardAttentionUI(currentAttempt);
     $('study-self-check-status').textContent = stateSync.applied
-      ? `Saved locally · self-check: ${labels[rating]} · current state: ${stateSync.label}.`
-      : `Saved locally · self-check: ${labels[rating]}.`;
+      ? `Saved locally · self-check: ${ratingLabel(rating)} · Review Attention: ${standardAttentionLabel(currentAttempt.reviewAttention)} · current state: ${stateSync.label}.`
+      : `Saved locally · self-check: ${ratingLabel(rating)} · Review Attention: ${standardAttentionLabel(currentAttempt.reviewAttention)}.`;
   }
 
   function finalizeCurrentAttempt() {
@@ -1803,8 +1990,9 @@
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
+    renderStandardAttentionUI(attempt);
     $('study-self-check-status').textContent = attempt?.selfRating
-      ? `Saved locally · self-check: ${ratingLabel(attempt.selfRating)}.`
+      ? `Saved locally · self-check: ${ratingLabel(attempt.selfRating)} · Review Attention: ${standardAttentionLabel(validStandardAttention(attempt.reviewAttention) ? attempt.reviewAttention : defaultStandardAttentionForRating(attempt.selfRating))}.`
       : 'Not rated yet · activity is still saved locally.';
 
     $('study-open-card').dataset.wordId = item.wordId;
@@ -2006,6 +2194,30 @@
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
       options.append(button);
     });
+    const attentionWrap = document.createElement('div');
+    attentionWrap.className = 'study-session-attention-edit';
+    const attentionTitle = document.createElement('span');
+    attentionTitle.textContent = 'Review Attention';
+    const attentionOptions = document.createElement('div');
+    attentionOptions.className = 'study-session-attention-edit-options';
+    if (validStudyRating(attempt?.selfRating)) {
+      const currentAttention = validStandardAttention(attempt?.reviewAttention)
+        ? clean(attempt.reviewAttention)
+        : defaultStandardAttentionForRating(attempt.selfRating);
+      STANDARD_ATTENTION_VALUES.forEach(value => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.studyHistoryAttention = value;
+        button.dataset.studyqSessionId = currentSessionId;
+        button.dataset.studyqEventId = eventId;
+        button.textContent = standardAttentionLabel(value);
+        const selected = currentAttention === value;
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        attentionOptions.append(button);
+      });
+      attentionWrap.append(attentionTitle, attentionOptions);
+    }
     const note = document.createElement('small');
     note.textContent = historyRatingNotice.get(eventId) || (
       policy.reason === 'unrated'
@@ -2014,7 +2226,9 @@
           ? 'Saved. You can still adjust it while this session review stays open.'
           : 'This is the latest Standard Practice attempt for this card, so its rating can be corrected.'
     );
-    wrap.append(title, options, note);
+    wrap.append(title, options);
+    if (attentionOptions.childElementCount) wrap.append(attentionWrap);
+    wrap.append(note);
     return wrap;
   }
 
@@ -2449,6 +2663,7 @@
   }
 
   function installEvents() {
+    ensureStandardAttentionUI();
     document.querySelectorAll('[data-source-mode]').forEach(button => button.addEventListener('click', () => setSourceMode(button.dataset.sourceMode)));
     document.querySelectorAll('[data-deck-picker-target]').forEach(button => button.addEventListener('click', () => openDeckPicker(button.dataset.deckPickerTarget)));
     document.querySelectorAll('[data-deck-picker-mode]').forEach(button => button.addEventListener('click', () => setDeckPickerMode(button.dataset.deckPickerMode)));
@@ -2485,6 +2700,7 @@
     });
     $('study-open-card').addEventListener('click', () => openQuickCard($('study-open-card').dataset.wordId));
     document.querySelectorAll('[data-study-rating]').forEach(button => button.addEventListener('click', () => setSelfRating(button.dataset.studyRating)));
+    document.querySelectorAll('[data-study-attention]').forEach(button => button.addEventListener('click', () => setReviewAttention(button.dataset.studyAttention)));
     $('study-end-session').addEventListener('click', openEndSessionDialog);
     $('study-end-session-keep').addEventListener('click', closeEndSessionDialog);
     $('study-end-session-save').addEventListener('click', endSessionEarly);
@@ -2506,6 +2722,21 @@
           ratingButton.dataset.studyqSessionId,
           ratingButton.dataset.studyqEventId,
           ratingButton.dataset.studyHistoryRating
+        );
+        if (result.ok) {
+          renderSessionReview();
+          refreshOpenSessionSummary();
+          renderRecentSessions();
+        }
+        return;
+      }
+
+      const attentionButton = event.target.closest('[data-study-history-attention]');
+      if (attentionButton) {
+        const result = updateSavedSessionAttention(
+          attentionButton.dataset.studyqSessionId,
+          attentionButton.dataset.studyqEventId,
+          attentionButton.dataset.studyHistoryAttention
         );
         if (result.ok) {
           renderSessionReview();
@@ -2578,16 +2809,25 @@
     historyRatingEditGrace.delete('self-old-event');
 
     const seed = { studyCount: 7, reviewCount: 4, attempts: 11, exposureCount: 15, reviewReasons: ['usage'] };
-    const gotIt = standardRatingStatePatch(seed, '419', 'got-it', 1000);
-    const almost = standardRatingStatePatch(seed, '419', 'almost', 1000);
-    const notYet = standardRatingStatePatch(seed, '419', 'not-yet', 1000);
-    const noIdea = standardRatingStatePatch(seed, '419', 'no-idea', 1000);
+    const gotIt = standardRatingStatePatch(seed, '419', 'got-it', 'none', 1000);
+    const almost = standardRatingStatePatch(seed, '419', 'almost', 'light', 1000);
+    const notYet = standardRatingStatePatch(seed, '419', 'not-yet', 'medium', 1000);
+    const noIdea = standardRatingStatePatch(seed, '419', 'no-idea', 'high', 1000);
     check('Got it maps to Studied for now', gotIt?.known === true && gotIt?.review === false && gotIt?.lastResult === 'studied' && gotIt?.reviewLevel === '');
     check('Almost maps to Review Light', almost?.review === true && almost?.reviewLevel === 'light');
     check('Not yet maps to Review Medium', notYet?.review === true && notYet?.reviewLevel === 'medium');
     check('No idea maps to Review High', noIdea?.review === true && noIdea?.reviewLevel === 'high');
     check('Standard sync preserves card counters', gotIt?.studyCount === 7 && gotIt?.reviewCount === 4 && gotIt?.attempts === 11 && gotIt?.exposureCount === 15);
     check('Review rating preserves manual reasons', almost?.reviewReasons?.[0] === 'usage');
+    check('default Review Attention follows self-rating', defaultStandardAttentionForRating('got-it') === 'none' && defaultStandardAttentionForRating('almost') === 'light' && defaultStandardAttentionForRating('not-yet') === 'medium' && defaultStandardAttentionForRating('no-idea') === 'high');
+    const gotItMedium = standardRatingStatePatch(seed, '419', 'got-it', 'medium', 1000);
+    const almostNone = standardRatingStatePatch(seed, '419', 'almost', 'none', 1000);
+    check('Got it can stay in Review Medium', gotItMedium?.known === false && gotItMedium?.review === true && gotItMedium?.reviewLevel === 'medium');
+    check('Almost with no Review Attention becomes neutral, not Studied', almostNone?.known === false && almostNone?.review === false && almostNone?.lastResult === 'neutral');
+    const manualAttention = { reviewAttention: 'high', reviewAttentionSource: 'manual' };
+    applyStandardAttentionDefault(manualAttention, 'got-it');
+    check('manual Review Attention survives a self-rating change', manualAttention.reviewAttention === 'high' && manualAttention.reviewAttentionSource === 'manual');
+    check('Standard Attention accepts four levels', STANDARD_ATTENTION_VALUES.every(validStandardAttention));
 
     const eventOld = { eventId: 'event-old', wordId: '419', completedAt: '2026-01-01T10:00:00.000Z' };
     const eventNew = { eventId: 'event-new', wordId: '419', completedAt: '2026-01-01T11:00:00.000Z' };
