@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.5';
+  const VERSION = '1.1.6';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
@@ -371,6 +371,15 @@
     if (requireObject(value.learnerFacingResponse, '$.learnerFacingResponse', errors)) {
       if (typeof value.learnerFacingResponse.feedback !== 'string') push(errors, '$.learnerFacingResponse.feedback', 'must be string');
       requireBoolean(value.learnerFacingResponse, 'correctionNeeded', '$.learnerFacingResponse', errors);
+      if (has(value.learnerFacingResponse, 'naturalOptions')) {
+        if (!Array.isArray(value.learnerFacingResponse.naturalOptions) || value.learnerFacingResponse.naturalOptions.length > 3) {
+          push(errors, '$.learnerFacingResponse.naturalOptions', 'must be an array with at most 3 items');
+        } else {
+          value.learnerFacingResponse.naturalOptions.forEach((item, i) => {
+            if (typeof item !== 'string' || !text(item)) push(errors, `$.learnerFacingResponse.naturalOptions[${i}]`, 'must be a non-empty string');
+          });
+        }
+      }
     }
 
     if (!errors.length) semanticInterpreterChecks(value, requestContext, errors, warnings);
@@ -728,6 +737,14 @@
     falseCorrectionSuggestionInterpreter.requestId = 'self-int-false-correction-suggestion';
     falseCorrectionSuggestionInterpreter.learnerFacingResponse.suggestedNaturalForm = 'diffuse';
 
+    const goodNaturalOptionsInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    goodNaturalOptionsInterpreter.requestId = 'self-int-natural-options';
+    goodNaturalOptionsInterpreter.learnerFacingResponse.naturalOptions = ['The scent spread through the room.', 'The fragrance permeated the space.'];
+
+    const tooManyNaturalOptionsInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
+    tooManyNaturalOptionsInterpreter.requestId = 'self-int-too-many-natural-options';
+    tooManyNaturalOptionsInterpreter.learnerFacingResponse.naturalOptions = ['one','two','three','four'];
+
     const uncorroboratedPromotionInterpreter = JSON.parse(JSON.stringify(goodInterpreter));
     uncorroboratedPromotionInterpreter.requestId = 'self-int-uncorroborated-promotion';
     uncorroboratedPromotionInterpreter.evidence.profilePromotionAllowed = true;
@@ -769,6 +786,8 @@
       { name: 'interpreter-reject-low-confidence-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(badInterpreter).status },
       { name: 'interpreter-reject-empty-neighbor-payload', expected: 'REJECT', actual: validateInterpreterResponse(emptyNeighborPayloadInterpreter).status },
       { name: 'interpreter-reject-suggestion-when-no-correction', expected: 'REJECT', actual: validateInterpreterResponse(falseCorrectionSuggestionInterpreter).status },
+      { name: 'interpreter-valid-natural-options-up-to-three', expected: 'VALID', actual: validateInterpreterResponse(goodNaturalOptionsInterpreter, promptedNeighborContext).status },
+      { name: 'interpreter-reject-more-than-three-natural-options', expected: 'REJECT', actual: validateInterpreterResponse(tooManyNaturalOptionsInterpreter, promptedNeighborContext).status },
       { name: 'interpreter-valid-first-profile-observation-without-promotion', expected: 'VALID', actual: validateInterpreterResponse(firstObservationInterpreter, emptyProfileContext).status },
       { name: 'interpreter-reject-uncorroborated-profile-promotion', expected: 'REJECT', actual: validateInterpreterResponse(uncorroboratedPromotionInterpreter, emptyProfileContext).status },
       { name: 'interpreter-valid-corroborated-supported-promotion-proposal', expected: 'VALID_WITH_WARNINGS', actual: validateInterpreterResponse(corroboratedPromotionInterpreter, corroboratedProfileContext).status }

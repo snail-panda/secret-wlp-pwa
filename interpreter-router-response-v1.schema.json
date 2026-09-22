@@ -632,67 +632,13 @@
             "null"
           ]
         },
-        "modelResponse": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "One concise natural model response that fully satisfies the requested response format. This is an example, not the only correct answer. For cloze/fixed-frame, give the complete filled sentence; for open/dialogue/composition tasks, give one natural complete response."
-        },
-        "targetFeedback": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Learner-facing feedback specifically about the target expression, its sense, form, construction, collocation, natural alternatives, or contrast in this experience."
-        },
-        "languageFeedback": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Learner-facing feedback on the learner response as English: grammar, articles, tense/aspect, number, prepositions, word order, idiomaticity, tone/register, concision, or other language-level issues. Do not invent errors; when there is no meaningful issue, say so briefly."
-        },
-        "nextStep": {
-          "type": "string",
-          "minLength": 1,
-          "description": "A concise learner-facing suggestion for what to notice or try next. Keep internal router labels and implementation language out of this field."
-        },
-        "languageObservations": {
+        "naturalOptions": {
           "type": "array",
           "maxItems": 3,
-          "description": "Structured language-level observations from this turn for local session aggregation. Include only high-value observations; use an empty array for short responses with no meaningful language-level signal.",
+          "uniqueItems": true,
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "category",
-              "assessment",
-              "summary"
-            ],
-            "properties": {
-              "category": {
-                "enum": [
-                  "grammar",
-                  "articles",
-                  "tense-aspect",
-                  "number",
-                  "prepositions",
-                  "word-order",
-                  "idiomaticity",
-                  "tone-register",
-                  "concision",
-                  "sentence-packaging",
-                  "other"
-                ]
-              },
-              "assessment": {
-                "enum": [
-                  "strength",
-                  "improve"
-                ]
-              },
-              "summary": {
-                "type": "string",
-                "minLength": 4
-              }
-            }
+            "type": "string",
+            "minLength": 1
           }
         }
       }
