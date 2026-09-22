@@ -9,7 +9,8 @@
   const STUDYQ_SESSION_LIMIT = 80;
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
-  const STUDYQ_STANDARD_VERSION = '1.0.0';
+  const INTERACTION_EVENTS_KEY = 'wlp:stage7:interaction-events:v1';
+  const STUDYQ_STANDARD_VERSION = '1.1.0';
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -1026,6 +1027,128 @@
     } catch { return []; }
   }
 
+  function readInteractionEvents() {
+    try {
+      const value = JSON.parse(localStorage.getItem(INTERACTION_EVENTS_KEY) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch { return []; }
+  }
+
+  function timestampMs(value) {
+    if (Number.isFinite(Number(value)) && Number(value) > 0) return Number(value);
+    return Date.parse(clean(value)) || 0;
+  }
+
+  function standardAttemptTimestamp(event) {
+    if (!event || typeof event !== 'object') return 0;
+    return timestampMs(event.completedAt) || timestampMs(event.startedAt) || timestampMs(event.updatedAt);
+  }
+
+  function standardRatingStateLabel(rating) {
+    return ({
+      'got-it': 'Studied for now',
+      almost: 'Review Light',
+      'not-yet': 'Review Medium',
+      'no-idea': 'Review High'
+    })[clean(rating)] || '';
+  }
+
+  function standardRatingStatePatch(current, wordId, rating, now = Date.now()) {
+    const cur = current && typeof current === 'object' ? current : {};
+    const normalizedRating = clean(rating);
+    const levels = { almost: 'light', 'not-yet': 'medium', 'no-idea': 'high' };
+    const reviewLevel = levels[normalizedRating] || '';
+    const isStudied = normalizedRating === 'got-it';
+    const isReview = Boolean(reviewLevel);
+    if (!isStudied && !isReview) return null;
+    return {
+      ...cur,
+      wordId: clean(wordId),
+      known: isStudied,
+      review: isReview,
+      reviewLevel: isReview ? reviewLevel : '',
+      reviewReasons: isReview
+        ? (Array.isArray(cur.reviewReasons) ? cur.reviewReasons : [])
+        : [],
+      lastReviewed: isReview ? now : Number(cur.lastReviewed || 0),
+      lastStudied: isStudied ? now : Number(cur.lastStudied || 0),
+      lastAttentionUpdated: isReview ? now : Number(cur.lastAttentionUpdated || 0),
+      lastResult: isStudied ? 'studied' : 'review',
+      firstSeen: Number(cur.firstSeen || 0) || now,
+      lastSeen: now
+    };
+  }
+
+  const MANUAL_CURRENT_STATE_ACTIONS = new Set([
+    'studied', 'studied_removed', 'review', 'added-to-review', 'review_removed', 'attention_set'
+  ]);
+
+  function standardStateSyncPolicy({ wordId, eventId, authorityTimestamp, studyEvents = [], interactionEvents = [] } = {}) {
+    const wid = clean(wordId);
+    const eid = clean(eventId);
+    const authority = Number(authorityTimestamp || 0);
+    if (!wid || !eid) return { apply: false, reason: 'missing-identity' };
+    if (!authority) return { apply: false, reason: 'missing-attempt-timestamp' };
+
+    const newerStandard = (Array.isArray(studyEvents) ? studyEvents : []).some(event => {
+      if (clean(event?.wordId) !== wid || clean(event?.eventId) === eid) return false;
+      return standardAttemptTimestamp(event) > authority;
+    });
+    if (newerStandard) return { apply: false, reason: 'newer-standard-attempt' };
+
+    const newerManual = (Array.isArray(interactionEvents) ? interactionEvents : []).some(event => {
+      if (clean(event?.wordId) !== wid) return false;
+      const action = clean(event?.action).toLowerCase();
+      if (!MANUAL_CURRENT_STATE_ACTIONS.has(action)) return false;
+      return timestampMs(event?.timestamp) > authority;
+    });
+    if (newerManual) return { apply: false, reason: 'newer-manual-state' };
+
+    return { apply: true, reason: 'current' };
+  }
+
+  function readProgressRecordForWord(wordId) {
+    const wid = clean(wordId);
+    if (!wid) return {};
+    try {
+      const value = JSON.parse(localStorage.getItem(`${PROGRESS_PREFIX}${wid}`) || '{}');
+      return value && typeof value === 'object' ? value : {};
+    } catch { return {}; }
+  }
+
+  function writeProgressRecordForWord(wordId, record) {
+    const wid = clean(wordId);
+    if (!wid || !record || typeof record !== 'object') return false;
+    try {
+      localStorage.setItem(`${PROGRESS_PREFIX}${wid}`, JSON.stringify(record));
+      if (record.review === true || record.lastResult === 'review') reviewByWordId.set(wid, { ...record, wordId: wid });
+      else reviewByWordId.delete(wid);
+      return true;
+    } catch (error) {
+      console.warn('Could not sync Standard Practice rating to current WLP state', error);
+      return false;
+    }
+  }
+
+  function syncStandardRatingToCurrentState({ wordId, eventId, rating, authorityTimestamp, studyEvents = readStudyEvents(), interactionEvents = readInteractionEvents() } = {}) {
+    if (!validStudyRating(rating)) return { applied: false, reason: 'invalid-rating', label: '' };
+    const policy = standardStateSyncPolicy({ wordId, eventId, authorityTimestamp, studyEvents, interactionEvents });
+    const label = standardRatingStateLabel(rating);
+    if (!policy.apply) return { applied: false, reason: policy.reason, label };
+    const now = Date.now();
+    const current = readProgressRecordForWord(wordId);
+    const next = standardRatingStatePatch(current, wordId, rating, now);
+    if (!next || !writeProgressRecordForWord(wordId, next)) return { applied: false, reason: 'write-failed', label };
+    return { applied: true, reason: 'updated-current-state', label, record: next };
+  }
+
+  function standardStateSyncNotice(result) {
+    if (result?.applied) return `Rating saved in Standard Practice history. Current state updated to ${result.label}.`;
+    if (result?.reason === 'newer-standard-attempt') return 'Rating saved in Standard Practice history. Current state was kept because a newer Standard Practice attempt exists.';
+    if (result?.reason === 'newer-manual-state') return 'Rating saved in Standard Practice history. Current state was kept because a newer manual Studied / Review change exists.';
+    return 'Rating saved in Standard Practice history. Current state is unchanged.';
+  }
+
   function readStudySessions() {
     try {
       const value = JSON.parse(localStorage.getItem(STUDYQ_SESSION_KEY) || '[]');
@@ -1164,6 +1287,11 @@
     const policy = historyRatingEditPolicy(record.sessionId, experience.wordId, attempt, sessions);
     if (!policy.editable) return { ok: false, reason: policy.reason };
 
+    const events = readStudyEvents();
+    const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
+    const sourceEvent = eventIndex >= 0 ? events[eventIndex] : null;
+    const authorityTimestamp = standardAttemptTimestamp(sourceEvent);
+
     const wasUnrated = !clean(attempt.selfRating);
     attempt.selfRating = rating;
     if (wasUnrated && clean(eventId)) historyRatingEditGrace.add(clean(eventId));
@@ -1172,8 +1300,6 @@
     writeStudySessions(sessions);
 
     try {
-      const events = readStudyEvents();
-      const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
       if (eventIndex >= 0) {
         events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt: new Date().toISOString() };
         localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
@@ -1182,11 +1308,20 @@
       console.warn('Could not update Study Q activity rating', error);
     }
 
+    const stateSync = syncStandardRatingToCurrentState({
+      wordId: experience.wordId,
+      eventId,
+      rating,
+      authorityTimestamp,
+      studyEvents: events,
+      interactionEvents: readInteractionEvents()
+    });
+
     const liveIndex = sessionAttempts.findIndex(item => clean(item?.eventId) === clean(eventId));
     if (liveIndex >= 0) sessionAttempts[liveIndex].selfRating = rating;
     if (clean(currentAttempt?.eventId) === clean(eventId)) currentAttempt.selfRating = rating;
-    historyRatingNotice.set(clean(eventId), 'Rating saved in Standard Practice history. Review attention is unchanged for now.');
-    return { ok: true, reason: policy.reason, record };
+    historyRatingNotice.set(clean(eventId), standardStateSyncNotice(stateSync));
+    return { ok: true, reason: policy.reason, stateSync, record };
   }
 
   function refreshOpenSessionSummary() {
@@ -1443,8 +1578,16 @@
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     const labels = { 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet', 'no-idea': 'No idea' };
-    $('study-self-check-status').textContent = `Saved locally · self-check: ${labels[rating]}.`;
     persistAttempt(currentAttempt, false);
+    const stateSync = syncStandardRatingToCurrentState({
+      wordId: currentAttempt.wordId,
+      eventId: currentAttempt.eventId,
+      rating,
+      authorityTimestamp: Date.now()
+    });
+    $('study-self-check-status').textContent = stateSync.applied
+      ? `Saved locally · self-check: ${labels[rating]} · current state: ${stateSync.label}.`
+      : `Saved locally · self-check: ${labels[rating]}.`;
   }
 
   function finalizeCurrentAttempt() {
@@ -2433,6 +2576,33 @@
     historyRatingEditGrace.add('self-old-event');
     check('just-filled older attempt stays editable in current review', historyRatingEditPolicy('self-old', '419', oldRated, fixtures).editable === true);
     historyRatingEditGrace.delete('self-old-event');
+
+    const seed = { studyCount: 7, reviewCount: 4, attempts: 11, exposureCount: 15, reviewReasons: ['usage'] };
+    const gotIt = standardRatingStatePatch(seed, '419', 'got-it', 1000);
+    const almost = standardRatingStatePatch(seed, '419', 'almost', 1000);
+    const notYet = standardRatingStatePatch(seed, '419', 'not-yet', 1000);
+    const noIdea = standardRatingStatePatch(seed, '419', 'no-idea', 1000);
+    check('Got it maps to Studied for now', gotIt?.known === true && gotIt?.review === false && gotIt?.lastResult === 'studied' && gotIt?.reviewLevel === '');
+    check('Almost maps to Review Light', almost?.review === true && almost?.reviewLevel === 'light');
+    check('Not yet maps to Review Medium', notYet?.review === true && notYet?.reviewLevel === 'medium');
+    check('No idea maps to Review High', noIdea?.review === true && noIdea?.reviewLevel === 'high');
+    check('Standard sync preserves card counters', gotIt?.studyCount === 7 && gotIt?.reviewCount === 4 && gotIt?.attempts === 11 && gotIt?.exposureCount === 15);
+    check('Review rating preserves manual reasons', almost?.reviewReasons?.[0] === 'usage');
+
+    const eventOld = { eventId: 'event-old', wordId: '419', completedAt: '2026-01-01T10:00:00.000Z' };
+    const eventNew = { eventId: 'event-new', wordId: '419', completedAt: '2026-01-01T11:00:00.000Z' };
+    check('newer Standard attempt blocks old history from current state', standardStateSyncPolicy({
+      wordId: '419', eventId: 'event-old', authorityTimestamp: standardAttemptTimestamp(eventOld), studyEvents: [eventOld, eventNew], interactionEvents: []
+    }).reason === 'newer-standard-attempt');
+    check('newer manual state blocks old history from current state', standardStateSyncPolicy({
+      wordId: '419', eventId: 'event-old', authorityTimestamp: standardAttemptTimestamp(eventOld), studyEvents: [eventOld], interactionEvents: [{ wordId: '419', action: 'attention_set', timestamp: Date.parse('2026-01-01T10:30:00.000Z') }]
+    }).reason === 'newer-manual-state');
+    check('unrelated manual event does not block current state', standardStateSyncPolicy({
+      wordId: '419', eventId: 'event-old', authorityTimestamp: standardAttemptTimestamp(eventOld), studyEvents: [eventOld], interactionEvents: [{ wordId: '420', action: 'studied', timestamp: Date.parse('2026-01-01T10:30:00.000Z') }]
+    }).apply === true);
+    check('latest attempt with no newer state can sync', standardStateSyncPolicy({
+      wordId: '419', eventId: 'event-new', authorityTimestamp: standardAttemptTimestamp(eventNew), studyEvents: [eventOld, eventNew], interactionEvents: []
+    }).apply === true);
     return { passed: checks.every(item => item.passed), checks };
   }
 
