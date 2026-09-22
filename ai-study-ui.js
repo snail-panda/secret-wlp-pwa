@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Open Production Hint Pool Calibration v1.8.6.68 R2-I.2.1
-   Preserve Sentence Reconstruction hints; add constrained variation, strength gating, and learner-selected hint allowance for open-production types. */
+/* WLP Stage 7 — AI Study Open Production Hint Pool Calibration v1.8.6.69 R2-I.2.2
+   Preserve Sentence Reconstruction hints; broaden target-appropriate optional hint candidates without forcing variation. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.7';
+  const VERSION = '1.8.8';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -2630,6 +2630,25 @@
       : '';
   }
 
+  function targetConnectorHint(target, readiness = {}) {
+    const handling = clean(readiness?.handling).toLowerCase();
+    if (handling === 'construction' || variableSlotCount(target) > 0) return '';
+    const lowerWords = targetWordTokens(target).map(word => word.toLowerCase());
+    if (lowerWords.length < 2) return '';
+    const connector = lowerWords.find(word => PREPOSITION_WORDS.has(word));
+    if (!connector) return '';
+    if (connector === 'like' || connector === 'as') return 'A fixed comparison word is part of the expression.';
+    return 'A fixed linking or prepositional word is part of the expression.';
+  }
+
+  function targetRegisterHint(target) {
+    const archaicMarkers = new Set(['thee','thou','thy','thine','ye','shalt','wilt']);
+    const lowerWords = targetWordTokens(target).map(word => word.toLowerCase());
+    return lowerWords.some(word => archaicMarkers.has(word))
+      ? 'The expression contains an archaic pronoun or form.'
+      : '';
+  }
+
   function targetLengthHint(target) {
     const words = targetWordTokens(target);
     if (words.length !== 1) return '';
@@ -2695,6 +2714,12 @@
     return candidates.find(item => item.toLowerCase() !== targetKey) || '';
   }
 
+  function neighborInitialHint(context = {}, target = '') {
+    const neighbor = nearbyAlternative(context, target);
+    const match = clean(neighbor).match(/[A-Za-z]/);
+    return match ? `A nearby natural alternative begins with “${match[0].toUpperCase()}”.` : '';
+  }
+
   function namedNeighborHint(context = {}, target = '') {
     const neighbor = nearbyAlternative(context, target);
     return neighbor ? `One nearby natural alternative is “${neighbor}”.` : '';
@@ -2731,11 +2756,14 @@
       hintCandidate('part-of-speech', 'core', 1, targetPosHint(readiness)),
       hintCandidate('variable-slots', 'structure', 2, targetSlotHint(value)),
       hintCandidate('fixed-preposition', 'structure', 2, targetPrepositionHint(value, readiness)),
+      hintCandidate('fixed-connector', 'structure', 2, targetConnectorHint(value, readiness)),
+      hintCandidate('register-marker', 'register', 2, targetRegisterHint(value)),
       hintCandidate('family-handling', 'structure', 2, targetFamilyHint(readiness)),
       hintCandidate('letter-count', 'lexical', 2, targetLengthHint(value)),
       hintCandidate('semantic-focus', 'semantic', 3, semanticFocusHint(context, value, readiness)),
       hintCandidate('initial-letter', 'lexical', 3, targetInitialHint(value)),
       hintCandidate('ending-letter', 'lexical', 3, targetEndingHint(value)),
+      hintCandidate('neighbor-initial', 'neighbor', 3, neighborInitialHint(context, value)),
       hintCandidate('named-neighbor', 'neighbor', 4, namedNeighborHint(context, value))
     ].filter(Boolean);
 
@@ -2779,7 +2807,8 @@
       const recentIndex = recent.lastIndexOf(candidate.category);
       const recentPenalty = recentIndex >= 0 ? 240 - Math.min(160, (recent.length - 1 - recentIndex) * 30) : 0;
       const familyCount = usedFamilies.get(candidate.family) || 0;
-      const familyPenalty = familyCount * (candidate.family === 'lexical' ? 65 : 35);
+      const repeatPenalty = candidate.family === 'neighbor' ? 220 : candidate.family === 'lexical' ? 65 : 35;
+      const familyPenalty = familyCount * repeatPenalty;
       // Prefer the least revealing clue that still adds a new axis.
       // Difficulty controls when stronger clues become eligible; it does not force them early.
       const strengthPenalty = candidate.strength * 28;
@@ -2892,6 +2921,26 @@
         name: 'whole-expression',
         input: { target: "You don't want to know.", readiness: { kind: 'sentence-expression', handling: 'sentence-expression', posCategories: [] }, difficulty: 'standard', experienceType: 'dialogue', context: {}, hintLimit: 4, seed: 'whole', recentCategories: [] },
         test: plan => plan.some(h => h.text.includes('whole expression or sentence'))
+      },
+      {
+        name: 'archaic-expression-has-register-option',
+        input: { target: 'fare thee well', readiness: { kind: 'simple', handling: 'single', posCategories: [] }, difficulty: 'standard', experienceType: 'open-description', context: {}, hintLimit: 6, seed: 'archaic', recentCategories: [] },
+        test: plan => openProductionHintCandidates({ target: 'fare thee well', readiness: { kind: 'simple', handling: 'single', posCategories: [] }, context: {} }).some(h => h.category === 'register-marker')
+      },
+      {
+        name: 'comparison-expression-has-structure-option',
+        input: { target: 'age like milk', readiness: { kind: 'simple', handling: 'single', posCategories: [] }, difficulty: 'standard', experienceType: 'open-description', context: {}, hintLimit: 6, seed: 'comparison', recentCategories: [] },
+        test: plan => openProductionHintCandidates({ target: 'age like milk', readiness: { kind: 'simple', handling: 'single', posCategories: [] }, context: {} }).some(h => h.category === 'fixed-connector')
+      },
+      {
+        name: 'neighbor-can-stay-partial-before-explicit',
+        input: { target: 'permeate', readiness: { kind: 'simple', handling: 'single', posCategories: ['verb'] }, difficulty: 'standard', experienceType: 'open-description', context, hintLimit: 4, seed: 'neighbor-partial', recentCategories: [] },
+        test: plan => {
+          const candidates = openProductionHintCandidates({ target: 'permeate', readiness: { kind: 'simple', handling: 'single', posCategories: ['verb'] }, context });
+          const partial = candidates.find(h => h.category === 'neighbor-initial');
+          const explicit = candidates.find(h => h.category === 'named-neighbor');
+          return Boolean(partial && explicit && partial.strength < explicit.strength);
+        }
       },
       {
         name: 'non-open-type-untouched',
