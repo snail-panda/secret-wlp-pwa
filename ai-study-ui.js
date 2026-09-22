@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Complex Target Readiness phase 2 v1.8.6.62 R2-H.2
-   Full local-card readiness audit + suspicious-ready discovery; provider-agnostic. */
+/* WLP Stage 7 — AI Study Complex Target Readiness calibration v1.8.6.63 R2-H.3
+   Production-card taxonomy calibration, parser refinement, and false-positive cleanup; provider-agnostic. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.1';
+  const VERSION = '1.8.2';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -117,17 +117,40 @@
       .trim();
     if (text !== original) notes.push('removed Japanese lookup residue');
 
+    // Parenthetical Japanese/source glosses are metadata when a usable Latin-script
+    // expression exists outside the parentheses. Keep the gloss in the card, but
+    // do not ask the learner to reproduce it as part of the English target.
+    const sourceGloss = text.match(/^(.+?)\s*\(([^()]*)\)\s*$/u);
+    if (sourceGloss && hasJapaneseText(sourceGloss[2]) && /[A-Za-zÀ-ž]/u.test(sourceGloss[1])) {
+      text = clean(sourceGloss[1]);
+      notes.push('removed parenthetical source-language gloss');
+    }
+
+    // Editorial labels such as “(adjective)” or “(slang)” belong in metadata/POS,
+    // not in the literal practice target.
+    const editorialParen = text.match(/^(.+?)\s*\(([^()]*)\)\s*$/);
+    if (editorialParen && /^(?:adj(?:ective)?|adv(?:erb)?|noun|verb|phrase|idiom|slang|informal|formal|chiefly\s+(?:british|american)|br(?:itish\s+)?e|am(?:erican\s+)?e|uk|us)(?:\s*[,;/&+]\s*(?:adj(?:ective)?|adv(?:erb)?|noun|verb|phrase|idiom|slang|informal|formal|br(?:itish\s+)?e|am(?:erican\s+)?e|uk|us))*$/i.test(clean(editorialParen[2]))) {
+      text = clean(editorialParen[1]);
+      notes.push('removed parenthetical editorial label');
+    }
+
     const defineMatch = text.match(/^define\s+(.+)$/i);
     if (defineMatch) {
       text = clean(defineMatch[1]);
       notes.push('removed define-query wrapper');
     }
 
-    const meaningMatch = text.match(/^(.+?)\s+(?:meaning|definition)(?:\s+as\s+(?:a|an)\s+(.+?))?\s*[?？]?$/i);
+    // Be deliberately conservative here. “lose its meaning” is a real phrase,
+    // while “disconnect meaning as a noun” is clearly a lookup wrapper.
+    const meaningMatch = text.match(/^(.+?)\s+(?:meaning|definition)(?:\s+as\s+(?:a|an)\s+(.+?))?\s*([?？]?)$/i);
     if (meaningMatch) {
-      text = clean(meaningMatch[1]);
-      focus = clean(meaningMatch[2]);
-      notes.push('removed meaning/definition query residue');
+      const explicitFocus = clean(meaningMatch[2]);
+      const explicitQuestion = Boolean(clean(meaningMatch[3]));
+      if (explicitFocus || explicitQuestion) {
+        text = clean(meaningMatch[1]);
+        focus = explicitFocus;
+        notes.push('removed meaning/definition query residue');
+      }
     }
 
     const parentheticalMeta = text.match(/^(.+?)\s*\(([^)]*(?:why|what|how|meaning|mean|called|difference)[^)]*)\)\s*$/i);
@@ -143,34 +166,147 @@
     return uniqueClean(clean(value).split(/\s+(?:vs\.?|versus)\s+/i), 4);
   }
 
+  function expandCompactSlashSegment(value) {
+    const segment = clean(value);
+    if (!segment || !segment.includes('/')) return segment ? [segment] : [];
+    if (/\s\/\s/.test(segment)) return uniqueClean(segment.split(/\s+\/\s+/), 8);
+
+    const slashCount = (segment.match(/\//g) || []).length;
+    if (slashCount !== 1) return uniqueClean(segment.split(/\s*\/\s*/), 8);
+    const [leftRaw, rightRaw] = segment.split('/').map(clean);
+    if (!leftRaw || !rightRaw) return uniqueClean([leftRaw, rightRaw], 8);
+
+    const leftTokens = leftRaw.split(/\s+/).filter(Boolean);
+    const rightTokens = rightRaw.split(/\s+/).filter(Boolean);
+    if (leftTokens.length === 1 && rightTokens.length > 1) {
+      const suffix = rightTokens.slice(1).join(' ');
+      return uniqueClean([`${leftRaw} ${suffix}`, rightRaw], 8);
+    }
+    if (leftTokens.length > rightTokens.length && rightTokens.length >= 1) {
+      const prefix = leftTokens.slice(0, leftTokens.length - rightTokens.length).join(' ');
+      return uniqueClean([leftRaw, `${prefix} ${rightRaw}`], 8);
+    }
+    return uniqueClean([leftRaw, rightRaw], 8);
+  }
+
   function splitFamilyTarget(value) {
     const text = clean(value);
     if (!text || /https?:\/\//i.test(text) || /\band\/or\b/i.test(text)) return [];
-    if (!/\s*\/\s*/.test(text)) return [];
-    const parts = uniqueClean(text.split(/\s*\/\s*/), 6);
-    return parts.length >= 2 ? parts : [];
+    if (!/\//.test(text)) return [];
+    const groups = text.split(/\s*;\s*/).map(clean).filter(Boolean);
+    const parts = groups.flatMap(expandCompactSlashSegment);
+    return uniqueClean(parts, 8);
   }
 
   function detectMetaQuestion(value) {
     const text = clean(value);
-    if (!text) return false;
-    return /(?:\?|？)\s*$/.test(text) && /\b(?:meaning|mean|define|definition|difference|called|why|what is|what are|how is|how are)\b/i.test(text);
+    if (!text || !/(?:\?|？)\s*$/.test(text)) return false;
+    return /^(?:define\b|what\s+(?:does|do)\b.+\bmean\b|what\s+(?:is|are)\s+the\s+(?:meaning|definition)\b|.+\b(?:meaning|definition)\s*[?？]$)/i.test(text);
   }
 
   function detectSentenceExpression(value) {
     const text = clean(value);
     if (!text) return false;
     const words = text.split(/\s+/).filter(Boolean);
-    return words.length >= 4 && (/[.!?]$/.test(text) || /^(?:i|you|we|they|he|she|it|there|that|this)\b/i.test(text));
+    return words.length >= 4 && (/[.!?]$/.test(text) || /^(?:i|you|we|they|he|she|it|there|that|this|what|why|how|who|where|when)\b/i.test(text));
+  }
+
+  function extractPosCategories(target) {
+    let pos = clean(target?.pos).toLowerCase();
+    if (!pos) return [];
+    // “related verb: stagger” describes a neighbor, not another POS of the target.
+    pos = pos.replace(/;?\s*related\s+(?:verb|noun|adjective|adverb)\s*:[^;,/]+/gi, ' ');
+    const found = [];
+    const tests = [
+      ['noun', /\bnoun\b/i],
+      ['verb', /\bverb\b/i],
+      ['adjective', /\badjective\b|\badj\.?\b/i],
+      ['adverb', /\badverb\b|\badv\.?\b/i],
+      ['preposition', /\bpreposition\b/i],
+      ['conjunction', /\bconjunction\b/i],
+      ['interjection', /\binterjection\b/i],
+      ['pronoun', /\bpronoun\b/i],
+      ['determiner', /\bdeterminer\b/i]
+    ];
+    tests.forEach(([name, re]) => { if (re.test(pos)) found.push(name); });
+    return uniqueClean(found, 8);
   }
 
   function detectMultiPos(target) {
-    const pos = clean(target?.pos);
-    if (!pos) return false;
-    const tags = uniqueClean(pos.split(/\s*(?:\/|;|,)\s*/).filter(Boolean), 8);
-    if (tags.length < 2) return false;
-    const normalized = tags.map(tag => tag.toLowerCase());
-    return new Set(normalized).size >= 2;
+    return extractPosCategories(target).length >= 2;
+  }
+
+  function variantKey(value) {
+    return clean(value).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  function inflectionStems(value) {
+    const word = clean(value).toLowerCase().replace(/[’']/g, '');
+    const out = new Set([word]);
+    if (!/^[a-z-]+$/.test(word)) return out;
+    if (word.endsWith('ies') && word.length > 4) out.add(`${word.slice(0, -3)}y`);
+    if (word.endsWith('ied') && word.length > 4) {
+      out.add(`${word.slice(0, -3)}y`);
+      out.add(word.slice(0, -1));
+    }
+    if (word.endsWith('ing') && word.length > 5) {
+      const stem = word.slice(0, -3);
+      out.add(stem);
+      out.add(`${stem}e`);
+      if (stem.length >= 2 && stem.at(-1) === stem.at(-2)) out.add(stem.slice(0, -1));
+    }
+    if (word.endsWith('ed') && word.length > 4) {
+      const stem = word.slice(0, -2);
+      out.add(stem);
+      out.add(`${stem}e`);
+      if (stem.length >= 2 && stem.at(-1) === stem.at(-2)) out.add(stem.slice(0, -1));
+    }
+    if (word.endsWith('d') && word.length > 3) out.add(word.slice(0, -1));
+    if (word.endsWith('es') && word.length > 4) out.add(word.slice(0, -2));
+    if (word.endsWith('s') && word.length > 3) out.add(word.slice(0, -1));
+    return out;
+  }
+
+  function wordsLookInflectionRelated(a, b) {
+    const aStems = inflectionStems(a);
+    const bStems = inflectionStems(b);
+    return Array.from(aStems).some(item => bStems.has(item));
+  }
+
+  function phrasesLookFormRelated(a, b) {
+    const aa = clean(a).toLowerCase().split(/\s+/).filter(Boolean);
+    const bb = clean(b).toLowerCase().split(/\s+/).filter(Boolean);
+    if (!aa.length || aa.length !== bb.length) return false;
+    let differences = 0;
+    for (let i = 0; i < aa.length; i += 1) {
+      if (aa[i] === bb[i]) continue;
+      if (!wordsLookInflectionRelated(aa[i], bb[i])) return false;
+      differences += 1;
+      if (differences > 1) return false;
+    }
+    return differences === 1;
+  }
+
+  function classifyFamilyHandling(units) {
+    const values = uniqueClean(units, 8);
+    if (values.length < 2) return 'single';
+    const variantKeys = values.map(variantKey).filter(Boolean);
+    if (variantKeys.length === values.length && new Set(variantKeys).size === 1) return 'variant';
+    const first = values[0];
+    if (values.slice(1).every(item => phrasesLookFormRelated(first, item))) return 'form-family';
+    return 'alternative-expression';
+  }
+
+  function hasVariableSlot(value) {
+    return /\b(?:do\s+something|doing\s+something|something|someone|somebody|somewhere|oneself|one['’]s|someone['’]s|somebody['’]s|sth\.?|sb\.?)\b/i.test(clean(value));
+  }
+
+  function isSafeEnglishPracticeUnit(value) {
+    const text = clean(value);
+    if (!text) return false;
+    if (!/[A-Za-zÀ-ž]/u.test(text)) return false;
+    if (hasJapaneseText(text) && !/^[A-Za-zÀ-ž]/u.test(text)) return false;
+    return true;
   }
 
   function analyzeTargetReadiness(packet) {
@@ -184,42 +320,48 @@
     const metaClean = stripKnownMetaResidue(rawHeadword);
     let normalizedHeadword = metaClean.text || rawHeadword;
     let kind = resolverKind;
-    let status = 'ready';
+    let status = metaClean.notes.length ? 'normalize' : 'ready';
+    let handling = 'single';
     let practiceUnits = [];
-    let rawHeadwordLiteralTargetAllowed = true;
+    let rawHeadwordLiteralTargetAllowed = metaClean.notes.length === 0;
     let focus = metaClean.focus;
 
     const contrastParts = splitContrastTarget(normalizedHeadword);
     const familyParts = splitFamilyTarget(normalizedHeadword);
     const mixedLanguage = hasJapaneseText(rawHeadword);
-    const metaQuery = Boolean(metaClean.notes.length) || detectMetaQuestion(rawHeadword);
-    const multiPos = detectMultiPos(target);
+    const metaQuery = Boolean(metaClean.notes.some(note => /query|meta-question|lookup residue/i.test(note))) || detectMetaQuestion(rawHeadword);
+    const posCategories = extractPosCategories(target);
+    const multiPos = posCategories.length >= 2;
 
     if (resolverKind === 'contrast' || contrastParts.length >= 2) {
       kind = 'contrast';
-      status = 'decompose';
-      practiceUnits = contrastParts.length >= 2 ? contrastParts : targetFamily.slice(0, 2);
+      handling = 'contrast';
+      practiceUnits = contrastParts.length >= 2 ? contrastParts : targetFamily.slice(0, 4);
       rawHeadwordLiteralTargetAllowed = false;
       hazards.push('multi-target contrast');
-      guidance.push('Treat the two expressions as separate practice units. A contrast experience may compare both, but selectedTarget.target must be one expression, never the literal “X vs Y” label.');
+      guidance.push('Treat each side as its own practice unit. A contrast experience may compare them, but selectedTarget.target must be one practiceable expression, never the literal “X vs Y” label.');
     } else if (resolverKind === 'family' || familyParts.length >= 2) {
       kind = 'family';
-      status = 'decompose';
-      practiceUnits = familyParts.length >= 2 ? familyParts : targetFamily.slice(0, 6);
+      practiceUnits = familyParts.length >= 2 ? familyParts : targetFamily.slice(0, 8);
+      handling = classifyFamilyHandling(practiceUnits);
       rawHeadwordLiteralTargetAllowed = false;
-      hazards.push('multi-form or multi-expression family');
-      guidance.push('Practice one family member or construction realization per turn. Do not require every slash-separated form in one answer.');
-    } else if (resolverKind === 'construction') {
+      hazards.push(handling === 'variant' ? 'orthographic or presentation variants' : handling === 'form-family' ? 'inflectional or form family' : 'alternative expressions or constructions');
+      if (handling === 'variant') guidance.push('Treat these as equivalent written/presentation variants. One natural variant is enough for a turn; do not require every spelling/capitalization form.');
+      else if (handling === 'form-family') guidance.push('Choose one grammatically appropriate family form for this turn. Keep the lemma/family relationship available, but do not require every form in one answer.');
+      else guidance.push('These slash-separated items are related alternatives/constructions rather than one literal answer. Choose one natural unit for the current task unless the experience explicitly compares alternatives.');
+    } else if (resolverKind === 'construction' || hasVariableSlot(normalizedHeadword)) {
       kind = 'construction';
+      handling = 'construction';
       practiceUnits = [normalizedHeadword];
       hazards.push('construction with variable slot');
       guidance.push('Preserve the constructional relationship and let the variable slot inflect or change naturally; do not reduce the card to an isolated content word.');
-    } else if (resolverKind === 'labeled') {
+    } else if (resolverKind === 'labeled' || /\s*:\s*(?:synonyms?(?:\s*(?:and|&|\/)\s*near[- ]synonyms?)?|near[- ]synonyms?|usage(?:\s+notes?)?|contrast(?:s)?|related expressions?)\s*$/i.test(normalizedHeadword)) {
       kind = 'labeled';
-      status = 'decompose';
+      handling = 'labeled';
       const stripped = normalizedHeadword.replace(/\s*:\s*(?:synonyms?(?:\s*(?:and|&|\/)\s*near[- ]synonyms?)?|near[- ]synonyms?|usage(?:\s+notes?)?|contrast(?:s)?|related expressions?)\s*$/i, '').trim();
       normalizedHeadword = stripped || normalizedHeadword;
       practiceUnits = [normalizedHeadword];
+      status = 'normalize';
       rawHeadwordLiteralTargetAllowed = false;
       hazards.push('editorial label in headword');
       guidance.push('The colon label is metadata, not learner language. Practice the underlying expression and use the label only to shape comparison/neighbor work.');
@@ -227,48 +369,64 @@
       practiceUnits = [normalizedHeadword];
     }
 
+    // Clean each unit separately, then exclude source-language-only units from
+    // English production targets. The full card remains available as context.
+    const cleanedUnits = practiceUnits.map(unit => stripKnownMetaResidue(unit).text || clean(unit));
+    const englishUnits = uniqueClean(cleanedUnits.filter(isSafeEnglishPracticeUnit), 8);
     if (mixedLanguage) {
       hazards.push('mixed-language headword');
       rawHeadwordLiteralTargetAllowed = false;
-      if (normalizedHeadword && !hasJapaneseText(normalizedHeadword)) {
-        status = status === 'decompose' ? status : 'normalize';
-        guidance.push('Use the cleaned English expression as the practice target; Japanese lookup residue is metadata, not part of the answer.');
+      if (englishUnits.length) {
+        practiceUnits = englishUnits;
+        status = 'normalize';
+        guidance.push('Use the English/Latin-script practice unit and treat Japanese/source-language text as source gloss or comparison metadata, not as required learner output.');
       } else {
+        practiceUnits = [];
         status = 'review';
-        guidance.push('The headword still contains mixed-language material after deterministic cleanup. Prefer another candidate unless the card provides a clear English practice unit.');
+        guidance.push('No safe English/Latin-script practice unit remained after source-language cleanup. Prefer another candidate rather than inventing an English target.');
       }
+    } else {
+      practiceUnits = englishUnits.length ? englishUnits : uniqueClean(cleanedUnits, 8);
     }
 
     if (metaQuery) {
       hazards.push('lookup/meta-query residue');
       rawHeadwordLiteralTargetAllowed = false;
-      if (normalizedHeadword) {
-        status = status === 'decompose' ? status : 'normalize';
-        guidance.push('Do not make the learner reproduce search-query wording such as “meaning”, “define”, or a parenthetical why-question. Practice the underlying expression/concept.');
+      if (practiceUnits.length) {
+        if (status !== 'review') status = 'normalize';
+        guidance.push('Do not make the learner reproduce search-query wording. Practice the underlying expression/concept only.');
       } else {
         status = 'review';
       }
     }
 
+    const senseSelectionRequired = multiPos;
     if (multiPos) {
       hazards.push('multiple parts of speech');
-      if (status === 'ready') status = 'decompose';
-      guidance.push('Choose one part of speech / sense for this turn and make the prompt, expected form, and feedback consistent with that choice. Do not test all POS values at once.');
+      if (handling === 'single') handling = 'sense-selection';
+      guidance.push(`Choose one part of speech / sense for this turn (${posCategories.join(' / ')}) and keep the prompt, expected form, and feedback consistent with that choice. Do not test all senses at once.`);
     }
 
     if (detectSentenceExpression(normalizedHeadword) && !metaQuery) {
       if (kind === 'simple') kind = 'sentence-expression';
+      if (handling === 'single') handling = 'sentence-expression';
       hazards.push('sentence or pragmatic expression');
       guidance.push('The full sentence-like expression may itself be the legitimate target. Do not automatically extract a single content word from it.');
     }
 
-    practiceUnits = uniqueClean(practiceUnits.map(unit => stripKnownMetaResidue(unit).text || unit), 8);
-    if (!practiceUnits.length && targetFamily.length) practiceUnits = targetFamily.slice(0, 8);
-    if (!practiceUnits.length && normalizedHeadword) practiceUnits = [normalizedHeadword];
+    if (!practiceUnits.length && targetFamily.length && !mixedLanguage) practiceUnits = targetFamily.slice(0, 8);
+    if (!practiceUnits.length && normalizedHeadword && !hasJapaneseText(normalizedHeadword)) practiceUnits = [normalizedHeadword];
     if (!practiceUnits.length) {
       status = 'review';
       hazards.push('no deterministic practice unit');
       guidance.push('No safe practice unit could be derived locally. Prefer another candidate rather than inventing a target.');
+    }
+
+    // Reclassify family handling after mixed-language cleanup removed source glosses.
+    if (kind === 'family' && practiceUnits.length >= 2) handling = classifyFamilyHandling(practiceUnits);
+    if (kind === 'family' && practiceUnits.length === 1 && handling !== 'labeled') handling = multiPos ? 'sense-selection' : 'single';
+    if (kind === 'contrast' && practiceUnits.length < 2) {
+      guidance.push('Only one English practice unit survived deterministic cleanup; use the other side as conceptual/source context rather than required output.');
     }
 
     let primaryTarget = clean(practiceUnits[0] || normalizedHeadword);
@@ -278,8 +436,9 @@
     }
 
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       status,
+      handling,
       kind,
       resolverKind,
       rawHeadword,
@@ -288,11 +447,13 @@
       practiceUnits,
       targetFamily,
       pos: clean(target.pos),
+      posCategories,
+      senseSelectionRequired,
       entryType: clean(target.entryType),
       focus,
       rawHeadwordLiteralTargetAllowed,
-      hazards: uniqueClean(hazards, 8),
-      guidance: uniqueClean(guidance, 6)
+      hazards: uniqueClean(hazards, 10),
+      guidance: uniqueClean(guidance, 8)
     };
   }
 
@@ -333,16 +494,26 @@
   function runTargetReadinessSelfTest() {
     const packet = (headword, targetKind = 'simple', pos = '', family = []) => ({ target: { headword, targetKind, pos, targetFamily: family } });
     const cases = [
-      ['simple', packet('overwrought'), r => r.status === 'ready' && r.kind === 'simple' && r.primaryTarget === 'overwrought'],
-      ['contrast', packet('flop vs hit', 'contrast'), r => r.status === 'decompose' && r.kind === 'contrast' && r.practiceUnits.join('|') === 'flop|hit'],
-      ['family', packet('abrogate / abrogated', 'family', 'verb / adjective'), r => r.status === 'decompose' && r.kind === 'family' && r.practiceUnits.length === 2],
-      ['construction', packet('blow something out of proportion', 'construction', 'verb phrase'), r => r.kind === 'construction' && r.status === 'ready'],
-      ['labeled', packet('ledge: synonyms and near-synonyms', 'labeled', 'noun'), r => r.kind === 'labeled' && r.primaryTarget === 'ledge' && r.rawHeadwordLiteralTargetAllowed === false],
+      ['simple', packet('overwrought'), r => r.status === 'ready' && r.handling === 'single' && r.primaryTarget === 'overwrought'],
+      ['contrast', packet('flop vs hit', 'contrast'), r => r.status === 'ready' && r.handling === 'contrast' && r.practiceUnits.join('|') === 'flop|hit'],
+      ['form-family', packet('abrogate / abrogated', 'family', 'verb; past / past participle: abrogated'), r => r.status === 'ready' && r.handling === 'form-family' && r.practiceUnits.length === 2],
+      ['variant', packet("bull's-eye / bullseye", 'family', 'noun'), r => r.status === 'ready' && r.handling === 'variant'],
+      ['alternative-expression', packet('get a lemon / buy a lemon', 'family', 'idiom'), r => r.status === 'ready' && r.handling === 'alternative-expression'],
+      ['compact-family', packet('go/come to the brink of; bring/take to the brink', 'simple', 'idiomatic phrase family'), r => r.practiceUnits.join('|') === 'go to the brink of|come to the brink of|bring to the brink|take to the brink'],
+      ['construction', packet('blow something out of proportion', 'construction', 'verb phrase'), r => r.status === 'ready' && r.handling === 'construction'],
+      ['implicit-construction', packet('set someone off', 'simple', 'phrasal verb'), r => r.status === 'ready' && r.kind === 'construction' && r.handling === 'construction'],
+      ['labeled', packet('ledge: synonyms and near-synonyms', 'labeled', 'noun'), r => r.status === 'normalize' && r.handling === 'labeled' && r.primaryTarget === 'ledge'],
       ['japanese-residue', packet('hyperosmia 日本語で', 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'hyperosmia'],
+      ['mixed-gloss', packet('a mixed bag (玉石混交)', 'simple', 'idiom'), r => r.status === 'normalize' && r.primaryTarget === 'a mixed bag'],
       ['meaning-query', packet('disconnect meaning as a noun', 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'disconnect' && r.focus === 'noun'],
+      ['real-meaning-phrase', packet('lose its meaning', 'simple', 'phrase'), r => r.status === 'ready' && r.primaryTarget === 'lose its meaning'],
       ['parenthetical-query', packet("garden-path sentence (why 'garden path'?)", 'simple', 'noun'), r => r.status === 'normalize' && r.primaryTarget === 'garden-path sentence'],
+      ['conversational-question', packet('Why come to me about it?', 'simple', 'conversational expression'), r => r.status === 'ready' && r.kind === 'sentence-expression'],
       ['sentence-expression', packet("You don't want to know.", 'simple', 'pragmatic expression'), r => r.status === 'ready' && r.kind === 'sentence-expression'],
-      ['multi-pos', packet('stable', 'simple', 'noun / adjective / verb'), r => r.status === 'decompose' && r.hazards.includes('multiple parts of speech')]
+      ['multi-pos-sense-selection', packet('stable', 'simple', 'noun / adjective / verb'), r => r.status === 'ready' && r.handling === 'sense-selection' && r.senseSelectionRequired === true],
+      ['related-pos-not-multi', packet('staggering', 'simple', 'adjective; related verb: stagger'), r => r.status === 'ready' && r.senseSelectionRequired === false],
+      ['bilingual-contrast', packet('logogram vs phonogram (表意文字 vs 表音文字)', 'contrast', 'linguistics contrast'), r => r.status === 'normalize' && r.handling === 'contrast' && r.practiceUnits.join('|') === 'logogram|phonogram'],
+      ['japanese-only-review', packet('蛙化現象: coined in 2004 → popularized from around 2019', 'simple', 'etymology / usage history'), r => r.status === 'review']
     ];
     const checks = cases.map(([name, input, test]) => {
       const result = analyzeTargetReadiness(input);
@@ -383,20 +554,18 @@
 
   function readinessAuditSuspicionReasons(readiness, target) {
     const raw = clean(readiness?.rawHeadword || target?.headword);
-    const pos = clean(target?.pos || readiness?.pos);
+    const handling = clean(readiness?.handling);
     const reasons = [];
     if (!raw) return ['empty headword'];
-    if (/\//.test(raw)) reasons.push('slash in headword');
-    if (/\b(?:vs\.?|versus)\b/i.test(raw)) reasons.push('comparison marker');
-    if (/:/.test(raw)) reasons.push('colon label or construction');
-    if (/[()]/.test(raw)) reasons.push('parenthetical material');
-    if (/[?？]/.test(raw)) reasons.push('question-mark headword');
-    if (hasJapaneseText(raw)) reasons.push('mixed-language text');
-    if (/\b(?:meaning|definition|define|synonyms?|difference|why|what is|what are|called)\b/i.test(raw)) reasons.push('lookup/meta wording');
-    if (/\b(?:something|someone|somebody|somewhere|oneself|one['’]s|someone['’]s|somebody['’]s|sth\.?|sb\.?)\b/i.test(raw)) reasons.push('variable-slot wording');
+    if (/\//.test(raw) && !['variant','form-family','alternative-expression'].includes(handling)) reasons.push('unclassified slash structure');
+    if (/\b(?:vs\.?|versus)\b/i.test(raw) && handling !== 'contrast') reasons.push('unclassified comparison marker');
+    if (/:/.test(raw) && !['labeled','construction'].includes(handling) && clean(readiness?.status) !== 'normalize') reasons.push('unclassified colon structure');
+    if (/[()]/.test(raw) && clean(readiness?.status) === 'ready' && !/\(s\)\b/i.test(raw)) reasons.push('unclassified parenthetical material');
+    if (/[?？]/.test(raw) && clean(readiness?.kind) !== 'sentence-expression') reasons.push('question-mark headword not classified as expression');
+    if (hasJapaneseText(raw) && clean(readiness?.status) === 'ready') reasons.push('mixed-language text left ready');
+    if (/\b(?:meaning|definition|define|synonyms?|difference|called)\b/i.test(raw) && clean(readiness?.status) === 'ready') reasons.push('lookup/meta wording left ready');
     if (/\s(?:—|–|->|→|=)\s/.test(raw)) reasons.push('relation separator');
-    if (raw.split(/\s+/).filter(Boolean).length >= 8) reasons.push('very long headword');
-    if (pos && /(?:\/|;|,)/.test(pos)) reasons.push('multi-POS punctuation');
+    if (raw.split(/\s+/).filter(Boolean).length >= 10 && !['sentence-expression','construction'].includes(handling)) reasons.push('very long unclassified headword');
     return uniqueClean(reasons, 12);
   }
 
@@ -413,6 +582,9 @@
       resolverKind: clean(readiness?.resolverKind),
       kind: clean(readiness?.kind),
       status: clean(readiness?.status),
+      handling: clean(readiness?.handling),
+      senseSelectionRequired: readiness?.senseSelectionRequired === true,
+      posCategories: Array.isArray(readiness?.posCategories) ? readiness.posCategories.slice(0, 8) : [],
       primaryTarget: clean(readiness?.primaryTarget),
       practiceUnits: Array.isArray(readiness?.practiceUnits) ? readiness.practiceUnits.slice(0, 8) : [],
       hazards: Array.isArray(readiness?.hazards) ? readiness.hazards.slice(0, 8) : [],
@@ -436,15 +608,16 @@
 
     const report = {
       schemaVersion: 1,
-      audit: 'complex-target-readiness-v1',
+      audit: 'complex-target-readiness-v2',
       uiVersion: VERSION,
       source: TARGET_AUDIT_MASTER_URL,
       totalMasterCards: wordIds.length,
       audited: 0,
       failed: 0,
-      counts: { status: {}, kind: {}, resolverKind: {}, hazards: {} },
+      counts: { status: {}, handling: {}, kind: {}, resolverKind: {}, hazards: {} },
+      senseSelectionRequiredCount: 0,
       readyButSuspiciousCount: 0,
-      samples: { review: [], normalize: [], decompose: [], readyButSuspicious: [], failures: [] }
+      samples: { review: [], normalize: [], guided: [], readyButSuspicious: [], failures: [] }
     };
 
     const addSample = (group, sample) => {
@@ -474,14 +647,16 @@
         const target = item.packet?.target || {};
         const readiness = item.readiness || {};
         incrementAuditCount(report.counts.status, readiness.status);
+        incrementAuditCount(report.counts.handling, readiness.handling);
         incrementAuditCount(report.counts.kind, readiness.kind);
         incrementAuditCount(report.counts.resolverKind, readiness.resolverKind);
         (Array.isArray(readiness.hazards) ? readiness.hazards : []).forEach(hazard => incrementAuditCount(report.counts.hazards, hazard));
+        if (readiness.senseSelectionRequired === true) report.senseSelectionRequiredCount += 1;
 
         const status = clean(readiness.status);
         if (status === 'review') addSample('review', compactAuditSample(item.wordId, target, readiness));
         else if (status === 'normalize') addSample('normalize', compactAuditSample(item.wordId, target, readiness));
-        else if (status === 'decompose') addSample('decompose', compactAuditSample(item.wordId, target, readiness));
+        if (status === 'ready' && !['single','sentence-expression'].includes(clean(readiness.handling))) addSample('guided', compactAuditSample(item.wordId, target, readiness));
 
         if (status === 'ready') {
           const suspicionReasons = readinessAuditSuspicionReasons(readiness, target);
@@ -500,12 +675,15 @@
 
     const sortCounts = bucket => Object.fromEntries(Object.entries(bucket).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));
     report.counts.status = sortCounts(report.counts.status);
+    report.counts.handling = sortCounts(report.counts.handling);
     report.counts.kind = sortCounts(report.counts.kind);
     report.counts.resolverKind = sortCounts(report.counts.resolverKind);
     report.counts.hazards = sortCounts(report.counts.hazards);
     report.summary = [
       `Audited ${report.audited}/${report.totalMasterCards} master cards; ${report.failed} failed to inspect.`,
       `Status: ${Object.entries(report.counts.status).map(([key, value]) => `${key}=${value}`).join(', ') || 'none'}.`,
+      `Handling: ${Object.entries(report.counts.handling).map(([key, value]) => `${key}=${value}`).join(', ') || 'none'}.`,
+      `Sense-selection required: ${report.senseSelectionRequiredCount}.`,
       `Ready-but-suspicious: ${report.readyButSuspiciousCount}.`,
       'No provider/AI calls were made; this audit is local/read-only.'
     ].join(' ');
