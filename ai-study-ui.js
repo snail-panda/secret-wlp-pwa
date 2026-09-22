@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.8.3';
+  const VERSION = '1.8.4';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -512,7 +512,8 @@
     }
 
     const shortQuestionExpression = /[?？]$/.test(normalizedHeadword) && /\b(?:expression|interjection|question|utterance)\b/i.test(clean(target.pos));
-    if ((detectSentenceExpression(normalizedHeadword) || shortQuestionExpression) && !metaQuery) {
+    const longQuotedExpression = normalizedHeadword.split(/\s+/).filter(Boolean).length >= 4 && /\b(?:quotation|proverb(?:-like)?|saying|maxim)\b/i.test(clean(target.pos));
+    if ((detectSentenceExpression(normalizedHeadword) || shortQuestionExpression || longQuotedExpression) && !metaQuery) {
       if (kind === 'simple') kind = 'sentence-expression';
       if (handling === 'single') handling = 'sentence-expression';
       hazards.push('sentence or pragmatic expression');
@@ -534,11 +535,10 @@
       guidance.push('Only one English practice unit survived deterministic cleanup; use the other side as conceptual/source context rather than required output.');
     }
 
-    let primaryTarget = clean(practiceUnits[0] || normalizedHeadword);
-    if (kind === 'construction' && targetFamily.length) {
-      const familyCandidate = targetFamily.find(item => clean(item) && !/[/:]/.test(item));
-      if (familyCandidate) primaryTarget = clean(familyCandidate);
-    }
+    // For constructions, the complete practice unit is the target. Do not let a
+    // resolver-side lexical family candidate collapse “pit someone/something
+    // against someone/something” to the isolated verb “pit”.
+    const primaryTarget = clean(practiceUnits[0] || normalizedHeadword);
 
     return {
       schemaVersion: 2,
@@ -626,6 +626,9 @@
       ['multi-pos-sense-selection', packet('stable', 'simple', 'noun / adjective / verb'), r => r.status === 'ready' && r.handling === 'sense-selection' && r.senseSelectionRequired === true],
       ['related-pos-not-multi', packet('staggering', 'simple', 'adjective; related verb: stagger'), r => r.status === 'ready' && r.senseSelectionRequired === false],
       ['bilingual-contrast', packet('logogram vs phonogram (表意文字 vs 表音文字)', 'contrast', 'linguistics contrast'), r => r.status === 'normalize' && r.handling === 'contrast' && r.practiceUnits.join('|') === 'logogram|phonogram'],
+      ['construction-slot-primary', packet('pit someone/something against someone/something', 'simple', 'verb phrase', ['pit']), r => r.kind === 'construction' && r.handling === 'construction' && r.primaryTarget === 'pit someone/something against someone/something'],
+      ['construction-slot-primary-ellipsis', packet('take someone/something for ...', 'simple', 'verb phrase', ['take']), r => r.kind === 'construction' && r.primaryTarget === 'take someone/something for ...'],
+      ['long-quotation-expression', packet('greatest glory in living lies not in never falling but in rising every time we fall', 'simple', 'quotation / proverb-like saying'), r => r.kind === 'sentence-expression' && r.handling === 'sentence-expression'],
       ['japanese-only-review', packet('蛙化現象: coined in 2004 → popularized from around 2019', 'simple', 'etymology / usage history'), r => r.status === 'review']
     ];
     const checks = cases.map(([name, input, test]) => {
@@ -670,13 +673,16 @@
     const handling = clean(readiness?.handling);
     const reasons = [];
     if (!raw) return ['empty headword'];
-    if (/\//.test(raw) && !['variant','form-family','alternative-expression'].includes(handling)) reasons.push('unclassified slash structure');
+
+    const slashParts = splitOutsideParentheses(protectVariableSlotSlashes(raw), '/', { spacedOnly: true });
+    const caseOnlySlashVariant = slashParts.length >= 2 && new Set(slashParts.map(variantKey).filter(Boolean)).size === 1;
+    if (/\//.test(raw) && !['variant','form-family','alternative-expression','construction'].includes(handling) && !caseOnlySlashVariant) reasons.push('unclassified slash structure');
     if (/\b(?:vs\.?|versus)\b/i.test(raw) && handling !== 'contrast') reasons.push('unclassified comparison marker');
     if (/:/.test(raw) && !['labeled','construction'].includes(handling) && clean(readiness?.status) !== 'normalize') reasons.push('unclassified colon structure');
-    if (/[()]/.test(raw) && clean(readiness?.status) === 'ready' && !/\(s\)\b/i.test(raw)) reasons.push('unclassified parenthetical material');
+    if (/[()]/.test(raw) && clean(readiness?.status) === 'ready' && !/\((?:s|es)\)/i.test(raw)) reasons.push('unclassified parenthetical material');
     if (/[?？]/.test(raw) && clean(readiness?.kind) !== 'sentence-expression') reasons.push('question-mark headword not classified as expression');
     if (hasJapaneseText(raw) && clean(readiness?.status) === 'ready') reasons.push('mixed-language text left ready');
-    if (/\b(?:meaning|definition|define|synonyms?|difference|called)\b/i.test(raw) && clean(readiness?.status) === 'ready') reasons.push('lookup/meta wording left ready');
+    if (/\b(?:meaning|definition|define|synonyms?|difference)\b/i.test(raw) && clean(readiness?.status) === 'ready') reasons.push('lookup/meta wording left ready');
     if (/\s(?:—|–|->|→|=)\s/.test(raw)) reasons.push('relation separator');
     if (raw.split(/\s+/).filter(Boolean).length >= 10 && !['sentence-expression','construction','alternative-expression','form-family','variant','contrast'].includes(handling)) reasons.push('very long unclassified headword');
     return uniqueClean(reasons, 12);
@@ -721,7 +727,7 @@
 
     const report = {
       schemaVersion: 1,
-      audit: 'complex-target-readiness-v3',
+      audit: 'complex-target-readiness-v4',
       uiVersion: VERSION,
       source: TARGET_AUDIT_MASTER_URL,
       totalMasterCards: wordIds.length,
