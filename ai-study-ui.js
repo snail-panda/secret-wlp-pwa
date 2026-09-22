@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study Assistance Tracking + Universal Target Reveal v1.8.6.66 R2-I.1
-   Preserve existing task-specific hints; add cross-type manual target reveal and assistance evidence. */
+/* WLP Stage 7 — AI Study Open Production Hint Profiles v1.8.6.67 R2-I.2
+   Keep existing reconstruction hints intact; add deterministic hint profiles for open-production experience types. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.5';
+  const VERSION = '1.8.6';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
@@ -35,6 +35,21 @@
     { value: 'hell', label: 'Hell', help: 'Maximum fair difficulty: sparse cueing, transfer and form control, competing options, and stronger production demands. Reconstruction can include distractors plus one missing word or form.' }
   ]);
 
+  const OPEN_PRODUCTION_HINT_TYPES = new Set([
+    'situational-production',
+    'open-description',
+    'dialogue',
+    'micro-story',
+    'free-composition',
+    'continuation'
+  ]);
+
+  const PREPOSITION_WORDS = new Set([
+    'about','above','across','after','against','along','among','around','at','before','behind','below','beneath','beside','between','beyond',
+    'by','despite','down','during','for','from','in','inside','into','like','near','of','off','on','onto','out','outside','over','past','through',
+    'throughout','to','toward','towards','under','underneath','until','up','upon','with','within','without'
+  ]);
+
   const state = {
     mode: 'standard',
     providerInfo: null,
@@ -61,6 +76,7 @@
       targetRevealedEver: false,
       targetRevealCount: 0,
       hintCount: 0,
+      taskHintStage: 0,
       locked: false,
       hintEvents: []
     };
@@ -2402,7 +2418,10 @@
     if (taskWrap) taskWrap.hidden = true;
     if (taskButton) { taskButton.hidden = false; taskButton.textContent = 'Need a hint?'; }
     if (taskList) { taskList.hidden = true; taskList.replaceChildren(); }
-    if (state.assistance) state.assistance.targetRevealed = false;
+    if (state.assistance) {
+      state.assistance.targetRevealed = false;
+      state.assistance.taskHintStage = 0;
+    }
     if (state.reconstruction) {
       state.reconstruction.targetRevealed = false;
       state.reconstruction.taskHintStage = 0;
@@ -2494,23 +2513,180 @@
     return uniqueTexts(hints, 8);
   }
 
+  function currentExperienceType() {
+    return clean(state.activePlanner?.result?.response?.experience?.type).toLowerCase();
+  }
+
+  function isOpenProductionHintType(experienceType = currentExperienceType()) {
+    return OPEN_PRODUCTION_HINT_TYPES.has(clean(experienceType).toLowerCase());
+  }
+
+  function targetWordTokens(target) {
+    return clean(target).match(/[A-Za-z][A-Za-z'’-]*/g) || [];
+  }
+
+  function variableSlotCount(target) {
+    let source = clean(target);
+    let count = 0;
+    const grouped = /\b(?:(?:someone|somebody)\s*\/\s*something|something\s*\/\s*(?:someone|somebody)|(?:someone|somebody)\s+or\s+something|something\s+or\s+(?:someone|somebody))\b/gi;
+    source = source.replace(grouped, () => {
+      count += 1;
+      return ' __slot__ ';
+    });
+    const matches = source.match(/\b(?:someone|somebody|something|somewhere|oneself|yourself|himself|herself|itself|ourselves|themselves|one['’]s|someone['’]s|somebody['’]s)\b/gi) || [];
+    return count + matches.length;
+  }
+
+  function targetKindHint(target, readiness = {}) {
+    const handling = clean(readiness?.handling).toLowerCase();
+    const kind = clean(readiness?.kind).toLowerCase();
+    const pos = Array.isArray(readiness?.posCategories) ? readiness.posCategories.map(clean).filter(Boolean) : [];
+    const words = targetWordTokens(target);
+    const slots = variableSlotCount(target);
+    const posLabel = pos.length === 1 ? pos[0] : '';
+
+    if (handling === 'construction' || kind === 'construction' || slots > 0) {
+      const slotText = slots ? ` with ${slots} variable slot${slots === 1 ? '' : 's'}` : '';
+      return `The target is${posLabel ? ` a ${posLabel}` : ' a'} construction${slotText}.`;
+    }
+    if (handling === 'sentence-expression' || kind === 'sentence-expression') {
+      return 'The target is a whole expression or sentence, not an isolated word.';
+    }
+    if (words.length <= 1) {
+      return `The target is a single${posLabel ? ` ${posLabel}` : ' word'}.`;
+    }
+    return `The target is a ${words.length}-word${posLabel ? ` ${posLabel}` : ' expression'}.`;
+  }
+
+  function targetStructureHint(target, readiness = {}) {
+    const words = targetWordTokens(target);
+    const slots = variableSlotCount(target);
+    const handling = clean(readiness?.handling).toLowerCase();
+    if ((handling === 'construction' || slots > 0) && words.length) {
+      const lowerWords = words.map(word => word.toLowerCase());
+      const fixedPrep = lowerWords.find(word => PREPOSITION_WORDS.has(word));
+      if (slots >= 2 && fixedPrep) return 'A fixed preposition links or frames the variable parts of the construction.';
+      if (slots) return `The construction contains ${slots} variable slot${slots === 1 ? '' : 's'} that must fit the situation.`;
+    }
+    if (words.length === 1) {
+      const letters = clean(target).replace(/[^A-Za-z]/g, '');
+      if (letters.length >= 4) return `The word has ${letters.length} letters.`;
+    }
+    if (words.length >= 2) return `The expression contains ${words.length} words.`;
+    return '';
+  }
+
+  function targetInitialHint(target) {
+    const match = clean(target).match(/[A-Za-z]/);
+    if (!match) return '';
+    const words = targetWordTokens(target);
+    return `${words.length > 1 ? 'The first fixed word' : 'It'} begins with “${match[0].toUpperCase()}”.`;
+  }
+
+  function buildOpenProductionHintsFor({ target = '', readiness = {}, difficulty = 'standard', experienceType = 'open-description' } = {}) {
+    const type = clean(experienceType).toLowerCase();
+    if (!OPEN_PRODUCTION_HINT_TYPES.has(type)) return [];
+    const value = clean(target);
+    if (!value) return [];
+    const level = clean(difficulty).toLowerCase() || 'standard';
+    const kindHint = targetKindHint(value, readiness);
+    const structureHint = targetStructureHint(value, readiness);
+    const initialHint = targetInitialHint(value);
+    let hints = [];
+
+    if (level === 'easy') hints = [kindHint, initialHint, structureHint];
+    else if (level === 'hard') hints = [kindHint, structureHint, initialHint];
+    else if (level === 'hell') hints = [kindHint, initialHint];
+    else hints = [kindHint, structureHint, initialHint];
+
+    return uniqueTexts(hints.filter(Boolean), 4);
+  }
+
+  function buildOpenProductionHints(selected = null) {
+    const response = state.activePlanner?.result?.response || {};
+    const experience = response.experience || {};
+    const target = clean(selected?.target || response.selectedTarget?.target);
+    return buildOpenProductionHintsFor({
+      target,
+      readiness: state.activePlanner?.diagnostics?.targetReadiness || {},
+      difficulty: state.session?.difficulty || 'standard',
+      experienceType: experience.type
+    });
+  }
+
+  function runOpenProductionHintSelfTest() {
+    const cases = [
+      {
+        name: 'standard-single-noun',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'open-description' },
+        test: hints => hints.length === 3 && hints[0] === 'The target is a single noun.' && hints.some(h => h.includes('6 letters')) && hints.some(h => h.includes('“H”'))
+      },
+      {
+        name: 'easy-single-noun',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'easy', experienceType: 'situational-production' },
+        test: hints => hints.length === 3 && hints[1].includes('“H”')
+      },
+      {
+        name: 'hell-stays-sparse',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'hell', experienceType: 'dialogue' },
+        test: hints => hints.length === 2 && !hints.some(h => h.includes('letters'))
+      },
+      {
+        name: 'construction-preserves-slots',
+        input: { target: 'pit someone/something against someone/something', readiness: { kind: 'construction', handling: 'construction', posCategories: ['verb'] }, difficulty: 'standard', experienceType: 'open-description' },
+        test: hints => hints[0].includes('construction with 2 variable slots') && hints.some(h => h.includes('preposition')) && hints.some(h => h.includes('“P”'))
+      },
+      {
+        name: 'whole-expression',
+        input: { target: "You don't want to know.", readiness: { kind: 'sentence-expression', handling: 'sentence-expression', posCategories: [] }, difficulty: 'standard', experienceType: 'dialogue' },
+        test: hints => hints[0].includes('whole expression or sentence')
+      },
+      {
+        name: 'non-open-type-untouched',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'standard', experienceType: 'cloze' },
+        test: hints => hints.length === 0
+      },
+      {
+        name: 'sentence-reconstruction-untouched',
+        input: { target: 'hiatus', readiness: { kind: 'simple', handling: 'single', posCategories: ['noun'] }, difficulty: 'easy', experienceType: 'sentence-reconstruction' },
+        test: hints => hints.length === 0
+      }
+    ];
+    const checks = cases.map(item => {
+      const result = buildOpenProductionHintsFor(item.input);
+      return { name: item.name, passed: Boolean(item.test(result)), result };
+    });
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
   function renderTaskHints(selected = null) {
     const wrap = $('#wlp-ai-task-hint');
     const button = $('#wlp-ai-task-hint-button');
     const list = $('#wlp-ai-task-hint-list');
-    if (!wrap || !button || !list || !state.reconstruction) {
-      if (wrap) wrap.hidden = true;
+    if (!wrap || !button || !list) return;
+
+    const isReconstruction = Boolean(state.reconstruction);
+    const isOpenProduction = !isReconstruction && isOpenProductionHintType();
+    if (!isReconstruction && !isOpenProduction) {
+      wrap.hidden = true;
+      list.hidden = true;
+      list.replaceChildren();
       syncAssistancePanelVisibility();
       return;
     }
-    const hints = buildReconstructionHints(selected);
+
+    const hints = isReconstruction ? buildReconstructionHints(selected) : buildOpenProductionHints(selected);
     if (!hints.length) {
       wrap.hidden = true;
+      list.hidden = true;
+      list.replaceChildren();
       syncAssistancePanelVisibility();
       return;
     }
+
     wrap.hidden = false;
-    const stage = Math.max(0, Math.min(num(state.reconstruction.taskHintStage), hints.length));
+    const rawStage = isReconstruction ? state.reconstruction.taskHintStage : state.assistance?.taskHintStage;
+    const stage = Math.max(0, Math.min(num(rawStage), hints.length));
     list.replaceChildren();
     hints.slice(0, stage).forEach((hint, index) => {
       const row = document.createElement('div');
@@ -2974,6 +3150,7 @@
       resetReconstruction();
       responseBox.disabled = false;
       renderTargetHint(selected);
+      renderTaskHints(selected);
     }
     $('#wlp-ai-submit').hidden = false;
     $('#wlp-ai-no-idea').hidden = false;
@@ -3416,12 +3593,23 @@
       renderTargetHint();
     });
     $('#wlp-ai-task-hint-button')?.addEventListener('click', () => {
-      if (!state.reconstruction || state.busy || state.assistance?.locked) return;
-      const hints = buildReconstructionHints();
+      if (state.busy || state.assistance?.locked) return;
+      if (state.reconstruction) {
+        const hints = buildReconstructionHints();
+        if (!hints.length) return;
+        const nextStage = Math.min(hints.length, num(state.reconstruction.taskHintStage) + 1);
+        state.reconstruction.taskHintStage = nextStage;
+        noteHintUse('reconstruction-hint', nextStage);
+        renderTaskHints();
+        return;
+      }
+      if (!isOpenProductionHintType()) return;
+      const hints = buildOpenProductionHints();
       if (!hints.length) return;
-      const nextStage = Math.min(hints.length, num(state.reconstruction.taskHintStage) + 1);
-      state.reconstruction.taskHintStage = nextStage;
-      noteHintUse('reconstruction-hint', nextStage);
+      const assistance = state.assistance || resetAssistanceState();
+      const nextStage = Math.min(hints.length, num(assistance.taskHintStage) + 1);
+      assistance.taskHintStage = nextStage;
+      noteHintUse('open-production-hint', nextStage);
       renderTaskHints();
     });
     $('#wlp-ai-reconstruction')?.addEventListener('click', event => {
@@ -3503,6 +3691,7 @@
       runTargetReadinessSelfTest,
       runTargetReadinessAudit,
       runAssistanceSelfTest,
+      runOpenProductionHintSelfTest,
       getAssistance: () => clone(assistanceSnapshot())
     });
   }
