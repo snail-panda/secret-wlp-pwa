@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.7.2';
+  const VERSION = '1.7.3';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -211,7 +211,7 @@
       wordId: clean(selected.wordId),
       domain: clean(exp.domain),
       experienceType: clean(exp.type || planner.learningOpportunity?.direction),
-      prompt: clean(exp.prompt),
+      prompt: clean(clean(exp.type) === 'sentence-reconstruction' ? (parseReconstructionPrompt(exp.prompt)?.prompt || exp.prompt) : exp.prompt),
       responseFrame: clean(exp.responseFrame),
       learnerResponse: clean(learnerText),
       targetFeedback: clean(learner.targetFeedback || learner.feedback || response?.evidence?.observationSummary),
@@ -1220,6 +1220,28 @@
     return attempts;
   }
 
+  function addRejectedUsage(meta, kind, ms) {
+    const session = state.session;
+    if (!session) return 0;
+    session.failedAICalls += 1;
+    const attempts = Math.max(1, num(meta?.transportAttemptCount) || 1);
+    session.providerAttempts += attempts;
+    session.lastCallKind = kind;
+    session.provider = clean(meta?.provider || session.provider);
+    session.model = clean(meta?.model || session.model);
+    const usage = usageCounts(meta);
+    session.inputTokens += usage.input;
+    session.outputTokens += usage.output;
+    session.totalTokens += usage.total;
+    recordLatency(kind, ms, false);
+    return attempts;
+  }
+
+  function isRetryablePlannerGenerationError(error) {
+    const message = clean(error?.message || error);
+    return /Planner response validation failed|Planner response rejected|sentence reconstruction metadata could not be parsed/i.test(message);
+  }
+
   function addFailedUsage(error, kind, ms) {
     const session = state.session;
     if (!session) return 0;
@@ -1348,28 +1370,51 @@
     try {
       const { transport } = requireLayers();
       const built = await buildFreshPlannerRequest(state.session);
-      setStatus('Creating the next adaptive experience…');
-      plannerStarted = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
-      const plannerResult = await transport.callPlannerWriter(built.request);
-      const plannerElapsed = elapsedMs(plannerStarted);
-      const plannerAttempts = addUsage(plannerResult.meta, 'planner', plannerElapsed);
-      validateReconstructionAgainstSession(plannerResult);
-      state.activePlanner = {
-        request: built.request,
-        result: plannerResult,
-        eventId: makeId('ai-study-event'),
-        diagnostics: {
-          elapsedMs: plannerElapsed,
-          providerAttempts: plannerAttempts,
-          provider: clean(plannerResult.meta?.provider),
-          model: clean(plannerResult.meta?.model)
+      const maxGenerationAttempts = 3;
+      let lastError = null;
+      for (let generationAttempt = 1; generationAttempt <= maxGenerationAttempts; generationAttempt += 1) {
+        let plannerResult = null;
+        plannerStarted = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+        try {
+          setStatus(generationAttempt === 1
+            ? 'Creating the next adaptive experience…'
+            : `The previous generation missed WLP's format check. Regenerating automatically… (${generationAttempt}/${maxGenerationAttempts})`);
+          plannerResult = await transport.callPlannerWriter(built.request);
+          const plannerElapsed = elapsedMs(plannerStarted);
+          try {
+            validateReconstructionAgainstSession(plannerResult);
+          } catch (validationError) {
+            addRejectedUsage(plannerResult.meta, 'planner', plannerElapsed);
+            lastError = validationError;
+            if (generationAttempt < maxGenerationAttempts) continue;
+            throw validationError;
+          }
+          const plannerAttempts = addUsage(plannerResult.meta, 'planner', plannerElapsed);
+          state.activePlanner = {
+            request: built.request,
+            result: plannerResult,
+            eventId: makeId('ai-study-event'),
+            diagnostics: {
+              elapsedMs: plannerElapsed,
+              providerAttempts: plannerAttempts,
+              provider: clean(plannerResult.meta?.provider),
+              model: clean(plannerResult.meta?.model),
+              generationAttempt
+            }
+          };
+          const selectedId = clean(plannerResult.response?.selectedTarget?.wordId);
+          if (selectedId) state.session.usedTargets[selectedId] = (state.session.usedTargets[selectedId] || 0) + 1;
+          renderExperience(plannerResult);
+          return;
+        } catch (error) {
+          if (!plannerResult) addFailedUsage(error, 'planner', elapsedMs(plannerStarted));
+          lastError = error;
+          if (isRetryablePlannerGenerationError(error) && generationAttempt < maxGenerationAttempts) continue;
+          throw error;
         }
-      };
-      const selectedId = clean(plannerResult.response?.selectedTarget?.wordId);
-      if (selectedId) state.session.usedTargets[selectedId] = (state.session.usedTargets[selectedId] || 0) + 1;
-      renderExperience(plannerResult);
+      }
+      if (lastError) throw lastError;
     } catch (error) {
-      if (plannerStarted != null) addFailedUsage(error, 'planner', elapsedMs(plannerStarted));
       state.activePlanner = null;
       showGenerationRetry(error);
     } finally {

@@ -101,10 +101,6 @@
 .wlp-ai-secondary-button:disabled{opacity:.45;cursor:not-allowed}
 .wlp-ai-status{margin:9px 1px 0;color:#71847a;font-size:.68rem;line-height:1.4;min-height:1em}
 .wlp-ai-status.is-error{color:#8a5f59}
-.wlp-ai-generation-retry{display:flex;align-items:center;gap:10px;margin:10px 1px 0;flex-wrap:wrap}
-.wlp-ai-generation-retry[hidden]{display:none!important}
-.wlp-ai-generation-retry details{font-size:.68rem;color:#71847a}
-.wlp-ai-generation-retry code{display:block;max-width:min(760px,82vw);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px;line-height:1.45}
 
 .wlp-ai-feedback{margin-top:14px;padding:14px;border:1px solid #cfe0d3;border-radius:18px;background:#f7faf7}
 .wlp-ai-feedback[hidden]{display:none!important}
@@ -235,6 +231,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 @media(max-width:560px){.wlp-ai-practice-type-control label{grid-template-columns:1fr}.wlp-ai-practice-type-control select{font-size:.7rem}}
 
 /* R2-F — Sentence reconstruction */
+.wlp-ai-reconstruction[hidden]{display:none!important}
 .wlp-ai-reconstruction{margin-top:12px;padding:12px;border:1px solid #dce7df;border-radius:14px;background:rgba(249,252,249,.92);text-align:left}
 .wlp-ai-reconstruction-label{display:block;color:#5f7869;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .wlp-ai-reconstruction>p{margin:5px 0 10px;color:#7f8e85;font-size:.68rem;line-height:1.4}
@@ -255,6 +252,7 @@ body:not(.wlp-ai-study-mode) .wlp-ai-only{display:none!important}
 /* R2-G — Difficulty / Study Options */
 .wlp-ai-study-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .wlp-ai-study-options .wlp-ai-practice-type-control{margin:0}
+.wlp-ai-reconstruction-missing[hidden]{display:none!important}
 .wlp-ai-reconstruction-missing{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;margin-top:10px;padding:9px;border:1px solid #dce7df;border-radius:11px;background:rgba(255,255,255,.76)}
 .wlp-ai-reconstruction-missing label{display:grid;gap:5px;text-align:left}
 .wlp-ai-reconstruction-missing label>span{color:#6c8174;font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
