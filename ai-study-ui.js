@@ -1,15 +1,16 @@
-/* WLP Stage 7 — AI Study Complex Target Readiness phase 1 v1.8.6.61 R2-H.1
-   Deterministic target-shape analysis before Planner selection; provider-agnostic. */
+/* WLP Stage 7 — AI Study Complex Target Readiness phase 2 v1.8.6.62 R2-H.2
+   Full local-card readiness audit + suspicious-ready discovery; provider-agnostic. */
 (() => {
   'use strict';
 
-  const VERSION = '1.8.0';
+  const VERSION = '1.8.1';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
   const AI_SESSION_SIZE_KEY = 'wlp:ai-study-session-size:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
+  const TARGET_AUDIT_MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
 
   const PRACTICE_TYPES = Object.freeze([
     { value: 'adaptive', label: 'Adaptive · AI decides', help: 'Default. WLP chooses the experience type from your current route evidence and target context.' },
@@ -350,6 +351,166 @@
       return { name, passed, result };
     });
     return { passed: checks.every(item => item.passed), checks };
+  }
+
+  function parseAuditTSV(text) {
+    const table = [];
+    let row = [], field = '', quoted = false;
+    const source = String(text || '').replace(/^\uFEFF/, '');
+    for (let i = 0; i < source.length; i += 1) {
+      const ch = source[i], next = source[i + 1];
+      if (ch === '"') {
+        if (quoted && next === '"') { field += '"'; i += 1; }
+        else quoted = !quoted;
+        continue;
+      }
+      if (ch === '\t' && !quoted) { row.push(field); field = ''; continue; }
+      if ((ch === '\n' || ch === '\r') && !quoted) {
+        if (ch === '\r' && next === '\n') i += 1;
+        row.push(field);
+        if (row.some(value => clean(value))) table.push(row);
+        row = []; field = '';
+        continue;
+      }
+      field += ch;
+    }
+    row.push(field);
+    if (row.some(value => clean(value))) table.push(row);
+    if (!table.length) return [];
+    const headers = table[0].map(clean);
+    return table.slice(1).map(cols => Object.fromEntries(headers.map((header, index) => [header, clean(cols[index])])));
+  }
+
+  function readinessAuditSuspicionReasons(readiness, target) {
+    const raw = clean(readiness?.rawHeadword || target?.headword);
+    const pos = clean(target?.pos || readiness?.pos);
+    const reasons = [];
+    if (!raw) return ['empty headword'];
+    if (/\//.test(raw)) reasons.push('slash in headword');
+    if (/\b(?:vs\.?|versus)\b/i.test(raw)) reasons.push('comparison marker');
+    if (/:/.test(raw)) reasons.push('colon label or construction');
+    if (/[()]/.test(raw)) reasons.push('parenthetical material');
+    if (/[?？]/.test(raw)) reasons.push('question-mark headword');
+    if (hasJapaneseText(raw)) reasons.push('mixed-language text');
+    if (/\b(?:meaning|definition|define|synonyms?|difference|why|what is|what are|called)\b/i.test(raw)) reasons.push('lookup/meta wording');
+    if (/\b(?:something|someone|somebody|somewhere|oneself|one['’]s|someone['’]s|somebody['’]s|sth\.?|sb\.?)\b/i.test(raw)) reasons.push('variable-slot wording');
+    if (/\s(?:—|–|->|→|=)\s/.test(raw)) reasons.push('relation separator');
+    if (raw.split(/\s+/).filter(Boolean).length >= 8) reasons.push('very long headword');
+    if (pos && /(?:\/|;|,)/.test(pos)) reasons.push('multi-POS punctuation');
+    return uniqueClean(reasons, 12);
+  }
+
+  function incrementAuditCount(bucket, key) {
+    const name = clean(key) || '(blank)';
+    bucket[name] = Number(bucket[name] || 0) + 1;
+  }
+
+  function compactAuditSample(wordId, target, readiness, extra = {}) {
+    return {
+      wordId: clean(wordId),
+      headword: clean(target?.headword || readiness?.rawHeadword),
+      pos: clean(target?.pos || readiness?.pos),
+      resolverKind: clean(readiness?.resolverKind),
+      kind: clean(readiness?.kind),
+      status: clean(readiness?.status),
+      primaryTarget: clean(readiness?.primaryTarget),
+      practiceUnits: Array.isArray(readiness?.practiceUnits) ? readiness.practiceUnits.slice(0, 8) : [],
+      hazards: Array.isArray(readiness?.hazards) ? readiness.hazards.slice(0, 8) : [],
+      ...extra
+    };
+  }
+
+  async function runTargetReadinessAudit(options = {}) {
+    const { data } = requireLayers();
+    if (!data || typeof data.assembleTargetContext !== 'function') {
+      throw new Error('AI Study Data Layer does not expose assembleTargetContext().');
+    }
+
+    const sampleLimit = Math.max(5, Math.min(50, Math.floor(num(options.sampleLimit) || 20)));
+    const batchSize = Math.max(10, Math.min(100, Math.floor(num(options.batchSize) || 40)));
+    const response = await fetch(TARGET_AUDIT_MASTER_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Could not load WLP master for readiness audit (HTTP ${response.status}).`);
+    const masterRows = parseAuditTSV(await response.text());
+    const wordIds = uniqueClean(masterRows.map(row => row.WordID), 20000);
+    if (!wordIds.length) throw new Error('Readiness audit found no WordID values in the WLP master.');
+
+    const report = {
+      schemaVersion: 1,
+      audit: 'complex-target-readiness-v1',
+      uiVersion: VERSION,
+      source: TARGET_AUDIT_MASTER_URL,
+      totalMasterCards: wordIds.length,
+      audited: 0,
+      failed: 0,
+      counts: { status: {}, kind: {}, resolverKind: {}, hazards: {} },
+      readyButSuspiciousCount: 0,
+      samples: { review: [], normalize: [], decompose: [], readyButSuspicious: [], failures: [] }
+    };
+
+    const addSample = (group, sample) => {
+      if (!Array.isArray(report.samples[group]) || report.samples[group].length >= sampleLimit) return;
+      report.samples[group].push(sample);
+    };
+
+    for (let start = 0; start < wordIds.length; start += batchSize) {
+      const slice = wordIds.slice(start, start + batchSize);
+      const outcomes = await Promise.all(slice.map(async wordId => {
+        try {
+          const packet = await data.assembleTargetContext(wordId);
+          const readiness = analyzeTargetReadiness(packet);
+          return { ok: true, wordId, packet, readiness };
+        } catch (error) {
+          return { ok: false, wordId, error: clean(error?.message || error) };
+        }
+      }));
+
+      outcomes.forEach(item => {
+        if (!item.ok) {
+          report.failed += 1;
+          addSample('failures', { wordId: clean(item.wordId), error: item.error });
+          return;
+        }
+        report.audited += 1;
+        const target = item.packet?.target || {};
+        const readiness = item.readiness || {};
+        incrementAuditCount(report.counts.status, readiness.status);
+        incrementAuditCount(report.counts.kind, readiness.kind);
+        incrementAuditCount(report.counts.resolverKind, readiness.resolverKind);
+        (Array.isArray(readiness.hazards) ? readiness.hazards : []).forEach(hazard => incrementAuditCount(report.counts.hazards, hazard));
+
+        const status = clean(readiness.status);
+        if (status === 'review') addSample('review', compactAuditSample(item.wordId, target, readiness));
+        else if (status === 'normalize') addSample('normalize', compactAuditSample(item.wordId, target, readiness));
+        else if (status === 'decompose') addSample('decompose', compactAuditSample(item.wordId, target, readiness));
+
+        if (status === 'ready') {
+          const suspicionReasons = readinessAuditSuspicionReasons(readiness, target);
+          if (suspicionReasons.length) {
+            report.readyButSuspiciousCount += 1;
+            addSample('readyButSuspicious', compactAuditSample(item.wordId, target, readiness, { suspicionReasons }));
+          }
+        }
+      });
+
+      if (options.logProgress !== false && (start === 0 || start + batchSize >= wordIds.length || (start + batchSize) % 500 < batchSize)) {
+        console.info(`[WLP Target Readiness Audit] ${Math.min(start + batchSize, wordIds.length)} / ${wordIds.length}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    const sortCounts = bucket => Object.fromEntries(Object.entries(bucket).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));
+    report.counts.status = sortCounts(report.counts.status);
+    report.counts.kind = sortCounts(report.counts.kind);
+    report.counts.resolverKind = sortCounts(report.counts.resolverKind);
+    report.counts.hazards = sortCounts(report.counts.hazards);
+    report.summary = [
+      `Audited ${report.audited}/${report.totalMasterCards} master cards; ${report.failed} failed to inspect.`,
+      `Status: ${Object.entries(report.counts.status).map(([key, value]) => `${key}=${value}`).join(', ') || 'none'}.`,
+      `Ready-but-suspicious: ${report.readyButSuspiciousCount}.`,
+      'No provider/AI calls were made; this audit is local/read-only.'
+    ].join(' ');
+    console.info('[WLP Target Readiness Audit] complete', report.summary);
+    return report;
   }
 
   function requireLayers() {
@@ -2893,7 +3054,8 @@
       refreshProviderStatus,
       setMode,
       analyzeTargetReadiness: packet => clone(analyzeTargetReadiness(packet)),
-      runTargetReadinessSelfTest
+      runTargetReadinessSelfTest,
+      runTargetReadinessAudit
     });
   }
 
