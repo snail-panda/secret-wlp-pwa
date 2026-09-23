@@ -75,7 +75,7 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
 
 
 /* v1.8.6.82 R2-J2 — source-aware Progress without flattening evidence. */
-.learning-source-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:-2px 0 12px;padding:3px;background:#f0f5f1;border:1px solid #e1e9e3;border-radius:13px}
+.learning-source-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:-2px 0 12px;padding:3px;background:#f0f5f1;border:1px solid #e1e9e3;border-radius:13px}
 .learning-source-tabs button{border:0;border-radius:10px;background:transparent;color:#708078;padding:8px 9px;font-family:var(--serif);font-size:11px;font-weight:500;cursor:pointer}
 .learning-source-tabs button.is-active{background:#fff;color:#315f4b;font-weight:650;box-shadow:0 2px 8px rgba(45,78,58,.07)}
 .learning-source-kicker{font-family:var(--serif);font-size:12px;font-weight:600;color:#526c5e;margin:0 0 7px}
@@ -101,3 +101,31 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
 .studyq-attention-grid>div:nth-child(4){background:#faf1f1;border-color:#efdddd}
 .studyq-attention-note{margin:0 0 9px;padding:7px 9px;border-radius:10px;background:#f6f8f6;color:#87938d;font-family:var(--serif);font-size:9.5px;line-height:1.35}
 @media(max-width:520px){.learning-source-stat-grid{grid-template-columns:repeat(2,1fr)}.learning-source-signal{grid-template-columns:90px 1fr}.studyq-attention-grid{gap:5px}.studyq-attention-grid strong{font-size:17px}}
+
+/* v1.8.6.83 R2-J3 — AI evidence bridge; read-only Progress integration. */
+.activity-source-shell{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;padding:7px 9px;border:1px solid #e1e9e3;border-radius:13px;background:#f7faf7}
+.activity-source-shell>span{font-family:var(--serif);font-size:10px;font-weight:600;color:#6b7d73;white-space:nowrap}
+.activity-source-tabs{display:grid;grid-template-columns:repeat(4,minmax(54px,1fr));gap:4px;flex:1;max-width:360px}
+.activity-source-tabs button{border:0;border-radius:9px;background:transparent;padding:7px 6px;font-family:var(--serif);font-size:10px;color:#75847c;cursor:pointer}
+.activity-source-tabs button.is-active{background:#fff;color:#315f4b;font-weight:650;box-shadow:0 1px 6px rgba(45,78,58,.08)}
+.ai-summary-line{margin:0 0 10px;font-family:var(--serif);font-size:11px;line-height:1.45;color:#718078}
+.ai-evidence-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:12px}
+.ai-evidence-stat-grid>div{text-align:center;background:#f7faf7;border:1px solid #e3ebe4;border-radius:12px;padding:9px 4px 7px;min-width:0}
+.ai-evidence-stat-grid strong{display:block;font-family:var(--serif);font-size:19px;font-weight:600;color:#315f4b;line-height:1}
+.ai-evidence-stat-grid span{display:block;margin-top:4px;font-family:var(--serif);font-size:9px;line-height:1.15;color:#7b8981}
+.ai-evidence-section{padding-top:10px;margin-top:4px;border-top:1px solid #e5ece6}
+.ai-evidence-types{display:flex;flex-wrap:wrap;gap:6px}
+.ai-evidence-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #e0e9e2;border-radius:999px;background:#fbfcfb;font-family:var(--serif);font-size:9.5px;color:#65786d}
+.ai-evidence-chip b{font-size:10px;color:#315f4b}
+.ai-evidence-empty{margin:0;font-family:var(--serif);font-size:10px;color:#8a9690}
+.ai-graph-summary,.ai-profile-summary{margin:0;font-family:var(--serif);font-size:10.5px;line-height:1.45;color:#74837b}
+.ai-profile-summary{margin-top:5px;color:#87938d}
+.ai-recent-list{display:grid;gap:0;margin-top:11px;border-top:1px solid #e5ece6}
+.ai-recent-row{display:grid;grid-template-columns:64px 1fr auto;gap:9px;align-items:center;padding:9px 2px;border-bottom:1px solid #edf1ee;color:inherit;text-decoration:none}
+.ai-recent-row:hover,.ai-recent-row:focus-visible{background:#f7faf7;outline:none}
+.ai-recent-time{font-family:var(--serif);font-size:9px;color:#8a9790}
+.ai-recent-main{min-width:0}
+.ai-recent-main strong{display:block;font-family:var(--serif);font-size:11px;font-weight:600;color:#455e51;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-recent-main small{display:block;margin-top:2px;font-size:9.5px;line-height:1.35;color:#849088;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-recent-tag{font-family:var(--serif);font-size:9px;color:#5f7869;background:#f0f6f1;border:1px solid #e0eae2;border-radius:999px;padding:4px 6px;white-space:nowrap}
+@media(max-width:520px){.learning-source-tabs{grid-template-columns:repeat(3,1fr)}.activity-source-shell{display:block}.activity-source-shell>span{display:block;margin:0 2px 6px}.activity-source-tabs{max-width:none}.ai-evidence-stat-grid{grid-template-columns:repeat(2,1fr)}.ai-recent-row{grid-template-columns:52px 1fr auto;gap:7px}}

@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
-  <link rel="stylesheet" href="./progress.css?v=20260922-s7-progress-source-v18682-r2j2">
+  <link rel="stylesheet" href="./progress.css?v=20260922-s7-progress-ai-evidence-v18683-r2j3">
   <style>
     .progress-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translate3d(-50%,0,0)!important;-webkit-transform:translate3d(-50%,0,0)!important;width:min(100%,700px)!important;max-width:100vw!important;margin:0!important;will-change:transform!important;}
 
@@ -96,11 +96,12 @@
           <article class="progress-panel learning-sources-panel" data-panel="overview.sources">
             <div class="panel-heading">
               <div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 9v8M18 9v8M6 13h12"/></svg></span><h2>Learning Sources</h2></div>
-              <button class="panel-info" type="button" data-toast="The unified Overview above shows your current WLP state. Learning Sources keeps the evidence separate so Card Study actions and Standard Practice self-ratings are not flattened into one score." aria-label="About Learning Sources"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4.1" r="1"/><path d="M8 7v5"/></svg></button>
+              <button class="panel-info" type="button" data-toast="The unified Overview above shows your current WLP state. Learning Sources keeps Card Study, Standard Practice, and AI Practice evidence distinct instead of flattening them into one score." aria-label="About Learning Sources"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4.1" r="1"/><path d="M8 7v5"/></svg></button>
             </div>
             <div class="learning-source-tabs" role="group" aria-label="Learning source">
               <button type="button" class="is-active" data-learning-source="card" aria-pressed="true">Card Study</button>
               <button type="button" data-learning-source="standard" aria-pressed="false">Standard Practice</button>
+              <button type="button" data-learning-source="ai" aria-pressed="false">AI Practice</button>
             </div>
             <div class="learning-source-summary" id="learning-source-summary"></div>
             <button class="panel-link panel-link-button" type="button" data-open-view="activity">See Activity <span aria-hidden="true">›</span></button>
@@ -208,6 +209,16 @@
             </div>
           </div>
 
+          <div class="activity-source-shell" data-panel="activity.source">
+            <span>Evidence source</span>
+            <div class="activity-source-tabs" role="group" aria-label="Activity evidence source">
+              <button type="button" data-activity-source="all" class="is-active" aria-pressed="true">All</button>
+              <button type="button" data-activity-source="card" aria-pressed="false">Card</button>
+              <button type="button" data-activity-source="standard" aria-pressed="false">Standard</button>
+              <button type="button" data-activity-source="ai" aria-pressed="false">AI</button>
+            </div>
+          </div>
+
           <article class="progress-panel" data-panel="activity.snapshot">
             <div class="panel-heading">
               <div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M10 19V5M15 19v-7M20 19V8"/></svg></span><h2>Activity Snapshot</h2></div>
@@ -226,7 +237,7 @@
             <p class="activity-data-quality" id="activity-data-quality"></p>
           </article>
 
-          <article class="progress-panel" data-panel="activity.studyq">
+          <article class="progress-panel" data-panel="activity.studyq" data-activity-evidence-source="standard">
             <div class="panel-heading">
               <div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v12H5zM8 10h8M8 14h5"/></svg></span><h2>Standard Practice</h2></div>
               <a class="panel-link studyq-history-open" href="./study-hub.html#recent-sessions">Open Study Hub <span aria-hidden="true">›</span></a>
@@ -249,6 +260,31 @@
             <p class="studyq-attention-note" id="studyq-attention-note" hidden></p>
             <div class="studyq-session-list" id="studyq-session-list"></div>
             <p class="panel-footnote">Self-rating and Review Attention are separate signals. Standard Practice contributes to WLP's current state without turning either signal into a mastery score.</p>
+          </article>
+
+          <article class="progress-panel ai-evidence-panel" data-panel="activity.ai" data-activity-evidence-source="ai">
+            <div class="panel-heading">
+              <div><span class="panel-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg></span><h2>AI Practice</h2></div>
+              <a class="panel-link" href="./study-hub.html">Open Study Hub <span aria-hidden="true">›</span></a>
+            </div>
+            <p class="ai-summary-line" id="ai-summary-line">No AI Practice evidence recorded in this time window yet.</p>
+            <div class="ai-evidence-stat-grid">
+              <div><strong id="ai-event-count">0</strong><span>Experiences</span></div>
+              <div><strong id="ai-target-count">0</strong><span>Targets</span></div>
+              <div><strong id="ai-session-count">0</strong><span>Sessions</span></div>
+              <div><strong id="ai-route-count">0</strong><span>Evidence routes</span></div>
+            </div>
+            <div class="ai-evidence-section">
+              <div class="studyq-evidence-label"><span>Observed evidence</span><small>What the response actually demonstrated</small></div>
+              <div class="ai-evidence-types" id="ai-evidence-types"></div>
+            </div>
+            <div class="ai-evidence-section">
+              <div class="studyq-evidence-label"><span>Learning graph</span><small>Kept separate from mastery</small></div>
+              <p class="ai-graph-summary" id="ai-graph-summary"></p>
+              <p class="ai-profile-summary" id="ai-profile-summary"></p>
+            </div>
+            <div class="ai-recent-list" id="ai-recent-list"></div>
+            <p class="panel-footnote">AI evidence is read from WLP's controlled-merge data. This Progress view does not directly change Review Attention or mark a word mastered.</p>
           </article>
 
           <article class="progress-panel" data-panel="activity.trend">
@@ -381,7 +417,7 @@
       setInterval(()=>{if(!document.hidden)lockBottomNav();},1500);
     })();
   </script>
-  <script src="./progress.js?v=20260922-s7-progress-source-v18682-r2j2"></script>
+  <script src="./progress.js?v=20260922-s7-progress-ai-evidence-v18683-r2j3"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>

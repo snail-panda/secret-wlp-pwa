@@ -10,6 +10,10 @@
   const ACTIVITY_PERIOD_KEY = 'wlp:stage7:activity-period:v1';
   const PROGRESS_OPTIONS_KEY = 'wlp:stage7:progress-options:v1';
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
+  const AI_STUDY_EVENT_KEY = 'wlp:ai-study-events:v1';
+  const AI_ROUTE_STATE_KEY = 'wlp:ai-route-state:v1';
+  const AI_LEARNER_PROFILE_KEY = 'wlp:ai-learner-profile:v1';
+  const ACTIVITY_SOURCE_VIEW_KEY = 'wlp:stage7:progress-activity-source:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
   const WLP_ADMIN_PASSWORD_SHA256 = 'd199aa3ab28923618bab089d78e8faa5e5004d0bc37c22ae5589454d575d192c';
@@ -45,8 +49,10 @@
     ],
     Activity: [
       ['activity.period', 'Time Window'],
+      ['activity.source', 'Evidence Source'],
       ['activity.snapshot', 'Activity Snapshot'],
       ['activity.studyq', 'Standard Practice'],
+      ['activity.ai', 'AI Practice'],
       ['activity.trend', 'Activity Over Time'],
       ['activity.mix', 'Activity Mix'],
       ['activity.timeline', 'Timeline']
@@ -59,10 +65,14 @@
   let activityEvents = [];
   let interactionEvents = [];
   let studyQSessions = [];
+  let aiStudyEvents = [];
+  let aiRouteState = {};
+  let aiLearnerProfile = {};
   let rowByWordId = new Map();
   let activeView = 'overview';
   let activeActivityPeriod = localStorage.getItem(ACTIVITY_PERIOD_KEY) || '30d';
-  let activeLearningSource = localStorage.getItem(LEARNING_SOURCE_VIEW_KEY) === 'standard' ? 'standard' : 'card';
+  let activeLearningSource = ['card', 'standard', 'ai'].includes(localStorage.getItem(LEARNING_SOURCE_VIEW_KEY)) ? localStorage.getItem(LEARNING_SOURCE_VIEW_KEY) : 'card';
+  let activeActivitySource = ['all', 'card', 'standard', 'ai'].includes(localStorage.getItem(ACTIVITY_SOURCE_VIEW_KEY)) ? localStorage.getItem(ACTIVITY_SOURCE_VIEW_KEY) : 'all';
 
   function parseTSV(text) {
     const table = [];
@@ -198,6 +208,41 @@
     }
   }
 
+  function readAIStudyEvents() {
+    try {
+      const data = JSON.parse(localStorage.getItem(AI_STUDY_EVENT_KEY) || '[]');
+      let list = [];
+      if (Array.isArray(data)) list = data;
+      else if (Array.isArray(data?.events)) list = data.events;
+      else if (Array.isArray(data?.items)) list = data.items;
+      else if (data?.records && typeof data.records === 'object') list = Array.isArray(data.records) ? data.records : Object.values(data.records);
+      return list.filter(event => event && typeof event === 'object');
+    } catch (error) {
+      console.warn('Could not read AI Study events:', error);
+      return [];
+    }
+  }
+
+  function readAIRouteState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(AI_ROUTE_STATE_KEY) || '{}');
+      return data && typeof data === 'object' ? data : {};
+    } catch (error) {
+      console.warn('Could not read AI route state:', error);
+      return {};
+    }
+  }
+
+  function readAILearnerProfile() {
+    try {
+      const data = JSON.parse(localStorage.getItem(AI_LEARNER_PROFILE_KEY) || '{}');
+      return data && typeof data === 'object' ? data : {};
+    } catch (error) {
+      console.warn('Could not read AI learner profile:', error);
+      return {};
+    }
+  }
+
   function recentThreshold() { return Date.now() - RECENT_MS; }
   function stats() {
     const total = rows.length;
@@ -282,6 +327,105 @@
     return metrics;
   }
 
+  function aiEventWordId(event) {
+    return String(event?.wordId || event?.targetWordId || event?.target?.wordId || event?.selectedTarget?.wordId || '').trim();
+  }
+
+  function aiEventSessionId(event) {
+    return String(event?.sessionId || event?.session?.sessionId || '').trim();
+  }
+
+  function aiEventEvidenceTypes(event) {
+    const values = Array.isArray(event?.evidenceTypes) ? event.evidenceTypes
+      : Array.isArray(event?.evidence?.evidenceTypes) ? event.evidence.evidenceTypes
+        : Array.isArray(event?.evidenceSummary?.evidenceTypes) ? event.evidenceSummary.evidenceTypes : [];
+    return values.map(value => String(value || '').trim()).filter(Boolean);
+  }
+
+  function aiAuthoritativeResponse(event) {
+    return String(event?.authoritativeResponse || event?.learnerResponse?.authoritativeResponse || event?.learnerResponse?.text || '').trim();
+  }
+
+  function aiEventTimestamp(event) {
+    const values = [event?.observedAt, event?.createdAt, event?.timestamp, event?.committedAt, event?.recordedAt, event?.interpretedAt, event?.receivedAt, event?.occurredAt, event?.updatedAt];
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+      const parsed = Date.parse(String(value || ''));
+      if (parsed) return parsed;
+    }
+    return 0;
+  }
+
+  function aiEvidenceLabel(value) {
+    const labels = {
+      'recognition': 'Recognition',
+      'cue-based-retrieval': 'Cue-based retrieval',
+      'spontaneous-production': 'Spontaneous production',
+      'context-transfer': 'Context transfer',
+      'sense-transfer': 'Sense transfer',
+      'reverse-reconstruction': 'Reverse reconstruction',
+      'neighbor-discrimination': 'Neighbor discrimination',
+      'free-composition': 'Free composition',
+      'personal-anchor': 'Personal anchor',
+      'form-control': 'Form control',
+      'construction-use': 'Construction use'
+    };
+    const key = String(value || '').trim().toLowerCase();
+    return labels[key] || titleCase(key);
+  }
+
+  function aiRouteRecords(routeState = aiRouteState) {
+    const records = routeState && typeof routeState === 'object' ? routeState.records : null;
+    return records && typeof records === 'object' && !Array.isArray(records) ? Object.values(records).filter(Boolean) : [];
+  }
+
+  function aiSourceMetrics(events = aiStudyEvents, routeState = aiRouteState, profile = aiLearnerProfile, options = {}) {
+    const metrics = {
+      events: 0, targets: 0, sessions: 0, evidenceRoutes: 0,
+      evidence: {}, neighbors: 0, anchors: 0, connections: 0, weakRoutes: 0, diagnostics: 0,
+      productionTendencies: 0, reusableConstructions: 0, styleTendencies: 0
+    };
+    const targetIds = new Set();
+    const sessionIds = new Set();
+    (Array.isArray(events) ? events : []).forEach(event => {
+      metrics.events++;
+      const wordId = aiEventWordId(event);
+      const sessionId = aiEventSessionId(event);
+      if (wordId) targetIds.add(wordId);
+      if (sessionId) sessionIds.add(sessionId);
+      const types = aiEventEvidenceTypes(event);
+      types.forEach(type => {
+        const key = String(type || '').trim().toLowerCase();
+        if (!key) return;
+        metrics.evidence[key] = (metrics.evidence[key] || 0) + 1;
+      });
+    });
+    const routeEvidenceCounts = {};
+    aiRouteRecords(routeState).forEach(record => {
+      (Array.isArray(record?.routeEvidence) ? record.routeEvidence : []).forEach(item => {
+        const key = String(item?.type || '').trim().toLowerCase();
+        const count = Math.max(1, Number(item?.observationCount) || 0);
+        if (key) routeEvidenceCounts[key] = (routeEvidenceCounts[key] || 0) + count;
+      });
+      metrics.neighbors += Array.isArray(record?.learnerGeneratedNeighbors) ? record.learnerGeneratedNeighbors.length : 0;
+      metrics.anchors += Array.isArray(record?.personalAnchors) ? record.personalAnchors.length : 0;
+      metrics.connections += Array.isArray(record?.connections) ? record.connections.length : 0;
+      metrics.weakRoutes += Array.isArray(record?.weakOrFailedRoutes) ? record.weakOrFailedRoutes.length : 0;
+      metrics.diagnostics += Array.isArray(record?.diagnosticExemplars) ? record.diagnosticExemplars.length : 0;
+    });
+    const eventEvidenceTotal = Object.values(metrics.evidence).reduce((sum, count) => sum + count, 0);
+    const allowRouteFallback = options.routeFallback !== false;
+    if (!eventEvidenceTotal && allowRouteFallback) Object.entries(routeEvidenceCounts).forEach(([key, count]) => { metrics.evidence[key] = count; });
+    metrics.evidenceRoutes = eventEvidenceTotal || (allowRouteFallback ? Object.values(routeEvidenceCounts).reduce((sum, count) => sum + count, 0) : 0);
+    const allowTargetFallback = options.targetFallback !== false;
+    metrics.targets = targetIds.size || (allowTargetFallback ? aiRouteRecords(routeState).filter(record => String(record?.wordId || '').trim()).length : 0);
+    metrics.sessions = sessionIds.size;
+    metrics.productionTendencies = Array.isArray(profile?.productionTendencies) ? profile.productionTendencies.length : 0;
+    metrics.reusableConstructions = Array.isArray(profile?.reusableConstructions) ? profile.reusableConstructions.length : 0;
+    metrics.styleTendencies = Array.isArray(profile?.styleTendencies) ? profile.styleTendencies.length : 0;
+    return metrics;
+  }
+
   function cardSourceMetrics() {
     const directEvents = activityEvents.filter(event => eventTimestamp(event));
     const encountered = new Set();
@@ -312,6 +456,15 @@
       button.classList.toggle('is-active', active);
       button.setAttribute('aria-pressed', String(active));
     });
+
+    if (activeLearningSource === 'ai') {
+      const m = aiSourceMetrics();
+      const evidenceText = Object.entries(m.evidence).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([type,count]) => `${fmt(count)} ${aiEvidenceLabel(type)}`).join(' · ') || 'No interpreted evidence recorded yet';
+      const graphText = `${fmt(m.neighbors)} learner-generated neighbor${m.neighbors === 1 ? '' : 's'} · ${fmt(m.anchors)} personal anchor${m.anchors === 1 ? '' : 's'} · ${fmt(m.connections)} connection${m.connections === 1 ? '' : 's'} · ${fmt(m.weakRoutes)} weak/failed route${m.weakRoutes === 1 ? '' : 's'}`;
+      const profileText = `${fmt(m.productionTendencies)} production tendenc${m.productionTendencies === 1 ? 'y' : 'ies'} · ${fmt(m.reusableConstructions)} reusable construction${m.reusableConstructions === 1 ? '' : 's'} · ${fmt(m.styleTendencies)} style tendenc${m.styleTendencies === 1 ? 'y' : 'ies'}`;
+      target.innerHTML = `<div class="learning-source-kicker">AI Practice</div><div class="learning-source-stat-grid"><div><strong>${fmt(m.events)}</strong><span>Experiences</span></div><div><strong>${fmt(m.targets)}</strong><span>Targets</span></div><div><strong>${fmt(m.sessions)}</strong><span>Sessions</span></div><div><strong>${fmt(m.evidenceRoutes)}</strong><span>Evidence routes</span></div></div><div class="learning-source-signal"><span>Observed evidence</span><p>${escapeHtml(evidenceText)}</p></div><div class="learning-source-signal"><span>Learning graph</span><p>${escapeHtml(graphText)}</p></div><div class="learning-source-signal"><span>Profile evidence</span><p>${escapeHtml(profileText)}</p></div><p class="learning-source-note">AI evidence is descriptive. This view does not convert it into a self-rating or mastery score.</p>`;
+      return;
+    }
 
     if (activeLearningSource === 'standard') {
       const m = standardSourceMetrics();
@@ -585,6 +738,7 @@
       activityEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
       practiceEvents.forEach(event => { const t = eventTimestamp(event); if (t) candidates.push(t); });
       studyQSessions.forEach(session => { const t = Date.parse(session.completedAt || session.endedAt || session.startedAt || '') || 0; if (t) candidates.push(t); });
+      aiStudyEvents.forEach(event => { const t = aiEventTimestamp(event); if (t) candidates.push(t); });
       progressRecords.forEach(record => { if (record.firstSeen) candidates.push(record.firstSeen); if (record.lastSeen) candidates.push(record.lastSeen); });
       const start = candidates.length ? Math.min(...candidates) : startOfToday();
       return { ...config, start, end };
@@ -661,6 +815,21 @@
         legacy: false
       });
     });
+    aiStudyEvents.forEach(event => {
+      const timestamp = aiEventTimestamp(event);
+      if (!timestamp || !inRange(timestamp, range)) return;
+      const evidenceTypes = aiEventEvidenceTypes(event);
+      stream.push({
+        ...event,
+        timestamp,
+        wordId: aiEventWordId(event),
+        type: 'ai',
+        source: 'ai-practice',
+        sessionId: aiEventSessionId(event),
+        evidenceTypes: evidenceTypes.map(value => String(value || '').trim()).filter(Boolean),
+        legacy: false
+      });
+    });
     return stream.sort((a,b) => b.timestamp - a.timestamp);
   }
 
@@ -687,6 +856,7 @@
     const reviewWords = new Set();
     let encounters = 0;
     let practiceSessions = 0;
+    const aiSessions = new Set();
     stream.forEach(event => {
       const ids = wordsFromActivityEvent(event);
       ids.forEach(id => unique.add(id));
@@ -694,7 +864,12 @@
       if (event.type === 'review') ids.forEach(id => reviewWords.add(id));
       if (event.type === 'standard' && Array.isArray(event.reviewWordIds)) event.reviewWordIds.forEach(id => reviewWords.add(String(id)));
       if (event.type === 'practice' || event.type === 'standard') practiceSessions++;
+      if (event.type === 'ai') {
+        const key = String(event.sessionId || '').trim() || `event:${String(event.eventId || event.timestamp)}`;
+        aiSessions.add(key);
+      }
     });
+    practiceSessions += aiSessions.size;
     progressRecords.forEach(record => {
       if (record.review && record.lastSeen && inRange(record.lastSeen, range)) reviewWords.add(record.wordId);
     });
@@ -728,13 +903,20 @@
       const label = bucketLabel(bucket.start, index, bucketCount, activeActivityPeriod);
       return `<div class="trend-bucket ${bucket.count ? '' : 'is-empty'}" title="${escapeHtml(label || formatWhen(bucket.start))}: ${fmt(bucket.count)} recorded encounter${bucket.count === 1 ? '' : 's'}"><span class="trend-value">${bucket.count ? fmt(bucket.count) : ''}</span><div class="trend-bar-wrap"><span class="trend-bar" style="height:${height}%"></span></div><span class="trend-label">${escapeHtml(label)}</span></div>`;
     }).join('');
-    $('activity-trend-note').textContent = activityEvents.length ? 'Based on event history recorded by WLP.' : 'Legacy progress can only reconstruct the latest recorded touch for each card. Full day-by-day history starts with the new event log.';
+    $('activity-trend-note').textContent = activeActivitySource === 'ai'
+      ? 'Based on timestamped AI evidence events saved by WLP controlled merge.'
+      : activeActivitySource === 'standard'
+        ? 'Based on saved Standard Practice sessions.'
+        : activeActivitySource === 'card'
+          ? (activityEvents.length ? 'Based on timestamped Card Study event history.' : 'Legacy card progress can only reconstruct the latest recorded touch for each card.')
+          : 'Combined chronology across available Card, Standard and AI records.';
   }
 
   function renderActivityMix(stream) {
-    const counts = { Study: 0, Review: 0, Standard: 0, Practice: 0 };
+    const counts = { Study: 0, Review: 0, Standard: 0, AI: 0, Practice: 0 };
     stream.forEach(event => {
       if (event.type === 'standard') counts.Standard += activityEncounterCount(event);
+      else if (event.type === 'ai') counts.AI += activityEncounterCount(event);
       else if (event.type === 'practice') counts.Practice += activityEncounterCount(event);
       else if (event.type === 'review') counts.Review += 1;
       else counts.Study += 1;
@@ -745,12 +927,21 @@
 
   function activityTimelineTitle(event) {
     if (event.type === 'standard') return 'Standard Practice';
+    if (event.type === 'ai') {
+      const row = rowByWordId.get(String(event.wordId || '')) || {};
+      return field(row, 'Word') || (event.wordId ? `WID ${event.wordId}` : 'AI Practice');
+    }
     if (event.type === 'practice') return titleCase(event.practiceType || 'Practice');
     const row = rowByWordId.get(String(event.wordId || '')) || {};
     return field(row, 'Word') || (event.wordId ? `WID ${event.wordId}` : titleCase(event.type || 'Activity'));
   }
 
   function activityTimelineCopy(event) {
+    if (event.type === 'ai') {
+      const labels = (Array.isArray(event.evidenceTypes) ? event.evidenceTypes : []).slice(0, 3).map(aiEvidenceLabel);
+      const response = aiAuthoritativeResponse(event);
+      return [labels.join(' · '), response ? `Response: ${response}` : 'AI-interpreted learning evidence'].filter(Boolean).join(' · ');
+    }
     if (event.type === 'standard') {
       const summary = studyQRatingSummary(event.counts || {});
       const count = Number(event.experienceCount) || (Array.isArray(event.wordIds) ? event.wordIds.length : 0);
@@ -774,7 +965,7 @@
       return;
     }
     target.innerHTML = items.map(event => {
-      const tag = event.type === 'standard' ? 'Standard' : event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study';
+      const tag = event.type === 'standard' ? 'Standard' : event.type === 'ai' ? 'AI' : event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study';
       const inner = `<span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(tag)}</span>`;
       const href = activityHref(event);
       return href ? `<a class="timeline-row" href="${href}">${inner}</a>` : `<div class="timeline-row">${inner}</div>`;
@@ -854,31 +1045,100 @@
     }).join('');
   }
 
+  function renderAIEvidence(range) {
+    const events = aiStudyEvents
+      .filter(event => { const timestamp = aiEventTimestamp(event); return timestamp && inRange(timestamp, range); })
+      .sort((a,b) => aiEventTimestamp(b) - aiEventTimestamp(a));
+    const m = aiSourceMetrics(events, aiRouteState, aiLearnerProfile, { routeFallback: false, targetFallback: false });
+    $('ai-event-count').textContent = fmt(m.events);
+    $('ai-target-count').textContent = fmt(m.targets);
+    $('ai-session-count').textContent = fmt(m.sessions);
+    $('ai-route-count').textContent = fmt(m.evidenceRoutes);
+    $('ai-summary-line').textContent = events.length
+      ? `${fmt(m.events)} interpreted experience${m.events === 1 ? '' : 's'} across ${fmt(m.targets)} target${m.targets === 1 ? '' : 's'} and ${fmt(m.sessions)} session${m.sessions === 1 ? '' : 's'} in this time window.`
+      : 'No AI Practice evidence recorded in this time window yet.';
+    const evidenceTarget = $('ai-evidence-types');
+    const evidenceEntries = Object.entries(m.evidence).sort((a,b) => b[1] - a[1]);
+    evidenceTarget.innerHTML = evidenceEntries.length
+      ? evidenceEntries.map(([type,count]) => `<span class="ai-evidence-chip"><b>${fmt(count)}</b>${escapeHtml(aiEvidenceLabel(type))}</span>`).join('')
+      : '<p class="ai-evidence-empty">No evidence-route observations are available for this period yet.</p>';
+    $('ai-graph-summary').textContent = `Current graph: ${fmt(m.neighbors)} learner-generated neighbors · ${fmt(m.anchors)} personal anchors · ${fmt(m.connections)} connections · ${fmt(m.weakRoutes)} weak/failed routes`;
+    $('ai-profile-summary').textContent = `Profile evidence: ${fmt(m.productionTendencies)} production tendencies · ${fmt(m.reusableConstructions)} reusable constructions · ${fmt(m.styleTendencies)} style tendencies.`;
+    const list = $('ai-recent-list');
+    const recent = events.slice(0, 8);
+    if (!recent.length) {
+      list.innerHTML = '<p class="empty-progress">Complete an AI Practice experience and its merged evidence will appear here.</p>';
+      return;
+    }
+    list.innerHTML = recent.map(event => {
+      const timestamp = aiEventTimestamp(event);
+      const wordId = aiEventWordId(event);
+      const row = rowByWordId.get(wordId) || {};
+      const title = field(row, 'Word') || (wordId ? `WID ${wordId}` : 'AI Practice');
+      const evidenceTypes = aiEventEvidenceTypes(event);
+      const evidenceText = evidenceTypes.slice(0, 3).map(aiEvidenceLabel).join(' · ') || 'Interpreted evidence';
+      const response = aiAuthoritativeResponse(event);
+      const copy = response ? `${evidenceText} · “${response}”` : evidenceText;
+      const href = wordId ? cardHrefForWordId(wordId) : '';
+      const inner = `<span class="ai-recent-time">${escapeHtml(formatWhen(timestamp))}</span><span class="ai-recent-main"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(copy)}</small></span><span class="ai-recent-tag">Evidence</span>`;
+      return href ? `<a class="ai-recent-row" href="${href}">${inner}</a>` : `<div class="ai-recent-row">${inner}</div>`;
+    }).join('');
+  }
+
+  function activitySourceMatches(event, source = activeActivitySource) {
+    if (source === 'all') return true;
+    if (source === 'standard') return event.type === 'standard';
+    if (source === 'ai') return event.type === 'ai';
+    if (source === 'card') return event.type !== 'standard' && event.type !== 'ai' && event.type !== 'practice';
+    return true;
+  }
+
+  function applyActivitySourceVisibility() {
+    const saved = readPanelOptions();
+    document.querySelectorAll('[data-activity-evidence-source]').forEach(panel => {
+      const source = panel.dataset.activityEvidenceSource;
+      const visibleBySource = activeActivitySource === 'all' || activeActivitySource === source;
+      panel.hidden = !visibleBySource || saved[panel.dataset.panel] === false;
+    });
+  }
+
   function renderActivity() {
     if (!ACTIVITY_PERIODS[activeActivityPeriod]) activeActivityPeriod = '30d';
     const range = selectedActivityRange();
-    const stream = normalizedActivityStream(range);
+    const allStream = normalizedActivityStream(range);
+    const stream = allStream.filter(event => activitySourceMatches(event));
     const s = activityStatsFor(range, stream);
     document.querySelectorAll('[data-activity-period]').forEach(button => button.classList.toggle('is-active', button.dataset.activityPeriod === activeActivityPeriod));
+    document.querySelectorAll('[data-activity-source]').forEach(button => {
+      const active = button.dataset.activitySource === activeActivitySource;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
     $('activity-unique-words').textContent = fmt(s.unique);
     $('activity-encounters').textContent = fmt(s.encounters);
     $('activity-review-words').textContent = fmt(s.reviewWords);
     $('activity-practice-sessions').textContent = fmt(s.practiceSessions);
     $('activity-new-words').textContent = fmt(s.firstTouched);
     $('activity-returned-words').textContent = fmt(s.returned);
-    $('activity-data-quality').textContent = activityEvents.length
-      ? 'Full event history is available for recorded card activity in this period.'
-      : 'Legacy mode: older WLP data stores cumulative counts and the latest touch per card, so this view does not pretend to reconstruct interactions that were never timestamped. Review v2 will record each new event from here forward.';
+    $('activity-data-quality').textContent = activeActivitySource === 'ai'
+      ? 'AI activity is read from controlled-merge evidence events. It is shown as evidence, not as a mastery score or automatic Review decision.'
+      : activeActivitySource === 'standard'
+        ? 'Standard Practice activity is read from saved session history. Self-rating and Review Attention remain separate signals.'
+        : activeActivitySource === 'card'
+          ? (activityEvents.length ? 'Full event history is available for recorded card activity in this period.' : 'Legacy mode: older card data cannot reconstruct interactions that were never timestamped.')
+          : 'Combined Activity keeps Card, Standard and AI evidence in one chronology while preserving each source separately.';
     renderStudyQSessions(range);
+    renderAIEvidence(range);
     renderActivityTrend(range, stream);
     renderActivityMix(stream);
     renderActivityTimeline(stream);
+    applyActivitySourceVisibility();
   }
 
   function installLearningSourceControls() {
     document.querySelectorAll('[data-learning-source]').forEach(button => button.addEventListener('click', () => {
       const source = button.dataset.learningSource;
-      if (!['card', 'standard'].includes(source)) return;
+      if (!['card', 'standard', 'ai'].includes(source)) return;
       activeLearningSource = source;
       try { localStorage.setItem(LEARNING_SOURCE_VIEW_KEY, source); } catch (_) {}
       renderLearningSources();
@@ -895,12 +1155,25 @@
     }));
   }
 
+  function installActivitySourceControls() {
+    document.querySelectorAll('[data-activity-source]').forEach(button => button.addEventListener('click', () => {
+      const source = button.dataset.activitySource;
+      if (!['all', 'card', 'standard', 'ai'].includes(source)) return;
+      activeActivitySource = source;
+      try { localStorage.setItem(ACTIVITY_SOURCE_VIEW_KEY, source); } catch (_) {}
+      renderActivity();
+    }));
+  }
+
   function renderAll() {
     progressRecords = readProgressRecords();
     practiceEvents = readPracticeEvents();
     activityEvents = readActivityEvents();
     interactionEvents = readInteractionEvents();
     studyQSessions = readStudyQSessions();
+    aiStudyEvents = readAIStudyEvents();
+    aiRouteState = readAIRouteState();
+    aiLearnerProfile = readAILearnerProfile();
     const s = stats();
     $('progress-data-note').textContent = `${fmt(s.total)} cards · local progress`;
     renderOverview();
@@ -944,7 +1217,9 @@
     const saved = readPanelOptions();
     document.querySelectorAll('[data-panel]').forEach(panel => {
       const key = panel.dataset.panel;
-      panel.hidden = saved[key] === false;
+      const source = panel.dataset.activityEvidenceSource;
+      const visibleBySource = !source || activeActivitySource === 'all' || activeActivitySource === source;
+      panel.hidden = saved[key] === false || !visibleBySource;
     });
     document.querySelectorAll('[data-progress-option]').forEach(input => {
       input.checked = saved[input.dataset.progressOption] !== false;
@@ -1111,20 +1386,37 @@
     check('standard experiences counted', metrics.experiences === 2);
     check('self-ratings remain separate', metrics.ratings['got-it'] === 1 && metrics.ratings.almost === 1);
     check('attention remains separate', metrics.attention.medium === 1 && metrics.attention.light === 1);
-    check('saved attention count', metrics.attentionSaved === 2 && metrics.attentionMissing === 0);
-    const legacy = standardSourceMetrics([{ experienceCount: 1, experiences: [{ attempt: { selfRating: 'not-yet' } }] }]);
-    check('legacy rating fallback preserved', legacy.ratings['not-yet'] === 1 && legacy.rated === 1);
-    check('legacy missing attention stays explicit', legacy.attentionMissing === 1 && legacy.attentionSaved === 0);
-    check('standard activity encounter count uses experiences', activityEncounterCount({ type: 'standard', experienceCount: 3 }) === 3);
-    check('standard activity word IDs remain distinct evidence', wordsFromActivityEvent({ type: 'standard', wordIds: ['419', '420'] }).join(',') === '419,420');
+    const aiEventsFixture = [
+      { eventId: 'e1', sessionId: 's1', wordId: '5578', evidenceTypes: ['cue-based-retrieval'], observedAt: '2026-09-20T02:43:54.039Z' },
+      { eventId: 'e2', sessionId: 's1', wordId: '5578', evidenceTypes: ['context-transfer','construction-use'], observedAt: '2026-09-20T02:44:54.039Z' },
+      { eventId: 'e3', sessionId: 's2', wordId: '6000', evidenceTypes: ['spontaneous-production'], observedAt: '2026-09-20T02:45:54.039Z' }
+    ];
+    const aiRouteFixture = { records: { 'wid:5578': { wordId:'5578', learnerGeneratedNeighbors:[{}], personalAnchors:[{}], connections:[{},{}], weakOrFailedRoutes:[{}], routeEvidence:[{type:'cue-based-retrieval',observationCount:2},{type:'context-transfer',observationCount:1}] } } };
+    const aiProfileFixture = { productionTendencies:[{}], reusableConstructions:[{},{}], styleTendencies:[] };
+    const ai = aiSourceMetrics(aiEventsFixture, aiRouteFixture, aiProfileFixture);
+    check('AI experiences counted', ai.events === 3);
+    check('AI targets remain distinct', ai.targets === 2);
+    check('AI sessions remain distinct', ai.sessions === 2);
+    check('AI event evidence stays primary when events exist', ai.evidenceRoutes === 4);
+    const aiFallback = aiSourceMetrics([], aiRouteFixture, aiProfileFixture);
+    check('AI route state is a fallback when event evidence is unavailable', aiFallback.evidenceRoutes === 3 && aiFallback.evidence['cue-based-retrieval'] === 2 && aiFallback.targets === 1);
+    const aiPeriodEmpty = aiSourceMetrics([], aiRouteFixture, aiProfileFixture, { routeFallback:false, targetFallback:false });
+    check('empty AI period does not borrow all-time target/evidence counts', aiPeriodEmpty.targets === 0 && aiPeriodEmpty.evidenceRoutes === 0);
+    check('AI graph data stays separate', ai.neighbors === 1 && ai.anchors === 1 && ai.connections === 2 && ai.weakRoutes === 1);
+    check('AI profile evidence stays separate', ai.productionTendencies === 1 && ai.reusableConstructions === 2 && ai.styleTendencies === 0);
+    check('AI timestamp accepts observedAt', aiEventTimestamp(aiEventsFixture[0]) === Date.parse('2026-09-20T02:43:54.039Z'));
+    check('AI is one activity encounter per interpreted event', activityEncounterCount({ type:'ai' }) === 1);
+    check('activity source filter keeps AI separate', activitySourceMatches({type:'ai'}, 'ai') && !activitySourceMatches({type:'standard'}, 'ai'));
+    check('card filter excludes Standard and AI', activitySourceMatches({type:'study'}, 'card') && !activitySourceMatches({type:'standard'}, 'card') && !activitySourceMatches({type:'ai'}, 'card'));
     return { passed: checks.every(item => item.passed), checks };
   }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.1.0', runSourceIntegrationSelfTest });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.2.0', runSourceIntegrationSelfTest });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
   installActivityPeriodControls();
+  installActivitySourceControls();
   installLearningSourceControls();
   installShell(closeOptions);
 
@@ -1145,6 +1437,9 @@
       activityEvents = readActivityEvents();
       interactionEvents = readInteractionEvents();
       studyQSessions = readStudyQSessions();
+      aiStudyEvents = readAIStudyEvents();
+      aiRouteState = readAIRouteState();
+      aiLearnerProfile = readAILearnerProfile();
       $('progress-data-note').textContent = 'Deck data unavailable';
       renderOverview();
       renderLandscape();
