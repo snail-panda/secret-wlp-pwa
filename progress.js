@@ -1638,7 +1638,7 @@
 
   function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.3.1', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.2', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
