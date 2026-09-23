@@ -23,7 +23,7 @@
   const VIEW_META = {
     overview: { title: 'Overview', description: 'See where you are, what needs attention, and what to do next.' },
     landscape: { title: 'Landscape', description: 'See the garden as a landscape: where you have traveled, and where you have not.' },
-    paths: { title: 'Paths', description: 'See the different learning paths that make words deeper and more connected.' },
+    paths: { title: 'Paths', description: 'See how Card, Standard and AI are building different routes through your vocabulary.' },
     activity: { title: 'Activity', description: 'See what you actually did over time—without turning progress into a single score.' }
   };
 
@@ -613,6 +613,117 @@
     return counts;
   }
 
+
+  const EVIDENCE_PATH_DEFS = [
+    { key: 'recall', label: 'Recall / Meaning', icon: 'book', copy: 'retrieval · recognition · meaning hooks' },
+    { key: 'context', label: 'Context / Transfer', icon: 'context', copy: 'situations · real-life use · transfer' },
+    { key: 'usage', label: 'Usage / Collocation', icon: 'usage', copy: 'natural use · collocation · phrasing' },
+    { key: 'form', label: 'Form / Construction', icon: 'form', copy: 'patterns · construction · pronunciation' },
+    { key: 'contrast', label: 'Contrast / Neighbors', icon: 'contrast', copy: 'nuance · alternatives · discrimination' },
+    { key: 'anchors', label: 'Anchors / Exposure', icon: 'anchor', copy: 'personal anchors · repeated exposure' }
+  ];
+
+  function blankPathSignals() {
+    return Object.fromEntries(EVIDENCE_PATH_DEFS.map(def => [def.key, { card: 0, standard: 0, ai: 0 }]));
+  }
+
+  function addPathSignal(signals, path, source, amount = 1) {
+    if (!signals[path] || !Object.prototype.hasOwnProperty.call(signals[path], source)) return;
+    const value = Number(amount) || 0;
+    if (value > 0) signals[path][source] += value;
+  }
+
+  function cardPathSignals(signals, records = progressRecords) {
+    const reasonMap = {
+      recall: ['recall', 'meaning-hook'],
+      context: ['context', 'real-life-use', 'better-example'],
+      usage: ['usage', 'collocation'],
+      form: ['pattern', 'pronunciation'],
+      contrast: ['nuance'],
+      anchors: ['more-exposure']
+    };
+    (Array.isArray(records) ? records : []).forEach(record => {
+      if (!record?.review) return;
+      const reasons = Array.isArray(record.reviewReasons) ? record.reviewReasons.map(value => String(value || '').trim().toLowerCase()).filter(Boolean) : [];
+      Object.entries(reasonMap).forEach(([path, mapped]) => {
+        mapped.forEach(reason => { if (reasons.includes(reason)) addPathSignal(signals, path, 'card', 1); });
+      });
+    });
+  }
+
+  function standardPathSignals(signals, sessions = studyQSessions) {
+    (Array.isArray(sessions) ? sessions : []).forEach(session => {
+      const experiences = Array.isArray(session?.experiences) ? session.experiences : [];
+      if (experiences.length) {
+        experiences.forEach(experience => {
+          const attempt = experience?.attempt || {};
+          if (!String(attempt.selfRating || '').trim()) return;
+          addPathSignal(signals, 'recall', 'standard', 1);
+          addPathSignal(signals, 'context', 'standard', 1);
+        });
+        return;
+      }
+      const count = Math.max(0, Number(session?.experienceCount) || Object.values(session?.counts || {}).reduce((sum, value) => sum + (Number(value) || 0), 0));
+      if (count) {
+        addPathSignal(signals, 'recall', 'standard', count);
+        addPathSignal(signals, 'context', 'standard', count);
+      }
+    });
+  }
+
+  function aiEvidencePath(type) {
+    const key = String(type || '').trim().toLowerCase();
+    if (['recognition', 'cue-based-retrieval', 'reverse-reconstruction'].includes(key)) return ['recall'];
+    if (['context-transfer', 'sense-transfer'].includes(key)) return ['context'];
+    if (['spontaneous-production', 'free-composition'].includes(key)) return ['context', 'usage'];
+    if (['construction-use', 'form-control'].includes(key)) return ['form'];
+    if (key === 'neighbor-discrimination') return ['contrast'];
+    if (key === 'personal-anchor') return ['anchors'];
+    return [];
+  }
+
+  function aiPathSignals(signals, events = aiStudyEvents, routeState = aiRouteState, profile = aiLearnerProfile) {
+    let eventEvidenceCount = 0;
+    (Array.isArray(events) ? events : []).forEach(event => {
+      const seen = new Set();
+      aiEventEvidenceTypes(event).forEach(type => {
+        aiEvidencePath(type).forEach(path => {
+          if (seen.has(path)) return;
+          seen.add(path);
+          addPathSignal(signals, path, 'ai', 1);
+          eventEvidenceCount++;
+        });
+      });
+    });
+    const routeRecords = aiRouteRecords(routeState);
+    if (!eventEvidenceCount) {
+      routeRecords.forEach(record => {
+        (Array.isArray(record?.routeEvidence) ? record.routeEvidence : []).forEach(item => {
+          const amount = Math.max(1, Number(item?.observationCount) || 0);
+          aiEvidencePath(item?.type).forEach(path => addPathSignal(signals, path, 'ai', amount));
+        });
+      });
+    }
+    routeRecords.forEach(record => {
+      addPathSignal(signals, 'contrast', 'ai', Array.isArray(record?.learnerGeneratedNeighbors) ? record.learnerGeneratedNeighbors.length : 0);
+      addPathSignal(signals, 'anchors', 'ai', Array.isArray(record?.personalAnchors) ? record.personalAnchors.length : 0);
+    });
+    addPathSignal(signals, 'form', 'ai', Array.isArray(profile?.reusableConstructions) ? profile.reusableConstructions.length : 0);
+  }
+
+  function evidenceAwarePathSignals(input = {}) {
+    const signals = blankPathSignals();
+    cardPathSignals(signals, input.progressRecords ?? progressRecords);
+    standardPathSignals(signals, input.studyQSessions ?? studyQSessions);
+    aiPathSignals(signals, input.aiStudyEvents ?? aiStudyEvents, input.aiRouteState ?? aiRouteState, input.aiLearnerProfile ?? aiLearnerProfile);
+    return signals;
+  }
+
+  function pathSourceSignal(source, count) {
+    const label = source === 'standard' ? 'Standard' : source === 'ai' ? 'AI' : 'Card';
+    return `<span class="path-source-signal path-${source}-source${count ? '' : ' is-zero'}"><span>${label}</span><b>${fmt(count)}</b></span>`;
+  }
+
   function renderConnectionBars() {
     const target = $('connection-bars');
     const counts = connectionCounts();
@@ -627,20 +738,12 @@
   }
 
   function renderPaths() {
-    const counts = connectionCounts();
-    const s = stats();
-    const pathDefs = [
-      ['Meaning', 'book', s.touched, 'Card-study signals'],
-      ['Context', 'context', counts['Context / Situation'], 'Stories · situations'],
-      ['Usage', 'usage', counts['Usage / Collocation'], 'Collocation · natural use'],
-      ['Sound', 'sound', counts.Sound, 'Pronunciation'],
-      ['Visual', 'visual', counts.Visual, 'Image anchors'],
-      ['Culture', 'culture', counts.Culture, 'Cultural context']
-    ];
-    const max = Math.max(1, ...pathDefs.map(item => item[2]));
-    $('learning-path-grid').innerHTML = pathDefs.map(([label, icon, count, copy]) => {
-      const width = count ? Math.max(7, (count / max) * 100) : 0;
-      return `<div class="learning-path-card">${pathIcon(icon)}<strong>${escapeHtml(label)}</strong><small>${count ? `${fmt(count)} recorded · ${escapeHtml(copy)}` : `Not practiced yet · ${escapeHtml(copy)}`}</small><div class="path-meter"><span style="width:${width}%"></span></div></div>`;
+    const signals = evidenceAwarePathSignals();
+    $('learning-path-grid').innerHTML = EVIDENCE_PATH_DEFS.map(def => {
+      const sourceCounts = signals[def.key] || { card: 0, standard: 0, ai: 0 };
+      const contributing = ['card', 'standard', 'ai'].filter(source => Number(sourceCounts[source]) > 0).length;
+      const stateCopy = contributing ? `Evidence from ${contributing} source${contributing === 1 ? '' : 's'}` : 'No path-specific evidence yet';
+      return `<div class="learning-path-card" data-learning-path="${escapeHtml(def.key)}"><div class="learning-path-head">${pathIcon(def.icon)}<strong>${escapeHtml(def.label)}</strong></div><small>${escapeHtml(def.copy)}</small><div class="path-source-signals">${pathSourceSignal('card', sourceCounts.card)}${pathSourceSignal('standard', sourceCounts.standard)}${pathSourceSignal('ai', sourceCounts.ai)}</div><div class="path-evidence-state">${escapeHtml(stateCopy)}</div></div>`;
     }).join('');
 
     const reviewing = progressRecords.filter(r => r.review);
@@ -657,9 +760,9 @@
       book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3-.8 5.8-.2 8 1.7v12c-2.2-1.9-5-2.5-8-1.7v-12ZM20 5.5c-3-.8-5.8-.2-8 1.7v12c2.2-1.9 5-2.5 8-1.7v-12Z"/></svg>',
       context: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 3V5Z"/><path d="M8 9h8M8 12h5"/></svg>',
       usage: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12M6 12h8M6 17h10"/><path d="m17 14 3 3-3 3"/></svg>',
-      sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 14h3l4 4V6L8 10H5v4ZM16 9c1.5 1.5 1.5 4.5 0 6M19 6c3 3 3 9 0 12"/></svg>',
-      visual: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m6 17 4-4 3 3 2-2 3 3"/></svg>',
-      culture: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.2 2.1 3.2 4.8 3.2 8S14.2 17.9 12 20M12 4C9.8 6.1 8.8 8.8 8.8 12S9.8 17.9 12 20"/></svg>'
+      form: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M8 6v12M16 6v12M5 18h14"/><path d="M10.5 11h3M10.5 14h3"/></svg>',
+      contrast: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/><path d="M10 12h4"/></svg>',
+      anchor: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><path d="M12 7v12M6 11H3c0 5 3.5 8 9 8s9-3 9-8h-3M8 15l4 4 4-4"/></svg>'
     };
     return icons[name] || icons.book;
   }
@@ -682,30 +785,75 @@
 
   function renderRecentPractice() {
     const target = $('recent-practice');
-    const practice = [...practiceEvents].sort((a,b) => Number(b.timestamp || b.createdAt || 0) - Number(a.timestamp || a.createdAt || 0)).slice(0, 4);
-    if (practice.length) {
-      target.innerHTML = practice.map(event => {
-        const timestamp = Number(event.timestamp || event.createdAt || 0);
-        const type = String(event.type || event.practiceType || 'Practice');
-        const targets = Array.isArray(event.targets) ? event.targets.length : 0;
-        const supports = Array.isArray(event.supports) ? event.supports.length : 0;
-        const inner = `<span class="practice-time">${escapeHtml(formatWhen(timestamp))}</span><span class="practice-main"><strong>${escapeHtml(titleCase(type))}</strong><small>${targets ? `${targets} target${targets === 1 ? '' : 's'}` : 'Practice'}${supports ? ` + ${supports} support` : ''}</small></span><span class="practice-tag">Connection</span>`;
-        const href = activityHref({ ...event, type: 'practice' });
-        return href ? `<a class="practice-row" href="${href}">${inner}</a>` : `<div class="practice-row">${inner}</div>`;
-      }).join('');
-      return;
-    }
+    const items = [];
 
-    const recent = progressRecords.filter(r => r.lastSeen).sort((a,b) => b.lastSeen - a.lastSeen).slice(0, 4);
+    activityEvents.forEach(event => {
+      const timestamp = eventTimestamp(event);
+      const wordId = String(event?.wordId || '').trim();
+      if (!timestamp || !wordId) return;
+      const row = rowByWordId.get(wordId) || {};
+      const type = String(event?.type || 'study').trim().toLowerCase();
+      const action = String(event?.action || '').trim().replace(/-/g, ' ');
+      items.push({
+        timestamp,
+        title: field(row, 'Word') || `WID ${wordId}`,
+        copy: action ? titleCase(action) : (type === 'review' ? 'Review card action' : 'Card encounter'),
+        tag: 'Card',
+        href: cardHrefForWordId(wordId)
+      });
+    });
+
+    studyQSessions.forEach(session => {
+      const timestamp = sessionTimestamp(session);
+      if (!timestamp) return;
+      const experiences = Number(session?.experienceCount) || (Array.isArray(session?.experiences) ? session.experiences.length : 0);
+      items.push({
+        timestamp,
+        title: 'Standard Practice',
+        copy: experiences ? `${experiences} experience${experiences === 1 ? '' : 's'}` : 'Completed session',
+        tag: 'Standard',
+        href: session?.sessionId ? `./study-hub.html?session=${encodeURIComponent(String(session.sessionId))}` : './study-hub.html'
+      });
+    });
+
+    aiStudyEvents.forEach(event => {
+      const timestamp = aiEventTimestamp(event);
+      if (!timestamp) return;
+      const wordId = aiEventWordId(event);
+      const row = rowByWordId.get(wordId) || {};
+      const evidence = aiEventEvidenceTypes(event).slice(0, 2).map(aiEvidenceLabel).join(' · ');
+      items.push({
+        timestamp,
+        title: field(row, 'Word') || (wordId ? `WID ${wordId}` : 'AI Practice'),
+        copy: evidence || 'AI learning evidence',
+        tag: 'AI',
+        href: wordId ? cardHrefForWordId(wordId) : './study-hub.html'
+      });
+    });
+
+    practiceEvents.forEach(event => {
+      const timestamp = eventTimestamp(event);
+      if (!timestamp) return;
+      const type = String(event.type || event.practiceType || 'Practice');
+      const targets = Array.isArray(event.targets) ? event.targets.length : 0;
+      const supports = Array.isArray(event.supports) ? event.supports.length : 0;
+      items.push({
+        timestamp,
+        title: titleCase(type),
+        copy: `${targets ? `${targets} target${targets === 1 ? '' : 's'}` : 'Connection practice'}${supports ? ` + ${supports} support` : ''}`,
+        tag: 'Connection',
+        href: activityHref({ ...event, type: 'practice' })
+      });
+    });
+
+    const recent = items.filter(item => item.timestamp).sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
     if (!recent.length) {
-      target.innerHTML = '<p class="empty-progress">No practice has been recorded yet. Story, Dialogue, Situation and other connection work will appear here later.</p>';
+      target.innerHTML = '<p class="empty-progress">No Card, Standard or AI practice has been recorded yet.</p>';
       return;
     }
-    target.innerHTML = `<p class="panel-footnote" style="margin-top:0">No connection-practice events yet. Recent card activity is shown below.</p>` + recent.map(record => {
-      const row = rowByWordId.get(record.wordId) || {};
-      const inner = `<span class="practice-time">${escapeHtml(formatWhen(record.lastSeen))}</span><span class="practice-main"><strong>${escapeHtml(field(row,'Word') || `WID ${record.wordId}`)}</strong><small>${deckOf(row) ? `Deck WLP${pad3(deckOf(row))}` : 'Card activity'}</small></span><span class="practice-tag">Card</span>`;
-      const href = cardHrefForWordId(record.wordId);
-      return href ? `<a class="practice-row" href="${href}">${inner}</a>` : `<div class="practice-row">${inner}</div>`;
+    target.innerHTML = recent.map(item => {
+      const inner = `<span class="practice-time">${escapeHtml(formatWhen(item.timestamp))}</span><span class="practice-main"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.copy)}</small></span><span class="practice-tag">${escapeHtml(item.tag)}</span>`;
+      return item.href ? `<a class="practice-row" href="${item.href}">${inner}</a>` : `<div class="practice-row">${inner}</div>`;
     }).join('');
   }
 
@@ -1408,10 +1556,38 @@
     check('AI is one activity encounter per interpreted event', activityEncounterCount({ type:'ai' }) === 1);
     check('activity source filter keeps AI separate', activitySourceMatches({type:'ai'}, 'ai') && !activitySourceMatches({type:'standard'}, 'ai'));
     check('card filter excludes Standard and AI', activitySourceMatches({type:'study'}, 'card') && !activitySourceMatches({type:'standard'}, 'card') && !activitySourceMatches({type:'ai'}, 'card'));
+
+    const pathSignals = evidenceAwarePathSignals({
+      progressRecords: [
+        { review:true, reviewReasons:['recall','usage','nuance'] },
+        { review:true, reviewReasons:['context','pattern','more-exposure'] },
+        { review:false, reviewReasons:['collocation'] }
+      ],
+      studyQSessions: [{ experiences:[
+        { attempt:{selfRating:'got-it'} },
+        { attempt:{selfRating:'almost'} },
+        { attempt:{selfRating:''} }
+      ] }],
+      aiStudyEvents: [
+        { evidenceTypes:['cue-based-retrieval','context-transfer'] },
+        { evidenceTypes:['construction-use','neighbor-discrimination','personal-anchor'] },
+        { evidenceTypes:['free-composition'] }
+      ],
+      aiRouteState: { records:{ one:{ learnerGeneratedNeighbors:[{}], personalAnchors:[{}], routeEvidence:[] } } },
+      aiLearnerProfile: { reusableConstructions:[{}] }
+    });
+    check('Card paths use current Learning Needs only', pathSignals.recall.card === 1 && pathSignals.usage.card === 1 && pathSignals.context.card === 1 && pathSignals.form.card === 1 && pathSignals.contrast.card === 1 && pathSignals.anchors.card === 1);
+    check('Standard situational ratings feed recall and context paths', pathSignals.recall.standard === 2 && pathSignals.context.standard === 2 && pathSignals.usage.standard === 0);
+    check('AI evidence stays route-specific', pathSignals.recall.ai === 1 && pathSignals.context.ai === 2 && pathSignals.usage.ai === 1 && pathSignals.form.ai === 2 && pathSignals.contrast.ai === 2 && pathSignals.anchors.ai === 2);
+    const fallbackPaths = evidenceAwarePathSignals({ progressRecords:[], studyQSessions:[], aiStudyEvents:[], aiRouteState:{records:{one:{routeEvidence:[{type:'cue-based-retrieval',observationCount:2},{type:'construction-use',observationCount:1}],learnerGeneratedNeighbors:[],personalAnchors:[]}}}, aiLearnerProfile:{} });
+    check('AI route state is path fallback when event evidence is absent', fallbackPaths.recall.ai === 2 && fallbackPaths.form.ai === 1);
+    check('Path source counts remain separate', ['card','standard','ai'].every(source => Object.prototype.hasOwnProperty.call(pathSignals.recall, source)));
     return { passed: checks.every(item => item.passed), checks };
   }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.2.0', runSourceIntegrationSelfTest });
+  function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
+
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.0', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
