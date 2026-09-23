@@ -10,14 +10,16 @@
   const iconSvg = type => {
     if (type === 'sound') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6M9 6v12M13 4v16M17 7v10M21 10v4"/></svg>';
     if (type === 'book') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg>';
+    if (type === 'dictionary') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 4.5h11.7A1.8 1.8 0 0 1 19 6.3v7.2H7.2A2.2 2.2 0 0 0 5 15.7V6.8a2.3 2.3 0 0 1 .5-1.4Z"/><path d="M7.2 13.5A2.2 2.2 0 0 0 5 15.7c0 1.2 1 2.2 2.2 2.2"/><circle cx="10" cy="17.5" r="2.2"/><circle cx="16" cy="17.5" r="2.2"/><path d="M12.2 17.5h1.6M7.8 16.9l-1.2-.7M18.2 16.9l1.2-.7"/></svg>';
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9L10.9 5"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg>';
   };
 
   const DEFAULT_STATE = {
-    version: 1,
+    version: 2,
     categories: [
       {id:'pronunciation', title:'Pronunciation & Prosody', kicker:'Sound & rhythm', icon:'sound'},
-      {id:'learning', title:'Fluency & Learning', kicker:'Learning shelf', icon:'book'}
+      {id:'learning', title:'Fluency & Learning', kicker:'Learning shelf', icon:'book'},
+      {id:'dictionaries', title:'Dictionaries', kicker:'Wisdom of the World', icon:'dictionary'}
     ],
     resources: [
       {id:'builtin-english-accent-coach', categoryId:'pronunciation', name:'English Accent Coach', description:'englishaccentcoach.com', actions:[{label:'Website',url:'https://www.englishaccentcoach.com/home'}]},
@@ -25,7 +27,13 @@
       {id:'builtin-tfcs-thought-groups', categoryId:'pronunciation', name:'TfCS — Tools for Clear Speech', description:'Thought Groups', actions:[{label:'Open reference',url:'https://tfcs.baruch.cuny.edu/thought-groups/'}]},
       {id:'builtin-wikihow-reading-fluency', categoryId:'learning', name:'wikiHow', description:'How to Improve Reading Fluency', actions:[{label:'Open article',url:'https://www.wikihow.life/Improve-Reading-Fluency'}]},
       {id:'builtin-reading-rockets-fluency', categoryId:'learning', name:'Reading Rockets', description:'Understanding and Assessing Fluency', actions:[{label:'Open article',url:'https://www.readingrockets.org/topics/assessment-and-evaluation/articles/understanding-and-assessing-fluency'}]},
-      {id:'builtin-all-ears-english', categoryId:'learning', name:'AllEarsEnglishPodcast', description:'YouTube', actions:[{label:'YouTube',url:'https://www.youtube.com/@AllEarsEnglishPodcast'}]}
+      {id:'builtin-all-ears-english', categoryId:'learning', name:'AllEarsEnglishPodcast', description:'YouTube', actions:[{label:'YouTube',url:'https://www.youtube.com/@AllEarsEnglishPodcast'}]},
+      {id:'builtin-merriam-webster', categoryId:'dictionaries', name:'Merriam-Webster', description:'merriam-webster.com', actions:[{label:'Website',url:'https://www.merriam-webster.com/'}]},
+      {id:'builtin-merriam-webster-thesaurus', categoryId:'dictionaries', name:'Merriam-Webster Thesaurus', description:'merriam-webster.com/thesaurus', actions:[{label:'Thesaurus',url:'https://www.merriam-webster.com/thesaurus'}]},
+      {id:'builtin-collins-dictionary', categoryId:'dictionaries', name:'Collins Dictionary', description:'collinsdictionary.com', actions:[{label:'Website',url:'https://www.collinsdictionary.com/us/'}]},
+      {id:'builtin-collins-thesaurus', categoryId:'dictionaries', name:'Collins Thesaurus', description:'collinsdictionary.com', actions:[{label:'Thesaurus',url:'https://www.collinsdictionary.com/us/dictionary/english-thesaurus'}]},
+      {id:'builtin-longman-dictionary', categoryId:'dictionaries', name:'Longman Dictionary', description:'ldoceonline.com', actions:[{label:'Website',url:'https://www.ldoceonline.com/'}]},
+      {id:'builtin-dictionary-com', categoryId:'dictionaries', name:'Dictionary.com', description:'dictionary.com', actions:[{label:'Website',url:'https://www.dictionary.com/'}]}
     ]
   };
 
@@ -50,7 +58,7 @@
       id: clean(item?.id) || makeId('category'),
       title: clean(item?.title) || `Category ${index+1}`,
       kicker: clean(item?.kicker),
-      icon: ['sound','book','link'].includes(item?.icon) ? item.icon : 'link'
+      icon: ['sound','book','dictionary','link'].includes(item?.icon) ? item.icon : 'link'
     })) : [];
     const validCategories = new Set(categories.map(item => item.id));
     const fallbackCategory = categories[0]?.id || '';
@@ -61,15 +69,47 @@
       description: clean(item?.description),
       actions: (Array.isArray(item?.actions) ? item.actions : []).map(action => ({label:clean(action?.label)||'Open',url:normalizeUrl(action?.url)})).filter(action => action.url).slice(0,2)
     })).filter(item => item.name && item.categoryId && item.actions.length) : [];
-    return {version:1,categories,resources};
+    return {version:Math.max(1, Number(input.version) || 1),categories,resources};
+  };
+  const migrateState = value => {
+    const next = normalizeState(value);
+    if (next.version >= 2) return next;
+
+    let dictionaries = next.categories.find(item => clean(item.title).toLowerCase() === 'dictionaries');
+    if (!dictionaries) {
+      dictionaries = clone(DEFAULT_STATE.categories.find(item => item.id === 'dictionaries'));
+      next.categories.push(dictionaries);
+    } else {
+      dictionaries.icon = 'dictionary';
+      if (!dictionaries.kicker) dictionaries.kicker = 'Wisdom of the World';
+    }
+
+    const existingUrls = new Set(next.resources.flatMap(item => item.actions.map(action => normalizeUrl(action.url))).filter(Boolean));
+    DEFAULT_STATE.resources.filter(item => item.categoryId === 'dictionaries').forEach(item => {
+      const firstUrl = normalizeUrl(item.actions?.[0]?.url);
+      if (!firstUrl || existingUrls.has(firstUrl)) return;
+      const incoming = clone(item);
+      incoming.categoryId = dictionaries.id;
+      next.resources.push(incoming);
+      existingUrls.add(firstUrl);
+    });
+    next.version = 2;
+    return normalizeState(next);
   };
   const readState = () => {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      return raw ? normalizeState(raw) : clone(DEFAULT_STATE);
+      if (!raw) return clone(DEFAULT_STATE);
+      const next = migrateState(raw);
+      if ((Number(raw.version) || 1) < 2) localStorage.setItem(STORAGE_KEY, JSON.stringify(next, null, 2));
+      return next;
     } catch { return clone(DEFAULT_STATE); }
   };
-  const writeState = state => localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(state), null, 2));
+  const writeState = state => {
+    const next = normalizeState(state);
+    next.version = 2;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next, null, 2));
+  };
 
   let state = readState();
   let manageMode = false;
@@ -134,6 +174,7 @@
     $('links-category-id').value = category?.id || '';
     $('links-category-name').value = category?.title || '';
     $('links-category-kicker').value = category?.kicker || '';
+    $('links-category-icon').value = category?.icon || 'link';
     openModal('links-category-modal');
     setTimeout(() => $('links-category-name')?.focus(), 0);
   };
@@ -195,7 +236,7 @@
   $('links-add-category')?.addEventListener('click', () => openCategoryEditor(null));
   $('links-reset-defaults')?.addEventListener('click', () => {
     if (!isAdmin() || !confirm('Reset this browser’s Links shelf to the built-in defaults? Local link and category changes will be removed.')) return;
-    localStorage.removeItem(STORAGE_KEY); state=clone(DEFAULT_STATE); render();
+    state=clone(DEFAULT_STATE); writeState(state); render();
   });
 
   $('links-editor-form')?.addEventListener('submit', event => {
@@ -215,7 +256,8 @@
     const title=clean($('links-category-name').value); if(!title) return;
     const id=clean($('links-category-id').value)||makeId('category');
     const index=state.categories.findIndex(item=>item.id===id);
-    const next={id,title,kicker:clean($('links-category-kicker').value),icon:index>=0?state.categories[index].icon:'link'};
+    const icon=clean($('links-category-icon').value);
+    const next={id,title,kicker:clean($('links-category-kicker').value),icon:['sound','book','dictionary','link'].includes(icon)?icon:'link'};
     if(index>=0) state.categories[index]=next; else state.categories.push(next);
     closeEditors(); saveAndRender();
   });

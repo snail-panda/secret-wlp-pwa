@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
-  <link rel="stylesheet" href="./links.css?v=20260923-s7-links-management-v186105">
+  <link rel="stylesheet" href="./links.css?v=20260923-s7-links-dictionaries-v186106">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
 </head>
 <body class="app-body links-page">
@@ -181,14 +181,15 @@
       <h2 id="links-category-title">Add Category</h2>
       <input id="links-category-id" type="hidden">
       <label><span>Category name</span><input id="links-category-name" type="text" required placeholder="e.g. Dictionaries & References"></label>
-      <label><span>Small label</span><input id="links-category-kicker" type="text" placeholder="e.g. Reference shelf"></label>
+      <label><span>Small label</span><input id="links-category-kicker" type="text" placeholder="e.g. Wisdom of the World"></label>
+      <label><span>Icon</span><select id="links-category-icon"><option value="link">Link</option><option value="sound">Sound &amp; rhythm</option><option value="book">Open book</option><option value="dictionary">Dictionary · book &amp; glasses</option></select></label>
       <div class="links-editor-actions"><button type="button" id="links-category-cancel">Cancel</button><button type="submit">Save Category</button></div>
     </form>
   </section>
 
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
-  <script src="./links.js?v=20260923-s7-links-management-v186105"></script>
+  <script src="./links.js?v=20260923-s7-links-dictionaries-v186106"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>

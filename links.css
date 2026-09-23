@@ -26,7 +26,7 @@
   .resource-actions{justify-content:flex-start}
 }
 
-/* Stage 7 v1.8.6.105 — Links Management */
+/* Stage 7 v1.8.6.106 — Links Management + category icons */
 .links-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
 .links-hero-copy{min-width:0}
 .links-manage-launch{flex:none;border:1px solid #cfded3;border-radius:999px;background:#f7faf7;color:#456a57;padding:8px 12px;font:600 .78rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
