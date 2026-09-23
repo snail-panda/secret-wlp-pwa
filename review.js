@@ -5,6 +5,9 @@
   const STUDYQ_EVENT_KEY = 'wlp:studyq-events:v1';
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const AI_STUDY_EVENT_KEY = 'wlp:ai-study-events:v1';
+  const INTERACTION_EVENTS_KEY = 'wlp:stage7:interaction-events:v1';
+  const EVENT_HISTORY_LIMIT = 5000;
+  const SUGGESTION_POLICY_VERSION = '1.0.0';
   const ROLE_KEY = 'wlp:ui-role:v2';
   const SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
   const PAGE_SIZE = 40;
@@ -23,6 +26,8 @@
   let visibleLimit = PAGE_SIZE;
   let latestStandardEvidence = new Map();
   let latestAIEvidence = new Map();
+  let aiEvidenceByWordId = new Map();
+  let interactionEvents = [];
 
   function esc(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function parseTSV(text){
@@ -75,6 +80,18 @@
       return list.filter(item=>item&&typeof item==='object');
     }catch{return[];}
   }
+  function readInteractionEvents(){return readJsonArray(INTERACTION_EVENTS_KEY);}
+  function appendInteractionEvent(event){
+    try{
+      const list=readInteractionEvents();list.push(event);
+      if(list.length>EVENT_HISTORY_LIMIT)list.splice(0,list.length-EVENT_HISTORY_LIMIT);
+      localStorage.setItem(INTERACTION_EVENTS_KEY,JSON.stringify(list));interactionEvents=list;return true;
+    }catch(e){console.warn('Could not save Review suggestion event',e);return false;}
+  }
+  function readProgressRecord(wordId){
+    try{const value=JSON.parse(localStorage.getItem(`${PROGRESS_PREFIX}${String(wordId||'').trim()}`)||'{}');return value&&typeof value==='object'?value:{};}catch{return{};}
+  }
+  function saveProgressRecord(wordId,value){localStorage.setItem(`${PROGRESS_PREFIX}${String(wordId||'').trim()}`,JSON.stringify(value));}
   function timestampFrom(values){
     for(const value of values){
       if(typeof value==='number'&&Number.isFinite(value)&&value>0)return value;
@@ -137,6 +154,122 @@
       if(!prior||timestamp>prior.timestamp||(timestamp===prior.timestamp&&index>prior.index))map.set(wordId,{event,timestamp,index});
     });return map;
   }
+  function buildAIEvidenceHistory(){
+    const map=new Map();readAIEvents().forEach((event,index)=>{
+      const wordId=aiWordId(event);if(!wordId)return;
+      const timestamp=aiEventTimestamp(event);if(!map.has(wordId))map.set(wordId,[]);
+      map.get(wordId).push({event,timestamp,index});
+    });
+    map.forEach(list=>list.sort((a,b)=>(a.timestamp-b.timestamp)||(a.index-b.index)));
+    return map;
+  }
+  function aiSessionId(event){return String(event?.sessionId||event?.session?.sessionId||'').trim();}
+  function aiInterpretation(event){return event?.interpretation||event?.response?.interpretation||event?.result?.response?.interpretation||{};}
+  function aiResponseClasses(event){
+    const interpretation=aiInterpretation(event);const values=Array.isArray(interpretation?.responseClasses)?interpretation.responseClasses:Array.isArray(event?.responseClasses)?event.responseClasses:[];
+    return values.map(v=>String(v||'').trim().toLowerCase()).filter(Boolean);
+  }
+  function hasAIssue(value){
+    if(value===null||value===undefined||value===false)return false;
+    const text=String(value).trim().toLowerCase();return !['','none','null','false','no','n/a'].includes(text);
+  }
+  function aiTargetWasAssisted(event){
+    const exp=event?.experience||event?.interpretationContext?.experience||event?.request?.interpretationContext?.experience||{};
+    const visibility=String(exp?.targetVisibility||event?.targetVisibility||'').trim().toLowerCase();
+    const targetVisible=String(exp?.targetVisible??event?.targetVisible??'').trim().toLowerCase();
+    if(exp?.targetVisible===true||event?.targetVisible===true||targetVisible==='true'||targetVisible==='visible'||event?.targetShown===true||event?.targetRevealed===true)return true;
+    if(visibility==='visible'||visibility==='partial')return true;
+    const assistance=event?.assistance||event?.telemetry?.assistance||{};
+    if(assistance?.targetRevealed===true||assistance?.targetShown===true)return true;
+    return false;
+  }
+  function aiSuggestionSignal(event){
+    const interpretation=aiInterpretation(event);const classes=aiResponseClasses(event);const types=aiEvidenceTypes(event).map(v=>String(v).toLowerCase());
+    const confidence=String(interpretation?.interpretationConfidence||event?.interpretationConfidence||'').toLowerCase();
+    const uncertain=classes.includes('stt-uncertain')||classes.includes('uncertain')||confidence==='low';
+    const targetProduced=interpretation?.targetProduced===true||interpretation?.targetFamilyReached===true||event?.targetProduced===true||event?.targetFamilyReached===true;
+    const formIssue=hasAIssue(interpretation?.formIssue??event?.formIssue);const senseIssue=hasAIssue(interpretation?.senseIssue??event?.senseIssue);
+    const failureClasses=new Set(['partial-concept','form-mismatch','sense-mismatch','unrelated']);
+    const clearFailure=classes.some(value=>failureClasses.has(value))||formIssue||senseIssue||String(event?.interpretationStatus||'').toLowerCase()==='no-idea';
+    const strongTypes=new Set(['spontaneous-production','context-transfer','sense-transfer','reverse-reconstruction','neighbor-discrimination','free-composition','form-control','construction-use']);
+    const strongRoute=types.some(value=>strongTypes.has(value));
+    const assisted=aiTargetWasAssisted(event);
+    return {
+      positive:!uncertain&&targetProduced&&!formIssue&&!senseIssue&&!assisted&&strongRoute,
+      negative:!uncertain&&clearFailure,
+      timestamp:aiEventTimestamp(event),sessionId:aiSessionId(event),types
+    };
+  }
+  function latestSuggestionKeepTimestamp(wordId,fromLevel,toLevel){
+    let latest=0;interactionEvents.forEach(event=>{
+      if(String(event?.action||'')!=='attention_suggestion_kept')return;
+      if(String(event?.wordId||'')!==String(wordId||''))return;
+      if(String(event?.fromLevel||'')!==String(fromLevel||'')||String(event?.suggestedLevel||'')!==String(toLevel||''))return;
+      latest=Math.max(latest,Number(event?.timestamp)||0);
+    });return latest;
+  }
+  function attentionSuggestion(record){
+    const current=String(record?.reviewLevel||'').toLowerCase();if(!['high','medium','light'].includes(current))return null;
+    const wordId=String(record?.wordId||'').trim();const history=aiEvidenceByWordId.get(wordId)||[];if(!history.length)return null;
+    const authority=Number(record?.lastAttentionUpdated||0);if(!authority)return null;
+    const easeTo=current==='high'?'medium':current==='medium'?'light':'';
+    const raiseTo=current==='light'?'medium':current==='medium'?'high':'';
+    const evaluate=(toLevel,direction)=>{
+      if(!toLevel)return null;
+      const cutoff=Math.max(authority,latestSuggestionKeepTimestamp(wordId,current,toLevel));
+      const signals=history.map(item=>aiSuggestionSignal(item.event)).filter(signal=>signal.timestamp>cutoff);
+      if(!signals.length)return null;
+      const positives=signals.filter(signal=>signal.positive);const negatives=signals.filter(signal=>signal.negative);
+      const evidenceThrough=Math.max(...signals.map(signal=>signal.timestamp));
+      if(direction==='ease'){
+        const sessions=new Set(positives.map(signal=>signal.sessionId).filter(Boolean));
+        if(positives.length<2||sessions.size<2||negatives.length)return null;
+        return {wordId,fromLevel:current,toLevel,direction,positiveCount:positives.length,negativeCount:negatives.length,sessionCount:sessions.size,evidenceThrough,cutoff};
+      }
+      const sessions=new Set(negatives.map(signal=>signal.sessionId).filter(Boolean));
+      if(negatives.length<2||sessions.size<2||positives.length)return null;
+      return {wordId,fromLevel:current,toLevel,direction,positiveCount:positives.length,negativeCount:negatives.length,sessionCount:sessions.size,evidenceThrough,cutoff};
+    };
+    return evaluate(easeTo,'ease')||evaluate(raiseTo,'raise');
+  }
+  function suggestionHtml(record){
+    const suggestion=attentionSuggestion(record);if(!suggestion)return'';
+    const from=attentionLabel(suggestion.fromLevel),to=attentionLabel(suggestion.toLevel);
+    const reason=suggestion.direction==='ease'
+      ? `${suggestion.positiveCount} strong AI production / transfer signals across ${suggestion.sessionCount} sessions since ${from} was set.`
+      : `${suggestion.negativeCount} clear AI difficulty signals across ${suggestion.sessionCount} sessions since ${from} was set.`;
+    return `<div class="review-suggestion" data-review-suggestion="${esc(record.wordId)}"><div class="review-suggestion-copy"><span>Suggested Attention</span><strong>${esc(from)} <b aria-hidden="true">→</b> ${esc(to)}</strong><small>${esc(reason)} Nothing changes unless you apply it.</small></div><div class="review-suggestion-actions"><button type="button" class="review-suggestion-apply" data-suggestion-apply="${esc(record.wordId)}" data-from-level="${esc(suggestion.fromLevel)}" data-to-level="${esc(suggestion.toLevel)}" data-evidence-through="${suggestion.evidenceThrough}">Apply ${esc(to)}</button><button type="button" class="review-suggestion-keep" data-suggestion-keep="${esc(record.wordId)}" data-from-level="${esc(suggestion.fromLevel)}" data-to-level="${esc(suggestion.toLevel)}" data-evidence-through="${suggestion.evidenceThrough}">Keep ${esc(from)}</button></div></div>`;
+  }
+  function showReviewToast(message){
+    const toast=$('home-toast');if(!toast)return;toast.textContent=message;toast.hidden=false;clearTimeout(showReviewToast._timer);showReviewToast._timer=setTimeout(()=>{toast.hidden=true;},2200);
+  }
+  function sortReviewRecords(){
+    const rank={high:0,medium:1,light:2,'':3};reviewRecords.sort((a,b)=>(rank[a.reviewLevel]-rank[b.reviewLevel])||(b.lastAttentionUpdated-a.lastAttentionUpdated)||(b.lastSeen-a.lastSeen)||(b.reviewCount-a.reviewCount));
+  }
+  function progressAfterSuggestion(latest,toLevel,now){
+    const reasons=Array.isArray(latest?.reviewReasons)?latest.reviewReasons:[];
+    return {...latest,review:true,known:false,reviewLevel:toLevel,reviewReasons:reasons,lastAttentionUpdated:now};
+  }
+  function applyAttentionSuggestion(button){
+    const wordId=String(button?.dataset?.suggestionApply||'').trim();const fromLevel=String(button?.dataset?.fromLevel||'').trim();const toLevel=String(button?.dataset?.toLevel||'').trim();const evidenceThrough=Number(button?.dataset?.evidenceThrough||0);
+    if(!wordId||!['high','medium','light'].includes(toLevel))return;
+    const latest=readProgressRecord(wordId);const currentLevel=String(latest?.reviewLevel||'').toLowerCase();
+    if(!(latest?.review===true||latest?.lastResult==='review')||currentLevel!==fromLevel){showReviewToast('Attention changed elsewhere. Review refreshed.');reviewRecords=readReviewRecords();render();return;}
+    const reasons=Array.isArray(latest.reviewReasons)?latest.reviewReasons:[];const now=Date.now();
+    const next=progressAfterSuggestion(latest,toLevel,now);saveProgressRecord(wordId,next);
+    appendInteractionEvent({timestamp:now,action:'attention_set',wordId,source:'review-suggestion',level:toLevel,reasons,fromLevel,suggested:true,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,evidenceThrough});
+    const index=reviewRecords.findIndex(record=>record.wordId===wordId);if(index>=0)reviewRecords[index]={...reviewRecords[index],...next,wordId,review:true,reviewLevel:toLevel,lastAttentionUpdated:now};
+    sortReviewRecords();render();showReviewToast(`${attentionLabel(toLevel)} attention applied.`);
+  }
+  function keepAttentionSuggestion(button){
+    const wordId=String(button?.dataset?.suggestionKeep||'').trim();const fromLevel=String(button?.dataset?.fromLevel||'').trim();const toLevel=String(button?.dataset?.toLevel||'').trim();const evidenceThrough=Number(button?.dataset?.evidenceThrough||0);if(!wordId)return;
+    appendInteractionEvent({timestamp:Date.now(),action:'attention_suggestion_kept',wordId,source:'review-hub',fromLevel,suggestedLevel:toLevel,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,evidenceThrough});
+    renderList();showReviewToast(`${attentionLabel(fromLevel)} attention kept.`);
+  }
+  function wireSuggestionActions(){
+    document.querySelectorAll('[data-suggestion-apply]').forEach(button=>button.addEventListener('click',()=>applyAttentionSuggestion(button)));
+    document.querySelectorAll('[data-suggestion-keep]').forEach(button=>button.addEventListener('click',()=>keepAttentionSuggestion(button)));
+  }
   function standardEvidenceHtml(wordId){
     const item=latestStandardEvidence.get(String(wordId||''));if(!item)return'';const event=item.event||{};const parts=[];
     const rating=ratingLabel(event.selfRating);if(rating)parts.push(rating);
@@ -194,10 +327,10 @@
     const levelLabel=level?level[0].toUpperCase()+level.slice(1):'No attention set';
     const tags=record.reviewReasons.map(r=>`<span class="review-reason-tag">${esc(reasonLabel.get(r)||r)}</span>`).join('');
     const needs=tags?`<div class="review-card-needs"><span class="review-card-mini-label">Learning Needs</span><div class="review-card-tags">${tags}</div></div>`:'';
-    const evidence=evidenceBlockHtml(record.wordId);
+    const evidence=evidenceBlockHtml(record.wordId);const suggestion=suggestionHtml(record);
     const studyHref=batch?`./flashcards/wlp/batch.html?batch=${encodeURIComponent(batch)}&wordid=${encodeURIComponent(record.wordId)}&solo=1&from=review`:'./deck-browser.html';
     const edit=isAdmin()?`<a class="review-card-edit" href="./editor-local-edit.html?wid=${encodeURIComponent(record.wordId)}&return=${encodeURIComponent('review.html')}">Edit</a>`:'';
-    return `<article class="review-card"><div class="review-card-main"><div class="review-card-head"><strong class="review-card-word">${esc(word)}</strong><span class="review-card-meta">${esc([`WID${record.wordId}`,pos,batch?`WLP${batch}`:''].filter(Boolean).join(' · '))}</span></div>${definition?`<p class="review-card-definition">${esc(definition)}</p>`:''}<div class="review-card-state"><div class="review-card-attention"><span class="review-card-mini-label">Current Attention</span><span class="review-level-tag ${esc(level)}">${esc(levelLabel)}</span></div>${needs}</div>${evidence}</div><div class="review-card-actions"><a class="review-card-study" href="${studyHref}">Study</a>${edit}</div></article>`;
+    return `<article class="review-card"><div class="review-card-main"><div class="review-card-head"><strong class="review-card-word">${esc(word)}</strong><span class="review-card-meta">${esc([`WID${record.wordId}`,pos,batch?`WLP${batch}`:''].filter(Boolean).join(' · '))}</span></div>${definition?`<p class="review-card-definition">${esc(definition)}</p>`:''}<div class="review-card-state"><div class="review-card-attention"><span class="review-card-mini-label">Current Attention</span><span class="review-level-tag ${esc(level)}">${esc(levelLabel)}</span></div>${needs}</div>${evidence}${suggestion}</div><div class="review-card-actions"><a class="review-card-study" href="${studyHref}">Study</a>${edit}</div></article>`;
   }
   function renderList(){
     const matches=filtered();
@@ -212,6 +345,7 @@
     if(!reviewRecords.length){$('review-list').innerHTML='<div class="review-empty"><strong>No cards are in Review right now.</strong><br><br><a href="./deck-browser.html">Browse Study decks</a> and tap Review whenever a word deserves more attention.</div>';}
     else if(!matches.length){$('review-list').innerHTML='<div class="review-empty"><strong>No Review cards match this filter.</strong><br><br>Try another attention level or learning need.</div>';}
     else{$('review-list').innerHTML=shown.map(cardHtml).join('');}
+    wireSuggestionActions();
     $('review-load-more').hidden=shown.length>=matches.length;
   }
   function render(){renderSummary();renderReasons();renderList();}
@@ -227,6 +361,8 @@
       reviewRecords=readReviewRecords();
       latestStandardEvidence=buildLatestStandardEvidence();
       latestAIEvidence=buildLatestAIEvidence();
+      aiEvidenceByWordId=buildAIEvidenceHistory();
+      interactionEvents=readInteractionEvents();
       render();
     }catch(e){console.error(e);$('review-list').innerHTML='<div class="review-empty"><strong>Review data could not be loaded.</strong><br><br>Reload the page when the Master TSV is available.</div>';}
   })();
@@ -237,7 +373,7 @@
     check('attention label',attentionLabel('medium')==='Medium');
     check('ai evidence label',aiEvidenceLabel('context-transfer')==='Context transfer');
     check('standard occurrence timestamp wins over later edit',standardEventTimestamp({startedAt:'2026-09-20T10:00:00Z',updatedAt:'2026-09-22T10:00:00Z'})===Date.parse('2026-09-20T10:00:00Z'));
-    const priorStd=latestStandardEvidence,priorAI=latestAIEvidence;
+    const priorStd=latestStandardEvidence,priorAI=latestAIEvidence,priorHistory=aiEvidenceByWordId,priorInteractions=interactionEvents;
     try{
       latestStandardEvidence=new Map([['1',{timestamp:1,event:{selfRating:'got-it',reviewAttention:'medium',hintCount:0}}]]);
       latestAIEvidence=new Map([['1',{timestamp:2,event:{wordId:'1',evidenceTypes:['cue-based-retrieval','context-transfer'],authoritativeResponse:'example'}}]]);
@@ -245,8 +381,34 @@
       check('ai stays evidence vocabulary',aiEvidenceHtml('1').includes('Cue-based retrieval · Context transfer'));
       check('evidence block contains both sources',evidenceBlockHtml('1').includes('Standard')&&evidenceBlockHtml('1').includes('AI'));
       check('no evidence stays compact',evidenceBlockHtml('999')==='');
-    }finally{latestStandardEvidence=priorStd;latestAIEvidence=priorAI;}
+      const base=Date.parse('2026-09-20T10:00:00Z');
+      const good=(session,offset,type='context-transfer',extra={})=>({wordId:'1',sessionId:session,observedAt:base+offset,evidenceTypes:[type],interpretation:{targetProduced:true,targetFamilyReached:true,formIssue:null,senseIssue:null,interpretationConfidence:'high',responseClasses:['exact-target']},experience:{targetVisible:false,targetVisibility:'hidden'},...extra});
+      aiEvidenceByWordId=new Map([['1',[{event:good('s1',1000),timestamp:base+1000,index:0},{event:good('s2',2000,'free-composition'),timestamp:base+2000,index:1}]]]);interactionEvents=[];
+      let suggestion=attentionSuggestion({wordId:'1',reviewLevel:'high',lastAttentionUpdated:base});
+      check('two strong sessions ease one step',suggestion?.toLevel==='medium'&&suggestion?.direction==='ease');
+      check('never skips a level',suggestion?.fromLevel==='high'&&suggestion?.toLevel==='medium');
+      suggestion=attentionSuggestion({wordId:'1',reviewLevel:'light',lastAttentionUpdated:base});
+      check('light never suggests leaving Review',suggestion===null);
+      aiEvidenceByWordId=new Map([['1',[{event:good('s1',1000,'context-transfer',{experience:{targetVisible:true,targetVisibility:'visible'}}),timestamp:base+1000,index:0},{event:good('s2',2000,'free-composition'),timestamp:base+2000,index:1}]]]);
+      check('target-assisted success cannot ease',attentionSuggestion({wordId:'1',reviewLevel:'high',lastAttentionUpdated:base})===null);
+      const bad=(session,offset,klass='sense-mismatch')=>({wordId:'1',sessionId:session,observedAt:base+offset,evidenceTypes:['cue-based-retrieval'],interpretation:{targetProduced:false,targetFamilyReached:false,formIssue:null,senseIssue:klass==='sense-mismatch'?'wrong sense':null,interpretationConfidence:'high',responseClasses:[klass]},experience:{targetVisible:false,targetVisibility:'hidden'}});
+      aiEvidenceByWordId=new Map([['1',[{event:bad('s1',1000),timestamp:base+1000,index:0},{event:bad('s2',2000,'form-mismatch'),timestamp:base+2000,index:1}]]]);
+      suggestion=attentionSuggestion({wordId:'1',reviewLevel:'light',lastAttentionUpdated:base});
+      check('two clear difficulty sessions raise one step',suggestion?.toLevel==='medium'&&suggestion?.direction==='raise');
+      aiEvidenceByWordId=new Map([['1',[{event:good('s1',1000),timestamp:base+1000,index:0},{event:good('s2',2000,'free-composition'),timestamp:base+2000,index:1},{event:bad('s3',3000),timestamp:base+3000,index:2}]]]);
+      check('mixed evidence makes no suggestion',attentionSuggestion({wordId:'1',reviewLevel:'high',lastAttentionUpdated:base})===null);
+      aiEvidenceByWordId=new Map([['1',[{event:good('s1',1000),timestamp:base+1000,index:0},{event:good('s2',2000,'free-composition'),timestamp:base+2000,index:1}]]]);interactionEvents=[{timestamp:base+3000,action:'attention_suggestion_kept',wordId:'1',fromLevel:'high',suggestedLevel:'medium'}];
+      check('keep current suppresses same evidence',attentionSuggestion({wordId:'1',reviewLevel:'high',lastAttentionUpdated:base})===null);
+      aiEvidenceByWordId.get('1').push({event:good('s3',4000,'construction-use'),timestamp:base+4000,index:2},{event:good('s4',5000,'sense-transfer'),timestamp:base+5000,index:3});
+      check('new evidence after keep can suggest again',attentionSuggestion({wordId:'1',reviewLevel:'high',lastAttentionUpdated:base})?.toLevel==='medium');
+      const stt={wordId:'1',sessionId:'s5',observedAt:base+6000,evidenceTypes:['free-composition'],interpretation:{targetProduced:false,formIssue:'maybe',senseIssue:null,interpretationConfidence:'low',responseClasses:['stt-uncertain']},experience:{targetVisible:false}};
+      check('stt uncertainty is not negative evidence',aiSuggestionSignal(stt).negative===false);
+      const preserved=progressAfterSuggestion({wordId:'1',studyCount:7,reviewCount:4,attempts:11,exposureCount:15,reviewReasons:['usage'],known:false,review:true,reviewLevel:'high'},'medium',base+7000);
+      check('apply preserves counters',preserved.studyCount===7&&preserved.reviewCount===4&&preserved.attempts===11&&preserved.exposureCount===15);
+      check('apply preserves learning needs',Array.isArray(preserved.reviewReasons)&&preserved.reviewReasons[0]==='usage');
+      check('apply changes only current attention semantics',preserved.review===true&&preserved.known===false&&preserved.reviewLevel==='medium'&&preserved.lastAttentionUpdated===base+7000);
+    }finally{latestStandardEvidence=priorStd;latestAIEvidence=priorAI;aiEvidenceByWordId=priorHistory;interactionEvents=priorInteractions;}
     return {passed:results.every(item=>item.ok),passedCount:results.filter(item=>item.ok).length,total:results.length,results};
   }
-  window.WLPReviewStage7={version:'1.1.0',runEvidenceSelfTest};
+  window.WLPReviewStage7={version:'1.2.0',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
 })();
