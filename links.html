@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
-  <link rel="stylesheet" href="./links.css?v=20260919-s7-links-r9">
+  <link rel="stylesheet" href="./links.css?v=20260923-s7-links-management-v186105">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
 </head>
 <body class="app-body links-page">
@@ -37,10 +37,25 @@
       <a class="links-back" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Back to Home</span></a>
 
       <section class="links-hero">
-        <span class="section-kicker">Reference shelf</span>
-        <h1>Links</h1>
-        <p>A small WLP shelf for pronunciation, prosody, fluency, and learning resources worth keeping close.</p>
+        <div class="links-hero-copy">
+          <span class="section-kicker">Reference shelf</span>
+          <h1>Links</h1>
+          <p>A small WLP shelf for pronunciation, prosody, fluency, and learning resources worth keeping close.</p>
+        </div>
+        <button class="links-manage-launch" id="links-manage-launch" type="button" hidden>Manage Links</button>
       </section>
+
+      <section class="links-manage-bar" id="links-manage-bar" hidden aria-label="Link management">
+        <div><strong>Manage Links</strong><span>Changes stay in this browser.</span></div>
+        <div class="links-manage-actions">
+          <button type="button" id="links-add-resource">+ Add Link</button>
+          <button type="button" id="links-add-category">+ Add Category</button>
+          <button type="button" id="links-reset-defaults" class="links-manage-muted">Reset Shelf</button>
+          <button type="button" id="links-manage-done" class="links-manage-done">Done</button>
+        </div>
+      </section>
+
+      <div id="links-sections">
 
       <section class="links-section" aria-labelledby="links-pronunciation-title">
         <div class="links-section-head">
@@ -91,6 +106,8 @@
         </div>
       </section>
 
+      </div>
+
       <p class="links-footer-note">A personal reference shelf — easy to expand as new resources become worth keeping.</p>
     </main>
   </div>
@@ -136,8 +153,42 @@
     </form>
   </div>
 
+
+  <div class="links-editor-backdrop" id="links-editor-backdrop" hidden></div>
+  <section class="links-editor-modal" id="links-editor-modal" hidden aria-hidden="true">
+    <form class="links-editor-card" id="links-editor-form" autocomplete="off">
+      <button class="links-editor-close" id="links-editor-close" type="button" aria-label="Close">×</button>
+      <span class="section-kicker" id="links-editor-kicker">Links</span>
+      <h2 id="links-editor-title">Add Link</h2>
+      <input id="links-editor-id" type="hidden">
+      <label><span>Name</span><input id="links-editor-name" type="text" required></label>
+      <label><span>Description</span><input id="links-editor-description" type="text" placeholder="Short note or source"></label>
+      <label><span>Category</span><select id="links-editor-category" required></select></label>
+      <div class="links-editor-grid">
+        <label><span>Link label</span><input id="links-editor-label-1" type="text" placeholder="Website"></label>
+        <label><span>URL</span><input id="links-editor-url-1" type="url" required placeholder="https://…"></label>
+        <label><span>Second label</span><input id="links-editor-label-2" type="text" placeholder="YouTube (optional)"></label>
+        <label><span>Second URL</span><input id="links-editor-url-2" type="url" placeholder="https://…"></label>
+      </div>
+      <div class="links-editor-actions"><button type="button" id="links-editor-cancel">Cancel</button><button type="submit">Save Link</button></div>
+    </form>
+  </section>
+
+  <section class="links-editor-modal" id="links-category-modal" hidden aria-hidden="true">
+    <form class="links-editor-card" id="links-category-form" autocomplete="off">
+      <button class="links-editor-close" id="links-category-close" type="button" aria-label="Close">×</button>
+      <span class="section-kicker">Links</span>
+      <h2 id="links-category-title">Add Category</h2>
+      <input id="links-category-id" type="hidden">
+      <label><span>Category name</span><input id="links-category-name" type="text" required placeholder="e.g. Dictionaries & References"></label>
+      <label><span>Small label</span><input id="links-category-kicker" type="text" placeholder="e.g. Reference shelf"></label>
+      <div class="links-editor-actions"><button type="button" id="links-category-cancel">Cancel</button><button type="submit">Save Category</button></div>
+    </form>
+  </section>
+
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
+  <script src="./links.js?v=20260923-s7-links-management-v186105"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>
