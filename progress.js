@@ -1166,8 +1166,8 @@
     attentionNote.hidden = !attentionMissing;
     attentionNote.textContent = attentionMissing ? `${fmt(attentionMissing)} older rated experience${attentionMissing === 1 ? '' : 's'} in this period have no separately saved Review Attention choice.` : '';
     const partialSessions = sessions.filter(session => session.status === 'ended-early' || session.status === 'incomplete').length;
-    $('studyq-summary-line').textContent = sessions.length
-      ? `${fmt(sessions.length)} saved session${sessions.length === 1 ? '' : 's'}${partialSessions ? ` · ${fmt(partialSessions)} partial` : ''} · ${fmt(totalExperiences)} experience${totalExperiences === 1 ? '' : 's'} · ${fmt(totalHints)} hint${totalHints === 1 ? '' : 's'} used.`
+    $('studyq-summary-line').innerHTML = sessions.length
+      ? `<strong class="studyq-summary-number">${fmt(sessions.length)}</strong> saved session${sessions.length === 1 ? '' : 's'}${partialSessions ? ` · <strong class="studyq-summary-number">${fmt(partialSessions)}</strong> partial` : ''} · <strong class="studyq-summary-number">${fmt(totalExperiences)}</strong> experience${totalExperiences === 1 ? '' : 's'} · <strong class="studyq-summary-number">${fmt(totalHints)}</strong> hint${totalHints === 1 ? '' : 's'} used.`
       : 'No Standard Practice sessions recorded in this time window yet.';
 
     const target = $('studyq-session-list');

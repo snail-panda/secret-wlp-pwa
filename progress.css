@@ -265,3 +265,28 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
   .trend-label,.trend-value{font-size:10px}
   .timeline-time{font-size:10.75px}
 }
+
+/* v1.8.6.95 R2-J7I — Activity readability fine pass. */
+.activity-data-quality{color:#63756c}
+
+.studyq-summary-number{color:#1f4b39;font-weight:700}
+.studyq-rating-grid span,.studyq-attention-grid span{color:#596c62}
+.studyq-attention-note{font-size:11.5px;color:#607168}
+.studyq-session-time{font-size:10.5px;color:#687a72}
+
+.ai-evidence-stat-grid span{color:#61736a}
+.ai-evidence-empty{color:#65776e}
+.ai-recent-time{color:#60736a}
+[data-panel="activity.ai"] .panel-footnote{color:#61736a}
+
+.trend-label{color:#687a71}
+.trend-value{color:#465f52}
+.activity-mix-row>span,.activity-mix-row b{color:#3f594d}
+.timeline-time{color:#687a72}
+
+.progress-bottom-nav button:not(.is-active){color:#63756c}
+
+@media(max-width:520px){
+  .studyq-attention-note{font-size:11.75px}
+  .studyq-session-time{font-size:10.75px}
+}
