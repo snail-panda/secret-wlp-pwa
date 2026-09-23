@@ -29,8 +29,7 @@
         definition: true,
         example: true,
         synonyms: true,
-        notes: true,
-        all: true
+        notes: true
       }
     },
     display: {
@@ -82,8 +81,7 @@
           definition: typeof stored.readAloud?.targets?.definition === 'boolean' ? stored.readAloud.targets.definition : DEFAULTS.readAloud.targets.definition,
           example: typeof stored.readAloud?.targets?.example === 'boolean' ? stored.readAloud.targets.example : DEFAULTS.readAloud.targets.example,
           synonyms: typeof stored.readAloud?.targets?.synonyms === 'boolean' ? stored.readAloud.targets.synonyms : DEFAULTS.readAloud.targets.synonyms,
-          notes: typeof stored.readAloud?.targets?.notes === 'boolean' ? stored.readAloud.targets.notes : DEFAULTS.readAloud.targets.notes,
-          all: typeof stored.readAloud?.targets?.all === 'boolean' ? stored.readAloud.targets.all : DEFAULTS.readAloud.targets.all
+          notes: typeof stored.readAloud?.targets?.notes === 'boolean' ? stored.readAloud.targets.notes : DEFAULTS.readAloud.targets.notes
         }
       },
       display: {
@@ -252,10 +250,6 @@
           <div class="s7-switch-row">
             <div class="s7-switch-copy"><strong>Notes</strong><small>Read the card Notes without waiting through other fields.</small></div>
             <label class="s7-switch"><input type="checkbox" data-s7-read-target="notes"><span class="s7-switch-track"></span></label>
-          </div>
-          <div class="s7-switch-row">
-            <div class="s7-switch-copy"><strong>Read All</strong><small>Show Read All in the Read menu.</small></div>
-            <label class="s7-switch"><input type="checkbox" data-s7-read-target="all"><span class="s7-switch-track"></span></label>
           </div>
         </section>
 
@@ -840,21 +834,14 @@
   panel.querySelectorAll('[data-s7-read-target]').forEach(input => {
     input.addEventListener('change', () => {
       const key = input.dataset.s7ReadTarget;
-      if (key === 'all') {
-        prefs.readAloud.targets.all = input.checked;
-        savePrefs();
-        syncPanel();
-        return;
-      }
-      const readKeys = ['definition','example','synonyms','notes'];
       const next = { ...prefs.readAloud.targets, [key]: input.checked };
-      if (!readKeys.some(candidate => next[candidate])) {
+      if (!Object.values(next).some(Boolean)) {
         input.checked = true;
         return;
       }
       prefs.readAloud.targets[key] = input.checked;
       if (!prefs.readAloud.targets[prefs.readAloud.defaultTarget]) {
-        prefs.readAloud.defaultTarget = readKeys
+        prefs.readAloud.defaultTarget = ['definition','example','synonyms','notes']
           .find(candidate => prefs.readAloud.targets[candidate]) || 'example';
       }
       savePrefs();
@@ -1055,14 +1042,14 @@
 
     const settings = nav.querySelector('#drawer-settings') || findByLabel('Settings');
     const role = nav.querySelector('#drawer-role-action') || findByLabel('Switch to Guest') || findByLabel('Admin Login');
-    const help = Array.from(nav.querySelectorAll('.drawer-placeholder')).find(item => item.textContent.trim().startsWith('Help')) || findByLabel('Help');
-    const about = Array.from(nav.querySelectorAll('.drawer-placeholder')).find(item => item.textContent.trim().startsWith('About')) || findByLabel('About');
+    const help = findLink('help.html') || makeLink('help.html', 'Help', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.9.5-1.2 1-1.2 2M12 17h.01"/></svg>');
+    const about = findLink('about.html') || makeLink('about.html', 'About', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>');
     const motto = nav.querySelector('.drawer-motto');
 
     // Normalize the current-page highlight too; older static menus may carry a stale class.
-    [home, search, study, practice, review, progress, drafts, editor, backup, links].filter(Boolean).forEach(item => item.classList.remove('is-current'));
+    [home, search, study, practice, review, progress, drafts, editor, backup, links, help, about].filter(Boolean).forEach(item => item.classList.remove('is-current'));
     const currentPath = location.pathname.replace(/\/+$/, '') || '/';
-    const currentItem = [home, search, study, practice, review, progress, drafts, editor, backup, links].filter(Boolean).find(item => {
+    const currentItem = [home, search, study, practice, review, progress, drafts, editor, backup, links, help, about].filter(Boolean).find(item => {
       try { return new URL(item.href, location.href).pathname.replace(/\/+$/, '') === currentPath; }
       catch (_) { return false; }
     });
