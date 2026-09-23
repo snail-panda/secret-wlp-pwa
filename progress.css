@@ -197,7 +197,7 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
 /* v1.8.6.94 R2-J7H — Activity + remaining landscape readability polish. */
 .progress-intro p{color:#61736a}
 
-[data-panel="landscape.coverage"] .coverage-donut small{color:#5b6d64}
+[data-panel="landscape.coverage"] .coverage-donut small{color:#52655c}
 [data-panel="landscape.coverage"] .coverage-legend span{color:#55685f}
 [data-panel="landscape.coverage"] .panel-footnote{color:#63756c}
 
