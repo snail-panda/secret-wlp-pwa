@@ -10,6 +10,8 @@
   const isNormalDeck = Number.isFinite(batchNum) && batchNum > 0 && !params.get('review') && !params.get('draft');
   const isFromSearch = params.get('from') === 'search';
   const isFromConnected = params.get('from') === 'connected';
+  const isFromProgress = params.get('from') === 'progress';
+  const isFromReview = params.get('from') === 'review';
   const isSearchSolo = isFromSearch && params.get('solo') === '1';
   const isConnectedSolo = isFromConnected && params.get('solo') === '1';
   const connectedReturnRaw = String(params.get('return') || '').replace(/^\/+/, '');
@@ -20,6 +22,28 @@
   const safeSearchReturn = searchReturnRaw && !searchReturnRaw.includes('..') && /^[A-Za-z0-9_./?&=%#-]+$/.test(searchReturnRaw)
     ? searchReturnRaw
     : '';
+
+  /* v1.8.6.101 R2-J7O — reuse the proven semantic-back header for
+     Progress / Review card entry points without changing Search, Connected,
+     Draft, or normal Deck Browser behavior. */
+  const safeContextReturn = pageName => {
+    const raw = String(params.get('return') || '').trim();
+    if (raw) {
+      try {
+        const url = new URL(raw, location.href);
+        if (url.origin === location.origin && url.pathname.endsWith(`/${pageName}`)) return url.href;
+      } catch (_) {}
+    }
+    return `../../${pageName}`;
+  };
+  const setStudyHeaderBack = (href, labelText) => {
+    const back = document.querySelector('.study-back-decks');
+    if (!back) return;
+    back.href = href;
+    back.setAttribute('aria-label', labelText);
+    const label = back.querySelector('span');
+    if (label) label.textContent = labelText;
+  };
 
   if (isFromSearch) {
     document.body.classList.add('s7-from-search');
@@ -62,6 +86,14 @@
       const label = backToCard.querySelector('span');
       if (label) label.textContent = 'Back to Card';
     }
+  }
+
+  if (isFromProgress) {
+    setStudyHeaderBack(safeContextReturn('progress.html'), 'Back to Progress');
+  }
+
+  if (isFromReview || (!isFromProgress && Boolean(params.get('review')) && !isFromSearch && !isFromConnected)) {
+    setStudyHeaderBack(safeContextReturn('review.html'), 'Back to Review');
   }
 
   /* Stage 7 v3.0 — Global Search always knows how to return to the exact
