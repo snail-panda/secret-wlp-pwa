@@ -10,12 +10,12 @@
   const iconSvg = type => {
     if (type === 'sound') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6M9 6v12M13 4v16M17 7v10M21 10v4"/></svg>';
     if (type === 'book') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg>';
-    if (type === 'dictionary') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 4.5h11.7A1.8 1.8 0 0 1 19 6.3v7.2H7.2A2.2 2.2 0 0 0 5 15.7V6.8a2.3 2.3 0 0 1 .5-1.4Z"/><path d="M7.2 13.5A2.2 2.2 0 0 0 5 15.7c0 1.2 1 2.2 2.2 2.2"/><circle cx="10" cy="17.5" r="2.2"/><circle cx="16" cy="17.5" r="2.2"/><path d="M12.2 17.5h1.6M7.8 16.9l-1.2-.7M18.2 16.9l1.2-.7"/></svg>';
+    if (type === 'dictionary') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 6.2c2.6-.7 5-.25 7 1.3v8.2c-2-1.55-4.4-2-7-1.3V6.2Z"/><path d="M19.8 6.2c-2.6-.7-5-.25-7 1.3v8.2c2-1.55 4.4-2 7-1.3V6.2Z"/><circle cx="9.1" cy="18.1" r="1.9"/><circle cx="14.9" cy="18.1" r="1.9"/><path d="M11 18.1h2M7.25 17.55l-1.15-.7M16.75 17.55l1.15-.7"/></svg>';
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9L10.9 5"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg>';
   };
 
   const DEFAULT_STATE = {
-    version: 2,
+    version: 3,
     categories: [
       {id:'pronunciation', title:'Pronunciation & Prosody', kicker:'Sound & rhythm', icon:'sound'},
       {id:'learning', title:'Fluency & Learning', kicker:'Learning shelf', icon:'book'},
@@ -30,6 +30,7 @@
       {id:'builtin-all-ears-english', categoryId:'learning', name:'AllEarsEnglishPodcast', description:'YouTube', actions:[{label:'YouTube',url:'https://www.youtube.com/@AllEarsEnglishPodcast'}]},
       {id:'builtin-merriam-webster', categoryId:'dictionaries', name:'Merriam-Webster', description:'merriam-webster.com', actions:[{label:'Website',url:'https://www.merriam-webster.com/'}]},
       {id:'builtin-merriam-webster-thesaurus', categoryId:'dictionaries', name:'Merriam-Webster Thesaurus', description:'merriam-webster.com/thesaurus', actions:[{label:'Thesaurus',url:'https://www.merriam-webster.com/thesaurus'}]},
+      {id:'builtin-cambridge-dictionary', categoryId:'dictionaries', name:'Cambridge Dictionary', description:'dictionary.cambridge.org', actions:[{label:'Website',url:'https://dictionary.cambridge.org/us/dictionary/'}]},
       {id:'builtin-collins-dictionary', categoryId:'dictionaries', name:'Collins Dictionary', description:'collinsdictionary.com', actions:[{label:'Website',url:'https://www.collinsdictionary.com/us/'}]},
       {id:'builtin-collins-thesaurus', categoryId:'dictionaries', name:'Collins Thesaurus', description:'collinsdictionary.com', actions:[{label:'Thesaurus',url:'https://www.collinsdictionary.com/us/dictionary/english-thesaurus'}]},
       {id:'builtin-longman-dictionary', categoryId:'dictionaries', name:'Longman Dictionary', description:'ldoceonline.com', actions:[{label:'Website',url:'https://www.ldoceonline.com/'}]},
@@ -73,27 +74,50 @@
   };
   const migrateState = value => {
     const next = normalizeState(value);
-    if (next.version >= 2) return next;
+    if (next.version < 2) {
+      let dictionaries = next.categories.find(item => clean(item.title).toLowerCase() === 'dictionaries');
+      if (!dictionaries) {
+        dictionaries = clone(DEFAULT_STATE.categories.find(item => item.id === 'dictionaries'));
+        next.categories.push(dictionaries);
+      } else {
+        dictionaries.icon = 'dictionary';
+        if (!dictionaries.kicker) dictionaries.kicker = 'Wisdom of the World';
+      }
 
-    let dictionaries = next.categories.find(item => clean(item.title).toLowerCase() === 'dictionaries');
-    if (!dictionaries) {
-      dictionaries = clone(DEFAULT_STATE.categories.find(item => item.id === 'dictionaries'));
-      next.categories.push(dictionaries);
-    } else {
-      dictionaries.icon = 'dictionary';
-      if (!dictionaries.kicker) dictionaries.kicker = 'Wisdom of the World';
+      const existingUrls = new Set(next.resources.flatMap(item => item.actions.map(action => normalizeUrl(action.url))).filter(Boolean));
+      DEFAULT_STATE.resources.filter(item => item.categoryId === 'dictionaries').forEach(item => {
+        const firstUrl = normalizeUrl(item.actions?.[0]?.url);
+        if (!firstUrl || existingUrls.has(firstUrl)) return;
+        const incoming = clone(item);
+        incoming.categoryId = dictionaries.id;
+        next.resources.push(incoming);
+        existingUrls.add(firstUrl);
+      });
+      next.version = 2;
     }
 
-    const existingUrls = new Set(next.resources.flatMap(item => item.actions.map(action => normalizeUrl(action.url))).filter(Boolean));
-    DEFAULT_STATE.resources.filter(item => item.categoryId === 'dictionaries').forEach(item => {
-      const firstUrl = normalizeUrl(item.actions?.[0]?.url);
-      if (!firstUrl || existingUrls.has(firstUrl)) return;
-      const incoming = clone(item);
-      incoming.categoryId = dictionaries.id;
-      next.resources.push(incoming);
-      existingUrls.add(firstUrl);
-    });
-    next.version = 2;
+    if (next.version < 3) {
+      let dictionaries = next.categories.find(item => clean(item.title).toLowerCase() === 'dictionaries');
+      if (!dictionaries) {
+        dictionaries = clone(DEFAULT_STATE.categories.find(item => item.id === 'dictionaries'));
+        next.categories.push(dictionaries);
+      } else {
+        dictionaries.icon = 'dictionary';
+        if (!dictionaries.kicker) dictionaries.kicker = 'Wisdom of the World';
+      }
+
+      const cambridge = clone(DEFAULT_STATE.resources.find(item => item.id === 'builtin-cambridge-dictionary'));
+      const cambridgeUrl = normalizeUrl(cambridge?.actions?.[0]?.url);
+      const alreadyHasCambridge = next.resources.some(item => item.actions.some(action => normalizeUrl(action.url) === cambridgeUrl));
+      if (cambridge && cambridgeUrl && !alreadyHasCambridge) {
+        cambridge.categoryId = dictionaries.id;
+        const collinsIndex = next.resources.findIndex(item => item.categoryId === dictionaries.id && /collins dictionary/i.test(item.name));
+        if (collinsIndex >= 0) next.resources.splice(collinsIndex, 0, cambridge);
+        else next.resources.push(cambridge);
+      }
+      next.version = 3;
+    }
+
     return normalizeState(next);
   };
   const readState = () => {
@@ -101,13 +125,13 @@
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
       if (!raw) return clone(DEFAULT_STATE);
       const next = migrateState(raw);
-      if ((Number(raw.version) || 1) < 2) localStorage.setItem(STORAGE_KEY, JSON.stringify(next, null, 2));
+      if ((Number(raw.version) || 1) < 3) localStorage.setItem(STORAGE_KEY, JSON.stringify(next, null, 2));
       return next;
     } catch { return clone(DEFAULT_STATE); }
   };
   const writeState = state => {
     const next = normalizeState(state);
-    next.version = 2;
+    next.version = 3;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next, null, 2));
   };
 
