@@ -321,3 +321,7 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
 }
 .progress-options-backdrop{overscroll-behavior:none;touch-action:none}
 .progress-bottom-nav button:not(.is-active){color:#596c62}
+
+
+/* v1.8.6.99 R2-J7M — final Overview coverage-copy contrast only. */
+.coverage-copy{color:#5e7167}

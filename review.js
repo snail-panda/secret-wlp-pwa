@@ -39,6 +39,40 @@
       return {href:`./progress.html${url.search}${url.hash}`,label:'Back to Progress'};
     }catch{return null;}
   }
+  function reviewScrollFromUrl(){
+    const raw=new URLSearchParams(location.search).get('scroll');
+    if(raw===null||raw==='')return null;
+    const value=Number(raw);return Number.isFinite(value)&&value>=0?Math.round(value):null;
+  }
+  function restoreReviewReturnScroll(scrollY){
+    if(!Number.isFinite(scrollY))return;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      window.scrollTo({top:Math.max(0,scrollY),behavior:'auto'});
+      try{const url=new URL(location.href);url.searchParams.delete('scroll');history.replaceState(history.state,'',url);}catch(_){}
+    }));
+  }
+  function reviewReturnParamsWithScroll(){
+    const params=new URLSearchParams(location.search);params.set('scroll',String(Math.max(0,Math.round(window.scrollY||0))));return params;
+  }
+  function reviewCardReturnHref(){const params=reviewReturnParamsWithScroll();return `../../review.html${params.toString()?`?${params.toString()}`:''}`;}
+  function reviewEditorReturnHref(){const params=reviewReturnParamsWithScroll();return `review.html${params.toString()?`?${params.toString()}`:''}`;}
+  function prepareReviewOutboundReturn(event){
+    const link=event.target?.closest?.('a[href]');if(!link)return;
+    try{
+      const url=new URL(link.getAttribute('href')||'',location.href);
+      if(url.origin!==location.origin)return;
+      if(url.pathname.endsWith('/flashcards/wlp/batch.html')){
+        url.searchParams.set('from','review');url.searchParams.set('return',reviewCardReturnHref());link.href=url.href;return;
+      }
+      if(link.classList.contains('review-card-edit')&&url.pathname.endsWith('/editor-local-edit.html')){
+        url.searchParams.set('return',reviewEditorReturnHref());link.href=url.href;
+      }
+    }catch(_){}
+  }
+  function installReviewOutboundReturnNavigation(){
+    document.addEventListener('pointerdown',prepareReviewOutboundReturn,true);
+    document.addEventListener('click',prepareReviewOutboundReturn,true);
+  }
   function installReviewReturnNavigation(){
     const target=reviewReturnTarget();if(!target)return;
     const top=document.querySelector('.review-back-link');
@@ -376,7 +410,9 @@
     $('review-load-more').hidden=shown.length>=matches.length;
   }
   function render(){renderSummary();renderReasons();renderList();}
+  const requestedReviewScrollY=reviewScrollFromUrl();
   installReviewReturnNavigation();
+  installReviewOutboundReturnNavigation();
   document.querySelectorAll('[data-level-filter]').forEach(btn=>btn.addEventListener('click',()=>{levelFilter=btn.dataset.levelFilter||'';visibleLimit=PAGE_SIZE;render();}));
   $('review-clear-filter').addEventListener('click',()=>{levelFilter='';reasonFilter='';visibleLimit=PAGE_SIZE;render();});
   $('review-load-more').addEventListener('click',()=>{visibleLimit+=PAGE_SIZE;renderList();});
@@ -392,6 +428,7 @@
       aiEvidenceByWordId=buildAIEvidenceHistory();
       interactionEvents=readInteractionEvents();
       render();
+      restoreReviewReturnScroll(requestedReviewScrollY);
     }catch(e){console.error(e);$('review-list').innerHTML='<div class="review-empty"><strong>Review data could not be loaded.</strong><br><br>Reload the page when the Master TSV is available.</div>';}
   })();
 
@@ -438,5 +475,5 @@
     }finally{latestStandardEvidence=priorStd;latestAIEvidence=priorAI;aiEvidenceByWordId=priorHistory;interactionEvents=priorInteractions;}
     return {passed:results.every(item=>item.ok),passedCount:results.filter(item=>item.ok).length,total:results.length,results};
   }
-  window.WLPReviewStage7={version:'1.2.1',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
+  window.WLPReviewStage7={version:'1.2.2',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
 })();

@@ -1337,6 +1337,26 @@
     return VIEW_META[requested] ? requested : 'overview';
   }
 
+  function progressScrollFromUrl() {
+    const raw = new URLSearchParams(location.search).get('scroll');
+    if (raw === null || raw === '') return null;
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+  }
+
+  function restoreProgressReturnScroll(scrollY) {
+    if (!Number.isFinite(scrollY)) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.scrollTo({ top: Math.max(0, scrollY), behavior: 'auto' });
+      try {
+        const url = new URL(location.href);
+        url.searchParams.delete('scroll');
+        const state = history.state && typeof history.state === 'object' ? history.state : {};
+        history.replaceState({ ...state, wlpProgress: true, view: activeView, scrollY: Math.max(0, scrollY) }, '', url);
+      } catch (_) {}
+    }));
+  }
+
   function saveProgressHistoryPosition() {
     try {
       const state = history.state && typeof history.state === 'object' ? history.state : {};
@@ -1347,6 +1367,32 @@
   function progressReviewHref(view) {
     const safeView = VIEW_META[view] ? view : activeView;
     return `./review.html?return=${encodeURIComponent(`progress.html?view=${safeView}`)}`;
+  }
+
+  function progressCardReturnHref() {
+    const safeView = VIEW_META[activeView] ? activeView : 'overview';
+    const params = new URLSearchParams();
+    params.set('view', safeView);
+    params.set('scroll', String(Math.max(0, Math.round(window.scrollY || 0))));
+    return `../../progress.html?${params.toString()}`;
+  }
+
+  function prepareProgressCardReturn(event) {
+    const link = event.target?.closest?.('a[href]');
+    if (!link) return;
+    try {
+      const url = new URL(link.getAttribute('href') || '', location.href);
+      if (url.origin !== location.origin || !url.pathname.endsWith('/flashcards/wlp/batch.html')) return;
+      saveProgressHistoryPosition();
+      url.searchParams.set('from', 'progress');
+      url.searchParams.set('return', progressCardReturnHref());
+      link.href = url.href;
+    } catch (_) {}
+  }
+
+  function installProgressCardReturnNavigation() {
+    document.addEventListener('pointerdown', prepareProgressCardReturn, true);
+    document.addEventListener('click', prepareProgressCardReturn, true);
   }
 
   function refreshProgressReturnLinks() {
@@ -1638,16 +1684,18 @@
 
   function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.3.2', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.3', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
+  installProgressCardReturnNavigation();
   installActivityPeriodControls();
   installActivitySourceControls();
   installLearningSourceControls();
   installShell(closeOptions);
 
   const requestedView = progressViewFromUrl();
+  const requestedScrollY = progressScrollFromUrl();
   switchView(requestedView, {skipUrl:true});
   try {
     const initialState = history.state && typeof history.state === 'object' ? history.state : {};
@@ -1661,6 +1709,7 @@
       rows = parseTSV(text);
       rowByWordId = new Map(rows.map(row => [wordIdOf(row), row]).filter(([id]) => id));
       renderAll();
+      restoreProgressReturnScroll(requestedScrollY);
     })
     .catch(error => {
       console.error(error);

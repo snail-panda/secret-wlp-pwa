@@ -46,11 +46,78 @@ const SOLO_PARAM =
 const FROM_PARAM =
   PARAMS.get("from");
 
+const RETURN_PARAM =
+  PARAMS.get("return");
+
 const IS_FROM_PROGRESS =
   FROM_PARAM === "progress";
 
 const IS_FROM_REVIEW_HUB =
   FROM_PARAM === "review";
+
+function cardContextReturnTarget() {
+  const raw = String(RETURN_PARAM || "").trim();
+  if (raw) {
+    try {
+      const url = new URL(raw, location.href);
+      if (url.origin === location.origin) {
+        if (url.pathname.endsWith("/progress.html")) {
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Progress", footerLabel: "Back to Progress" };
+        }
+        if (url.pathname.endsWith("/review.html")) {
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Review", footerLabel: "Back to Review" };
+        }
+      }
+    } catch (_) {}
+  }
+  if (IS_FROM_PROGRESS) return { href: "../../progress.html", label: "Progress", footerLabel: "Back to Progress" };
+  if (IS_FROM_REVIEW_HUB || Boolean(REVIEW_PARAM)) return { href: "../../review.html", label: "Review", footerLabel: "Back to Review" };
+  return null;
+}
+
+function updateCardContextNavLabel(link, text) {
+  if (!link) return;
+  const spans = Array.from(link.querySelectorAll("span"));
+  const label = link.querySelector(".deck-nav-label") || spans[spans.length - 1];
+  if (label) { label.textContent = text; return; }
+  const textNode = Array.from(link.childNodes).reverse().find(node => node.nodeType === Node.TEXT_NODE && String(node.textContent || "").trim());
+  if (textNode) textNode.textContent = ` ${text}`;
+}
+
+function installCardContextReturnNavigation() {
+  const target = cardContextReturnTarget();
+  if (!target) return;
+  const progressWrap = document.getElementById("progress-back-link");
+  const reviewWrap = document.getElementById("review-back-link");
+  const progressLink = progressWrap?.querySelector("a");
+  const reviewLink = reviewWrap?.querySelector("a");
+  if (target.label === "Progress" && progressWrap && progressLink) {
+    progressWrap.style.display = "block";
+    progressLink.href = target.href;
+    progressLink.textContent = target.footerLabel;
+  }
+  if (target.label === "Review" && reviewWrap && reviewLink) {
+    reviewWrap.style.display = "block";
+    reviewLink.href = target.href;
+    reviewLink.textContent = target.footerLabel;
+  }
+  const home = document.querySelector("#deck-nav-links .deck-home-link");
+  if (home) {
+    home.href = target.href;
+    home.setAttribute("aria-label", target.footerLabel);
+    home.setAttribute("title", target.footerLabel);
+    updateCardContextNavLabel(home, target.label);
+  }
+}
+
+function cardContextQuerySuffix() {
+  const params = new URLSearchParams();
+  if (IS_FROM_PROGRESS) params.set("from", "progress");
+  else if (IS_FROM_REVIEW_HUB) params.set("from", "review");
+  if (RETURN_PARAM) params.set("return", RETURN_PARAM);
+  const value = params.toString();
+  return value ? `&${value}` : "";
+}
 
 const IS_SOLO_MODE =
   SOLO_PARAM === "1" &&
@@ -309,6 +376,8 @@ if (IS_FROM_PROGRESS) {
   }
 
 }
+
+installCardContextReturnNavigation();
 
 // =============================================================
 // TSV
@@ -4148,10 +4217,8 @@ function escapeHtml(s) {
   prev.hidden = true;
   next.hidden = true;
 
-  const fromProgress =
-    IS_FROM_PROGRESS
-      ? "&from=progress"
-      : "";
+  const contextSuffix =
+    cardContextQuerySuffix();
 
   const previousDeck =
     deckNumbers[
@@ -4173,7 +4240,7 @@ function escapeHtml(s) {
       ).padStart(
         3,
         "0"
-      )}${fromProgress}`;
+      )}${contextSuffix}`;
 
     prev.hidden = false;
     prev.style.display =
@@ -4191,7 +4258,7 @@ function escapeHtml(s) {
       ).padStart(
         3,
         "0"
-      )}${fromProgress}`;
+      )}${contextSuffix}`;
 
     next.hidden = false;
     next.style.display =
@@ -4396,6 +4463,8 @@ renderCards(
   selectedRows,
   label
 );
+
+installCardContextReturnNavigation();
 
 if (
   !IS_REVIEW_MODE &&
