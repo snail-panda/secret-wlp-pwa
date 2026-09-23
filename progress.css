@@ -166,3 +166,12 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
   .path-source-signal{font-size:11.5px}
   .path-source-signal b{font-size:14px;top:-.035em}
 }
+
+
+/* v1.8.6.89 R2-J7C — Path secondary text readability only. */
+.learning-path-card>small{font-size:10.75px;line-height:1.38;color:#6f7f76}
+.path-evidence-state{font-size:10px;line-height:1.32;color:#76857d}
+@media(max-width:520px){
+  .learning-path-card>small{font-size:12px;line-height:1.45;color:#6f7f76}
+  .path-evidence-state{font-size:11px;line-height:1.38;color:#76857d}
+}
