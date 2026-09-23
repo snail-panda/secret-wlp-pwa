@@ -44,7 +44,9 @@
     .metadata-record-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin:.7rem 0}.metadata-record-side{min-width:0;padding:.7rem;border:1px solid rgba(71,101,79,.14);border-radius:12px;background:rgba(255,255,255,.54)}.metadata-record-side>strong{display:block;margin-bottom:.35rem;font-size:.82rem}.metadata-record-side small{display:block;margin:.16rem 0;color:var(--ink-muted,#66736b);overflow-wrap:anywhere}.metadata-record-field{margin:.55rem 0 0}.metadata-record-field span{display:block;margin-bottom:.12rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted,#66736b)}.metadata-record-field p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.86rem;line-height:1.4}
     .metadata-conflict-choice{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;padding-top:.7rem;border-top:1px solid rgba(71,101,79,.14)}.metadata-conflict-choice label{display:flex;align-items:center;gap:.35rem;padding:.48rem .65rem;border:1px solid rgba(71,101,79,.2);border-radius:999px;background:rgba(255,255,255,.72);font-size:.8rem;font-weight:600;cursor:pointer}.metadata-conflict-choice input{accent-color:#52765b}.metadata-collision-warning{margin:.65rem 0 0;padding:.55rem .65rem;border-radius:10px;background:rgba(179,116,47,.1);font-size:.78rem;line-height:1.35;color:#795023}
     .metadata-undo-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.85rem;padding:.75rem .85rem;border:1px dashed rgba(71,101,79,.24);border-radius:14px}.metadata-undo-row span{font-size:.82rem;color:var(--ink-muted,#66736b)}.metadata-undo-row button{white-space:nowrap}
+    .authoring-transfer-panel{border-color:rgba(71,101,79,.28);background:linear-gradient(180deg,rgba(249,252,249,.86),rgba(255,255,255,.64))}.authoring-transfer-actions{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem}.authoring-transfer-card{padding:.9rem;border:1px solid rgba(71,101,79,.16);border-radius:16px;background:rgba(255,255,255,.58)}.authoring-transfer-card h3{margin:0 0 .3rem;font-size:1rem}.authoring-transfer-card p{margin:.25rem 0 .65rem;color:var(--ink-muted,#66736b);font-size:.86rem;line-height:1.45}.authoring-transfer-card small{display:block;margin-top:.5rem;color:var(--ink-muted,#66736b);line-height:1.35}.authoring-scope-note{margin:.85rem 0 0;padding:.68rem .75rem;border-left:3px solid rgba(82,118,91,.34);background:rgba(239,246,240,.6);font-size:.82rem;line-height:1.45;color:var(--ink-muted,#66736b)}
     @media(max-width:700px){.metadata-import-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.metadata-record-grid{grid-template-columns:1fr}.metadata-undo-row{align-items:flex-start;flex-direction:column}}
+      @media(max-width:700px){.authoring-transfer-actions{grid-template-columns:1fr}}
   </style>
 </head>
 <body class="app-body editor-page editor-backup-page stage7-bottom-nav-page">
@@ -77,7 +79,7 @@
         <div>
           <span class="section-kicker">Editor · Backup</span>
           <h1>Import &amp; Export</h1>
-          <p>Back up the Effective Deck, move new Drafts between devices, or bring enriched Drafts back into this browser.</p>
+          <p>Back up local WLP data, transfer Authoring work between devices, or export/import specialized deck and metadata files.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">Loading…</span>
       </section>
@@ -182,6 +184,76 @@
           <section class="backup-status local-restore-status" id="local-restore-status" hidden aria-live="polite"></section>
         </section>
 
+        <section class="backup-panel authoring-transfer-panel" id="authoring-transfer" aria-label="Authoring transfer">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Recommended · Cross-device Authoring</span>
+              <h2>Authoring Transfer</h2>
+              <p>Move Drafts, Local Edits, and Learning Metadata together between iPhone and PC without touching Study History.</p>
+            </div>
+          </div>
+
+          <div class="backup-import-rules">
+            <span>Drafts → Local Draft ID</span>
+            <span>Local Edits → WID</span>
+            <span>Learning Metadata → revision lineage</span>
+            <span>Study History → untouched</span>
+          </div>
+
+          <div class="authoring-transfer-actions">
+            <article class="authoring-transfer-card">
+              <h3>Export Authoring Data</h3>
+              <p>One JSON containing the current browser's Drafts, Local Edits, and lossless Learning Metadata v2.</p>
+              <button class="backup-primary" id="authoring-export" type="button">Export Authoring Data <span>.json</span></button>
+              <small id="authoring-export-summary">Checking Authoring data…</small>
+            </article>
+            <article class="authoring-transfer-card">
+              <h3>Compare &amp; Merge Authoring Data</h3>
+              <p>Preview another Authoring JSON first. New items merge automatically; conflicting Drafts or Local Edits ask which copy to keep.</p>
+              <input id="authoring-import-file" type="file" accept=".json,application/json" hidden>
+              <button class="backup-import-button" id="authoring-import-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M5 4h14v4"/></svg>
+                <span><strong>Choose Authoring JSON</strong><small>WLP Authoring Data</small></span>
+              </button>
+            </article>
+          </div>
+
+          <p class="authoring-scope-note"><strong>Safe scope:</strong> this transfer does not import or replace Progress, Review state, Standard Practice, AI Practice, Activity history, or other Study / Learning History. Local-only Drafts and Local Edits are kept; this safe merge does not infer deletion from an item being absent in the incoming file.</p>
+
+          <section class="backup-import-preview" id="authoring-import-preview" hidden aria-live="polite">
+            <div class="import-preview-head">
+              <div><span class="editor-tool-kicker">Authoring Merge Preview</span><h3 id="authoring-import-file-name">Selected Authoring JSON</h3></div>
+              <button type="button" class="import-preview-clear" id="authoring-import-clear">Clear</button>
+            </div>
+            <div class="metadata-import-meta">
+              <span>Exported <strong id="authoring-import-exported">—</strong></span>
+              <span>Source device <strong id="authoring-import-source-device">—</strong></span>
+            </div>
+            <div class="metadata-import-counts">
+              <div><strong id="authoring-import-new">0</strong><span>New</span></div>
+              <div><strong id="authoring-import-newer">0</strong><span>Incoming newer</span></div>
+              <div><strong id="authoring-import-same">0</strong><span>Same</span></div>
+              <div><strong id="authoring-import-local-newer">0</strong><span>This device newer</span></div>
+              <div><strong id="authoring-import-conflicts">0</strong><span>Conflicts</span></div>
+            </div>
+            <p class="metadata-import-note">Drafts and Local Edits never overwrite a different existing copy automatically: they become conflicts and default to keeping this device. Learning Metadata uses its existing revision lineage.</p>
+            <div class="import-preview-actions">
+              <button type="button" class="import-review-button" id="authoring-import-review" aria-expanded="false">Review Changes</button>
+              <button type="button" class="import-continue-button" id="authoring-import-continue">Merge Authoring</button>
+            </div>
+            <div class="import-change-details" id="authoring-import-change-details" hidden>
+              <p class="import-review-help">Review incoming Authoring changes before merging. Conflicts default to keeping this device unless you explicitly choose Use Incoming.</p>
+              <div id="authoring-import-change-list"></div>
+            </div>
+          </section>
+
+          <div class="metadata-undo-row" id="authoring-import-undo" hidden>
+            <span>A rollback copy exists from the most recent Authoring merge on this browser.</span>
+            <button type="button" class="local-restore-secondary" id="authoring-import-undo-button">Undo Last Authoring Merge</button>
+          </div>
+          <section class="backup-status" id="authoring-import-status" hidden aria-live="polite"></section>
+        </section>
+
         <section class="backup-summary" aria-label="Current local data summary">
           <div><strong id="backup-master-count">—</strong><span>Master cards</span></div>
           <div><strong id="backup-draft-count">—</strong><span>Drafts</span></div>
@@ -216,7 +288,7 @@
 
           <article class="backup-action-card learning-hooks-export-card">
             <div class="backup-action-copy">
-              <h3>Learning Metadata v2</h3>
+              <h3>Learning Metadata — Readable TSV</h3>
               <p>Human-readable TSV for Entry Type, Sense / Memory Hooks, Situation Anchors + Communicative Needs, and Alternative Expressions, including stable IDs and revision lineage. Master and Draft card content stay untouched.</p>
               <small id="learning-hooks-summary">Checking local Learning Metadata…</small>
             </div>
@@ -225,7 +297,7 @@
 
           <article class="backup-action-card">
             <div class="backup-action-copy">
-              <h3>Portable Metadata v2</h3>
+              <h3>Learning Metadata Transfer JSON</h3>
               <p>Machine-readable JSON for lossless Import / Compare / Merge between browsers or devices. Includes entry and Situation revision lineage plus tombstones so WLP can distinguish newer edits, older copies, conflicts, and deletions.</p>
               <small>Use TSV for inspection; use this JSON for lossless metadata transfer.</small>
             </div>
@@ -237,7 +309,7 @@
           <div class="backup-panel-head">
             <div>
               <span class="editor-tool-kicker">Import · Compare · Merge</span>
-              <h2>Learning Metadata v2</h2>
+              <h2>Learning Metadata Transfer</h2>
               <p>Merge Entry Type, Sense / Memory Hooks, Situations, Communicative Needs, and Alternative Expressions from another WLP browser or device without replacing the rest of local WLP data.</p>
             </div>
           </div>
@@ -252,7 +324,7 @@
           <input id="metadata-import-file" type="file" accept=".json,application/json" hidden>
           <button class="backup-import-button" id="metadata-import-button" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M5 4h14v4"/></svg>
-            <span><strong>Choose Metadata JSON</strong><small>Portable Learning Metadata v2</small></span>
+            <span><strong>Choose Metadata JSON</strong><small>Learning Metadata transfer only</small></span>
           </button>
 
           <section class="backup-import-preview" id="metadata-import-preview" hidden aria-live="polite">
@@ -336,7 +408,7 @@
 
         <section class="backup-note">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>
-          <div><strong>Master stays untouched.</strong><span>Metadata merge changes only browser-local Learning Metadata; Draft TSV import changes only browser-local Drafts. Full Local Backup remains the safety snapshot for the whole browser state.</span></div>
+          <div><strong>Master stays untouched.</strong><span>Authoring Transfer changes only Drafts, Local Edits, and Learning Metadata. Metadata-only merge and Draft TSV import remain available as specialized tools. Full Local Backup remains the safety snapshot for the whole browser state.</span></div>
         </section>
       </div>
     </main>
@@ -405,7 +477,7 @@
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-backup.js?v=20260918-s7-language-architecture-v18640"></script>
+  <script src="./editor-backup.js?v=20260923-s7-authoring-transfer-v186104"></script>
   <script src="./local-data-safety.js?v=20260918-s7-meta-merge-v18639"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
