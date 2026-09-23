@@ -1865,12 +1865,14 @@ function renderCards(
 
       applyReferenceToolVisibility(root);
 
+      const cardWid = String(row.WordID || '').trim();
+      const cardWidText = cardWid ? ` · WID${cardWid}` : '';
       const cardTagText =
   IS_DRAFT_MODE
     ? `#Draft${label}      ${index + 1}/${batchRows.length}`
     : IS_REVIEW_MODE
-      ? `#Review${label}      ${index + 1}/${batchRows.length}`
-      : `#WLP${label}      ${index + 1}/${batchRows.length}`;
+      ? `#Review${label}${cardWidText}      ${index + 1}/${batchRows.length}`
+      : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
 
 root
   .querySelectorAll(

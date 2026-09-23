@@ -26,6 +26,13 @@
   function normalize(value) {
     return String(value ?? '').toLocaleLowerCase('en-US').replace(/\s+/g, ' ').trim();
   }
+  function widQuery(value) {
+    const raw = String(value ?? '').trim();
+    const match = raw.match(/^(?:wid\s*[:#-]?\s*)?0*(\d+)$/i);
+    if (!match) return '';
+    const numeric = String(Number(match[1]));
+    return numeric === '0' ? '' : numeric;
+  }
   function isAdminMode() {
     return localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin';
   }
@@ -100,6 +107,18 @@
   function scoreRow(row, query) {
     const q = normalize(query);
     if (!q) return null;
+    const wantedWid = widQuery(query);
+    if (wantedWid) {
+      const rowWid = String(Number(String(row.WordID || '').trim()));
+      if (!row.WordID || rowWid !== wantedWid) return null;
+      return {
+        row,
+        score: 5000,
+        match: {key:'WordID', label:'WID', raw:`WID${String(row.WordID).trim()}`, norm:wantedWid},
+        query: wantedWid,
+        tokens: [wantedWid]
+      };
+    }
     const tokens = q.split(' ').filter(Boolean);
     const values = SEARCH_FIELDS.map(([key,label]) => ({key,label,raw:String(row[key] || ''),norm:normalize(row[key])}));
     const word = values[0].norm;
@@ -129,6 +148,7 @@
   function snippetFor(hit) {
     const row = hit.row;
     const match = hit.match;
+    if (match?.key === 'WordID') return '';
     let raw = match?.raw || '';
     if (match?.key === 'Word') raw = String(row.Definition || row['Example Sentence'] || row.Word || '');
     const clean = String(raw).replace(/\s+/g, ' ').trim();
@@ -220,7 +240,7 @@
     return {existing:false, word, draft};
   }
   function appendNoHeadwordNotice(resultsNode, query) {
-    if (!query || hasExactHeadword(query)) return;
+    if (!query || widQuery(query) || hasExactHeadword(query)) return;
     const notice = document.createElement('aside');
     notice.className = 'search-headword-gap';
     const copy = document.createElement('div');
