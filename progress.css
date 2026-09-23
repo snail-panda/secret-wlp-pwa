@@ -290,3 +290,18 @@ a.activity-row .activity-tag::after,a.practice-row .practice-tag::after,a.timeli
   .studyq-attention-note{font-size:11.75px}
   .studyq-session-time{font-size:10.75px}
 }
+
+/* v1.8.6.96 R2-J7J — Overview / Landscape / Paths readability follow-up. */
+.overview-stats span{font-size:11.25px;line-height:1.22;color:#566a60}
+.learning-source-stat-grid span{color:#5d7066}
+.activity-time,.practice-time{font-size:11.5px;color:#66786f}
+.landscape-review-line small{color:#52665c}
+.path-reading-guide p{color:#6b7d74}
+.learning-path-card>small{color:#63756c}
+.path-evidence-state{color:#697b72}
+.focus-row small{color:#6b7d74}
+
+@media(max-width:520px){
+  .overview-stats span{font-size:11.5px;line-height:1.24;color:#566a60}
+  .activity-time,.practice-time{font-size:11.75px;color:#66786f}
+}
