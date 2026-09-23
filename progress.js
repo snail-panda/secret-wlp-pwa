@@ -5,6 +5,8 @@
   const PROGRESS_PREFIX = 'fc:wordid:';
   const PRACTICE_EVENTS_KEY = 'wlp:stage7:practice-events:v1';
   const ACTIVITY_EVENTS_KEY = 'wlp:stage7:activity-events:v1';
+  const INTERACTION_EVENTS_KEY = 'wlp:stage7:interaction-events:v1';
+  const LEARNING_SOURCE_VIEW_KEY = 'wlp:stage7:progress-learning-source:v1';
   const ACTIVITY_PERIOD_KEY = 'wlp:stage7:activity-period:v1';
   const PROGRESS_OPTIONS_KEY = 'wlp:stage7:progress-options:v1';
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
@@ -25,6 +27,7 @@
     Overview: [
       ['overview.map', 'Vocabulary Map'],
       ['overview.review', 'Review Attention'],
+      ['overview.sources', 'Learning Sources'],
       ['overview.next', 'Next Move'],
       ['overview.recent', 'Recent Activity']
     ],
@@ -43,7 +46,7 @@
     Activity: [
       ['activity.period', 'Time Window'],
       ['activity.snapshot', 'Activity Snapshot'],
-      ['activity.studyq', 'Study Q Sessions'],
+      ['activity.studyq', 'Standard Practice'],
       ['activity.trend', 'Activity Over Time'],
       ['activity.mix', 'Activity Mix'],
       ['activity.timeline', 'Timeline']
@@ -54,10 +57,12 @@
   let progressRecords = [];
   let practiceEvents = [];
   let activityEvents = [];
+  let interactionEvents = [];
   let studyQSessions = [];
   let rowByWordId = new Map();
   let activeView = 'overview';
   let activeActivityPeriod = localStorage.getItem(ACTIVITY_PERIOD_KEY) || '30d';
+  let activeLearningSource = localStorage.getItem(LEARNING_SOURCE_VIEW_KEY) === 'standard' ? 'standard' : 'card';
 
   function parseTSV(text) {
     const table = [];
@@ -117,6 +122,7 @@
 
   function activityHref(event) {
     if (!event) return '';
+    if (event.type === 'standard' && event.sessionId) return `./study-hub.html?session=${encodeURIComponent(String(event.sessionId))}`;
     const id = event.type === 'practice' ? firstPracticeWordId(event) : String(event.wordId || '').trim();
     return id ? cardHrefForWordId(id) : '';
   }
@@ -158,6 +164,16 @@
       return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
     } catch (error) {
       console.warn('Could not read practice events:', error);
+      return [];
+    }
+  }
+
+  function readInteractionEvents() {
+    try {
+      const data = JSON.parse(localStorage.getItem(INTERACTION_EVENTS_KEY) || '[]');
+      return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
+    } catch (error) {
+      console.warn('Could not read interaction events:', error);
       return [];
     }
   }
@@ -224,6 +240,95 @@
     }, duration);
   }
 
+  function standardAttention(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return ['none', 'light', 'medium', 'high'].includes(normalized) ? normalized : '';
+  }
+
+  function standardSourceMetrics(sessions = studyQSessions) {
+    const metrics = {
+      sessions: 0, experiences: 0, hints: 0, rated: 0, attentionSaved: 0, attentionMissing: 0,
+      ratings: { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0 },
+      attention: { none: 0, light: 0, medium: 0, high: 0 }
+    };
+    (Array.isArray(sessions) ? sessions : []).forEach(session => {
+      metrics.sessions++;
+      const experiences = Array.isArray(session?.experiences) ? session.experiences : [];
+      metrics.experiences += Number(session?.experienceCount) || experiences.length;
+      metrics.hints += Number(session?.hintCount) || 0;
+      const counts = session?.counts || {};
+      let sessionRatingTotal = 0;
+      Object.keys(metrics.ratings).forEach(key => {
+        const value = Number(counts[key]) || 0;
+        metrics.ratings[key] += value;
+        sessionRatingTotal += value;
+      });
+      if (experiences.length) {
+        experiences.forEach(experience => {
+          const attempt = experience?.attempt || {};
+          const rating = String(attempt.selfRating || '').trim();
+          if (rating && Object.prototype.hasOwnProperty.call(metrics.ratings, rating)) {
+            metrics.rated++;
+            if (!sessionRatingTotal) metrics.ratings[rating]++;
+          }
+          const attention = standardAttention(attempt.reviewAttention);
+          if (attention) { metrics.attention[attention]++; metrics.attentionSaved++; }
+          else if (rating) metrics.attentionMissing++;
+        });
+      } else {
+        metrics.rated += sessionRatingTotal;
+      }
+    });
+    return metrics;
+  }
+
+  function cardSourceMetrics() {
+    const directEvents = activityEvents.filter(event => eventTimestamp(event));
+    const encountered = new Set();
+    directEvents.forEach(event => {
+      if (String(event.type || '').toLowerCase() === 'study' && event.wordId) encountered.add(String(event.wordId));
+    });
+    const actions = { studied: 0, review: 0, attention: 0 };
+    interactionEvents.forEach(event => {
+      const action = String(event?.action || '').toLowerCase();
+      if (action === 'studied') actions.studied++;
+      if (action === 'review' || action === 'added-to-review') actions.review++;
+      if (action === 'attention_set') actions.attention++;
+    });
+    const recentCutoff = recentThreshold();
+    const recentWords = new Set(directEvents.filter(event => eventTimestamp(event) >= recentCutoff).map(event => String(event.wordId || '')).filter(Boolean));
+    return { encountered: encountered.size, recent: recentWords.size, ...actions, hasEventLog: directEvents.length > 0 };
+  }
+
+  function compactCountSummary(entries) {
+    return entries.filter(([, value]) => Number(value) > 0).map(([label, value]) => `${fmt(value)} ${label}`).join(' · ');
+  }
+
+  function renderLearningSources() {
+    const target = $('learning-source-summary');
+    if (!target) return;
+    document.querySelectorAll('[data-learning-source]').forEach(button => {
+      const active = button.dataset.learningSource === activeLearningSource;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+
+    if (activeLearningSource === 'standard') {
+      const m = standardSourceMetrics();
+      const ratingText = compactCountSummary([
+        ['Got it', m.ratings['got-it']], ['Almost', m.ratings.almost], ['Not yet', m.ratings['not-yet']], ['No idea', m.ratings['no-idea']]
+      ]) || 'No self-ratings recorded yet';
+      const attentionText = compactCountSummary([
+        ['None', m.attention.none], ['Light', m.attention.light], ['Medium', m.attention.medium], ['High', m.attention.high]
+      ]) || 'No Review Attention choices recorded yet';
+      target.innerHTML = `<div class="learning-source-kicker">Standard Practice</div><div class="learning-source-stat-grid"><div><strong>${fmt(m.sessions)}</strong><span>Sessions</span></div><div><strong>${fmt(m.experiences)}</strong><span>Experiences</span></div><div><strong>${fmt(m.rated)}</strong><span>Self-rated</span></div><div><strong>${fmt(m.hints)}</strong><span>Hints used</span></div></div><div class="learning-source-signal"><span>Self-rating</span><p>${escapeHtml(ratingText)}</p></div><div class="learning-source-signal"><span>Review Attention</span><p>${escapeHtml(attentionText)}</p></div>${m.attentionMissing ? `<p class="learning-source-note">${fmt(m.attentionMissing)} older rated experience${m.attentionMissing === 1 ? '' : 's'} have no separately saved Review Attention choice.</p>` : ''}`;
+      return;
+    }
+
+    const m = cardSourceMetrics();
+    target.innerHTML = `<div class="learning-source-kicker">Card Study</div><div class="learning-source-stat-grid"><div><strong>${fmt(m.encountered)}</strong><span>Words encountered</span></div><div><strong>${fmt(m.studied)}</strong><span>Studied choices</span></div><div><strong>${fmt(m.review)}</strong><span>Review choices</span></div><div><strong>${fmt(m.attention)}</strong><span>Attention sets</span></div></div><div class="learning-source-signal"><span>Recent direct card work</span><p>${fmt(m.recent)} word${m.recent === 1 ? '' : 's'} recorded in the last 14 days.</p></div><p class="learning-source-note">This source view uses timestamped Card Study events. Older cumulative state remains represented in the unified Overview above rather than being guessed into Card Study history.</p>`;
+  }
+
   function renderOverview() {
     const s = stats();
     $('stat-touched').textContent = fmt(s.touched);
@@ -247,6 +352,7 @@
     $('next-new-copy').textContent = recentDecks.length ? `Continue near Deck WLP${pad3(recentDecks[0])}, or explore somewhere new` : 'Explore an area you have not covered yet';
     $('next-review-copy').textContent = s.review ? `${fmt(s.review)} card${s.review === 1 ? '' : 's'} currently asking for more attention` : 'No cards are currently marked Review';
     renderRecentActivity();
+    renderLearningSources();
   }
 
   function renderRecentActivity() {
@@ -531,18 +637,44 @@
         source: 'practice'
       });
     });
+
+    studyQSessions.forEach(session => {
+      const timestamp = sessionTimestamp(session);
+      if (!timestamp || !inRange(timestamp, range)) return;
+      const experiences = Array.isArray(session.experiences) ? session.experiences : [];
+      const wordIds = Array.isArray(session.wordIds) && session.wordIds.length
+        ? session.wordIds.map(String).filter(Boolean)
+        : experiences.map(item => String(item?.wordId || '')).filter(Boolean);
+      const reviewWordIds = experiences
+        .filter(item => { const attention = standardAttention(item?.attempt?.reviewAttention); return attention && attention !== 'none'; })
+        .map(item => String(item?.wordId || '')).filter(Boolean);
+      stream.push({
+        timestamp,
+        type: 'standard',
+        source: 'standard-practice',
+        sessionId: String(session.sessionId || ''),
+        sourceLabel: String(session.sourceLabel || 'Standard Practice'),
+        wordIds,
+        reviewWordIds,
+        experienceCount: Number(session.experienceCount) || experiences.length,
+        counts: session.counts || {},
+        legacy: false
+      });
+    });
     return stream.sort((a,b) => b.timestamp - a.timestamp);
   }
 
   function wordsFromActivityEvent(event) {
     const ids = [];
     if (event.wordId) ids.push(String(event.wordId));
+    if (Array.isArray(event.wordIds)) ids.push(...event.wordIds.map(String));
     if (Array.isArray(event.targets)) ids.push(...event.targets.map(String));
     if (Array.isArray(event.supports)) ids.push(...event.supports.map(String));
     return ids.filter(Boolean);
   }
 
   function activityEncounterCount(event) {
+    if (event.type === 'standard') return Math.max(1, Number(event.experienceCount) || (Array.isArray(event.wordIds) ? event.wordIds.length : 0));
     if (event.type === 'practice') {
       const count = (Array.isArray(event.targets) ? event.targets.length : 0) + (Array.isArray(event.supports) ? event.supports.length : 0);
       return Math.max(1, count);
@@ -560,7 +692,8 @@
       ids.forEach(id => unique.add(id));
       encounters += activityEncounterCount(event);
       if (event.type === 'review') ids.forEach(id => reviewWords.add(id));
-      if (event.type === 'practice') practiceSessions++;
+      if (event.type === 'standard' && Array.isArray(event.reviewWordIds)) event.reviewWordIds.forEach(id => reviewWords.add(String(id)));
+      if (event.type === 'practice' || event.type === 'standard') practiceSessions++;
     });
     progressRecords.forEach(record => {
       if (record.review && record.lastSeen && inRange(record.lastSeen, range)) reviewWords.add(record.wordId);
@@ -599,9 +732,10 @@
   }
 
   function renderActivityMix(stream) {
-    const counts = { Study: 0, Review: 0, Practice: 0 };
+    const counts = { Study: 0, Review: 0, Standard: 0, Practice: 0 };
     stream.forEach(event => {
-      if (event.type === 'practice') counts.Practice += activityEncounterCount(event);
+      if (event.type === 'standard') counts.Standard += activityEncounterCount(event);
+      else if (event.type === 'practice') counts.Practice += activityEncounterCount(event);
       else if (event.type === 'review') counts.Review += 1;
       else counts.Study += 1;
     });
@@ -610,12 +744,18 @@
   }
 
   function activityTimelineTitle(event) {
+    if (event.type === 'standard') return 'Standard Practice';
     if (event.type === 'practice') return titleCase(event.practiceType || 'Practice');
     const row = rowByWordId.get(String(event.wordId || '')) || {};
     return field(row, 'Word') || (event.wordId ? `WID ${event.wordId}` : titleCase(event.type || 'Activity'));
   }
 
   function activityTimelineCopy(event) {
+    if (event.type === 'standard') {
+      const summary = studyQRatingSummary(event.counts || {});
+      const count = Number(event.experienceCount) || (Array.isArray(event.wordIds) ? event.wordIds.length : 0);
+      return [`${count} experience${count === 1 ? '' : 's'}`, event.sourceLabel, summary].filter(Boolean).join(' · ');
+    }
     if (event.type === 'practice') {
       const targets = Array.isArray(event.targets) ? event.targets.length : 0;
       const supports = Array.isArray(event.supports) ? event.supports.length : 0;
@@ -634,7 +774,8 @@
       return;
     }
     target.innerHTML = items.map(event => {
-      const inner = `<span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study')}</span>`;
+      const tag = event.type === 'standard' ? 'Standard' : event.type === 'practice' ? 'Practice' : event.type === 'review' ? 'Review' : 'Study';
+      const inner = `<span class="timeline-time">${escapeHtml(formatWhen(event.timestamp))}</span><span class="timeline-main"><strong>${escapeHtml(activityTimelineTitle(event))}</strong><small>${escapeHtml(activityTimelineCopy(event))}</small></span><span class="timeline-tag">${escapeHtml(tag)}</span>`;
       const href = activityHref(event);
       return href ? `<a class="timeline-row" href="${href}">${inner}</a>` : `<div class="timeline-row">${inner}</div>`;
     }).join('');
@@ -661,18 +802,33 @@
     const totalExperiences = sessions.reduce((sum, session) => sum + (Number(session.experienceCount) || (Array.isArray(session.experiences) ? session.experiences.length : 0)), 0);
     const totalHints = sessions.reduce((sum, session) => sum + (Number(session.hintCount) || 0), 0);
     const ratings = { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0, unrated: 0 };
+    const attention = { none: 0, light: 0, medium: 0, high: 0 };
+    let attentionMissing = 0;
     sessions.forEach(session => {
       const counts = session.counts || {};
       Object.keys(ratings).forEach(key => { ratings[key] += Number(counts[key]) || 0; });
+      (Array.isArray(session.experiences) ? session.experiences : []).forEach(experience => {
+        const attempt = experience?.attempt || {};
+        const savedAttention = standardAttention(attempt.reviewAttention);
+        if (savedAttention) attention[savedAttention]++;
+        else if (String(attempt.selfRating || '').trim()) attentionMissing++;
+      });
     });
     $('studyq-got-it').textContent = fmt(ratings['got-it']);
     $('studyq-almost').textContent = fmt(ratings.almost);
     $('studyq-not-yet').textContent = fmt(ratings['not-yet']);
     $('studyq-no-idea').textContent = fmt(ratings['no-idea']);
+    $('studyq-attention-none').textContent = fmt(attention.none);
+    $('studyq-attention-light').textContent = fmt(attention.light);
+    $('studyq-attention-medium').textContent = fmt(attention.medium);
+    $('studyq-attention-high').textContent = fmt(attention.high);
+    const attentionNote = $('studyq-attention-note');
+    attentionNote.hidden = !attentionMissing;
+    attentionNote.textContent = attentionMissing ? `${fmt(attentionMissing)} older rated experience${attentionMissing === 1 ? '' : 's'} in this period have no separately saved Review Attention choice.` : '';
     const partialSessions = sessions.filter(session => session.status === 'ended-early' || session.status === 'incomplete').length;
     $('studyq-summary-line').textContent = sessions.length
       ? `${fmt(sessions.length)} saved session${sessions.length === 1 ? '' : 's'}${partialSessions ? ` · ${fmt(partialSessions)} partial` : ''} · ${fmt(totalExperiences)} experience${totalExperiences === 1 ? '' : 's'} · ${fmt(totalHints)} hint${totalHints === 1 ? '' : 's'} used.`
-      : 'No Study Q sessions recorded in this time window yet.';
+      : 'No Standard Practice sessions recorded in this time window yet.';
 
     const target = $('studyq-session-list');
     const recent = sessions.slice(0, 8);
@@ -719,6 +875,16 @@
     renderActivityTimeline(stream);
   }
 
+  function installLearningSourceControls() {
+    document.querySelectorAll('[data-learning-source]').forEach(button => button.addEventListener('click', () => {
+      const source = button.dataset.learningSource;
+      if (!['card', 'standard'].includes(source)) return;
+      activeLearningSource = source;
+      try { localStorage.setItem(LEARNING_SOURCE_VIEW_KEY, source); } catch (_) {}
+      renderLearningSources();
+    }));
+  }
+
   function installActivityPeriodControls() {
     document.querySelectorAll('[data-activity-period]').forEach(button => button.addEventListener('click', () => {
       const period = button.dataset.activityPeriod;
@@ -733,6 +899,7 @@
     progressRecords = readProgressRecords();
     practiceEvents = readPracticeEvents();
     activityEvents = readActivityEvents();
+    interactionEvents = readInteractionEvents();
     studyQSessions = readStudyQSessions();
     const s = stats();
     $('progress-data-note').textContent = `${fmt(s.total)} cards · local progress`;
@@ -932,9 +1099,33 @@
     refreshRoleUI();
   }
 
+  function runSourceIntegrationSelfTest() {
+    const checks = [];
+    const check = (name, passed) => checks.push({ name, passed: Boolean(passed) });
+    const fixtures = [{ experienceCount: 2, hintCount: 1, counts: { 'got-it': 1, almost: 1 }, experiences: [
+      { attempt: { selfRating: 'got-it', reviewAttention: 'medium' } },
+      { attempt: { selfRating: 'almost', reviewAttention: 'light' } }
+    ] }];
+    const metrics = standardSourceMetrics(fixtures);
+    check('standard sessions counted', metrics.sessions === 1);
+    check('standard experiences counted', metrics.experiences === 2);
+    check('self-ratings remain separate', metrics.ratings['got-it'] === 1 && metrics.ratings.almost === 1);
+    check('attention remains separate', metrics.attention.medium === 1 && metrics.attention.light === 1);
+    check('saved attention count', metrics.attentionSaved === 2 && metrics.attentionMissing === 0);
+    const legacy = standardSourceMetrics([{ experienceCount: 1, experiences: [{ attempt: { selfRating: 'not-yet' } }] }]);
+    check('legacy rating fallback preserved', legacy.ratings['not-yet'] === 1 && legacy.rated === 1);
+    check('legacy missing attention stays explicit', legacy.attentionMissing === 1 && legacy.attentionSaved === 0);
+    check('standard activity encounter count uses experiences', activityEncounterCount({ type: 'standard', experienceCount: 3 }) === 3);
+    check('standard activity word IDs remain distinct evidence', wordsFromActivityEvent({ type: 'standard', wordIds: ['419', '420'] }).join(',') === '419,420');
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
+  window.WLPProgressStage7 = Object.freeze({ version: '1.1.0', runSourceIntegrationSelfTest });
+
   const closeOptions = installProgressOptions();
   installViewNavigation();
   installActivityPeriodControls();
+  installLearningSourceControls();
   installShell(closeOptions);
 
   const requestedView = new URLSearchParams(location.search).get('view');
@@ -952,6 +1143,7 @@
       progressRecords = readProgressRecords();
       practiceEvents = readPracticeEvents();
       activityEvents = readActivityEvents();
+      interactionEvents = readInteractionEvents();
       studyQSessions = readStudyQSessions();
       $('progress-data-note').textContent = 'Deck data unavailable';
       renderOverview();
