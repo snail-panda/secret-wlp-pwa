@@ -274,7 +274,8 @@
   function showToast(text, options = {}) {
     const toast = $('progress-toast');
     const isInfo = options.info === true;
-    const duration = Number(options.duration || (isInfo ? 6000 : 2700));
+    const infoDuration = Math.min(16000, Math.max(11000, 7000 + String(text || '').length * 30));
+    const duration = Number(options.duration || (isInfo ? infoDuration : 2700));
     toast.textContent = text;
     toast.classList.toggle('is-info', isInfo);
     toast.hidden = false;
@@ -742,7 +743,7 @@
     $('learning-path-grid').innerHTML = EVIDENCE_PATH_DEFS.map(def => {
       const sourceCounts = signals[def.key] || { card: 0, standard: 0, ai: 0 };
       const contributing = ['card', 'standard', 'ai'].filter(source => Number(sourceCounts[source]) > 0).length;
-      const stateCopy = contributing ? `Evidence from ${contributing} source${contributing === 1 ? '' : 's'}` : 'No path-specific evidence yet';
+      const stateCopy = contributing ? `${contributing} source${contributing === 1 ? '' : 's'} recorded here` : 'No recorded evidence here yet';
       return `<div class="learning-path-card" data-learning-path="${escapeHtml(def.key)}"><div class="learning-path-head">${pathIcon(def.icon)}<strong>${escapeHtml(def.label)}</strong></div><small>${escapeHtml(def.copy)}</small><div class="path-source-signals">${pathSourceSignal('card', sourceCounts.card)}${pathSourceSignal('standard', sourceCounts.standard)}${pathSourceSignal('ai', sourceCounts.ai)}</div><div class="path-evidence-state">${escapeHtml(stateCopy)}</div></div>`;
     }).join('');
 
@@ -751,7 +752,7 @@
     $('focus-review-copy').textContent = old ? `${fmt(old)} current Review card${old === 1 ? '' : 's'} have not been seen in 14 days` : reviewing.length ? `${fmt(reviewing.length)} current Review card${reviewing.length === 1 ? '' : 's'}` : 'No cards are currently marked Review';
 
     const territory = findLightlyTouchedTerritory();
-    $('focus-territory-copy').textContent = territory ? `Deck ${pad3(territory.start)}–${pad3(territory.end)} has very little recorded coverage` : 'Find a part of the garden you have barely touched';
+    $('focus-territory-copy').textContent = territory ? `Deck ${pad3(territory.start)}–${pad3(territory.end)} is the least-covered range right now` : 'Open Landscape to see a lightly touched deck range';
     renderRecentPractice();
   }
 
@@ -1331,8 +1332,35 @@
     applyPanelOptions();
   }
 
+  function progressViewFromUrl() {
+    const requested = new URLSearchParams(location.search).get('view');
+    return VIEW_META[requested] ? requested : 'overview';
+  }
+
+  function saveProgressHistoryPosition() {
+    try {
+      const state = history.state && typeof history.state === 'object' ? history.state : {};
+      history.replaceState({ ...state, wlpProgress: true, view: activeView, scrollY: Math.max(0, window.scrollY || 0) }, '', location.href);
+    } catch (_) {}
+  }
+
+  function progressReviewHref(view) {
+    const safeView = VIEW_META[view] ? view : activeView;
+    return `./review.html?return=${encodeURIComponent(`progress.html?view=${safeView}`)}`;
+  }
+
+  function refreshProgressReturnLinks() {
+    document.querySelectorAll('[data-progress-return]').forEach(link => {
+      const view = VIEW_META[link.dataset.progressReturn] ? link.dataset.progressReturn : activeView;
+      link.setAttribute('href', progressReviewHref(view));
+    });
+  }
+
   function switchView(view, options = {}) {
     if (!VIEW_META[view]) view = 'overview';
+    const previousView = activeView;
+    const changed = previousView !== view;
+    if (!options.skipUrl && changed) saveProgressHistoryPosition();
     activeView = view;
     document.querySelectorAll('[data-progress-view]').forEach(button => {
       const active = button.dataset.progressView === view;
@@ -1346,12 +1374,25 @@
     });
     $('progress-view-title').textContent = VIEW_META[view].title;
     $('progress-view-description').textContent = VIEW_META[view].description;
-    if (!options.skipUrl) {
+    if (!options.skipUrl && changed) {
       const url = new URL(location.href);
       url.searchParams.set('view', view);
-      history.replaceState(null, '', url);
+      const state = { wlpProgress: true, view, scrollY: 0 };
+      if (options.replaceUrl) history.replaceState(state, '', url);
+      else history.pushState(state, '', url);
     }
-    if (options.scrollTop) window.scrollTo({ top: 0, behavior: 'smooth' });
+    refreshProgressReturnLinks();
+    requestAnimationFrame(() => {
+      if (Number.isFinite(options.restoreScrollY)) {
+        window.scrollTo({ top: Math.max(0, options.restoreScrollY), behavior: 'auto' });
+        return;
+      }
+      if (options.targetSelector) {
+        const target = document.querySelector(options.targetSelector);
+        if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      }
+      if (options.scrollTop) window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   }
 
   function readPanelOptions() {
@@ -1424,9 +1465,19 @@
   }
 
   function installViewNavigation() {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
     document.querySelectorAll('[data-progress-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.progressView, {scrollTop:true})));
-    document.querySelectorAll('[data-open-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.openView, {scrollTop:true})));
-    document.querySelectorAll('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast, { info: true, duration: 6000 })));
+    document.querySelectorAll('[data-open-view]').forEach(button => button.addEventListener('click', () => {
+      const targetSelector = button.dataset.openViewTarget || '';
+      switchView(button.dataset.openView, targetSelector ? { targetSelector } : { scrollTop:true });
+    }));
+    document.querySelectorAll('[data-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.toast, { info: true })));
+    document.querySelectorAll('[data-progress-return]').forEach(link => link.addEventListener('click', saveProgressHistoryPosition));
+    addEventListener('popstate', event => {
+      const state = event.state && event.state.wlpProgress ? event.state : null;
+      const view = state && VIEW_META[state.view] ? state.view : progressViewFromUrl();
+      switchView(view, { skipUrl:true, restoreScrollY:Number(state?.scrollY) || 0 });
+    });
     document.querySelectorAll('[data-practice-coming]').forEach(button => button.addEventListener('click', () => showToast('Context Practice is the next layer. This Progress foundation is ready to record it when we add it.')));
   }
 
@@ -1587,7 +1638,7 @@
 
   function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.3.0', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.1', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
@@ -1596,8 +1647,13 @@
   installLearningSourceControls();
   installShell(closeOptions);
 
-  const requestedView = new URLSearchParams(location.search).get('view');
-  switchView(VIEW_META[requestedView] ? requestedView : 'overview', {skipUrl:true});
+  const requestedView = progressViewFromUrl();
+  switchView(requestedView, {skipUrl:true});
+  try {
+    const initialState = history.state && typeof history.state === 'object' ? history.state : {};
+    history.replaceState({ ...initialState, wlpProgress:true, view:requestedView, scrollY:Math.max(0, window.scrollY || 0) }, '', location.href);
+  } catch (_) {}
+  refreshProgressReturnLinks();
 
   fetch(TSV_URL, {cache:'no-cache'})
     .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); })

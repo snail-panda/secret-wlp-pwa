@@ -29,6 +29,33 @@
   let aiEvidenceByWordId = new Map();
   let interactionEvents = [];
 
+  function reviewReturnTarget(){
+    const raw=new URLSearchParams(location.search).get('return');
+    if(!raw)return null;
+    try{
+      const url=new URL(raw,location.href);
+      if(url.origin!==location.origin)return null;
+      if(!url.pathname.endsWith('/progress.html'))return null;
+      return {href:`./progress.html${url.search}${url.hash}`,label:'Back to Progress'};
+    }catch{return null;}
+  }
+  function installReviewReturnNavigation(){
+    const target=reviewReturnTarget();if(!target)return;
+    const top=document.querySelector('.review-back-link');
+    const bottom=document.querySelector('.stage7-page-bottom-nav-item[data-stage7-back-source]');
+    if(top){top.href=target.href;const label=top.querySelector('span');if(label)label.textContent=target.label;}
+    if(bottom)bottom.href=target.href;
+    const useHistoryBack=event=>{
+      try{
+        if(!document.referrer)return;
+        const ref=new URL(document.referrer);
+        if(ref.origin===location.origin&&ref.pathname.endsWith('/progress.html')){event.preventDefault();history.back();}
+      }catch(_){}
+    };
+    if(top)top.addEventListener('click',useHistoryBack);
+    if(bottom)bottom.addEventListener('click',useHistoryBack);
+  }
+
   function esc(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
   function parseTSV(text){
     const table=[]; let row=[],field='',quoted=false;
@@ -349,6 +376,7 @@
     $('review-load-more').hidden=shown.length>=matches.length;
   }
   function render(){renderSummary();renderReasons();renderList();}
+  installReviewReturnNavigation();
   document.querySelectorAll('[data-level-filter]').forEach(btn=>btn.addEventListener('click',()=>{levelFilter=btn.dataset.levelFilter||'';visibleLimit=PAGE_SIZE;render();}));
   $('review-clear-filter').addEventListener('click',()=>{levelFilter='';reasonFilter='';visibleLimit=PAGE_SIZE;render();});
   $('review-load-more').addEventListener('click',()=>{visibleLimit+=PAGE_SIZE;renderList();});
@@ -410,5 +438,5 @@
     }finally{latestStandardEvidence=priorStd;latestAIEvidence=priorAI;aiEvidenceByWordId=priorHistory;interactionEvents=priorInteractions;}
     return {passed:results.every(item=>item.ok),passedCount:results.filter(item=>item.ok).length,total:results.length,results};
   }
-  window.WLPReviewStage7={version:'1.2.0',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
+  window.WLPReviewStage7={version:'1.2.1',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
 })();
