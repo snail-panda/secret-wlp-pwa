@@ -19,6 +19,7 @@
   const editReturnContext = () => {
     const raw=String(new URLSearchParams(location.search).get('return')||'').trim();
     if(raw==='editor-drafts.html' || raw==='./editor-drafts.html') return {href:'./editor-drafts.html',label:'Back to Manage Drafts',kind:'manage'};
+    if(raw==='editor-learning-metadata.html' || raw==='./editor-learning-metadata.html') return {href:'./editor-learning-metadata.html',label:'Back to Learning Metadata',kind:'metadata'};
     if(raw.startsWith('flashcards/wlp/batch.html?') && !raw.includes('..') && !/^\w+:/.test(raw)) return {href:`./${raw}`,label:'Back to Draft',kind:'study'};
     return {href:'./editor-drafts.html',label:'Back to Manage Drafts',kind:'manage'};
   };
@@ -36,7 +37,7 @@
     if(cancel){ cancel.href=ctx.href; cancel.setAttribute('aria-label',`Cancel and ${ctx.label.toLowerCase()}`); }
     if(primary){
       primary.href=ctx.href;
-      primary.textContent=ctx.kind==='study' ? 'Back to Draft' : 'Back to Manage Drafts';
+      primary.textContent=ctx.kind==='study' ? 'Back to Draft' : ctx.kind==='metadata' ? 'Back to Learning Metadata' : 'Back to Manage Drafts';
     }
     if(secondary){
       if(ctx.kind==='study'){ secondary.href='./editor-drafts.html'; secondary.textContent='Manage Drafts'; }

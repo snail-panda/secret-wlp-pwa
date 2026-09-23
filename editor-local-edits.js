@@ -43,12 +43,7 @@
   const safeReturnContext = () => {
     const raw=String(new URLSearchParams(location.search).get('return')||'').replace(/^\/+/, '').trim();
     if(raw==='editor-local-edits.html'||raw==='./editor-local-edits.html') return {href:'./editor-local-edits.html',label:'Back to Manage Local Edits',kind:'manage'};
-    if((raw==='review.html'||raw.startsWith('review.html?'))&&!raw.includes('..')&&!/^\w+:/.test(raw)){
-      try{
-        const url=new URL(raw,location.href);
-        if(url.origin===location.origin&&url.pathname.endsWith('/review.html')) return {href:`./review.html${url.search}${url.hash}`,label:'Back to Review',kind:'review'};
-      }catch{}
-    }
+    if(raw==='editor-learning-metadata.html'||raw==='./editor-learning-metadata.html') return {href:'./editor-learning-metadata.html',label:'Back to Learning Metadata',kind:'metadata'};
     if(raw.startsWith('flashcards/wlp/batch.html?')&&!raw.includes('..')&&!/^\w+:/.test(raw)) return {href:`./${raw}`,label:'Back to Card',kind:'study'};
     return {href:'./editor-local-edits.html',label:'Back to Manage Local Edits',kind:'manage'};
   };
@@ -58,7 +53,7 @@
     const primary=$('local-edit-success-primary'), secondary=$('local-edit-success-secondary'), home=$('local-edit-home');
     if(back){back.href=ctx.href;back.setAttribute('aria-label',ctx.label);} if(label)label.textContent=ctx.label;
     if(cancel){cancel.href=ctx.href;cancel.setAttribute('aria-label',`Cancel and ${ctx.label.toLowerCase()}`);}
-    if(primary){primary.href=ctx.href;primary.textContent=ctx.kind==='study'?'Back to Card':ctx.kind==='review'?'Back to Review':'Back to Manage Local Edits';}
+    if(primary){primary.href=ctx.href;primary.textContent=ctx.kind==='study'?'Back to Card':ctx.kind==='metadata'?'Back to Learning Metadata':'Back to Manage Local Edits';}
     if(secondary){
       if(ctx.kind==='study'){secondary.href='./editor-local-edits.html';secondary.textContent='Manage Local Edits';}
       else {secondary.href=batchHref(masterRow);secondary.textContent='View Card';}

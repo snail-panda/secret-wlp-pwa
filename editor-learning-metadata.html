@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Editor — WLP</title>
+  <title>Learning Metadata — WLP</title>
   <meta name="theme-color" content="#eef6ee">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,8 +15,10 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
+  <link rel="stylesheet" href="./editor-new-card.css">
+  <link rel="stylesheet" href="./editor-drafts.css">
+  <link rel="stylesheet" href="./editor-local-edits.css?v=20260918-s7-localdiff-v18616">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
-  <link rel="stylesheet" href="./local-data-safety.css?v=20260917-s7-local-data-safety-v1-8-4">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
     /* v1.8.6.24 fail-safe: viewport anchoring must not depend on cached shared CSS. */
@@ -33,8 +35,29 @@
       margin:0!important;
     }
   </style>
+
+  <style id="learning-metadata-manager-style">
+    .learning-meta-toolbar{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:10px 12px;border:1px solid rgba(87,116,99,.18);border-radius:16px;background:rgba(255,255,255,.62)}
+    .learning-meta-search-wrap{position:relative;flex:1;min-width:0}
+    .learning-meta-search{width:100%;min-height:44px;padding:0 42px 0 13px;border:1px solid rgba(82,114,96,.24);border-radius:12px;background:#fffefb;color:#35483e;font:16px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none;box-sizing:border-box}
+    .learning-meta-search:focus{border-color:rgba(63,105,79,.55);box-shadow:0 0 0 3px rgba(76,117,91,.09)}
+    .learning-meta-clear{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:#73857a;font-size:22px;cursor:pointer}
+    .learning-meta-results-meta{margin:0 2px 12px;color:#748279;font:.82rem/1.35 "EB Garamond",Georgia,serif}
+    .learning-meta-card{align-items:start}
+    .learning-meta-counts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+    .learning-meta-counts span{padding:3px 7px;border:1px solid rgba(89,117,101,.14);border-radius:999px;background:rgba(241,247,242,.78);color:#61766a;font:.72rem/1.2 "EB Garamond",Georgia,serif}
+    .learning-meta-details{display:grid;gap:6px;margin-top:9px}
+    .learning-meta-detail{display:grid;grid-template-columns:58px minmax(0,1fr);gap:8px;align-items:start}
+    .learning-meta-detail>span{color:#7b887f;font:.69rem/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:uppercase;letter-spacing:.04em}
+    .learning-meta-detail p{margin:0;color:#45594e;font:.88rem/1.42 "EB Garamond",Georgia,serif;overflow-wrap:anywhere}
+    .learning-meta-warning{margin-top:9px;padding:8px 9px;border:1px solid rgba(164,124,76,.18);border-radius:10px;background:rgba(252,247,237,.8);color:#7a694f;font:.76rem/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .draft-manage-edit.is-disabled{opacity:.45;pointer-events:none}
+    .learning-meta-no-results{padding:30px 16px;text-align:center;border:1px dashed rgba(91,117,101,.22);border-radius:16px;color:#76867d;font-family:"EB Garamond",Georgia,serif}
+    .learning-meta-load-warning{margin:0 0 12px;padding:9px 11px;border:1px solid rgba(164,124,76,.18);border-radius:12px;background:rgba(252,247,237,.8);color:#725f47;font-size:.78rem;line-height:1.4}
+    @media(max-width:560px){.learning-meta-toolbar{padding:8px}.learning-meta-detail{grid-template-columns:52px minmax(0,1fr)}.learning-meta-card .draft-manage-actions{align-self:start}}
+  </style>
 </head>
-<body class="app-body editor-page stage7-bottom-nav-page">
+<body class="app-body editor-page editor-local-edits-page learning-metadata-manager-page stage7-bottom-nav-page">
   <div class="app-shell">
     <header class="app-header">
       <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer">
@@ -45,7 +68,7 @@
         <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
       </a>
       <div class="header-actions">
-        <a class="icon-button header-search-button" href="./global-search.html?return=editor.html" aria-label="Global Search">
+        <a class="icon-button header-search-button" href="./global-search.html?return=editor-learning-metadata.html" aria-label="Global Search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
         </a>
         <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu">
@@ -54,113 +77,56 @@
       </div>
     </header>
 
-    <main class="editor-content">
-      <section class="editor-intro">
+    <main class="editor-content draft-manage-content local-edit-manage-content">
+      <a class="editor-back-link" href="./editor.html" aria-label="Back to Editor">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+        <span>Back to Editor</span>
+      </a>
+
+      <section class="editor-intro draft-manage-intro">
         <div>
-          <span class="section-kicker">Admin workspace</span>
-          <h1>Editor</h1>
-          <p>Create and manage browser-local vocabulary, local edits, and transfer files without changing the canonical Master TSV.</p>
+          <span class="section-kicker">Editor · Learning Metadata</span>
+          <h1>Manage Learning Metadata</h1>
+          <p>See every Master card and Draft with Learning Metadata, find it by word or WID, and open the existing card editor to make changes.</p>
         </div>
-        <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
+        <span class="editor-count-pill" id="learning-metadata-count-pill">0 Metadata Entries</span>
       </section>
 
-      <section class="editor-note" aria-label="Editor storage note">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8 7c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4 1.8-4 4 1.8 4 4 4-1.8 4-4"/></svg>
-        <div><strong>Local by design</strong><span>Drafts and Local Edits stay in this browser until you export or deliberately integrate them.</span></div>
+      <section class="editor-note" aria-label="Learning Metadata note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h9M5 18h12"/><path d="M18 10v8M15 15l3 3 3-3"/></svg>
+        <div><strong>Authoring data, separate from the card text</strong><span>Sense, Memory, Entry Type, Situations, Communicative Needs, and Alternatives live in the Learning Metadata layer rather than the canonical Master fields.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
         <h2>Admin access required</h2>
-        <p>Login as Admin to create cards, manage Drafts and Local Edits, or use backup tools.</p>
+        <p>Login as Admin to manage Learning Metadata.</p>
         <button id="editor-login-button" type="button">Admin Login</button>
       </section>
 
       <div class="editor-workspace" id="editor-workspace">
-        <section class="local-safety-card" data-local-safety aria-label="Local data safety">
-          <div class="local-safety-head">
-            <div class="local-safety-title">
-              <span class="local-safety-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/></svg></span>
-              <div class="local-safety-copy">
-                <span class="editor-tool-kicker">Local Data Safety</span>
-                <h2>Protect your browser-local work</h2>
-                <p>One backup file keeps Drafts, Local Edits, Progress, Activity and other WLP local data together.</p>
-                <span class="local-safety-status" data-safety-change-count>Checking backup status…</span>
-              </div>
-            </div>
+        <div class="learning-meta-toolbar">
+          <div class="learning-meta-search-wrap">
+            <input class="learning-meta-search" id="learning-metadata-search" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search word, WID312, or 312…" aria-label="Search Learning Metadata">
+            <button class="learning-meta-clear" id="learning-metadata-clear" type="button" aria-label="Clear Learning Metadata search">×</button>
           </div>
-          <div class="local-safety-stats">
-            <div class="local-safety-stat"><strong data-safety-drafts>0</strong><span>Drafts</span></div>
-            <div class="local-safety-stat"><strong data-safety-edits>0</strong><span>Local Edits</span></div>
-            <div class="local-safety-stat"><strong data-safety-progress>0</strong><span>Progress cards</span></div>
-          </div>
-          <div class="local-safety-meta"><span>Last backup: <strong data-safety-last-backup>Never</strong></span><span>Backup is downloaded as a JSON file.</span></div>
-          <div class="local-safety-actions">
-            <button class="local-backup-now" type="button" data-local-backup-now>Back Up Now</button>
-            <a class="local-safety-link" href="./editor-backup.html">Backup Tools</a>
-          </div>
-          <p class="local-safety-action-status" data-safety-action-status hidden></p>
+        </div>
+        <p class="learning-meta-results-meta" id="learning-metadata-results-meta">Loading Learning Metadata…</p>
+        <p class="learning-meta-load-warning" id="learning-metadata-load-warning" hidden></p>
+        <section class="draft-manage-empty" id="learning-metadata-empty" hidden>
+          <span class="draft-manage-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h9M5 18h12"/><path d="M18 10v8M15 15l3 3 3-3"/></svg></span>
+          <h2>No Learning Metadata</h2>
+          <p>Add Learning Metadata from a card editor and it will appear here.</p>
+          <a href="./global-search.html?return=editor-learning-metadata.html">Find a Card</a>
         </section>
-
-        <section class="editor-tool-card" id="create">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>New Cards</h2>
-            <p>Create a new browser-local Draft card. It remains separate from the Master until you deliberately integrate it.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-new-card.html">Add New Card <span aria-hidden="true">›</span></a>
-        </section>
-
-        <section class="editor-tool-card" id="drafts">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/><path d="m16 15 3 3 3-3"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Drafts <span class="editor-mini-count" id="editor-draft-count">0</span></h2>
-            <p>Edit or delete new cards stored only in this browser, or open them as Draft Decks for study.</p>
-          </div>
-          <div class="editor-action-row">
-            <a class="editor-primary-action" href="./editor-drafts.html">Manage Drafts <span aria-hidden="true">›</span></a>
-            <a class="editor-secondary-action" href="./drafts.html">Study Drafts</a>
-          </div>
-        </section>
-
-        <section class="editor-tool-card" id="local-edits">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Local Edits <span class="editor-mini-count" id="editor-local-edit-count">0</span></h2>
-            <p>Review changes made to existing Master cards on this device. Revert returns a card to its canonical Master version.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-local-edits.html">Manage Local Edits <span aria-hidden="true">›</span></a>
-        </section>
-
-        <section class="editor-tool-card" id="learning-metadata">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h9M5 18h12"/><path d="M18 10v8M15 15l3 3 3-3"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Create &amp; Edit</span>
-            <h2>Learning Metadata</h2>
-            <p>Find every card with Sense, Memory, Situation, Entry Type, or Alternative Expression metadata, then open it for editing.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-learning-metadata.html">Manage Learning Metadata <span aria-hidden="true">›</span></a>
-        </section>
-
-        <section class="editor-tool-card editor-backup-card" id="backup">
-          <span class="editor-tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/></svg></span>
-          <div class="editor-tool-copy">
-            <span class="editor-tool-kicker">Backup</span>
-            <h2>Import &amp; Export</h2>
-            <p>Export the effective deck or new cards only, and import Drafts or updated Drafts from another browser or device.</p>
-          </div>
-          <a class="editor-primary-action" href="./editor-backup.html">Open Backup Tools <span aria-hidden="true">›</span></a>
-        </section>
+        <section class="draft-manage-list" id="learning-metadata-list" aria-live="polite"></section>
       </div>
     </main>
   </div>
 
 
   <nav class="stage7-page-bottom-nav" aria-label="Page navigation">
-      <a class="stage7-page-bottom-nav-item" href="./index.html" aria-label="Back to Home">
+      <a class="stage7-page-bottom-nav-item" href="./editor.html" data-stage7-back-source=".editor-back-link" aria-label="Back">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg>
         <span>Back</span>
       </a>
@@ -181,7 +147,7 @@
     </div>
     <nav class="drawer-nav">
       <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
-      <a class="drawer-item" href="./global-search.html?return=editor.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
+      <a class="drawer-item" href="./global-search.html?return=editor-learning-metadata.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
       <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
       <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
       <a class="drawer-item" href="./review.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
@@ -219,8 +185,9 @@
   </div>
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./editor.js?v=20260915-s7-editor-v1-1"></script>
-  <script src="./local-data-safety.js?v=20260917-s7-local-data-safety-v1-8-4"></script>
+  <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
+  <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
+  <script src="./editor-learning-metadata.js?v=20260923-s7-learning-metadata-manager-v186103"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
@@ -240,6 +207,6 @@
     })();
   </script>
 
-  <script src="./page-bottom-nav.js?v=20260918-s7-v18629"></script>
+  <script src="./page-bottom-nav.js?v=20260918-s7-v18627"></script>
 </body>
 </html>
