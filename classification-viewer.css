@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.122 — read-only Classification Meta Viewer. */
+/* WLP Stage 7 v1.8.6.123 — iPhone Meta label softening. */
 .stage7-study-body .btn-classification-meta{
   position:absolute;
   top:14px;
@@ -169,4 +169,19 @@ html.classification-viewer-open body{overflow:hidden!important}
 }
 @media(orientation:landscape) and (max-height:500px){
   .classification-viewer-panel{width:min(520px,calc(100vw - 28px));max-width:calc(100vw - 28px);max-height:calc(100dvh - 18px)}
+}
+
+
+/* v1.8.6.123 — keep desktop unchanged; soften the Meta label on phone-sized screens. */
+@media(max-width:560px){
+  .stage7-study-body .btn-classification-meta{
+    color:#7a8f84!important;
+    font-weight:500!important;
+    opacity:.74;
+  }
+  .stage7-study-body .btn-classification-meta:hover,
+  .stage7-study-body .btn-classification-meta[aria-expanded="true"]{
+    color:#647d70!important;
+    opacity:.9;
+  }
 }
