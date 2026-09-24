@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.118 — Classification Editor v1. */
+/* WLP Stage 7 v1.8.6.119 — Classification View Card Navigation. */
 (() => {
   'use strict';
 
@@ -160,6 +160,25 @@
     return date.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'});
   }
 
+  function cardHref(item) {
+    if (!item) return './deck-browser.html';
+    if (!item.isMaster) {
+      const index = Number(item.draftIndex || 0);
+      const deck = Math.floor(index / 10) + 1;
+      const params = new URLSearchParams();
+      params.set('draft', String(deck));
+      if (item.localId) params.set('localid', item.localId);
+      return `./flashcards/wlp/batch.html?${params.toString()}`;
+    }
+    const batch = String(item.row?.['Batch #'] || '').trim();
+    const wid = String(item.wid || '').trim();
+    if (!batch || !wid) return './deck-browser.html';
+    const params = new URLSearchParams();
+    params.set('batch', String(Number(batch) || batch));
+    params.set('wordid', wid);
+    return `./flashcards/wlp/batch.html?${params.toString()}`;
+  }
+
   function refreshIndex() {
     const overrides = readOverrides();
     masterRows = masterSourceRows.map(row => itemFromMaster(row, overrides));
@@ -199,6 +218,7 @@
       </div>
       <div class="classification-result-actions">
         <button type="button" class="classification-edit-button" data-classification-edit="${esc(item.key)}">${hasData ? 'Edit Classification' : 'Classify'}</button>
+        <a class="classification-view-card" href="${esc(cardHref(item))}">View Card</a>
       </div>
       ${item.key === activeKey ? editorPanel(item) : ''}
     </article>`;
@@ -271,6 +291,7 @@
         <div class="classification-save-actions">
           <button type="button" class="classification-cancel" data-classification-close>Close</button>
           <button type="button" class="classification-save" data-classification-save>Save Classification</button>
+          <button type="button" class="classification-save-view" data-classification-save-view>Save &amp; View Card</button>
         </div>
       </div>
     </div>`;
@@ -349,7 +370,7 @@
 
   function saveActive() {
     const item = itemByKey.get(activeKey);
-    if (!item || !working) return;
+    if (!item || !working) return false;
     const saved = api.save(activeKey, {
       ...working,
       ...(item.isMaster ? {wordId:item.wid} : {localDraftId:item.localId})
@@ -365,6 +386,15 @@
     }
     syncCount();
     renderSummaryForActive();
+    return true;
+  }
+
+  function saveAndViewActive() {
+    const item = itemByKey.get(activeKey);
+    if (!item || !working) return;
+    const href = cardHref(item);
+    if (!saveActive()) return;
+    location.href = href;
   }
 
   function renderSummaryForActive() {
@@ -498,6 +528,7 @@
     const edit = event.target.closest('[data-classification-edit]');
     if (edit) { openEditor(edit.getAttribute('data-classification-edit')); return; }
     if (event.target.closest('[data-classification-close]')) { closeEditor(); return; }
+    if (event.target.closest('[data-classification-save-view]')) { saveAndViewActive(); return; }
     if (event.target.closest('[data-classification-save]')) { saveActive(); return; }
 
     const add = event.target.closest('[data-classification-add]');
