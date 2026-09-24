@@ -1,3 +1,4 @@
+/* WLP Stage 7 v1.8.6.121 — Classification-aware local backup safety. */
 (() => {
   'use strict';
 
@@ -5,6 +6,8 @@
   const OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const LEARNING_META_KEY = 'wlp:learning-meta:v2';
   const LEGACY_LEARNING_META_KEY = 'wlp:learning-meta:v1';
+  const CLASSIFICATION_KEY = 'wlp:classification-meta:v1';
+  const CLASSIFICATION_MERGE_ROLLBACK_KEY = 'wlp:classification-meta:merge-rollback:v1';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
   const METADATA_MERGE_ROLLBACK_KEY = 'wlp:learning-meta:merge-rollback:v1';
   const BACKUP_META_KEY = 'wlp:local-data-backup-meta:v1';
@@ -48,6 +51,20 @@
     }
     const legacy = parseJson(localStorage.getItem(LEGACY_LEARNING_META_KEY), {});
     return legacy && typeof legacy === 'object' && !Array.isArray(legacy) ? legacy : {};
+  }
+
+  function readClassificationMeta() {
+    const value = parseJson(localStorage.getItem(CLASSIFICATION_KEY), {});
+    const records = value && typeof value === 'object' && !Array.isArray(value) && value.records && typeof value.records === 'object' && !Array.isArray(value.records)
+      ? value.records
+      : (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+    const out = {};
+    Object.entries(records).forEach(([key, record]) => {
+      if (!/^(?:wid|draft):/.test(key) || !record || typeof record !== 'object' || Array.isArray(record)) return;
+      const active = ['entryTypes','usageTags','topicTags','discoveryTags'].some(field => Array.isArray(record[field]) && record[field].length);
+      if (active) out[key] = record;
+    });
+    return out;
   }
 
   function learningMetaContent(value) {
@@ -101,7 +118,12 @@
       learningHooks[String(key)] = stableStringify(value);
     });
 
-    return { drafts, overrides, learningHooks };
+    const classification = {};
+    Object.entries(readClassificationMeta()).forEach(([key, value]) => {
+      classification[String(key)] = stableStringify(value);
+    });
+
+    return { drafts, overrides, learningHooks, classification };
   }
 
   function changedRecordCount(before, after) {
@@ -117,7 +139,8 @@
     if (!meta?.editorState) return null;
     return changedRecordCount(meta.editorState.drafts, current.drafts) +
       changedRecordCount(meta.editorState.overrides, current.overrides) +
-      changedRecordCount(meta.editorState.learningHooks || {}, current.learningHooks || {});
+      changedRecordCount(meta.editorState.learningHooks || {}, current.learningHooks || {}) +
+      changedRecordCount(meta.editorState.classification || {}, current.classification || {});
   }
 
   function readMeta() {
@@ -141,7 +164,7 @@
 
   function isBackupKey(key) {
     if (!key) return false;
-    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY || key === DEVICE_ID_KEY || key === METADATA_MERGE_ROLLBACK_KEY) return false;
+    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY || key === DEVICE_ID_KEY || key === METADATA_MERGE_ROLLBACK_KEY || key === CLASSIFICATION_MERGE_ROLLBACK_KEY) return false;
     return key.startsWith('wlp:') || key.startsWith(PROGRESS_PREFIX);
   }
 
@@ -179,10 +202,12 @@
     const drafts = readDrafts();
     const overrides = readOverrides();
     const learningHooks = Object.values(readLearningMeta()).filter(value => Boolean(learningMetaContent(value))).length;
+    const classificationRecords = Object.keys(readClassificationMeta()).length;
     return {
       drafts: drafts.length,
       localEdits: Object.values(overrides).filter(value => value && typeof value === 'object' && !Array.isArray(value)).length,
       learningHooks,
+      classificationRecords,
       progressRecords: countProgressRecords(),
       activityEvents: eventCount(ACTIVITY_KEY),
       practiceEvents: eventCount(PRACTICE_KEY)
@@ -231,6 +256,7 @@
     document.querySelectorAll('[data-safety-drafts]').forEach(node => { node.textContent = String(data.drafts); });
     document.querySelectorAll('[data-safety-edits]').forEach(node => { node.textContent = String(data.localEdits); });
     document.querySelectorAll('[data-safety-progress]').forEach(node => { node.textContent = String(data.progressRecords); });
+    document.querySelectorAll('[data-safety-classification]').forEach(node => { node.textContent = String(data.classificationRecords); });
 
     document.querySelectorAll('[data-safety-last-backup]').forEach(node => {
       node.textContent = meta?.lastBackupAt ? formatDate(meta.lastBackupAt) : 'Never';
@@ -241,7 +267,7 @@
         node.textContent = 'Not backed up yet';
         node.dataset.state = 'warning';
       } else if (changes === 0) {
-        node.textContent = 'No Draft / Local Edit / Metadata changes since backup';
+        node.textContent = 'No Authoring metadata changes since backup';
         node.dataset.state = 'safe';
       } else {
         node.textContent = `${changes} local content change${changes === 1 ? '' : 's'} since backup`;
@@ -270,7 +296,7 @@
     }));
 
     render();
-    setInlineStatus(`Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · ${backup.summary.learningHooks || 0} Learning Metadata · Progress included. If you cannot remember where it was saved, search this filename in Files.`, 'success');
+    setInlineStatus(`Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · ${backup.summary.learningHooks || 0} Learning Metadata · ${backup.summary.classificationRecords || 0} Classification · Progress included. If you cannot remember where it was saved, search this filename in Files.`, 'success');
 
     if (button) {
       const old = button.textContent;
@@ -343,6 +369,14 @@
     const learningRecords = learningMetaV2 && typeof learningMetaV2 === 'object' && !Array.isArray(learningMetaV2) && Number(learningMetaV2.schemaVersion) === 2 && learningMetaV2.records && typeof learningMetaV2.records === 'object'
       ? learningMetaV2.records
       : (learningMetaLegacy && typeof learningMetaLegacy === 'object' && !Array.isArray(learningMetaLegacy) ? learningMetaLegacy : {});
+    const classificationValue = parseJson(storage[CLASSIFICATION_KEY], {});
+    const classificationRecordsRaw = classificationValue && typeof classificationValue === 'object' && !Array.isArray(classificationValue) && classificationValue.records && typeof classificationValue.records === 'object'
+      ? classificationValue.records
+      : (classificationValue && typeof classificationValue === 'object' && !Array.isArray(classificationValue) ? classificationValue : {});
+    const classificationRecords = Object.entries(classificationRecordsRaw).filter(([key, record]) =>
+      /^(?:wid|draft):/.test(key) && record && typeof record === 'object' && !Array.isArray(record) &&
+      ['entryTypes','usageTags','topicTags','discoveryTags'].some(field => Array.isArray(record[field]) && record[field].length)
+    ).length;
     let progressRecords = 0;
     Object.keys(storage).forEach(key => { if (key.startsWith(PROGRESS_PREFIX)) progressRecords += 1; });
     return {
@@ -351,6 +385,7 @@
         ? Object.values(overrides).filter(value => value && typeof value === 'object' && !Array.isArray(value)).length
         : 0,
       learningHooks: Object.values(learningRecords).filter(value => Boolean(learningMetaContent(value))).length,
+      classificationRecords,
       progressRecords,
       activityEvents: Array.isArray(activity) ? activity.length : 0,
       practiceEvents: Array.isArray(practice) ? practice.length : 0
@@ -380,6 +415,7 @@
       // A full snapshot restore replaces the metadata state, so an older
       // metadata-merge rollback would no longer describe the active branch.
       localStorage.removeItem(METADATA_MERGE_ROLLBACK_KEY);
+      localStorage.removeItem(CLASSIFICATION_MERGE_ROLLBACK_KEY);
     } catch (error) {
       try { writeManagedSnapshot(currentBackup); } catch {}
       throw new Error(`Restore could not be completed safely: ${error?.message || 'storage write failed'}`);
@@ -440,6 +476,7 @@
     const editsNode = document.getElementById('local-restore-edits');
     const progressNode = document.getElementById('local-restore-progress');
     const activityNode = document.getElementById('local-restore-activity');
+    const classificationNode = document.getElementById('local-restore-classification');
     const warningNode = document.getElementById('local-restore-warning');
     const clear = document.getElementById('local-restore-clear');
     const chooseAnother = document.getElementById('local-restore-choose-another');
@@ -477,6 +514,7 @@
       editsNode.textContent = String(counts.localEdits);
       progressNode.textContent = String(counts.progressRecords);
       activityNode.textContent = String(counts.activityEvents);
+      if (classificationNode) classificationNode.textContent = String(counts.classificationRecords);
       const crossOrigin = backup.origin && backup.origin !== location.origin;
       warningNode.textContent = crossOrigin
         ? `This backup was created on ${backup.origin}. It can still be restored here. Current browser-local WLP data covered by the backup will be replaced, and one rollback copy will be kept locally.`
@@ -514,7 +552,7 @@
       if (!selectedBackup) return;
       try {
         const restored = restoreManagedStorage(selectedBackup, selectedFileName);
-        setRestoreStatus(`Restore complete · ${restored.drafts} Drafts · ${restored.localEdits} Local Edits · ${restored.progressRecords} Progress cards. Reloading…`);
+        setRestoreStatus(`Restore complete · ${restored.drafts} Drafts · ${restored.localEdits} Local Edits · ${restored.classificationRecords || 0} Classification · ${restored.progressRecords} Progress cards. Reloading…`);
         if (confirmBox) confirmBox.hidden = true;
         render();
         renderUndo();
@@ -541,7 +579,7 @@
       try {
         const restored = applyRollback();
         delete undoButton.dataset.confirm;
-        setRestoreStatus(`Previous local state restored · ${restored.drafts} Drafts · ${restored.localEdits} Local Edits · ${restored.progressRecords} Progress cards. Reloading…`);
+        setRestoreStatus(`Previous local state restored · ${restored.drafts} Drafts · ${restored.localEdits} Local Edits · ${restored.classificationRecords || 0} Classification · ${restored.progressRecords} Progress cards. Reloading…`);
         setTimeout(() => location.reload(), 700);
       } catch (error) {
         setRestoreStatus(error?.message || 'Could not undo the restore.', 'error');
@@ -558,10 +596,11 @@
   });
 
   window.addEventListener('storage', event => {
-    if (!event.key || event.key === DRAFTS_KEY || event.key === OVERRIDES_KEY || event.key === LEARNING_META_KEY || event.key === LEGACY_LEARNING_META_KEY || event.key.startsWith(PROGRESS_PREFIX) || event.key === ACTIVITY_KEY || event.key === PRACTICE_KEY || event.key === BACKUP_META_KEY) {
+    if (!event.key || event.key === DRAFTS_KEY || event.key === OVERRIDES_KEY || event.key === LEARNING_META_KEY || event.key === LEGACY_LEARNING_META_KEY || event.key === CLASSIFICATION_KEY || event.key.startsWith(PROGRESS_PREFIX) || event.key === ACTIVITY_KEY || event.key === PRACTICE_KEY || event.key === BACKUP_META_KEY) {
       render();
     }
   });
+  window.addEventListener('wlp-classification-metadata-changed', render);
   window.addEventListener('pageshow', render);
   window.addEventListener('focus', render);
 
