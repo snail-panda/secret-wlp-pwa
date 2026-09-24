@@ -500,7 +500,8 @@
     window.__wlpDeckToastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
   };
 
-  $('drawer-settings').addEventListener('click', () => { setDrawer(false); showToast('Settings will move into the Stage 7 app shell.'); });
+  const drawerSettings = $('drawer-settings');
+  if (drawerSettings instanceof HTMLButtonElement) drawerSettings.addEventListener('click', () => { setDrawer(false); showToast('Settings will move into the Stage 7 app shell.'); });
   document.querySelectorAll('.drawer-placeholder').forEach(button => button.addEventListener('click', () => {
     setDrawer(false); showToast(button.dataset.placeholder || 'Coming soon.');
   }));

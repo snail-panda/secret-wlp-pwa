@@ -231,10 +231,13 @@
     clearTimeout(window.__wlpDraftsToastTimer);
     window.__wlpDraftsToastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
   };
-  $('drawer-settings')?.addEventListener('click', () => {
-    setDrawer(false);
-    showToast('Settings will move here in a later Stage 7 pass.');
-  });
+  const drawerSettings = $('drawer-settings');
+  if (drawerSettings instanceof HTMLButtonElement) {
+    drawerSettings.addEventListener('click', () => {
+      setDrawer(false);
+      showToast('Settings will move here in a later Stage 7 pass.');
+    });
+  }
   document.querySelectorAll('.drawer-placeholder').forEach(button => {
     button.addEventListener('click', () => {
       setDrawer(false);

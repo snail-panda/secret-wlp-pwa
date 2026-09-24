@@ -235,10 +235,13 @@
     window.__wlpStudyToastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
   };
 
-  document.getElementById('drawer-settings')?.addEventListener('click', () => {
-    setDrawer(false);
-    showToast('Study options will move here in a later Stage 7 pass.');
-  });
+  const drawerSettings = document.getElementById('drawer-settings');
+  if (drawerSettings instanceof HTMLButtonElement) {
+    drawerSettings.addEventListener('click', () => {
+      setDrawer(false);
+      showToast('Study options will move here in a later Stage 7 pass.');
+    });
+  }
   document.querySelectorAll('.drawer-placeholder').forEach(btn => {
     btn.addEventListener('click', () => {
       setDrawer(false);

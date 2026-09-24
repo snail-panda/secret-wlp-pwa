@@ -1556,7 +1556,8 @@
     menu.addEventListener('click', () => setDrawer(true));
     close.addEventListener('click', () => setDrawer(false));
     backdrop.addEventListener('click', () => setDrawer(false));
-    $('drawer-settings').addEventListener('click', () => { setDrawer(false); showToast('Settings will move into the Stage 7 app shell.'); });
+    const drawerSettings = $('drawer-settings');
+    if (drawerSettings instanceof HTMLButtonElement) drawerSettings.addEventListener('click', () => { setDrawer(false); showToast('Settings will move into the Stage 7 app shell.'); });
     document.querySelectorAll('.drawer-placeholder').forEach(button => button.addEventListener('click', () => { setDrawer(false); showToast(button.dataset.placeholder || 'Coming soon.'); }));
 
     const getRole = () => (localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin') ? 'admin' : 'guest';

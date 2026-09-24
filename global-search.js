@@ -499,7 +499,8 @@
   const setDrawer=open=>{drawer.classList.toggle('open',open);drawer.setAttribute('aria-hidden',String(!open));menu.setAttribute('aria-expanded',String(open));backdrop.hidden=!open;};
   menu.addEventListener('click',()=>setDrawer(true)); close.addEventListener('click',()=>setDrawer(false)); backdrop.addEventListener('click',()=>setDrawer(false));
   const showToast=text=>{toast.textContent=text;toast.hidden=false;clearTimeout(window.__wlpSearchToastTimer);window.__wlpSearchToastTimer=setTimeout(()=>toast.hidden=true,2200);};
-  $('drawer-settings').addEventListener('click',()=>{setDrawer(false);showToast('Settings will move into the Stage 7 app shell.');});
+  const drawerSettings=$('drawer-settings');
+  if(drawerSettings instanceof HTMLButtonElement) drawerSettings.addEventListener('click',()=>{setDrawer(false);showToast('Settings will move into the Stage 7 app shell.');});
   document.querySelectorAll('.drawer-placeholder').forEach(button=>button.addEventListener('click',()=>{setDrawer(false);showToast(button.dataset.placeholder||'Coming soon.');}));
   const getRole=()=>localStorage.getItem(WLP_UI_ROLE_KEY)==='admin'||sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY)==='admin'?'admin':'guest';
   const clearAdmin=()=>{localStorage.removeItem(WLP_UI_ROLE_KEY);sessionStorage.removeItem(WLP_UI_SESSION_ADMIN_KEY);};

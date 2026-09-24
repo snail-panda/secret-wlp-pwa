@@ -47,10 +47,12 @@
   document.getElementById('search-launch')?.addEventListener('click', () => {
     location.href = './global-search.html';
   });
-  drawerSettings?.addEventListener('click', () => {
-    setDrawer(false);
-    showToast('Settings will move into the Stage 7 app shell.');
-  });
+  if (drawerSettings instanceof HTMLButtonElement) {
+    drawerSettings.addEventListener('click', () => {
+      setDrawer(false);
+      showToast('Settings will move into the Stage 7 app shell.');
+    });
+  }
 
   const getRole = () => (
     localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' ||

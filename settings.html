@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eef6ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WLP Garden">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
+  <link rel="stylesheet" href="./settings.css?v=20260924-s7-settings-v186111">
+  <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
+  <title>Settings — WLP</title>
+</head>
+<body class="app-body settings-page">
+  <div class="app-shell support-shell">
+    <header class="app-header">
+      <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <a class="brand" href="./index.html" aria-label="WLP home"><svg class="brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a>
+      <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu"><span class="role-dot" aria-hidden="true"></span><span id="role-label">Guest</span></button>
+    </header>
+    <main class="settings-main">
+      <div class="settings-title-row">
+        <div>
+          <span class="section-kicker">Control center</span>
+          <h1>Settings</h1>
+          <p>See how WLP is configured, understand what each area controls, and adjust shared preferences from one place.</p>
+        </div>
+        <a class="settings-home-link" href="./index.html">Back to Home</a>
+      </div>
+
+      <div class="settings-layout">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button class="settings-nav-item is-active" type="button" data-settings-section="general"><strong>General</strong><small>WLP-wide foundation</small></button>
+          <button class="settings-nav-item" type="button" data-settings-section="study"><strong>Study</strong><small>Cards, audio &amp; navigation</small></button>
+          <button class="settings-nav-item" type="button" data-settings-section="practice"><strong>Practice</strong><small>Standard &amp; AI defaults</small></button>
+          <button class="settings-nav-item" type="button" data-settings-section="progress"><strong>Progress &amp; Review</strong><small>Dashboard &amp; attention</small></button>
+          <button class="settings-nav-item" type="button" data-settings-section="resources"><strong>Resources</strong><small>Reference &amp; pronunciation</small></button>
+          <button class="settings-nav-item" type="button" data-settings-section="data"><strong>Data &amp; Access</strong><small>Local data &amp; authoring</small></button>
+        </nav>
+
+        <div class="settings-content">
+          <section class="settings-panel is-active" data-settings-panel="general">
+            <header class="settings-panel-head">
+              <span class="settings-eyebrow">General</span>
+              <h2>Your WLP at a glance</h2>
+              <p>General is the home for app-wide preferences. It also acts as a map of the more specialized settings below.</p>
+            </header>
+
+            <div class="settings-summary-grid">
+              <button class="settings-map-card" type="button" data-settings-jump="study"><span>Study</span><strong id="summary-study">Standard · Word First</strong><small>Card display, audio, references and navigation</small></button>
+              <button class="settings-map-card" type="button" data-settings-jump="practice"><span>Practice</span><strong id="summary-practice">Standard Practice</strong><small>Standard and AI defaults</small></button>
+              <button class="settings-map-card" type="button" data-settings-jump="progress"><span>Progress &amp; Review</span><strong id="summary-progress">Default dashboard</strong><small>What Progress shows and how Review is understood</small></button>
+              <button class="settings-map-card" type="button" data-settings-jump="resources"><span>Resources</span><strong id="summary-resources">YouGlish · US</strong><small>Reference tools and pronunciation sources</small></button>
+            </div>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Appearance</span><h3>WLP-wide presentation</h3></div><span class="settings-status-chip">Foundation</span></div>
+              <div class="settings-readout-list">
+                <div><span>Color theme</span><strong>Garden</strong></div>
+                <div><span>Text size</span><strong>Standard</strong></div>
+                <div><span>Interface density</span><strong>Standard</strong></div>
+              </div>
+              <p class="settings-note">These are the current app-wide presentation defaults. Theme, text-size, and density controls belong here, but they should only become editable after the shared UI has been audited so every WLP page changes consistently.</p>
+            </article>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Access</span><h3>Current environment</h3></div><span class="settings-status-chip" id="settings-role-chip">Guest</span></div>
+              <div class="settings-readout-list">
+                <div><span>Data model</span><strong>Local-first</strong></div>
+                <div><span>Authoring</span><strong id="settings-authoring-state">Locked in Guest mode</strong></div>
+                <div><span>Study data</span><strong>This browser</strong></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="study" hidden>
+            <header class="settings-panel-head">
+              <span class="settings-eyebrow">Study</span>
+              <h2>Study Options, unfolded</h2>
+              <p>The quick Study Options drawer is optimized for fast changes while studying. Here the same preferences are spread out so the whole system is easier to understand.</p>
+              <div class="settings-head-actions"><button class="settings-secondary-button" type="button" id="open-study-options">Open Study Options</button><a class="settings-primary-link" href="./deck-browser.html">Open Study</a></div>
+            </header>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Card Content</span><h3>How much of the back side is visible</h3></div><strong class="settings-inline-value" id="study-preset-value">Standard</strong></div>
+              <div class="settings-choice-grid settings-choice-grid-4" role="group" aria-label="Card content preset">
+                <button type="button" data-settings-preset="focus">Focus</button>
+                <button type="button" data-settings-preset="standard">Standard</button>
+                <button type="button" data-settings-preset="full">Full</button>
+                <button type="button" data-settings-preset="custom">Custom</button>
+              </div>
+              <p class="settings-note" id="study-preset-description"></p>
+              <div class="settings-subpanel" id="study-custom-panel" hidden>
+                <div class="settings-field-row"><span><strong>Definition</strong><small>Semantic boundary</small></span><span class="settings-fixed">Always shown</span></div>
+                <label class="settings-field-row"><span><strong>Examples</strong><small>Usage in context</small></span><select data-settings-custom="example"><option value="shown">Shown</option><option value="collapsed">Collapsed</option><option value="hidden">Hidden</option></select></label>
+                <label class="settings-field-row"><span><strong>Synonyms</strong><small>Related expressions</small></span><select data-settings-custom="synonyms"><option value="shown">Shown</option><option value="collapsed">Collapsed</option><option value="hidden">Hidden</option></select></label>
+                <label class="settings-field-row"><span><strong>Notes</strong><small>Nuance and detail</small></span><select data-settings-custom="notes"><option value="shown">Shown</option><option value="collapsed">Collapsed</option><option value="hidden">Hidden</option></select></label>
+                <label class="settings-switch-row"><span><strong>IPA</strong><small>Show pronunciation notation</small></span><input type="checkbox" data-settings-detail="ipa"></label>
+                <label class="settings-switch-row"><span><strong>Part of Speech</strong><small>Show grammatical label</small></span><input type="checkbox" data-settings-detail="pos"></label>
+              </div>
+            </article>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Study Direction</span><h3>Default Study Side</h3></div><strong class="settings-inline-value" id="study-side-value">Word First</strong></div>
+              <p class="settings-note">This is the same default used by Study Options and also updates the current Study direction.</p>
+              <div class="settings-choice-grid settings-choice-grid-2" role="group" aria-label="Default study side">
+                <button type="button" data-settings-side="word">Word First</button>
+                <button type="button" data-settings-side="definition">Definition First</button>
+              </div>
+            </article>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Card Controls</span><h3>What appears around the Study card</h3></div><span class="settings-status-chip">Display</span></div>
+              <label class="settings-switch-row"><span><strong>Helper labels</strong><small>Captions such as Listen, Voice, and Record your pronunciation</small></span><input type="checkbox" data-settings-display="helperLabels"></label>
+              <label class="settings-switch-row"><span><strong>Shuffle</strong><small>Show the Shuffle control above the card</small></span><input type="checkbox" data-settings-display="shuffle"></label>
+              <label class="settings-switch-row"><span><strong>Recording</strong><small>Show pronunciation recording controls</small></span><input type="checkbox" data-settings-display="recording"></label>
+            </article>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Audio</span><h3>Voice &amp; Read Aloud</h3></div><span class="settings-status-chip">Shared preference</span></div>
+              <label class="settings-field-block"><span><strong>Preferred Study Voice</strong><small>The selected English system voice used by Study</small></span><select id="settings-study-voice"><option value="">System default</option></select></label>
+              <label class="settings-field-block"><span><strong>Default Read Aloud target</strong><small>What the main Read action starts with</small></span><select id="settings-read-default"><option value="definition">Definition</option><option value="example">Examples</option><option value="synonyms">Synonyms</option><option value="notes">Notes</option></select></label>
+              <div class="settings-check-grid" aria-label="Read Aloud menu items">
+                <label><input type="checkbox" data-settings-read-target="definition"><span>Definition</span></label>
+                <label><input type="checkbox" data-settings-read-target="example"><span>Examples</span></label>
+                <label><input type="checkbox" data-settings-read-target="synonyms"><span>Synonyms</span></label>
+                <label><input type="checkbox" data-settings-read-target="notes"><span>Notes</span></label>
+                <label><input type="checkbox" data-settings-read-target="all"><span>Read All</span></label>
+              </div>
+            </article>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Reference &amp; Pronunciation</span><h3>Tools available from the Study card</h3></div><strong class="settings-inline-value" id="youglish-value">YouGlish · US</strong></div>
+              <div class="settings-check-grid settings-reference-grid">
+                <label><input type="checkbox" data-settings-reference="external"><span>External Reference</span></label>
+                <label><input type="checkbox" data-settings-reference="google"><span>Google</span></label>
+                <label><input type="checkbox" data-settings-reference="images"><span>Images</span></label>
+                <label><input type="checkbox" data-settings-reference="jp"><span>JP Reference</span></label>
+              </div>
+              <label class="settings-switch-row"><span><strong>YouGlish</strong><small>Show real-speech pronunciation reference</small></span><input type="checkbox" id="settings-youglish-visible"></label>
+              <div class="settings-inline-control"><span><strong>YouGlish accent</strong><small>Default pronunciation reference accent</small></span><div class="settings-choice-grid settings-choice-grid-3"><button type="button" data-settings-accent="us">US</button><button type="button" data-settings-accent="uk">UK</button><button type="button" data-settings-accent="aus">AU</button></div></div>
+            </article>
+
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Navigation</span><h3>Moving through cards</h3></div><span class="settings-status-chip">Interaction</span></div>
+              <label class="settings-switch-row"><span><strong>Swipe to change cards</strong><small>Horizontal swipes move between Study cards</small></span><input type="checkbox" id="settings-swipe"></label>
+            </article>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="practice" hidden>
+            <header class="settings-panel-head"><span class="settings-eyebrow">Practice</span><h2>Standard &amp; AI defaults</h2><p>Practice keeps its fast controls in Study Hub. Settings gives you the wider view of the defaults that persist between sessions.</p><div class="settings-head-actions"><a class="settings-primary-link" href="./study-hub.html">Open Practice</a></div></header>
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Practice Mode</span><h3>Default mode</h3></div><strong class="settings-inline-value" id="practice-mode-value">Standard Practice</strong></div>
+              <label class="settings-field-block"><span><strong>Practice mode</strong><small>Which mode Study Hub opens with</small></span><select id="settings-practice-mode"><option value="standard">Standard Practice</option><option value="ai">AI Practice</option></select></label>
+            </article>
+            <div class="settings-two-column">
+              <article class="settings-card">
+                <div class="settings-card-head"><div><span class="settings-card-kicker">Standard Practice</span><h3>Session default</h3></div></div>
+                <label class="settings-field-block"><span><strong>Default experiences</strong><small>Saved Standard Practice session-size preference</small></span><select id="settings-standard-size"><option value="">Not saved</option><option value="5">5 experiences</option><option value="10">10 experiences</option><option value="20">20 experiences</option></select></label>
+              </article>
+              <article class="settings-card">
+                <div class="settings-card-head"><div><span class="settings-card-kicker">AI Practice</span><h3>Session defaults</h3></div></div>
+                <label class="settings-field-block"><span><strong>Default experiences</strong><small>Saved AI Practice session size</small></span><select id="settings-ai-size"><option value="">Not saved</option><option value="1">1 experience</option><option value="3">3 experiences</option><option value="5">5 experiences</option><option value="10">10 experiences</option><option value="20">20 experiences</option></select></label>
+                <label class="settings-field-block"><span><strong>Hint limit</strong><small>Maximum hints available per AI experience</small></span><select id="settings-ai-hints"><option value="0">No hints</option><option value="2">2 hints</option><option value="4">4 hints</option><option value="6">6 hints</option></select></label>
+              </article>
+            </div>
+            <p class="settings-section-footnote">Difficulty and experience-type choices remain session controls because the current AI implementation does not persist them as defaults.</p>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="progress" hidden>
+            <header class="settings-panel-head"><span class="settings-eyebrow">Progress &amp; Review</span><h2>What the learning dashboard is showing you</h2><p>Progress has four different views. These controls make that structure explicit and choose which panels appear in each one. They never delete progress data.</p><div class="settings-head-actions"><a class="settings-primary-link" href="./progress.html">Open Progress</a><a class="settings-secondary-link" href="./review.html">Open Review</a></div></header>
+            <div class="settings-progress-intro">
+              <div><strong>Overview</strong><span>Where you are, what needs attention, and what to do next.</span></div>
+              <div><strong>Landscape</strong><span>Coverage across the vocabulary garden.</span></div>
+              <div><strong>Paths</strong><span>How Card, Standard, and AI create different learning routes.</span></div>
+              <div><strong>Activity</strong><span>What you actually did over time.</span></div>
+            </div>
+            <div class="settings-progress-options" id="settings-progress-options"></div>
+            <button class="settings-secondary-button" type="button" id="settings-progress-reset">Restore default Progress panels</button>
+            <article class="settings-card settings-review-note"><div class="settings-card-head"><div><span class="settings-card-kicker">Review</span><h3>Attention, not a mastery score</h3></div></div><p class="settings-note">Review means you want continued attention on an entry. Light, Medium, and High describe attention level; a successful practice attempt does not automatically remove Review.</p></article>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="resources" hidden>
+            <header class="settings-panel-head"><span class="settings-eyebrow">Resources</span><h2>Reference &amp; pronunciation sources</h2><p>This area gathers the tools WLP can call on while you study. Provider-specific dictionary choices can grow here when those integrations are actually available.</p><div class="settings-head-actions"><a class="settings-primary-link" href="./links.html">Open Links</a></div></header>
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Current Study references</span><h3>Available from the card</h3></div><strong class="settings-inline-value" id="resources-reference-count">4 enabled</strong></div>
+              <div class="settings-resource-readout" id="settings-resource-readout"></div>
+              <button class="settings-secondary-button" type="button" data-settings-jump="study">Adjust Study reference tools</button>
+            </article>
+            <article class="settings-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Dictionary providers</span><h3>Provider selection belongs here</h3></div><span class="settings-status-chip">Expandable</span></div>
+              <p class="settings-note">WLP does not currently have a verified multi-provider dictionary API layer to choose from here. When providers become available, this is where Primary Dictionary, Learning Layer source, thesaurus source, and similar defaults can be made explicit without crowding Study Options.</p>
+            </article>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="data" hidden>
+            <header class="settings-panel-head"><span class="settings-eyebrow">Data &amp; Access</span><h2>Ownership, backup &amp; authoring</h2><p>These are specialist tools, so Settings summarizes them and sends you to the dedicated workspace when deeper action is needed.</p></header>
+            <div class="settings-summary-grid settings-data-grid">
+              <a class="settings-map-card" href="./editor-backup.html"><span>Backup &amp; Restore</span><strong>Full Local Backup</strong><small>Back up or restore browser-local WLP data</small></a>
+              <a class="settings-map-card" href="./editor-backup.html#authoring-transfer"><span>Authoring Transfer</span><strong>Drafts · Local Edits · Metadata</strong><small>Move authoring layers without merging Study history</small></a>
+              <a class="settings-map-card" href="./editor.html"><span>Editor</span><strong id="settings-editor-access">Admin access required</strong><small>New Cards, Drafts, Local Edits and authoring tools</small></a>
+              <a class="settings-map-card" href="./help.html"><span>Help</span><strong>Data model &amp; terminology</strong><small>Review how WLP separates Master, local layers and study state</small></a>
+            </div>
+            <article class="settings-card"><div class="settings-card-head"><div><span class="settings-card-kicker">Local-first</span><h3>Your browser remains the working owner</h3></div></div><p class="settings-note">Settings should expose and organize existing data controls, not create a second copy of the underlying Study, Progress, Practice, or authoring state.</p></article>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="app-drawer" id="app-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <a class="drawer-brand" href="./index.html" aria-label="WLP home"><svg class="drawer-brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a>
+      <button id="drawer-close" class="icon-button" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <nav class="drawer-nav">
+      <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
+      <a class="drawer-item" href="./global-search.html?return=links.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
+      <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
+      <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
+      <a class="drawer-item" href="./study-hub.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice (Study Q)</span></a>
+      <a class="drawer-item" href="./review.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
+      <a class="drawer-item" href="./progress.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span></a>
+      <a class="drawer-item" href="./drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Drafts</span><small>Study your new local cards</small></span></a>
+      <a class="drawer-item drawer-admin-only" href="./editor.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Editor</span><small><span>Create &amp; Edit: New Cards, Drafts &amp; Local Edits</span><span>Backup: Import &amp; Export</span></small></span></a>
+      <a class="drawer-item drawer-admin-only stage7-backup-restore-item" href="./editor-backup.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M5 13.5V20h14v-6.5"/><path d="M7 16.5h10"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Backup &amp; Restore</span><small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small></span></a>
+      <hr class="drawer-group-divider drawer-management-divider">
+      <a class="drawer-item drawer-action is-current" id="drawer-settings" href="./settings.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21H10v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span></a>
+      <button class="drawer-item drawer-action" id="drawer-role-action" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span></button>
+      <hr class="drawer-group-divider drawer-support-divider">
+      <a class="drawer-item wlp-links-menu-item" href="./links.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9L10.9 5"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg><span>Links</span></a>
+      <a class="drawer-item support-help-link" href="./help.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.9.5-1.2 1-1.2 2M12 17h.01"/></svg><span>Help</span></a>
+      <a class="drawer-item support-about-link" href="./about.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>About</span></a>
+      <p class="drawer-motto">“More words.<br>A wider world.”</p>
+
+    </nav>
+  </aside>
+
+  <div class="role-menu" id="role-menu" role="menu" hidden><strong id="role-menu-title">Guest mode</strong><small id="role-menu-copy">Study normally without editing tools.</small><button id="role-menu-action" type="button" role="menuitem">Admin Login</button></div>
+  <div class="admin-gate" id="admin-gate" hidden>
+    <form class="admin-card" id="admin-form" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+      <button class="admin-close" id="admin-close" type="button" aria-label="Close admin login">×</button>
+      <span class="section-kicker">WLP access</span><h2 id="admin-title">Admin Login</h2><p>Enter the existing WLP admin password to unlock editing and import/export tools.</p>
+      <label class="admin-password-label"><span>Password</span><span class="admin-password-wrap"><input id="admin-password" type="password" autocomplete="current-password" required><button class="admin-password-toggle" id="admin-password-toggle" type="button" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.8 12s3.3-5.2 9.2-5.2S21.2 12 21.2 12 17.9 17.2 12 17.2 2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.2 4.2 20.8 19.8M9.7 7.1A8.7 8.7 0 0 1 12 6.8c5.9 0 9.2 5.2 9.2 5.2a16 16 0 0 1-2.2 2.8M14.2 16.9a8.9 8.9 0 0 1-2.2.3C6.1 17.2 2.8 12 2.8 12a15.4 15.4 0 0 1 3-3.5M10.1 10.1a2.7 2.7 0 0 0 3.8 3.8"/></svg></button></span></label>
+      <label class="remember-admin"><input id="remember-admin" type="checkbox"><span>Remember Admin on this device</span></label>
+      <p class="admin-error" id="admin-error" hidden>Incorrect admin password.</p>
+      <div class="admin-actions"><button id="admin-cancel" type="button">Cancel</button><button type="submit">Login as Admin</button></div>
+    </form>
+  </div>
+
+
+  <div class="support-hidden-home-hooks" aria-hidden="true"><div id="continue-card" hidden><span id="continue-title"></span><a id="continue-link" href="#"></a></div><div id="recent-home-list"></div></div>
+  <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
+  <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
+  <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
+  <script src="./settings.js?v=20260924-s7-settings-v186111"></script>
+  <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
+</body>
+</html>
