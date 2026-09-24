@@ -55,6 +55,9 @@ const IS_FROM_PROGRESS =
 const IS_FROM_REVIEW_HUB =
   FROM_PARAM === "review";
 
+const IS_FROM_CLASSIFICATION =
+  FROM_PARAM === "classification";
+
 function cardContextReturnTarget() {
   const raw = String(RETURN_PARAM || "").trim();
   if (raw) {
@@ -62,16 +65,20 @@ function cardContextReturnTarget() {
       const url = new URL(raw, location.href);
       if (url.origin === location.origin) {
         if (url.pathname.endsWith("/progress.html")) {
-          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Progress", footerLabel: "Back to Progress" };
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Progress", footerLabel: "Back to Progress", kind: "progress" };
         }
         if (url.pathname.endsWith("/review.html")) {
-          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Review", footerLabel: "Back to Review" };
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Review", footerLabel: "Back to Review", kind: "review" };
+        }
+        if (url.pathname.endsWith("/editor-classification.html")) {
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Classification", footerLabel: "Back to Classification", kind: "classification" };
         }
       }
     } catch (_) {}
   }
-  if (IS_FROM_PROGRESS) return { href: "../../progress.html", label: "Progress", footerLabel: "Back to Progress" };
-  if (IS_FROM_REVIEW_HUB || Boolean(REVIEW_PARAM)) return { href: "../../review.html", label: "Review", footerLabel: "Back to Review" };
+  if (IS_FROM_PROGRESS) return { href: "../../progress.html", label: "Progress", footerLabel: "Back to Progress", kind: "progress" };
+  if (IS_FROM_REVIEW_HUB || Boolean(REVIEW_PARAM)) return { href: "../../review.html", label: "Review", footerLabel: "Back to Review", kind: "review" };
+  if (IS_FROM_CLASSIFICATION) return { href: "../../editor-classification.html", label: "Classification", footerLabel: "Back to Classification", kind: "classification" };
   return null;
 }
 
@@ -87,6 +94,31 @@ function updateCardContextNavLabel(link, text) {
 function installCardContextReturnNavigation() {
   const target = cardContextReturnTarget();
   if (!target) return;
+
+  if (target.kind === "classification") {
+    const back = document.querySelector(".study-back-decks");
+    if (back) {
+      back.href = target.href;
+      back.setAttribute("aria-label", target.footerLabel);
+      back.setAttribute("title", target.footerLabel);
+      updateCardContextNavLabel(back, target.footerLabel);
+      if (back.dataset.classificationReturnBound !== "1") {
+        back.dataset.classificationReturnBound = "1";
+        back.addEventListener("click", event => {
+          try {
+            if (!document.referrer) return;
+            const ref = new URL(document.referrer);
+            if (ref.origin === location.origin && ref.pathname.endsWith("/editor-classification.html")) {
+              event.preventDefault();
+              history.back();
+            }
+          } catch (_) {}
+        });
+      }
+    }
+    return;
+  }
+
   const progressWrap = document.getElementById("progress-back-link");
   const reviewWrap = document.getElementById("review-back-link");
   const progressLink = progressWrap?.querySelector("a");
@@ -114,6 +146,7 @@ function cardContextQuerySuffix() {
   const params = new URLSearchParams();
   if (IS_FROM_PROGRESS) params.set("from", "progress");
   else if (IS_FROM_REVIEW_HUB) params.set("from", "review");
+  else if (IS_FROM_CLASSIFICATION) params.set("from", "classification");
   if (RETURN_PARAM) params.set("return", RETURN_PARAM);
   const value = params.toString();
   return value ? `&${value}` : "";

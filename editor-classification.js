@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.119 — Classification View Card Navigation. */
+/* WLP Stage 7 v1.8.6.120 — Classification semantic return navigation. */
 (() => {
   'use strict';
 
@@ -162,10 +162,15 @@
 
   function cardHref(item) {
     if (!item) return './deck-browser.html';
+    const addClassificationReturn = params => {
+      params.set('from', 'classification');
+      params.set('return', '../../editor-classification.html');
+      return params;
+    };
     if (!item.isMaster) {
       const index = Number(item.draftIndex || 0);
       const deck = Math.floor(index / 10) + 1;
-      const params = new URLSearchParams();
+      const params = addClassificationReturn(new URLSearchParams());
       params.set('draft', String(deck));
       if (item.localId) params.set('localid', item.localId);
       return `./flashcards/wlp/batch.html?${params.toString()}`;
@@ -173,7 +178,7 @@
     const batch = String(item.row?.['Batch #'] || '').trim();
     const wid = String(item.wid || '').trim();
     if (!batch || !wid) return './deck-browser.html';
-    const params = new URLSearchParams();
+    const params = addClassificationReturn(new URLSearchParams());
     params.set('batch', String(Number(batch) || batch));
     params.set('wordid', wid);
     return `./flashcards/wlp/batch.html?${params.toString()}`;
