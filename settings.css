@@ -240,7 +240,7 @@ html[lang="ja"] .settings-panel-head h2{
 /* v1.8.6.116 — guidance polish + General summary clarity */
 .settings-title-row p.settings-ja-guidance{
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic","Meiryo","Segoe UI",sans-serif;
-  font-size:.68rem;
+  font-size:.80rem;
   font-weight:550;
   line-height:1.72;
   letter-spacing:.012em;
@@ -256,8 +256,12 @@ html[lang="ja"] .settings-panel-head h2{
 }
 @media(max-width:820px){
   .settings-title-row p.settings-ja-guidance{
-    font-size:.66rem;
-    line-height:1.74;
+    font-size:.78rem;
+    line-height:1.68;
   }
   .settings-map-card .settings-ja-guidance-compact{font-size:.64rem}
 }
+
+
+/* v1.8.6.117 — restore readable size for shared Japanese guidance */
+/* Intentionally size-only: keep the v116 sans-serif face, weight, color, background, and left rule. */
