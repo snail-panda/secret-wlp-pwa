@@ -213,7 +213,11 @@
   "data": "ローカルデータ、バックアップ、Authoring関連の入口をまとめています。",
   "language": "英語UIを維持したい場合でも、日本語の短い補助説明だけを追加できます。",
   "appearance": "テーマ・文字サイズ・表示密度など、WLP全体の見え方をまとめる場所です。",
-  "access": "この端末のデータの持ち方と、現在のAdmin・作成機能の状態を確認できます。"
+  "access": "この端末のデータの持ち方と、現在のAdmin・作成機能の状態を確認できます。",
+  "summaryStudy": "カード表示・音声・参照・移動など、Study Card周辺の設定です。",
+  "summaryPractice": "Standard / AI Practiceの既定モードやセッション数を確認します。",
+  "summaryProgress": "Progressの表示構成と、Reviewの注意度の考え方を確認します。",
+  "summaryResources": "辞書・発音・外部参照など、学習中に使う情報源をまとめます。"
 };
 
   Object.assign(JA_TEXT, {
@@ -329,6 +333,10 @@
       const replacement = japanese && JA_TEXT[trimmed] ? JA_TEXT[trimmed] : trimmed;
       node.nodeValue = original.replace(trimmed, replacement);
     }
+    const languageChip = document.querySelector('.settings-language-card .settings-status-chip');
+    const appearanceChip = document.querySelector('.settings-appearance-card .settings-status-chip');
+    if (languageChip) languageChip.textContent = japanese ? '基本言語' : 'Foundation';
+    if (appearanceChip) appearanceChip.textContent = japanese ? '基本設定' : 'Foundation';
   }
 
   function addGuidanceAfter(target, text, compact = false) {
@@ -354,6 +362,21 @@
     addGuidanceAfter(document.querySelector('.settings-language-card > .settings-note'), JA_GUIDANCE.language);
     addGuidanceAfter(document.querySelector('.settings-appearance-card > .settings-note'), JA_GUIDANCE.appearance);
     addGuidanceAfter(document.querySelector('.settings-access-card .settings-readout-list'), JA_GUIDANCE.access);
+
+    [
+      ['study', JA_GUIDANCE.summaryStudy],
+      ['practice', JA_GUIDANCE.summaryPractice],
+      ['progress', JA_GUIDANCE.summaryProgress],
+      ['resources', JA_GUIDANCE.summaryResources]
+    ].forEach(([key, text]) => {
+      const target = document.querySelector(`.settings-map-card[data-settings-jump="${key}"] small`);
+      if (!target || !text) return;
+      const note = document.createElement('small');
+      note.className = 'settings-ja-guidance settings-ja-guidance-compact';
+      note.lang = 'ja';
+      note.textContent = text;
+      target.insertAdjacentElement('afterend', note);
+    });
 
     const studyGuidance = [
       ['How much of the back side is visible', 'カード裏面にどこまで情報を表示するかを選びます。'],

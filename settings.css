@@ -235,3 +235,29 @@ html[lang="ja"] .settings-panel-head h2{
   .settings-ja-guidance-compact{font-size:.68rem}
   html[lang="ja"] .settings-panel-head h2{font-size:1.58rem}
 }
+
+
+/* v1.8.6.116 — guidance polish + General summary clarity */
+.settings-title-row p.settings-ja-guidance{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic","Meiryo","Segoe UI",sans-serif;
+  font-size:.68rem;
+  font-weight:550;
+  line-height:1.72;
+  letter-spacing:.012em;
+  color:#3f5d4d;
+  padding:8px 11px;
+}
+.settings-map-card .settings-ja-guidance-compact{
+  margin-top:5px;
+  color:#486253;
+  font-size:.65rem;
+  line-height:1.48;
+  font-weight:550;
+}
+@media(max-width:820px){
+  .settings-title-row p.settings-ja-guidance{
+    font-size:.66rem;
+    line-height:1.74;
+  }
+  .settings-map-card .settings-ja-guidance-compact{font-size:.64rem}
+}
