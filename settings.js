@@ -274,7 +274,7 @@
     if ($('practice-mode-value')) $('practice-mode-value').textContent = mode === 'ai' ? 'AI Practice' : 'Standard Practice';
 
     const standard = Number(localStorage.getItem(STANDARD_SIZE_KEY));
-    if ($('settings-standard-size')) $('settings-standard-size').value = [5,10,20].includes(standard) ? String(standard) : '';
+    if ($('settings-standard-size')) $('settings-standard-size').value = [1,3,5,10,20].includes(standard) ? String(standard) : '';
     const ai = Number(localStorage.getItem(AI_SIZE_KEY));
     if ($('settings-ai-size')) $('settings-ai-size').value = [1,3,5,10,20].includes(ai) ? String(ai) : '';
     const hintRaw = localStorage.getItem(AI_HINT_KEY);
@@ -388,7 +388,7 @@
     });
     $('settings-standard-size')?.addEventListener('change', event => {
       const value = Number(event.target.value);
-      if ([5,10,20].includes(value)) localStorage.setItem(STANDARD_SIZE_KEY, String(value));
+      if ([1,3,5,10,20].includes(value)) localStorage.setItem(STANDARD_SIZE_KEY, String(value));
       else localStorage.removeItem(STANDARD_SIZE_KEY);
       renderPractice();
     });

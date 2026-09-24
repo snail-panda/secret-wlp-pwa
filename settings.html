@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
-  <link rel="stylesheet" href="./settings.css?v=20260924-s7-settings-v186111">
+  <link rel="stylesheet" href="./settings.css?v=20260924-s7-settings-v186112">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <title>Settings — WLP</title>
 </head>
@@ -160,14 +160,14 @@
               <div class="settings-card-head"><div><span class="settings-card-kicker">Practice Mode</span><h3>Default mode</h3></div><strong class="settings-inline-value" id="practice-mode-value">Standard Practice</strong></div>
               <label class="settings-field-block"><span><strong>Practice mode</strong><small>Which mode Study Hub opens with</small></span><select id="settings-practice-mode"><option value="standard">Standard Practice</option><option value="ai">AI Practice</option></select></label>
             </article>
-            <div class="settings-two-column">
-              <article class="settings-card">
-                <div class="settings-card-head"><div><span class="settings-card-kicker">Standard Practice</span><h3>Session default</h3></div></div>
-                <label class="settings-field-block"><span><strong>Default experiences</strong><small>Saved Standard Practice session-size preference</small></span><select id="settings-standard-size"><option value="">Not saved</option><option value="5">5 experiences</option><option value="10">10 experiences</option><option value="20">20 experiences</option></select></label>
+            <div class="settings-two-column settings-practice-grid">
+              <article class="settings-card settings-practice-card settings-practice-card-standard">
+                <div class="settings-card-head"><div><span class="settings-practice-badge">STANDARD</span><h3>Standard Practice</h3><p class="settings-card-summary">Non-AI practice with your own self-rating after each experience.</p></div></div>
+                <label class="settings-field-block"><span><strong>Default experiences</strong><small>Saved Standard Practice session-size preference</small></span><select id="settings-standard-size"><option value="">Not saved</option><option value="1">1 experience</option><option value="3">3 experiences</option><option value="5">5 experiences</option><option value="10">10 experiences</option><option value="20">20 experiences</option></select></label>
               </article>
-              <article class="settings-card">
-                <div class="settings-card-head"><div><span class="settings-card-kicker">AI Practice</span><h3>Session defaults</h3></div></div>
-                <label class="settings-field-block"><span><strong>Default experiences</strong><small>Saved AI Practice session size</small></span><select id="settings-ai-size"><option value="">Not saved</option><option value="1">1 experience</option><option value="3">3 experiences</option><option value="5">5 experiences</option><option value="10">10 experiences</option><option value="20">20 experiences</option></select></label>
+              <article class="settings-card settings-practice-card settings-practice-card-ai">
+                <div class="settings-card-head"><div><span class="settings-practice-badge">AI</span><h3>AI Practice</h3><p class="settings-card-summary">AI-generated practice with saved session-size and hint defaults.</p></div></div>
+                <label class="settings-field-block"><span><strong>Default experiences</strong><small>Saved AI Practice session-size preference</small></span><select id="settings-ai-size"><option value="">Not saved</option><option value="1">1 experience</option><option value="3">3 experiences</option><option value="5">5 experiences</option><option value="10">10 experiences</option><option value="20">20 experiences</option></select></label>
                 <label class="settings-field-block"><span><strong>Hint limit</strong><small>Maximum hints available per AI experience</small></span><select id="settings-ai-hints"><option value="0">No hints</option><option value="2">2 hints</option><option value="4">4 hints</option><option value="6">6 hints</option></select></label>
               </article>
             </div>
@@ -260,7 +260,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
-  <script src="./settings.js?v=20260924-s7-settings-v186111"></script>
+  <script src="./settings.js?v=20260924-s7-settings-v186112"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>
 </html>
