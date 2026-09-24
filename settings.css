@@ -112,3 +112,14 @@
   .settings-inline-control{display:grid}
   .settings-inline-control .settings-choice-grid{width:100%}
 }
+
+/* v1.8.6.113 — language modes foundation */
+.settings-language-card{background:linear-gradient(180deg,rgba(250,252,247,.96),rgba(255,255,255,.82))}
+.settings-language-choice{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:13px}
+.settings-language-choice button{min-height:46px;line-height:1.25}
+.settings-language-description{margin:10px 0 0;color:#496554;font-size:.78rem;font-weight:700;line-height:1.45}
+.settings-language-scope{padding-top:8px;border-top:1px solid #edf1ed}
+.settings-ja-guidance{margin:7px 0 0;padding:7px 10px;border-left:3px solid #9fb8a7;border-radius:0 9px 9px 0;background:rgba(236,244,237,.72);color:#5c7165;font-size:.76rem;line-height:1.48}
+.settings-title-row .settings-ja-guidance{max-width:760px;margin-top:9px}
+html[lang="ja"] .settings-panel-head h2,html[lang="ja"] .settings-card-head h3,html[lang="ja"] .settings-map-card strong{font-family:"EB Garamond","Yu Mincho","Hiragino Mincho ProN","Yu Gothic",Meiryo,serif}
+@media (max-width:760px){.settings-language-choice{grid-template-columns:1fr}.settings-language-choice button{min-height:42px}}

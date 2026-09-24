@@ -14,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
-  <link rel="stylesheet" href="./settings.css?v=20260924-s7-settings-v186112">
+  <link rel="stylesheet" href="./settings.css?v=20260924-s7-settings-v186113">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <title>Settings — WLP</title>
 </head>
@@ -59,6 +59,18 @@
               <button class="settings-map-card" type="button" data-settings-jump="progress"><span>Progress &amp; Review</span><strong id="summary-progress">Default dashboard</strong><small>What Progress shows and how Review is understood</small></button>
               <button class="settings-map-card" type="button" data-settings-jump="resources"><span>Resources</span><strong id="summary-resources">YouGlish · US</strong><small>Reference tools and pronunciation sources</small></button>
             </div>
+
+            <article class="settings-card settings-language-card">
+              <div class="settings-card-head"><div><span class="settings-card-kicker">Language &amp; Display</span><h3>Interface language</h3></div><span class="settings-status-chip">Foundation</span></div>
+              <p class="settings-note">Choose how WLP presents interface language. English + Japanese guidance keeps the interface in English while adding concise Japanese explanations where they help you understand the structure.</p>
+              <div class="settings-choice-grid settings-language-choice" role="group" aria-label="Interface language">
+                <button type="button" data-settings-language="en">English</button>
+                <button type="button" data-settings-language="ja">日本語</button>
+                <button type="button" data-settings-language="en-ja-guide">English + 日本語 guidance</button>
+              </div>
+              <p class="settings-language-description" id="settings-language-description"></p>
+              <p class="settings-note settings-language-scope">This preference is saved as WLP-wide. This first rollout applies it to Settings itself; the same saved preference can be extended to shared navigation and other feature screens without changing the setting later.</p>
+            </article>
 
             <article class="settings-card">
               <div class="settings-card-head"><div><span class="settings-card-kicker">Appearance</span><h3>WLP-wide presentation</h3></div><span class="settings-status-chip">Foundation</span></div>
@@ -260,7 +272,7 @@
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
-  <script src="./settings.js?v=20260924-s7-settings-v186112"></script>
+  <script src="./settings.js?v=20260924-s7-settings-v186113"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>
 </html>
