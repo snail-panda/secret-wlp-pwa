@@ -31,7 +31,7 @@
   "Reference & pronunciation": "参照・発音",
   "Data & Access": "データ・アクセス",
   "Local data & authoring": "ローカルデータ・作成機能",
-  "Your WLP at a glance": "WLP全体をひと目で確認",
+  "Your WLP at a glance": "WLP設定の全体像",
   "General is the home for app-wide preferences. It also acts as a map of the more specialized settings below.": "一般設定はWLP全体に関わる設定の入口です。下にある専門的な設定領域への地図としても機能します。",
   "Card display, audio, references and navigation": "カード表示・音声・参照・ナビゲーション",
   "Standard and AI defaults": "Standard / AI Practice の既定値",
@@ -69,7 +69,7 @@
   "Open Study Options": "Study Optionsを開く",
   "Open Study": "Studyを開く",
   "Card Content": "カード内容",
-  "How much of the back side is visible": "カード裏面にどこまで表示するか",
+  "How much of the back side is visible": "カード裏面の表示範囲",
   "Focus": "Focus",
   "Full": "Full",
   "Custom": "Custom",
@@ -95,7 +95,7 @@
   "This is the same default used by Study Options and also updates the current Study direction.": "Study Optionsと同じ既定値です。現在のStudy方向にも反映されます。",
   "Definition First": "定義から",
   "Card Controls": "カード操作",
-  "What appears around the Study card": "Study Cardの周囲に表示するもの",
+  "What appears around the Study card": "Study Card周辺の表示",
   "Display": "表示",
   "Helper labels": "補助ラベル",
   "Captions such as Listen, Voice, and Record your pronunciation": "Listen・Voice・Record your pronunciationなどの補助表示",
@@ -113,7 +113,7 @@
   "What the main Read action starts with": "メインのRead操作で最初に読む対象",
   "Read All": "すべて読む",
   "Reference & Pronunciation": "参照・発音",
-  "Tools available from the Study card": "Study Cardから使えるツール",
+  "Tools available from the Study card": "Study Cardの参照ツール",
   "External Reference": "外部参照",
   "Images": "画像",
   "JP Reference": "日本語参照",
@@ -121,7 +121,7 @@
   "YouGlish accent": "YouGlishアクセント",
   "Default pronunciation reference accent": "発音参照の既定アクセント",
   "Navigation": "ナビゲーション",
-  "Moving through cards": "カード間の移動",
+  "Moving through cards": "カード移動",
   "Interaction": "操作",
   "Swipe to change cards": "スワイプでカード移動",
   "Horizontal swipes move between Study cards": "横スワイプでStudy Cardを移動",
@@ -143,7 +143,7 @@
   "Maximum hints available per AI experience": "AI experienceごとに使える最大Hint数",
   "No hints": "Hintなし",
   "Difficulty and experience-type choices remain session controls because the current AI implementation does not persist them as defaults.": "Difficultyとexperience typeは現在のAI実装では既定値として保存されないため、セッション側の操作として残します。",
-  "What the learning dashboard is showing you": "学習ダッシュボードが何を示しているか",
+  "What the learning dashboard is showing you": "学習ダッシュボードの構成",
   "Progress has four different views. These controls make that structure explicit and choose which panels appear in each one. They never delete progress data.": "Progressには4つのビューがあります。ここではその構造を明確にし、各ビューに表示するパネルを選びます。Progressデータ自体は削除しません。",
   "Open Progress": "Progressを開く",
   "Open Review": "Reviewを開く",
@@ -157,7 +157,7 @@
   "What you actually did over time.": "実際に何をしたかを時間軸で確認。",
   "Restore default Progress panels": "Progressパネルを既定に戻す",
   "Review": "復習",
-  "Attention, not a mastery score": "習熟度ではなく「注意度」",
+  "Attention, not a mastery score": "習熟度ではなく注意度",
   "Review means you want continued attention on an entry. Light, Medium, and High describe attention level; a successful practice attempt does not automatically remove Review.": "Reviewは、その項目に継続して注意を向けたいという意味です。Light / Medium / Highは注意度であり、Practiceに成功してもReviewが自動的に消えるわけではありません。",
   "Reference & pronunciation sources": "参照・発音ソース",
   "This area gathers the tools WLP can call on while you study. Provider-specific dictionary choices can grow here when those integrations are actually available.": "学習中にWLPから利用できる参照ツールをまとめます。辞書providerの選択は、実際に連携可能になった時点でここに追加できます。",
@@ -211,7 +211,9 @@
   "progress": "Progressの4つのビューがそれぞれ何を見るためのものかを整理し、表示パネルもここで調整できます。",
   "resources": "辞書・発音・外部参照など、学習中に使う情報源をまとめる領域です。",
   "data": "ローカルデータ、バックアップ、Authoring関連の入口をまとめています。",
-  "language": "英語UIを維持したい場合でも、日本語の短い補助説明だけを追加できます。"
+  "language": "英語UIを維持したい場合でも、日本語の短い補助説明だけを追加できます。",
+  "appearance": "テーマ・文字サイズ・表示密度など、WLP全体の見え方をまとめる場所です。",
+  "access": "この端末のデータの持ち方と、現在のAdmin・作成機能の状態を確認できます。"
 };
 
   Object.assign(JA_TEXT, {
@@ -346,6 +348,8 @@
       addGuidanceAfter(document.querySelector(`[data-settings-panel="${key}"] .settings-panel-head > p`), JA_GUIDANCE[key]);
     });
     addGuidanceAfter(document.querySelector('.settings-language-card > .settings-note'), JA_GUIDANCE.language);
+    addGuidanceAfter(document.querySelector('.settings-appearance-card > .settings-note'), JA_GUIDANCE.appearance);
+    addGuidanceAfter(document.querySelector('.settings-access-card .settings-readout-list'), JA_GUIDANCE.access);
   }
 
   function renderLanguageControls() {
