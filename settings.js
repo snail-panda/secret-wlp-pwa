@@ -20,7 +20,7 @@
   "See how WLP is configured, understand what each area controls, and adjust shared preferences from one place.": "WLP全体がどう設定されているかを確認し、各領域の役割を理解しながら、共通設定を一か所で調整できます。",
   "Back to Home": "ホームへ戻る",
   "General": "一般",
-  "WLP-wide foundation": "WLP全体の基盤",
+  "WLP-wide foundation": "WLP全体の基本設定",
   "Study": "学習",
   "Cards, audio & navigation": "カード・音声・操作",
   "Practice": "練習",
@@ -40,7 +40,7 @@
   "Reference tools and pronunciation sources": "参照ツールと発音ソース",
   "Language & Display": "言語・表示",
   "Interface language": "インターフェース言語",
-  "Foundation": "基盤",
+  "Foundation": "基本",
   "Choose how WLP presents interface language. English + Japanese guidance keeps the interface in English while adding concise Japanese explanations where they help you understand the structure.": "WLPのインターフェース言語を選びます。「English + 日本語 guidance」では英語UIを保ちながら、構造を理解しやすい場所に短い日本語説明を添えます。",
   "This preference is saved as WLP-wide. This first rollout applies it to Settings itself; the same saved preference can be extended to shared navigation and other feature screens without changing the setting later.": "この設定はWLP全体の設定として保存されます。今回の第一段階ではSettings自身に適用し、今後は同じ保存値を共通ナビゲーションや各機能画面へ拡張できます。",
   "Appearance": "外観",
@@ -158,7 +158,7 @@
   "Restore default Progress panels": "Progressパネルを既定に戻す",
   "Review": "復習",
   "Attention, not a mastery score": "習熟度ではなく注意度",
-  "Review means you want continued attention on an entry. Light, Medium, and High describe attention level; a successful practice attempt does not automatically remove Review.": "Reviewは、その項目に継続して注意を向けたいという意味です。Light / Medium / Highは注意度であり、Practiceに成功してもReviewが自動的に消えるわけではありません。",
+  "Review means you want continued attention on an entry. Light, Medium, and High describe attention level; a successful practice attempt does not automatically remove Review.": "Reviewは、その項目に継続して注意を向けたいという意味です。Light / Medium / Highは、その項目に向けるべき注意度の度合いを表します。Practiceに成功してもReviewが自動的に消えるわけではありません。",
   "Reference & pronunciation sources": "参照・発音ソース",
   "This area gathers the tools WLP can call on while you study. Provider-specific dictionary choices can grow here when those integrations are actually available.": "学習中にWLPから利用できる参照ツールをまとめます。辞書providerの選択は、実際に連携可能になった時点でここに追加できます。",
   "Open Links": "Linksを開く",
@@ -331,13 +331,17 @@
     }
   }
 
-  function addGuidanceAfter(target, text) {
+  function addGuidanceAfter(target, text, compact = false) {
     if (!target || !text) return;
     const note = document.createElement('p');
-    note.className = 'settings-ja-guidance';
+    note.className = `settings-ja-guidance${compact ? ' settings-ja-guidance-compact' : ''}`;
     note.lang = 'ja';
     note.textContent = text;
     target.insertAdjacentElement('afterend', note);
+  }
+
+  function findEnglishHeading(selector, text) {
+    return $$(selector).find(node => node.textContent.trim() === text) || null;
   }
 
   function renderGuidance() {
@@ -350,6 +354,44 @@
     addGuidanceAfter(document.querySelector('.settings-language-card > .settings-note'), JA_GUIDANCE.language);
     addGuidanceAfter(document.querySelector('.settings-appearance-card > .settings-note'), JA_GUIDANCE.appearance);
     addGuidanceAfter(document.querySelector('.settings-access-card .settings-readout-list'), JA_GUIDANCE.access);
+
+    const studyGuidance = [
+      ['How much of the back side is visible', 'カード裏面にどこまで情報を表示するかを選びます。'],
+      ['Default Study Side', 'Studyを単語側・定義側のどちらから始めるかを設定します。'],
+      ['What appears around the Study card', 'Study Card周辺に表示する補助操作を選びます。'],
+      ['Voice & Read Aloud', 'Studyで使う音声とRead Aloudの既定動作をまとめます。'],
+      ['Tools available from the Study card', 'Study Cardから使える参照・発音ツールを選びます。'],
+      ['Moving through cards', 'カード間を移動する操作方法を設定します。']
+    ];
+    studyGuidance.forEach(([heading, text]) => {
+      addGuidanceAfter(findEnglishHeading('[data-settings-panel="study"] .settings-card-head h3', heading), text, true);
+    });
+
+    const practiceGuidance = [
+      ['Default mode', 'Study Hubを開いたときに最初に使うPracticeモードです。'],
+      ['Standard Practice', 'AIを使わず、各experienceの結果を自分で評価するPracticeです。'],
+      ['AI Practice', 'AIがexperienceを生成し、セッション数やHint数の既定値を使うPracticeです。']
+    ];
+    practiceGuidance.forEach(([heading, text]) => {
+      addGuidanceAfter(findEnglishHeading('[data-settings-panel="practice"] .settings-card-head h3', heading), text, true);
+    });
+
+    const progressGuidance = {
+      'Overview': '現在地・注意が必要な項目・次にすることをまとめて見るビューです。',
+      'Landscape': '語彙全体のカバレッジや分布を見るビューです。',
+      'Paths': 'Card / Standard / AIが作る学習経路を見るビューです。',
+      'Activity': '実際に何をしたかを時間軸で見るビューです。'
+    };
+    Object.entries(progressGuidance).forEach(([heading, text]) => {
+      const title = findEnglishHeading('[data-settings-panel="progress"] .settings-progress-intro strong', heading);
+      addGuidanceAfter(title?.nextElementSibling, text, true);
+    });
+
+    addGuidanceAfter(
+      document.querySelector('[data-settings-panel="progress"] .settings-review-note > .settings-note'),
+      'Reviewは習熟度の点数ではなく、その項目に今後どれくらい注意を向けたいかを表します。Light / Medium / Highは、向けるべき注意度の度合いです。',
+      true
+    );
   }
 
   function renderLanguageControls() {

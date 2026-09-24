@@ -202,3 +202,36 @@ html[lang="ja"] .settings-inline-control small{
   html[lang="ja"] .settings-map-card strong{font-size:.96rem}
 }
 
+
+/* v1.8.6.115 — Japanese guidance hierarchy refinement */
+.settings-ja-guidance{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic","Meiryo","Segoe UI",sans-serif;
+  font-size:.72rem;
+  font-weight:500;
+  line-height:1.55;
+  color:#465f52;
+}
+.settings-ja-guidance-compact{
+  margin-top:5px;
+  padding:0;
+  border-left:0;
+  border-radius:0;
+  background:transparent;
+  color:#536b5e;
+  font-size:.69rem;
+  line-height:1.5;
+}
+.settings-card-head .settings-ja-guidance-compact{
+  max-width:560px;
+}
+.settings-progress-intro .settings-ja-guidance-compact{
+  margin-top:4px;
+}
+html[lang="ja"] .settings-panel-head h2{
+  font-size:clamp(1.45rem,3vw,1.9rem);
+}
+@media(max-width:820px){
+  .settings-ja-guidance{font-size:.7rem}
+  .settings-ja-guidance-compact{font-size:.68rem}
+  html[lang="ja"] .settings-panel-head h2{font-size:1.58rem}
+}
