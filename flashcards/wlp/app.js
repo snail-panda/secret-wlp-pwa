@@ -1820,6 +1820,153 @@ function installLearningHookUI(root, row, openEditor = null) {
 }
 
 // =============================================================
+// CLASSIFICATION META VIEWER — read-only Study Card surface
+// =============================================================
+
+let classificationViewerBackdrop = null;
+let classificationViewerSourceButton = null;
+
+function classificationKeyForRow(row) {
+  const api = window.WLPClassificationMetadata;
+  if (!api) return "";
+  const wid = String(row?.WordID || "").trim();
+  if (wid) return api.makeMasterKey?.(wid) || `wid:${wid}`;
+  const localId = String(row?.__localId || "").trim();
+  return localId ? (api.makeDraftKey?.(localId) || `draft:${localId}`) : "";
+}
+
+function classificationViewerEscape(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+}
+
+function ensureClassificationViewer() {
+  if (classificationViewerBackdrop?.isConnected) return classificationViewerBackdrop;
+  const backdrop = document.createElement("div");
+  backdrop.className = "classification-viewer-backdrop";
+  backdrop.hidden = true;
+  backdrop.innerHTML = `
+    <section class="classification-viewer-panel" role="dialog" aria-modal="true" aria-labelledby="classification-viewer-heading">
+      <header class="classification-viewer-head">
+        <div class="classification-viewer-title"><strong id="classification-viewer-heading">Classification</strong><span data-classification-viewer-meta></span></div>
+        <button type="button" class="classification-viewer-close" aria-label="Close Classification">×</button>
+      </header>
+      <div class="classification-viewer-scroll" data-classification-viewer-body></div>
+      <div class="classification-viewer-foot">Read-only on Study Card · Manage Classification from Editor.</div>
+    </section>`;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector(".classification-viewer-close")?.addEventListener("click", closeClassificationViewer);
+  backdrop.addEventListener("click", event => {
+    if (event.target === backdrop) closeClassificationViewer();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !backdrop.hidden) closeClassificationViewer();
+  });
+  window.addEventListener("pagehide", closeClassificationViewer);
+  classificationViewerBackdrop = backdrop;
+  return backdrop;
+}
+
+function classificationViewerGroup(label, values, kind) {
+  const tags = Array.isArray(values) ? values.filter(value => String(value || "").trim()) : [];
+  if (!tags.length) return "";
+  return `<section class="classification-viewer-group" data-kind="${classificationViewerEscape(kind)}"><span class="classification-viewer-label">${classificationViewerEscape(label)}</span><div class="classification-viewer-tags">${tags.map(tag => `<span class="classification-viewer-tag">${classificationViewerEscape(tag)}</span>`).join("")}</div></section>`;
+}
+
+function openClassificationViewer(row, button) {
+  const api = window.WLPClassificationMetadata;
+  const key = classificationKeyForRow(row);
+  if (!api || !key) return;
+  const record = api.get(key);
+  if (!api.hasClassification?.(record)) return;
+
+  const backdrop = ensureClassificationViewer();
+  const meta = backdrop.querySelector("[data-classification-viewer-meta]");
+  const body = backdrop.querySelector("[data-classification-viewer-body]");
+  const word = String(row?.Word || "").trim();
+  const wid = String(row?.WordID || "").trim();
+  if (meta) meta.textContent = [word, wid ? `WID${wid}` : "Draft"].filter(Boolean).join(" · ");
+  if (body) body.innerHTML = [
+    classificationViewerGroup("Entry Type", record.entryTypes, "entry"),
+    classificationViewerGroup("Usage", record.usageTags, "usage"),
+    classificationViewerGroup("Topics", record.topicTags, "topic"),
+    classificationViewerGroup("Discovery", record.discoveryTags, "discovery")
+  ].join("");
+
+  closeLearningHookPopovers();
+  classificationViewerSourceButton?.setAttribute("aria-expanded", "false");
+  classificationViewerSourceButton = button || null;
+  classificationViewerSourceButton?.setAttribute("aria-expanded", "true");
+  backdrop.hidden = false;
+  document.documentElement.classList.add("classification-viewer-open");
+  requestAnimationFrame(() => backdrop.querySelector(".classification-viewer-close")?.focus({preventScroll:true}));
+}
+
+function closeClassificationViewer() {
+  if (!classificationViewerBackdrop) return;
+  classificationViewerBackdrop.hidden = true;
+  document.documentElement.classList.remove("classification-viewer-open");
+  const source = classificationViewerSourceButton;
+  classificationViewerSourceButton = null;
+  source?.setAttribute("aria-expanded", "false");
+}
+
+function syncClassificationMetaButtonOffset(surface, button) {
+  if (!surface || !button || button.hidden) return;
+  const edit = surface.querySelector(".btn-edit-local-front,.btn-edit-local-back");
+  const learning = surface.querySelector(".btn-learning-hook");
+  let slots = 0;
+  if (edit && !edit.hidden) slots += 1;
+  if (learning && !learning.hidden) slots += 1;
+  button.style.left = `${12 + (slots * 38)}px`;
+}
+
+function installClassificationMetaUI(root, row) {
+  const api = window.WLPClassificationMetadata;
+  if (!api || !root) return;
+  const key = classificationKeyForRow(row);
+  if (!key) return;
+
+  const buttons = Array.from(root.querySelectorAll(".study-card-surface")).map(surface => {
+    let button = surface.querySelector(".btn-classification-meta");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn-classification-meta";
+      button.textContent = "Meta";
+      button.setAttribute("aria-label", "View Classification Metadata");
+      button.setAttribute("title", "Classification Metadata");
+      button.setAttribute("aria-expanded", "false");
+      const learning = surface.querySelector(".btn-learning-hook");
+      if (learning) learning.insertAdjacentElement("afterend", button);
+      else surface.prepend(button);
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openClassificationViewer(row, button);
+      });
+    }
+    return {surface, button};
+  });
+
+  const refresh = () => {
+    const record = api.get(key);
+    const visible = Boolean(api.hasClassification?.(record));
+    buttons.forEach(({surface, button}) => {
+      button.hidden = !visible;
+      button.setAttribute("aria-expanded", "false");
+      if (visible) requestAnimationFrame(() => syncClassificationMetaButtonOffset(surface, button));
+    });
+    if (!visible && classificationViewerSourceButton && root.contains(classificationViewerSourceButton)) closeClassificationViewer();
+  };
+
+  window.addEventListener(api.EVENT_NAME || "wlp-classification-metadata-changed", refresh);
+  root.addEventListener("click", event => {
+    if (event.target.closest?.(".btn-prev,.btn-next,.btn-flip,.btn-flip-back")) closeClassificationViewer();
+  });
+  refresh();
+}
+
+// =============================================================
 // CARD RENDERING
 // =============================================================
 
@@ -2002,6 +2149,11 @@ root
         root,
         row,
         IS_DRAFT_MODE ? openDraftEdit : openLocalEdit
+      );
+
+      installClassificationMetaUI(
+        root,
+        row
       );
 
       return root;
