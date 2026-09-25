@@ -1,5 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
+// Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -49,6 +50,12 @@ const FROM_PARAM =
 const RETURN_PARAM =
   PARAMS.get("return");
 
+const STUDY_SET_PARAM =
+  PARAMS.get("studyset");
+
+const TEMP_STUDY_SET_KEY =
+  "wlp:temporary-study-set:v1";
+
 const IS_FROM_PROGRESS =
   FROM_PARAM === "progress";
 
@@ -57,6 +64,62 @@ const IS_FROM_REVIEW_HUB =
 
 const IS_FROM_CLASSIFICATION =
   FROM_PARAM === "classification";
+
+const IS_FROM_STUDY_SET =
+  FROM_PARAM === "study-set";
+
+const IS_STUDY_SET_MODE =
+  STUDY_SET_PARAM === "1" &&
+  Boolean(WORDID_PARAM);
+
+function readTemporaryStudySet() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(TEMP_STUDY_SET_KEY) || "null");
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) return null;
+    const items = parsed.items
+      .map(item => ({
+        wordId: String(item?.wordId || "").trim(),
+        batch: String(item?.batch || "").trim(),
+        word: String(item?.word || "").trim()
+      }))
+      .filter(item => item.wordId && item.batch);
+    return items.length ? { ...parsed, items } : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function temporaryStudySetPosition(wordId = WORDID_PARAM) {
+  const set = readTemporaryStudySet();
+  const id = String(wordId || "").trim();
+  if (!set || !id) return null;
+  const index = set.items.findIndex(item => item.wordId === id);
+  return index >= 0 ? { set, index, total: set.items.length } : null;
+}
+
+function temporaryStudySetHref(item) {
+  if (!item?.wordId || !item?.batch) return "";
+  const params = new URLSearchParams();
+  params.set("batch", String(Number(item.batch) || item.batch).padStart(3, "0"));
+  params.set("wordid", item.wordId);
+  params.set("solo", "1");
+  params.set("studyset", "1");
+  params.set("from", "study-set");
+  params.set("return", "../../study-set-builder.html");
+  return `./batch.html?${params.toString()}`;
+}
+
+function goTemporaryStudySet(delta) {
+  if (!IS_STUDY_SET_MODE) return false;
+  const position = temporaryStudySetPosition();
+  if (!position) return false;
+  const total = position.total;
+  const nextIndex = (position.index + delta + total) % total;
+  const href = temporaryStudySetHref(position.set.items[nextIndex]);
+  if (!href) return false;
+  location.href = href;
+  return true;
+}
 
 function cardContextReturnTarget() {
   const raw = String(RETURN_PARAM || "").trim();
@@ -73,12 +136,16 @@ function cardContextReturnTarget() {
         if (url.pathname.endsWith("/editor-classification.html")) {
           return { href: `${url.pathname}${url.search}${url.hash}`, label: "Classification", footerLabel: "Back to Classification", kind: "classification" };
         }
+        if (url.pathname.endsWith("/study-set-builder.html")) {
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Study Set", footerLabel: "Back to Study Set", kind: "study-set" };
+        }
       }
     } catch (_) {}
   }
   if (IS_FROM_PROGRESS) return { href: "../../progress.html", label: "Progress", footerLabel: "Back to Progress", kind: "progress" };
   if (IS_FROM_REVIEW_HUB || Boolean(REVIEW_PARAM)) return { href: "../../review.html", label: "Review", footerLabel: "Back to Review", kind: "review" };
   if (IS_FROM_CLASSIFICATION) return { href: "../../editor-classification.html", label: "Classification", footerLabel: "Back to Classification", kind: "classification" };
+  if (IS_FROM_STUDY_SET) return { href: "../../study-set-builder.html", label: "Study Set", footerLabel: "Back to Study Set", kind: "study-set" };
   return null;
 }
 
@@ -95,20 +162,22 @@ function installCardContextReturnNavigation() {
   const target = cardContextReturnTarget();
   if (!target) return;
 
-  if (target.kind === "classification") {
+  if (target.kind === "classification" || target.kind === "study-set") {
     const back = document.querySelector(".study-back-decks");
     if (back) {
       back.href = target.href;
       back.setAttribute("aria-label", target.footerLabel);
       back.setAttribute("title", target.footerLabel);
       updateCardContextNavLabel(back, target.footerLabel);
-      if (back.dataset.classificationReturnBound !== "1") {
-        back.dataset.classificationReturnBound = "1";
+      const returnPath = target.kind === "classification" ? "/editor-classification.html" : "/study-set-builder.html";
+      const bindKey = target.kind === "classification" ? "classificationReturnBound" : "studySetReturnBound";
+      if (back.dataset[bindKey] !== "1") {
+        back.dataset[bindKey] = "1";
         back.addEventListener("click", event => {
           try {
             if (!document.referrer) return;
             const ref = new URL(document.referrer);
-            if (ref.origin === location.origin && ref.pathname.endsWith("/editor-classification.html")) {
+            if (ref.origin === location.origin && ref.pathname.endsWith(returnPath)) {
               event.preventDefault();
               history.back();
             }
@@ -147,6 +216,7 @@ function cardContextQuerySuffix() {
   if (IS_FROM_PROGRESS) params.set("from", "progress");
   else if (IS_FROM_REVIEW_HUB) params.set("from", "review");
   else if (IS_FROM_CLASSIFICATION) params.set("from", "classification");
+  else if (IS_FROM_STUDY_SET) params.set("from", "study-set");
   if (RETURN_PARAM) params.set("return", RETURN_PARAM);
   const value = params.toString();
   return value ? `&${value}` : "";
@@ -209,6 +279,7 @@ function progressWordId(row) {
 
 function studySource() {
   if (IS_REVIEW_MODE) return "review-deck";
+  if (IS_STUDY_SET_MODE) return "study-set";
   if (IS_SOLO_MODE) return "solo";
   return "source-deck";
 }
@@ -2047,12 +2118,15 @@ function renderCards(
 
       const cardWid = String(row.WordID || '').trim();
       const cardWidText = cardWid ? ` · WID${cardWid}` : '';
+      const studySetPosition = IS_STUDY_SET_MODE ? temporaryStudySetPosition(cardWid) : null;
       const cardTagText =
   IS_DRAFT_MODE
     ? `#Draft${label}      ${index + 1}/${batchRows.length}`
     : IS_REVIEW_MODE
       ? `#Review${label}${cardWidText}      ${index + 1}/${batchRows.length}`
-      : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
+      : studySetPosition
+        ? `#Study Set${cardWidText}      ${studySetPosition.index + 1}/${studySetPosition.total}`
+        : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
 
 root
   .querySelectorAll(
@@ -4231,6 +4305,10 @@ function showAt(idx) {
 
 function go(delta) {
 
+  if (goTemporaryStudySet(delta)) {
+    return;
+  }
+
   const cards =
     cardsNodeList();
 
@@ -4258,6 +4336,19 @@ function go(delta) {
 }
 
 function shuffle() {
+
+  if (IS_STUDY_SET_MODE) {
+    const position = temporaryStudySetPosition();
+    if (position && position.total > 1) {
+      let nextIndex = position.index;
+      while (nextIndex === position.index) nextIndex = Math.floor(Math.random() * position.total);
+      const href = temporaryStudySetHref(position.set.items[nextIndex]);
+      if (href) {
+        location.href = href;
+        return;
+      }
+    }
+  }
 
   const cards =
     cardsNodeList();
@@ -4339,6 +4430,7 @@ function escapeHtml(s) {
   if (
     IS_REVIEW_MODE ||
     IS_DRAFT_MODE ||
+    IS_STUDY_SET_MODE ||
     !BATCH_PARAM
   ) {
     return;

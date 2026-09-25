@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Build a Study Set — WLP</title>
+  <meta name="theme-color" content="#eef6ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WLP Garden">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./study-set-builder.css?v=20260925-s7-build-study-set-v186126">
+  <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
+  <style id="stage7-bottom-nav-critical-lock">
+    .stage7-page-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}
+  </style>
+</head>
+<body class="study-set-page stage7-bottom-nav-page">
+  <header class="study-set-header">
+    <a class="study-set-brand" href="./index.html" aria-label="WLP home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
+      <span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span>
+    </a>
+    <a class="study-set-practice-link" href="./study-hub.html">Practice</a>
+  </header>
+
+  <main class="study-set-main">
+    <a class="study-set-back" href="./study-hub.html">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Back to Practice</span>
+    </a>
+
+    <section class="study-set-hero">
+      <span class="study-set-kicker">Classification · Temporary Study Set</span>
+      <h1>Build a Study Set</h1>
+      <p>Find the cards you want by card text or Classification Metadata. This creates a temporary study set only; it does not change the Master, decks, or Classification data.</p>
+    </section>
+
+    <section class="study-set-panel study-set-search-panel" aria-labelledby="study-set-search-title">
+      <div class="study-set-panel-head">
+        <div><span class="study-set-kicker">Search</span><h2 id="study-set-search-title">Search All Metadata</h2></div>
+        <button type="button" class="study-set-clear" id="study-set-clear">Clear All</button>
+      </div>
+      <label class="study-set-search-field" for="study-set-search">
+        <span>Word, definition, examples, notes, or Classification tags</span>
+        <input id="study-set-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search across card text and metadata…">
+      </label>
+    </section>
+
+    <section class="study-set-panel study-set-active" aria-labelledby="study-set-active-title">
+      <div class="study-set-panel-head study-set-active-head">
+        <div><span class="study-set-kicker">Current criteria</span><h2 id="study-set-active-title">Active Filters</h2></div>
+      </div>
+      <div class="study-set-active-chips" id="study-set-active-chips">
+        <span class="study-set-empty-inline">No filters yet.</span>
+      </div>
+      <p class="study-set-active-help">Across axes, filters combine with <strong>AND</strong>. Within an axis, Included tags can match <strong>ANY</strong> or <strong>ALL</strong>. Any Excluded tag removes the card.</p>
+    </section>
+
+    <div class="study-set-axis-list" id="study-set-axis-list" aria-live="polite"></div>
+
+    <section class="study-set-panel study-set-results-panel" aria-labelledby="study-set-results-title">
+      <div class="study-set-results-head">
+        <div>
+          <span class="study-set-kicker">Results</span>
+          <h2 id="study-set-results-title">Matched Cards</h2>
+        </div>
+        <div class="study-set-match-count" id="study-set-match-count"><strong>Loading…</strong><span>Reading the Master and Classification Metadata.</span></div>
+      </div>
+      <div class="study-set-result-note" id="study-set-result-note">Add a search term or filter to build a temporary set.</div>
+      <div class="study-set-results" id="study-set-results"></div>
+    </section>
+
+    <section class="study-set-start-panel">
+      <button type="button" class="study-set-start" id="study-set-start" disabled>Study These Cards</button>
+      <p id="study-set-start-note">Choose at least one search term or filter. The temporary set stays separate from your Master and saved Classification Metadata.</p>
+    </section>
+  </main>
+
+  <nav class="stage7-page-bottom-nav" aria-label="Page navigation">
+    <a class="stage7-page-bottom-nav-item" href="./study-hub.html" aria-label="Back to Practice">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg><span>Back</span>
+    </a>
+    <a class="stage7-page-bottom-nav-item" href="./index.html" aria-label="Home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span>
+    </a>
+  </nav>
+
+  <script src="./classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
+  <script src="./study-set-builder.js?v=20260925-s7-build-study-set-v186126"></script>
+  <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
+</body>
+</html>

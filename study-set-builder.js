@@ -1,0 +1,364 @@
+/* WLP Stage 7 v1.8.6.126 — Build a Study Set v1. */
+(() => {
+  'use strict';
+
+  const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
+  const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
+  const TEMP_SET_KEY = 'wlp:temporary-study-set:v1';
+  const BUILDER_STATE_KEY = 'wlp:study-set-builder-state:v1';
+  const PREVIEW_LIMIT = 60;
+  const api = window.WLPClassificationMetadata;
+  const $ = id => document.getElementById(id);
+  const AXES = [
+    {field:'entryTypes', title:'Entry Type', placeholder:'Find Entry Type tags…'},
+    {field:'usageTags', title:'Usage', placeholder:'Find Usage tags…'},
+    {field:'topicTags', title:'Topic', placeholder:'Find Topic tags…'},
+    {field:'discoveryTags', title:'Discovery', placeholder:'Find Discovery tags…'}
+  ];
+  const CARD_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
+
+  let rows = [];
+  let currentMatches = [];
+  const tagQueries = Object.fromEntries(AXES.map(axis => [axis.field, '']));
+
+  const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
+  const fold = value => clean(value).toLocaleLowerCase('en-US');
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+
+  function blankAxis() { return {include:[], exclude:[], mode:'any'}; }
+  function blankState() {
+    return {search:'', axes:Object.fromEntries(AXES.map(axis => [axis.field, blankAxis()]))};
+  }
+
+  function normalizeState(raw) {
+    const next = blankState();
+    next.search = clean(raw?.search);
+    AXES.forEach(axis => {
+      const source = raw?.axes?.[axis.field] || {};
+      next.axes[axis.field] = {
+        include: api?.uniqueTags?.(Array.isArray(source.include) ? source.include : []) || [],
+        exclude: api?.uniqueTags?.(Array.isArray(source.exclude) ? source.exclude : []) || [],
+        mode: source.mode === 'all' ? 'all' : 'any'
+      };
+    });
+    return next;
+  }
+
+  function loadState() {
+    try { return normalizeState(JSON.parse(sessionStorage.getItem(BUILDER_STATE_KEY) || 'null')); }
+    catch { return blankState(); }
+  }
+
+  let state = loadState();
+
+  function saveState() {
+    try { sessionStorage.setItem(BUILDER_STATE_KEY, JSON.stringify(state)); } catch {}
+  }
+
+  function parseTSV(text) {
+    const table = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i], next = text[i + 1];
+      if (ch === '"') {
+        if (quoted && next === '"') { field += '"'; i++; }
+        else quoted = !quoted;
+        continue;
+      }
+      if (ch === '\t' && !quoted) { row.push(field); field = ''; continue; }
+      if ((ch === '\n' || ch === '\r') && !quoted) {
+        if (ch === '\r' && next === '\n') i++;
+        row.push(field);
+        if (row.some(value => String(value).trim())) table.push(row);
+        row = []; field = ''; continue;
+      }
+      field += ch;
+    }
+    row.push(field);
+    if (row.some(value => String(value).trim())) table.push(row);
+    if (!table.length) return [];
+    const header = table[0].map(value => String(value || '').trim());
+    return table.slice(1).map(cols => {
+      const obj = {};
+      header.forEach((name, index) => { obj[name] = String(cols[index] ?? '').trim(); });
+      return obj;
+    });
+  }
+
+  function readOverrides() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LOCAL_OVERRIDES_KEY) || '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch { return {}; }
+  }
+
+  function applyOverrides(sourceRows) {
+    const overrides = readOverrides();
+    return sourceRows.map(row => {
+      const wid = clean(row.WordID);
+      const override = wid ? overrides[wid] : null;
+      if (!override || typeof override !== 'object' || Array.isArray(override)) return {...row};
+      const next = {...row};
+      CARD_FIELDS.forEach(field => {
+        if (Object.prototype.hasOwnProperty.call(override, field)) next[field] = String(override[field] ?? '');
+      });
+      return next;
+    });
+  }
+
+  function classificationFor(row) {
+    const wid = clean(row?.WordID);
+    return wid && api ? api.get(api.makeMasterKey(wid)) : {entryTypes:[],usageTags:[],topicTags:[],discoveryTags:[]};
+  }
+
+  function searchableText(row, record) {
+    return fold([
+      row.Word, row.IPA, row['Part of Speech'], row.Definition, row['Synonym(s)'], row['Example Sentence'], row['Note(s)'], row.Category, row.Source,
+      ...(record.entryTypes || []), ...(record.usageTags || []), ...(record.topicTags || []), ...(record.discoveryTags || [])
+    ].join(' '));
+  }
+
+  function hasCriteria() {
+    if (clean(state.search)) return true;
+    return AXES.some(axis => {
+      const selection = state.axes[axis.field];
+      return selection.include.length || selection.exclude.length;
+    });
+  }
+
+  function recordPassesAxis(record, field) {
+    const selection = state.axes[field];
+    const values = new Set((record[field] || []).map(fold));
+    const include = selection.include.map(fold);
+    const exclude = selection.exclude.map(fold);
+    if (exclude.some(tag => values.has(tag))) return false;
+    if (!include.length) return true;
+    return selection.mode === 'all'
+      ? include.every(tag => values.has(tag))
+      : include.some(tag => values.has(tag));
+  }
+
+  function rowMatches(row) {
+    const record = classificationFor(row);
+    const query = fold(state.search);
+    if (query && !searchableText(row, record).includes(query)) return false;
+    return AXES.every(axis => recordPassesAxis(record, axis.field));
+  }
+
+  function computeMatches() {
+    currentMatches = rows.filter(rowMatches);
+  }
+
+  function tagState(field, tag) {
+    const selection = state.axes[field];
+    const key = fold(tag);
+    if (selection.include.some(value => fold(value) === key)) return 'include';
+    if (selection.exclude.some(value => fold(value) === key)) return 'exclude';
+    return 'neutral';
+  }
+
+  function cycleTag(field, tag) {
+    const selection = state.axes[field];
+    const key = fold(tag);
+    const current = tagState(field, tag);
+    selection.include = selection.include.filter(value => fold(value) !== key);
+    selection.exclude = selection.exclude.filter(value => fold(value) !== key);
+    if (current === 'neutral') selection.include.push(tag);
+    else if (current === 'include') selection.exclude.push(tag);
+    saveState();
+    renderAll();
+  }
+
+  function setAxisMode(field, mode) {
+    state.axes[field].mode = mode === 'all' ? 'all' : 'any';
+    saveState();
+    renderAll();
+  }
+
+  function renderAxes() {
+    const root = $('study-set-axis-list');
+    if (!root || !api) return;
+    root.innerHTML = AXES.map(axis => {
+      const tags = sortTags(api.tagsFor(axis.field));
+      const query = fold(tagQueries[axis.field]);
+      const visible = tags.filter(tag => !query || fold(tag).includes(query));
+      const includeCount = state.axes[axis.field].include.length;
+      const buttons = visible.map(tag => {
+        const status = tagState(axis.field, tag);
+        const marker = status === 'include' ? '+' : status === 'exclude' ? '−' : '·';
+        const label = status === 'include' ? `Included: ${tag}. Activate to exclude.` : status === 'exclude' ? `Excluded: ${tag}. Activate to clear.` : `${tag}. Activate to include.`;
+        return `<button type="button" class="study-set-tag${status === 'include' ? ' is-include' : status === 'exclude' ? ' is-exclude' : ''}" data-study-set-tag-field="${esc(axis.field)}" data-study-set-tag="${esc(tag)}" aria-label="${esc(label)}"><span class="study-set-tag-marker" aria-hidden="true">${marker}</span><span>${esc(tag)}</span></button>`;
+      }).join('');
+      return `<section class="study-set-axis" data-study-set-axis="${esc(axis.field)}">
+        <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count">${tags.length} tag${tags.length === 1 ? '' : 's'}</span></div>
+        <input class="study-set-axis-search" type="search" autocomplete="off" spellcheck="false" value="${esc(tagQueries[axis.field])}" data-study-set-tag-search="${esc(axis.field)}" placeholder="${esc(axis.placeholder)}" aria-label="${esc(axis.placeholder)}">
+        ${tags.length ? `<div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>` : '<p class="study-set-axis-empty">No saved tags in this axis yet. Classification Metadata stays local to this device.</p>'}
+        <div class="study-set-axis-mode" ${includeCount > 1 ? '' : 'hidden'}><span>Included tags match:</span><button type="button" data-study-set-mode="any" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'any' ? 'is-active' : ''}">ANY</button><button type="button" data-study-set-mode="all" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'all' ? 'is-active' : ''}">ALL</button></div>
+      </section>`;
+    }).join('');
+  }
+
+  function renderActiveFilters() {
+    const root = $('study-set-active-chips');
+    if (!root) return;
+    const chips = [];
+    if (clean(state.search)) chips.push(`<span class="study-set-filter-chip is-search">Search: ${esc(state.search)}</span>`);
+    AXES.forEach(axis => {
+      const selection = state.axes[axis.field];
+      selection.include.forEach(tag => chips.push(`<span class="study-set-filter-chip">+ ${esc(axis.title)}: ${esc(tag)}</span>`));
+      selection.exclude.forEach(tag => chips.push(`<span class="study-set-filter-chip is-exclude">− ${esc(axis.title)}: ${esc(tag)}</span>`));
+      if (selection.include.length > 1) chips.push(`<span class="study-set-filter-chip">${esc(axis.title)} include = ${selection.mode.toUpperCase()}</span>`);
+    });
+    root.innerHTML = chips.length ? chips.join('') : '<span class="study-set-empty-inline">No filters yet.</span>';
+    const clear = $('study-set-clear');
+    if (clear) clear.disabled = !chips.length;
+  }
+
+  function classificationTags(record) {
+    return AXES.flatMap(axis => (record[axis.field] || []).map(tag => ({axis:axis.title, tag})));
+  }
+
+  function renderResults() {
+    const count = $('study-set-match-count');
+    const note = $('study-set-result-note');
+    const list = $('study-set-results');
+    const start = $('study-set-start');
+    const startNote = $('study-set-start-note');
+    const active = hasCriteria();
+    if (!count || !note || !list || !start || !startNote) return;
+
+    if (!active) {
+      count.innerHTML = `<strong>${rows.length.toLocaleString()} cards</strong><span>Master cards available</span>`;
+      note.textContent = 'Add a search term or Classification filter to build a temporary set.';
+      list.innerHTML = '';
+      start.disabled = true;
+      start.textContent = 'Study These Cards';
+      startNote.textContent = 'Choose at least one search term or filter. The temporary set stays separate from your Master and saved Classification Metadata.';
+      return;
+    }
+
+    count.innerHTML = `<strong>${currentMatches.length.toLocaleString()} matched</strong><span>${currentMatches.length === 1 ? 'card' : 'cards'} in this temporary set</span>`;
+    note.textContent = currentMatches.length ? `Showing ${Math.min(PREVIEW_LIMIT, currentMatches.length).toLocaleString()} of ${currentMatches.length.toLocaleString()} matched cards below.` : 'No cards match the current criteria.';
+    const preview = currentMatches.slice(0, PREVIEW_LIMIT);
+    list.innerHTML = preview.map(row => {
+      const record = classificationFor(row);
+      const tags = classificationTags(record).slice(0, 8);
+      return `<article class="study-set-result">
+        <div class="study-set-result-top"><span class="study-set-result-word">${esc(row.Word || '(untitled)')}</span><span class="study-set-result-id">WID${esc(row.WordID)} · WLP${esc(String(Number(row['Batch #']) || row['Batch #']).padStart(3,'0'))}</span></div>
+        ${clean(row.Definition) ? `<p class="study-set-result-definition">${esc(clean(row.Definition).slice(0,220))}${clean(row.Definition).length > 220 ? '…' : ''}</p>` : ''}
+        ${tags.length ? `<div class="study-set-result-tags">${tags.map(item => `<span>${esc(item.tag)}</span>`).join('')}</div>` : ''}
+      </article>`;
+    }).join('') + (currentMatches.length > PREVIEW_LIMIT ? `<p class="study-set-result-more">${(currentMatches.length - PREVIEW_LIMIT).toLocaleString()} more matched cards are included in the set.</p>` : '');
+
+    start.disabled = currentMatches.length === 0;
+    start.textContent = currentMatches.length === 1 ? 'Study This Card' : `Study These ${currentMatches.length.toLocaleString()} Cards`;
+    startNote.textContent = currentMatches.length ? 'Starts the matched cards as one temporary set. Previous / Next follows this set even when cards come from different WLP decks.' : 'Adjust the filters to get at least one matched card.';
+  }
+
+  function renderAll() {
+    computeMatches();
+    renderAxes();
+    renderActiveFilters();
+    renderResults();
+    const search = $('study-set-search');
+    if (search && search.value !== state.search) search.value = state.search;
+  }
+
+  function clearAll() {
+    state = blankState();
+    AXES.forEach(axis => { tagQueries[axis.field] = ''; });
+    saveState();
+    renderAll();
+    $('study-set-search')?.focus();
+  }
+
+  function startStudySet() {
+    if (!hasCriteria() || !currentMatches.length) return;
+    const items = currentMatches.map(row => ({
+      wordId: clean(row.WordID),
+      batch: clean(row['Batch #']),
+      word: clean(row.Word)
+    })).filter(item => item.wordId && item.batch);
+    if (!items.length) return;
+    const snapshot = {version:1, createdAt:new Date().toISOString(), criteria:state, items};
+    try { sessionStorage.setItem(TEMP_SET_KEY, JSON.stringify(snapshot)); }
+    catch {
+      const note = $('study-set-start-note');
+      if (note) { note.textContent = 'This browser could not save the temporary study set.'; note.classList.add('study-set-error'); }
+      return;
+    }
+    const first = items[0];
+    const params = new URLSearchParams();
+    params.set('batch', String(Number(first.batch) || first.batch).padStart(3, '0'));
+    params.set('wordid', first.wordId);
+    params.set('solo', '1');
+    params.set('studyset', '1');
+    params.set('from', 'study-set');
+    params.set('return', '../../study-set-builder.html');
+    location.href = `./flashcards/wlp/batch.html?${params.toString()}`;
+  }
+
+  async function load() {
+    if (!api) {
+      $('study-set-match-count').innerHTML = '<strong>Unavailable</strong><span>Classification Metadata engine did not load.</span>';
+      $('study-set-result-note').textContent = 'Classification Metadata is required for Build a Study Set.';
+      return;
+    }
+    try {
+      const response = await fetch(TSV_URL, {cache:'no-store'});
+      if (!response.ok) throw new Error(`TSV ${response.status}`);
+      rows = applyOverrides(parseTSV(await response.text())).filter(row => clean(row.WordID) && clean(row['Batch #']));
+      renderAll();
+    } catch (error) {
+      console.error('Study Set Master load failed:', error);
+      $('study-set-match-count').innerHTML = '<strong>Load failed</strong><span>The Master TSV could not be read.</span>';
+      $('study-set-result-note').textContent = 'Your Classification Metadata was not changed.';
+      $('study-set-results').innerHTML = '';
+      $('study-set-start').disabled = true;
+    }
+  }
+
+  $('study-set-search')?.addEventListener('input', event => {
+    state.search = clean(event.target.value);
+    saveState();
+    computeMatches();
+    renderActiveFilters();
+    renderResults();
+  });
+  $('study-set-clear')?.addEventListener('click', clearAll);
+  $('study-set-start')?.addEventListener('click', startStudySet);
+
+  document.addEventListener('click', event => {
+    const tag = event.target.closest('[data-study-set-tag]');
+    if (tag) {
+      const field = tag.getAttribute('data-study-set-tag-field');
+      const value = tag.getAttribute('data-study-set-tag');
+      if (AXES.some(axis => axis.field === field) && value) cycleTag(field, value);
+      return;
+    }
+    const mode = event.target.closest('[data-study-set-mode]');
+    if (mode) setAxisMode(mode.getAttribute('data-study-set-mode-field'), mode.getAttribute('data-study-set-mode'));
+  });
+
+  document.addEventListener('input', event => {
+    const input = event.target.closest('[data-study-set-tag-search]');
+    if (!input) return;
+    const field = input.getAttribute('data-study-set-tag-search');
+    if (!AXES.some(axis => axis.field === field)) return;
+    tagQueries[field] = input.value;
+    renderAxes();
+    requestAnimationFrame(() => {
+      const next = document.querySelector(`[data-study-set-tag-search="${CSS.escape(field)}"]`);
+      if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
+    });
+  });
+
+  window.addEventListener(api?.EVENT_NAME || 'wlp-classification-metadata-changed', renderAll);
+  window.addEventListener('storage', event => {
+    if ([api?.STORAGE_KEY, LOCAL_OVERRIDES_KEY].includes(event.key)) renderAll();
+  });
+  window.addEventListener('pageshow', () => { if (rows.length) renderAll(); });
+
+  load();
+})();
