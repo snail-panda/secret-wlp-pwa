@@ -44,6 +44,15 @@
     .study-set-builder-link strong{font-family:"EB Garamond",Georgia,serif;font-size:1.12rem;line-height:1.12;font-weight:700;color:#315b46}
     .study-set-builder-link small{color:#687d70;font-size:.72rem;line-height:1.35}
     .study-set-builder-arrow{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.72);font-size:1.05rem;color:#587866;flex:0 0 auto}
+    .study-source-tabs.has-study-set{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .study-current-set-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 13px;border:1px solid #d8e5dc;border-radius:14px;background:#f8fbf8}
+    .study-current-set-copy{display:grid;gap:3px;min-width:0}
+    .study-current-set-copy strong{font-family:"EB Garamond",Georgia,serif;font-size:1.08rem;color:#315b46}
+    .study-current-set-copy span{color:#62786c;font-size:.72rem;font-weight:700}
+    .study-current-set-summary{display:grid;gap:2px;margin-top:2px;color:#788a80;font-size:.65rem;line-height:1.35}
+    .study-current-set-summary span{font-size:inherit;font-weight:500;color:inherit}
+    .study-current-set-edit{align-self:center;border:1px solid #b7cabe;border-radius:999px;background:#fff;color:#406653;padding:7px 10px;text-decoration:none;font-size:.68rem;font-weight:700;white-space:nowrap}
+    @media(max-width:640px){.study-source-tabs.has-study-set{grid-template-columns:1fr 1fr}.study-current-set-card{grid-template-columns:1fr}.study-current-set-edit{justify-self:start}}
   </style>
 </head>
 <body class="app-body study-hub-page stage7-bottom-nav-page">
@@ -78,6 +87,7 @@
           <button type="button" class="study-source-tab is-active" data-source-mode="review"><strong>Review</strong><span>Cards asking for attention</span></button>
           <button type="button" class="study-source-tab" data-source-mode="deck"><strong>One deck</strong><span>A single WLP deck</span></button>
           <button type="button" class="study-source-tab" data-source-mode="range"><strong>Deck range</strong><span>Mix several decks</span></button>
+          <button type="button" class="study-source-tab" id="study-source-study-set" data-source-mode="study-set" hidden><strong>Study Set</strong><span id="study-source-study-set-copy">Current custom set</span></button>
         </div>
         <a class="study-set-builder-link" href="./study-set-builder.html">
           <span><span class="study-set-builder-kicker">Custom study sets</span><strong>Build a Study Set</strong><small>Filter and combine cards by Entry Type, Usage, Topic, Discovery, or card text.</small></span>
@@ -102,6 +112,16 @@
           <div class="study-range-field-wrap">
             <label class="study-number-field"><span>To</span><span class="study-deck-input"><b>WLP</b><input id="study-range-end" type="number" inputmode="numeric" min="1" step="1" value="5"></span></label>
             <button class="study-deck-picker-open" type="button" data-deck-picker-target="study-range-end">Choose</button>
+          </div>
+        </div>
+        <div class="study-source-config" data-source-config="study-set" hidden>
+          <div class="study-current-set-card">
+            <div class="study-current-set-copy">
+              <strong id="study-current-set-count">Current Study Set</strong>
+              <span>Built from Search &amp; Refine / Classification filters</span>
+              <div class="study-current-set-summary" id="study-current-set-summary"></div>
+            </div>
+            <a class="study-current-set-edit" href="./study-set-builder.html">Edit Study Set</a>
           </div>
         </div>
 
@@ -368,8 +388,8 @@
   <script src="./ai-study-data.js?v=20260920-s7-ai-controlled-merge-v18652-r12"></script>
   <script src="./ai-study-mock-flow.js?v=20260920-s7-ai-evidence-semantics-v18652-r11"></script>
   <script src="./ai-study-transport.js?v=20260920-s7-ai-daily-quota-v18652-r14"></script>
-  <script src="./study-hub.js?v=20260922-s7-standard-preprogress-v18676-r1"></script>
-  <script src="./ai-study-ui.js?v=20260920-s7-ai-ui-v18653-r1"></script>
+  <script src="./study-hub.js?v=20260925-s7-study-set-source-v186131"></script>
+  <script src="./ai-study-ui.js?v=20260925-s7-study-set-source-v186131"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

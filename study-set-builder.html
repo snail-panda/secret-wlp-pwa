@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
-  <link rel="stylesheet" href="./study-set-builder.css?v=20260925-s7-build-study-set-v186130">
+  <link rel="stylesheet" href="./study-set-builder.css?v=20260925-s7-build-study-set-v186131">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
     .stage7-page-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}
@@ -93,7 +93,10 @@
     </section>
 
     <section class="study-set-start-panel">
-      <button type="button" class="study-set-start" id="study-set-start" disabled>Study These Cards</button>
+      <div class="study-set-start-actions">
+        <button type="button" class="study-set-start" id="study-set-start" disabled>Study These Cards</button>
+        <button type="button" class="study-set-use-practice" id="study-set-use-practice" disabled>Use in Practice</button>
+      </div>
       <p id="study-set-start-note">Choose at least one search term or filter. The temporary set stays separate from your Master and saved Classification Metadata.</p>
     </section>
   </main>
@@ -155,7 +158,7 @@
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
-  <script src="./study-set-builder.js?v=20260925-s7-build-study-set-v186130"></script>
+  <script src="./study-set-builder.js?v=20260925-s7-build-study-set-v186131"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
     (()=>{const nav=document.querySelector('.stage7-page-bottom-nav');if(!nav)return;if(nav.parentElement!==document.body)document.body.appendChild(nav);const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));})();

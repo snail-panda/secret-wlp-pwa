@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.130 — Progressive metadata search + match reasons. */
+/* WLP Stage 7 v1.8.6.131 — Study Set handoff to Standard / AI Practice. */
 (() => {
   'use strict';
 
@@ -395,16 +395,19 @@
     const note = $('study-set-result-note');
     const list = $('study-set-results');
     const start = $('study-set-start');
+    const practice = $('study-set-use-practice');
     const startNote = $('study-set-start-note');
     const active = hasCriteria();
-    if (!count || !note || !list || !start || !startNote) return;
+    if (!count || !note || !list || !start || !practice || !startNote) return;
 
     if (!active) {
       count.innerHTML = `<strong>${rows.length.toLocaleString()} cards</strong><span>Master cards available</span>`;
       note.textContent = 'Add a search term or Classification filter to build a temporary set.';
       list.innerHTML = '';
       start.disabled = true;
+      practice.disabled = true;
       start.textContent = 'Study These Cards';
+      practice.textContent = 'Use in Practice';
       startNote.textContent = 'Choose at least one search term or filter. The temporary set stays separate from your Master and saved Classification Metadata.';
       return;
     }
@@ -426,8 +429,12 @@
     }).join('') + (currentMatches.length > PREVIEW_LIMIT ? `<p class="study-set-result-more">${(currentMatches.length - PREVIEW_LIMIT).toLocaleString()} more matched cards are included in the set.</p>` : '');
 
     start.disabled = currentMatches.length === 0;
+    practice.disabled = currentMatches.length === 0;
     start.textContent = currentMatches.length === 1 ? 'Study This Card' : `Study These ${currentMatches.length.toLocaleString()} Cards`;
-    startNote.textContent = currentMatches.length ? 'Starts the matched cards as one temporary set. Previous / Next follows this set even when cards come from different WLP decks.' : 'Adjust the filters to get at least one matched card.';
+    practice.textContent = currentMatches.length === 1 ? 'Use This Card in Practice' : `Use ${currentMatches.length.toLocaleString()} Cards in Practice`;
+    startNote.textContent = currentMatches.length
+      ? 'Study opens the matched cards directly. Practice uses this same temporary set as the source for Standard Practice or AI Practice.'
+      : 'Adjust the filters to get at least one matched card.';
   }
 
   function renderAll() {
@@ -447,22 +454,29 @@
     document.querySelector('[data-study-set-search-input="0"]')?.focus();
   }
 
-  function startStudySet() {
-    if (!hasCriteria() || !currentMatches.length) return;
+  function saveTemporaryStudySet() {
+    if (!hasCriteria() || !currentMatches.length) return null;
     const items = currentMatches.map(row => ({
       wordId: clean(row.WordID),
       batch: clean(row['Batch #']),
       word: clean(row.Word)
     })).filter(item => item.wordId && item.batch);
-    if (!items.length) return;
+    if (!items.length) return null;
     const snapshot = {version:1, createdAt:new Date().toISOString(), criteria:state, items};
-    try { sessionStorage.setItem(TEMP_SET_KEY, JSON.stringify(snapshot)); }
-    catch {
+    try {
+      sessionStorage.setItem(TEMP_SET_KEY, JSON.stringify(snapshot));
+      return snapshot;
+    } catch {
       const note = $('study-set-start-note');
       if (note) { note.textContent = 'This browser could not save the temporary study set.'; note.classList.add('study-set-error'); }
-      return;
+      return null;
     }
-    const first = items[0];
+  }
+
+  function startStudySet() {
+    const snapshot = saveTemporaryStudySet();
+    if (!snapshot) return;
+    const first = snapshot.items[0];
     const params = new URLSearchParams();
     params.set('batch', String(Number(first.batch) || first.batch).padStart(3, '0'));
     params.set('wordid', first.wordId);
@@ -471,6 +485,12 @@
     params.set('from', 'study-set');
     params.set('return', '../../study-set-builder.html');
     location.href = `./flashcards/wlp/batch.html?${params.toString()}`;
+  }
+
+  function useStudySetInPractice() {
+    const snapshot = saveTemporaryStudySet();
+    if (!snapshot) return;
+    location.href = './study-hub.html?source=study-set';
   }
 
   async function load() {
@@ -491,6 +511,7 @@
       $('study-set-result-note').textContent = 'Your Classification Metadata was not changed.';
       $('study-set-results').innerHTML = '';
       $('study-set-start').disabled = true;
+      if ($('study-set-use-practice')) $('study-set-use-practice').disabled = true;
     }
   }
 
@@ -507,6 +528,7 @@
     });
   });
   $('study-set-start')?.addEventListener('click', startStudySet);
+  $('study-set-use-practice')?.addEventListener('click', useStudySetInPractice);
 
   document.addEventListener('click', event => {
     const searchMode = event.target.closest('[data-study-set-search-mode]');
