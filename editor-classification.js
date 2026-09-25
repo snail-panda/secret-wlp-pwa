@@ -15,19 +15,30 @@
     'word','phrase','idiom','phrasal verb','collocation','construction','term','proper noun',
     'abbreviation','initialism','interjection','contrast set','polysemy set','sentence pattern',
     'response formula','rhetorical question pattern','meme construction','discourse expression',
-    'internet term','fandom term','slang expression','metaphor','verb pattern','noun phrase','adjective phrase'
+    'internet term','fandom term','slang expression','nonce formation','verb pattern','noun phrase','adjective phrase'
   ];
   const USAGE_TAGS = [
     'formal','informal','casual','colloquial','conversational','slang','internet slang','literary',
     'academic','technical','dated','archaic','humorous','playful','figurative','evaluative','critical',
     'derogatory','disparaging','offensive','profane','vulgar','affectionate','warm','skeptical','speculative',
-    'American English','British English','North American English','Gen Z'
+    'American English','British English','North American English','Gen Z','softening','ironic'
   ];
   const TOPIC_TAGS = [
     'everyday life','business','work','workplace','travel','shopping','family','friends','relationships','dating',
     'romance','communication','education','technology','security','internet','social media','media','news','anime',
     'manga','fandom','games','law','science','research','psychology','mental health','self-help','health','wellness',
-    'food','restaurants','hospitality','culture','art','fashion','music','finance','planning','decision-making'
+    'food','restaurants','hospitality','culture','art','fashion','music','finance','planning','decision-making',
+    'language learning','testing','assessment','performance','entertainment','sports','problem-solving'
+  ];
+  const DISCOVERY_TAGS = [
+    'agreement','disagreement','soft correction','criticism','softened criticism','complaint','warning',
+    'reassurance','encouragement','support','suggestion','recommendation','boundary-setting','expressing need','self-assessment',
+    'uncertainty','speculation','possibility','lack of knowledge','hedging','impression','perception','subjective judgment','evaluation',
+    'loyalty','betrayal','social trust','social approval','nonconformity','solidarity',
+    'prevention','containment','removal','release','resolution','iteration','trial and error','minor adjustment','improvement','incremental improvement',
+    'excessive emotion','emotional intensity','maximum effort','commitment','determination',
+    'early stage','premature judgment','too soon to tell','prelude','precursor','escalation','continuity','building on success',
+    'exploiting rules','gaming the system','loopholes','metric optimization','score vs ability'
   ];
 
   let masterSourceRows = [];
@@ -303,7 +314,7 @@
   }
 
   function currentSuggestions(field, query = '') {
-    const staticMap = {entryTypes:ENTRY_TYPES, usageTags:USAGE_TAGS, topicTags:TOPIC_TAGS, discoveryTags:[]};
+    const staticMap = {entryTypes:ENTRY_TYPES, usageTags:USAGE_TAGS, topicTags:TOPIC_TAGS, discoveryTags:DISCOVERY_TAGS};
     const merged = api.uniqueTags([...(staticMap[field] || []), ...api.tagsFor(field)]);
     const chosen = new Set((working?.[field] || []).map(normalize));
     const needle = normalize(query);
