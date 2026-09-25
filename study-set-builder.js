@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.127 — Shared shell + discoverable filter suggestions. */
+/* WLP Stage 7 v1.8.6.129 — Suggested-tag guidance + home hierarchy polish. */
 (() => {
   'use strict';
 
@@ -239,7 +239,7 @@
       return `<section class="study-set-axis" data-study-set-axis="${esc(axis.field)}">
         <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count">${tags.length} tag${tags.length === 1 ? '' : 's'}</span></div>
         <input class="study-set-axis-search" type="search" autocomplete="off" spellcheck="false" value="${esc(tagQueries[axis.field])}" data-study-set-tag-search="${esc(axis.field)}" placeholder="${esc(axis.placeholder)}" aria-label="${esc(axis.placeholder)}">
-        ${tags.length ? `<div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>${showToggle ? `<div class="study-set-axis-tag-footer"><small>${isExpanded ? 'All available tags are shown.' : `Showing ${Math.min(COLLAPSED_TAG_LIMIT, filtered.length)} suggested tags.`}</small><button type="button" class="study-set-show-all" data-study-set-show-all="${esc(axis.field)}">${isExpanded ? 'Show less' : `Show all ${filtered.length}`}</button></div>` : ''}` : '<p class="study-set-axis-empty">No tags are available in this axis yet.</p>'}
+        ${tags.length ? `<div class="study-set-suggestion-guide"><strong>Suggested Tags</strong><small>Use the field above to find a tag, or choose below. Tap a tag to cycle: Include (+) → Exclude (−) → Off.</small></div><div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>${showToggle ? `<div class="study-set-axis-tag-footer"><small>${isExpanded ? 'All available tags are shown.' : `Showing ${Math.min(COLLAPSED_TAG_LIMIT, filtered.length)} suggested tags.`}</small><button type="button" class="study-set-show-all" data-study-set-show-all="${esc(axis.field)}">${isExpanded ? 'Show less' : `Show all ${filtered.length}`}</button></div>` : ''}` : '<p class="study-set-axis-empty">No tags are available in this axis yet.</p>'}
         <div class="study-set-axis-mode" ${includeCount > 1 ? '' : 'hidden'}><span>Included tags match:</span><button type="button" data-study-set-mode="any" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'any' ? 'is-active' : ''}">ANY</button><button type="button" data-study-set-mode="all" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'all' ? 'is-active' : ''}">ALL</button></div>
       </section>`;
     }).join('');
