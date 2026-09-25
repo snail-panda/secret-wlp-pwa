@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
-  <link rel="stylesheet" href="./study-set-builder.css?v=20260925-s7-build-study-set-v186129">
+  <link rel="stylesheet" href="./study-set-builder.css?v=20260925-s7-build-study-set-v186130">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
     .stage7-page-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}
@@ -43,20 +43,23 @@
     </a>
 
     <section class="study-set-hero">
-      <span class="study-set-kicker">Classification · Temporary Study Set</span>
+      <span class="study-set-kicker">Search · Classification · Temporary Study Set</span>
       <h1>Build a Study Set</h1>
-      <p>Find the cards you want by card text or Classification Metadata. This creates a temporary study set only; it does not change the Master, decks, or Classification data.</p>
+      <p>Find broadly, refine step by step, then use exact Classification filters when you need them. This creates a temporary study set only; it does not change the Master, decks, or Classification data.</p>
     </section>
 
     <section class="study-set-panel study-set-search-panel" aria-labelledby="study-set-search-title">
       <div class="study-set-panel-head">
-        <div><span class="study-set-kicker">Search</span><h2 id="study-set-search-title">Search All Metadata</h2></div>
+        <div><span class="study-set-kicker">Progressive search</span><h2 id="study-set-search-title">Search &amp; Refine</h2></div>
         <button type="button" class="study-set-clear" id="study-set-clear">Clear All</button>
       </div>
-      <label class="study-set-search-field" for="study-set-search">
-        <span>Word, definition, examples, notes, or Classification tags</span>
-        <input id="study-set-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search across card text and metadata…">
-      </label>
+      <div class="study-set-search-guide">
+        <p><strong>Build your set step by step.</strong> Separate search terms with commas. Choose <strong>ALL</strong> when every term should match, or <strong>ANY</strong> when one or more may match. Add another Search step to refine only the current result.</p>
+        <p class="study-set-search-example"><span>Example</span> <code>give, phrasal verb</code> · ALL <b>→ Refine →</b> <code>business, communication</code> · ANY</p>
+        <p class="study-set-search-order">The order of terms inside one Search step does not change priority.</p>
+      </div>
+      <div class="study-set-search-stages" id="study-set-search-stages" aria-live="polite"></div>
+      <button type="button" class="study-set-add-refine" id="study-set-add-refine" hidden>+ Refine these cards</button>
     </section>
 
     <section class="study-set-panel study-set-active" aria-labelledby="study-set-active-title">
@@ -66,7 +69,13 @@
       <div class="study-set-active-chips" id="study-set-active-chips">
         <span class="study-set-empty-inline">No filters yet.</span>
       </div>
-      <p class="study-set-active-help">Across axes, filters combine with <strong>AND</strong>. Within an axis, Included tags can match <strong>ANY</strong> or <strong>ALL</strong>. Any Excluded tag removes the card.</p>
+      <p class="study-set-active-help">Each Search step searches within the result above it. <strong>ALL / ANY</strong> applies only to terms inside that step. Classification filters then narrow the final Search result exactly.</p>
+    </section>
+
+    <section class="study-set-classification-intro" aria-labelledby="study-set-classification-title">
+      <span class="study-set-kicker">Exact filters</span>
+      <h2 id="study-set-classification-title">Narrow by Classification</h2>
+      <p>These filters match saved Classification tags in that exact axis. Use them after Search—or by themselves—when you want a stricter set.</p>
     </section>
 
     <div class="study-set-axis-list" id="study-set-axis-list" aria-live="polite"></div>
@@ -146,7 +155,7 @@
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
-  <script src="./study-set-builder.js?v=20260925-s7-build-study-set-v186129"></script>
+  <script src="./study-set-builder.js?v=20260925-s7-build-study-set-v186130"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
     (()=>{const nav=document.querySelector('.stage7-page-bottom-nav');if(!nav)return;if(nav.parentElement!==document.body)document.body.appendChild(nav);const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));})();

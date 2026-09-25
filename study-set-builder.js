@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.129 — Suggested-tag guidance + home hierarchy polish. */
+/* WLP Stage 7 v1.8.6.130 — Progressive metadata search + match reasons. */
 (() => {
   'use strict';
 
@@ -51,6 +51,8 @@
 
   let rows = [];
   let currentMatches = [];
+  let searchStageSnapshots = [];
+  let classificationRecords = {};
   const tagQueries = Object.fromEntries(AXES.map(axis => [axis.field, '']));
   const expandedAxes = new Set();
 
@@ -60,13 +62,19 @@
   const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
 
   function blankAxis() { return {include:[], exclude:[], mode:'any'}; }
+  function blankSearchStage() { return {query:'', mode:'all'}; }
   function blankState() {
-    return {search:'', axes:Object.fromEntries(AXES.map(axis => [axis.field, blankAxis()]))};
+    return {searchStages:[blankSearchStage()], axes:Object.fromEntries(AXES.map(axis => [axis.field, blankAxis()]))};
   }
 
   function normalizeState(raw) {
     const next = blankState();
-    next.search = clean(raw?.search);
+    const rawStages = Array.isArray(raw?.searchStages) && raw.searchStages.length
+      ? raw.searchStages
+      : (clean(raw?.search) ? [{query:raw.search, mode:'all'}] : []);
+    next.searchStages = rawStages.length
+      ? rawStages.map(stage => ({query:clean(stage?.query), mode:stage?.mode === 'any' ? 'any' : 'all'}))
+      : [blankSearchStage()];
     AXES.forEach(axis => {
       const source = raw?.axes?.[axis.field] || {};
       next.axes[axis.field] = {
@@ -140,20 +148,70 @@
     });
   }
 
-  function classificationFor(row) {
-    const wid = clean(row?.WordID);
-    return wid && api ? api.get(api.makeMasterKey(wid)) : {entryTypes:[],usageTags:[],topicTags:[],discoveryTags:[]};
+  function emptyClassification() {
+    return {entryTypes:[],usageTags:[],topicTags:[],discoveryTags:[]};
   }
 
-  function searchableText(row, record) {
-    return fold([
-      row.Word, row.IPA, row['Part of Speech'], row.Definition, row['Synonym(s)'], row['Example Sentence'], row['Note(s)'], row.Category, row.Source,
-      ...(record.entryTypes || []), ...(record.usageTags || []), ...(record.topicTags || []), ...(record.discoveryTags || [])
-    ].join(' '));
+  function refreshClassificationCache() {
+    classificationRecords = api?.all?.() || {};
+  }
+
+  function classificationFor(row) {
+    const wid = clean(row?.WordID);
+    if (!wid || !api) return emptyClassification();
+    return classificationRecords[api.makeMasterKey(wid)] || emptyClassification();
+  }
+
+  function searchableFields(row, record) {
+    return [
+      {label:'Word', value:row.Word},
+      {label:'IPA', value:row.IPA},
+      {label:'Part of Speech', value:row['Part of Speech']},
+      {label:'Definition', value:row.Definition},
+      {label:'Synonyms', value:row['Synonym(s)']},
+      {label:'Example', value:row['Example Sentence']},
+      {label:'Notes', value:row['Note(s)']},
+      {label:'Category', value:row.Category},
+      {label:'Source', value:row.Source},
+      {label:'Entry Type', value:(record.entryTypes || []).join(' | ')},
+      {label:'Usage', value:(record.usageTags || []).join(' | ')},
+      {label:'Topic', value:(record.topicTags || []).join(' | ')},
+      {label:'Discovery', value:(record.discoveryTags || []).join(' | ')}
+    ];
+  }
+
+  function searchTerms(query) {
+    const seen = new Set();
+    return String(query || '').split(',').map(clean).filter(term => {
+      const key = fold(term);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function termLocations(row, record, term) {
+    const needle = fold(term);
+    if (!needle) return [];
+    return searchableFields(row, record)
+      .filter(field => fold(field.value).includes(needle))
+      .map(field => field.label);
+  }
+
+  function rowPassesSearchStage(row, stage) {
+    const terms = searchTerms(stage?.query);
+    if (!terms.length) return true;
+    const record = classificationFor(row);
+    const matches = terms.map(term => termLocations(row, record, term).length > 0);
+    return stage?.mode === 'any' ? matches.some(Boolean) : matches.every(Boolean);
+  }
+
+  function hasSearchCriteria() {
+    return state.searchStages.some(stage => searchTerms(stage.query).length);
   }
 
   function hasCriteria() {
-    if (clean(state.search)) return true;
+    if (hasSearchCriteria()) return true;
     return AXES.some(axis => {
       const selection = state.axes[axis.field];
       return selection.include.length || selection.exclude.length;
@@ -172,15 +230,43 @@
       : include.some(tag => values.has(tag));
   }
 
-  function rowMatches(row) {
-    const record = classificationFor(row);
-    const query = fold(state.search);
-    if (query && !searchableText(row, record).includes(query)) return false;
-    return AXES.every(axis => recordPassesAxis(record, axis.field));
+  function computeSearchStages() {
+    let candidates = rows.slice();
+    searchStageSnapshots = state.searchStages.map((stage, index) => {
+      const inputCount = candidates.length;
+      const terms = searchTerms(stage.query);
+      if (terms.length) candidates = candidates.filter(row => rowPassesSearchStage(row, stage));
+      return {
+        index,
+        inputCount,
+        count:candidates.length,
+        terms,
+        mode:stage.mode === 'any' ? 'any' : 'all'
+      };
+    });
+    return candidates;
   }
 
   function computeMatches() {
-    currentMatches = rows.filter(rowMatches);
+    const searchMatches = computeSearchStages();
+    currentMatches = searchMatches.filter(row => {
+      const record = classificationFor(row);
+      return AXES.every(axis => recordPassesAxis(record, axis.field));
+    });
+  }
+
+  function matchReasonForRow(row) {
+    const record = classificationFor(row);
+    return state.searchStages.map((stage, index) => {
+      const terms = searchTerms(stage.query);
+      if (!terms.length) return null;
+      const matchedTerms = terms.map(term => {
+        const locations = termLocations(row, record, term);
+        return locations.length ? {term, locations} : null;
+      }).filter(Boolean);
+      if (!matchedTerms.length) return null;
+      return {index, matchedTerms};
+    }).filter(Boolean);
   }
 
   function tagState(field, tag) {
@@ -213,6 +299,42 @@
     const canonical = TAXONOMY[field] || [];
     const used = api?.tagsFor?.(field) || [];
     return sortTags(api?.uniqueTags?.([...canonical, ...used]) || [...canonical, ...used]);
+  }
+
+  function renderSearchStages() {
+    const root = $('study-set-search-stages');
+    if (!root) return;
+    root.innerHTML = state.searchStages.map((stage, index) => {
+      const snapshot = searchStageSnapshots[index] || {inputCount:index ? (searchStageSnapshots[index - 1]?.count || rows.length) : rows.length, count:rows.length, terms:searchTerms(stage.query)};
+      const title = index === 0 ? 'Search All Metadata' : `Search within ${snapshot.inputCount.toLocaleString()} cards`;
+      const termCount = snapshot.terms.length;
+      const countLabel = termCount ? `${snapshot.count.toLocaleString()} cards` : `${snapshot.inputCount.toLocaleString()} available`;
+      return `<section class="study-set-search-stage" data-study-set-search-stage="${index}">
+        <div class="study-set-search-stage-head">
+          <div><span class="study-set-kicker">Search ${index + 1}</span><h3>${esc(title)}</h3></div>
+          <div class="study-set-search-stage-side"><span class="study-set-search-stage-count">${esc(countLabel)}</span>${index > 0 ? `<button type="button" class="study-set-search-stage-remove" data-study-set-search-remove="${index}" aria-label="Remove Search ${index + 1}">Remove</button>` : ''}</div>
+        </div>
+        <label class="study-set-search-field">
+          <span>Separate terms with commas. Each term can match anywhere in card text or metadata.</span>
+          <input type="search" autocomplete="off" spellcheck="false" value="${esc(stage.query)}" data-study-set-search-input="${index}" placeholder="${index === 0 ? 'e.g. give, phrasal verb' : 'e.g. business, communication'}" aria-label="Search ${index + 1} terms">
+        </label>
+        <div class="study-set-search-mode" role="group" aria-label="Search ${index + 1} match mode">
+          <span>Match terms:</span>
+          <button type="button" data-study-set-search-mode="all" data-study-set-search-mode-index="${index}" class="${stage.mode !== 'any' ? 'is-active' : ''}">ALL</button>
+          <button type="button" data-study-set-search-mode="any" data-study-set-search-mode-index="${index}" class="${stage.mode === 'any' ? 'is-active' : ''}">ANY</button>
+          <small>${stage.mode === 'any' ? 'One or more terms may match.' : 'Every term in this step must match.'}</small>
+        </div>
+      </section>`;
+    }).join('');
+
+    const lastIndex = state.searchStages.length - 1;
+    const lastSnapshot = searchStageSnapshots[lastIndex];
+    const lastHasTerms = searchTerms(state.searchStages[lastIndex]?.query).length > 0;
+    const refine = $('study-set-add-refine');
+    if (refine) {
+      refine.hidden = !lastHasTerms || !lastSnapshot || lastSnapshot.count === 0;
+      refine.textContent = lastSnapshot ? `+ Refine these ${lastSnapshot.count.toLocaleString()} cards` : '+ Refine these cards';
+    }
   }
 
   function renderAxes() {
@@ -249,7 +371,10 @@
     const root = $('study-set-active-chips');
     if (!root) return;
     const chips = [];
-    if (clean(state.search)) chips.push(`<span class="study-set-filter-chip is-search">Search: ${esc(state.search)}</span>`);
+    state.searchStages.forEach((stage, index) => {
+      const terms = searchTerms(stage.query);
+      if (terms.length) chips.push(`<span class="study-set-filter-chip is-search">Search ${index + 1} · ${stage.mode.toUpperCase()}: ${esc(terms.join(', '))}</span>`);
+    });
     AXES.forEach(axis => {
       const selection = state.axes[axis.field];
       selection.include.forEach(tag => chips.push(`<span class="study-set-filter-chip">+ ${esc(axis.title)}: ${esc(tag)}</span>`));
@@ -290,9 +415,12 @@
     list.innerHTML = preview.map(row => {
       const record = classificationFor(row);
       const tags = classificationTags(record).slice(0, 8);
+      const reasons = matchReasonForRow(row);
+      const reasonHtml = reasons.length ? `<div class="study-set-result-match"><strong>Why it matched</strong>${reasons.map(reason => `<div class="study-set-result-match-stage"><span>Search ${reason.index + 1}</span>${reason.matchedTerms.map(item => { const shown = item.locations.slice(0,3); const extra = item.locations.length > 3 ? ` +${item.locations.length - 3}` : ''; return `<small><b>${esc(item.term)}</b> → ${esc(shown.join(' · '))}${extra}</small>`; }).join('')}</div>`).join('')}</div>` : '';
       return `<article class="study-set-result">
         <div class="study-set-result-top"><span class="study-set-result-word">${esc(row.Word || '(untitled)')}</span><span class="study-set-result-id">WID${esc(row.WordID)} · WLP${esc(String(Number(row['Batch #']) || row['Batch #']).padStart(3,'0'))}</span></div>
         ${clean(row.Definition) ? `<p class="study-set-result-definition">${esc(clean(row.Definition).slice(0,220))}${clean(row.Definition).length > 220 ? '…' : ''}</p>` : ''}
+        ${reasonHtml}
         ${tags.length ? `<div class="study-set-result-tags">${tags.map(item => `<span>${esc(item.tag)}</span>`).join('')}</div>` : ''}
       </article>`;
     }).join('') + (currentMatches.length > PREVIEW_LIMIT ? `<p class="study-set-result-more">${(currentMatches.length - PREVIEW_LIMIT).toLocaleString()} more matched cards are included in the set.</p>` : '');
@@ -304,11 +432,10 @@
 
   function renderAll() {
     computeMatches();
+    renderSearchStages();
     renderAxes();
     renderActiveFilters();
     renderResults();
-    const search = $('study-set-search');
-    if (search && search.value !== state.search) search.value = state.search;
   }
 
   function clearAll() {
@@ -317,7 +444,7 @@
     expandedAxes.clear();
     saveState();
     renderAll();
-    $('study-set-search')?.focus();
+    document.querySelector('[data-study-set-search-input="0"]')?.focus();
   }
 
   function startStudySet() {
@@ -356,6 +483,7 @@
       const response = await fetch(TSV_URL, {cache:'no-store'});
       if (!response.ok) throw new Error(`TSV ${response.status}`);
       rows = applyOverrides(parseTSV(await response.text())).filter(row => clean(row.WordID) && clean(row['Batch #']));
+      refreshClassificationCache();
       renderAll();
     } catch (error) {
       console.error('Study Set Master load failed:', error);
@@ -366,17 +494,41 @@
     }
   }
 
-  $('study-set-search')?.addEventListener('input', event => {
-    state.search = clean(event.target.value);
-    saveState();
-    computeMatches();
-    renderActiveFilters();
-    renderResults();
-  });
   $('study-set-clear')?.addEventListener('click', clearAll);
+  $('study-set-add-refine')?.addEventListener('click', () => {
+    const last = searchStageSnapshots[searchStageSnapshots.length - 1];
+    if (!last || !last.terms.length || last.count === 0) return;
+    state.searchStages.push(blankSearchStage());
+    saveState();
+    renderAll();
+    requestAnimationFrame(() => {
+      const input = document.querySelector(`[data-study-set-search-input="${state.searchStages.length - 1}"]`);
+      input?.focus();
+    });
+  });
   $('study-set-start')?.addEventListener('click', startStudySet);
 
   document.addEventListener('click', event => {
+    const searchMode = event.target.closest('[data-study-set-search-mode]');
+    if (searchMode) {
+      const index = Number(searchMode.getAttribute('data-study-set-search-mode-index'));
+      if (Number.isInteger(index) && state.searchStages[index]) {
+        state.searchStages[index].mode = searchMode.getAttribute('data-study-set-search-mode') === 'any' ? 'any' : 'all';
+        saveState();
+        renderAll();
+      }
+      return;
+    }
+    const removeSearch = event.target.closest('[data-study-set-search-remove]');
+    if (removeSearch) {
+      const index = Number(removeSearch.getAttribute('data-study-set-search-remove'));
+      if (Number.isInteger(index) && index > 0 && state.searchStages[index]) {
+        state.searchStages.splice(index, 1);
+        saveState();
+        renderAll();
+      }
+      return;
+    }
     const tag = event.target.closest('[data-study-set-tag]');
     if (tag) {
       const field = tag.getAttribute('data-study-set-tag-field');
@@ -397,6 +549,36 @@
   });
 
   document.addEventListener('input', event => {
+    const searchInput = event.target.closest('[data-study-set-search-input]');
+    if (searchInput) {
+      const index = Number(searchInput.getAttribute('data-study-set-search-input'));
+      if (!Number.isInteger(index) || !state.searchStages[index]) return;
+      state.searchStages[index].query = searchInput.value;
+      saveState();
+      computeMatches();
+      renderActiveFilters();
+      renderResults();
+
+      if (index < state.searchStages.length - 1) {
+        renderSearchStages();
+        requestAnimationFrame(() => {
+          const next = document.querySelector(`[data-study-set-search-input="${index}"]`);
+          if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
+        });
+        return;
+      }
+
+      const stageCount = searchStageSnapshots[index];
+      const countEl = searchInput.closest('.study-set-search-stage')?.querySelector('.study-set-search-stage-count');
+      if (countEl && stageCount) countEl.textContent = searchTerms(searchInput.value).length ? `${stageCount.count.toLocaleString()} cards` : `${stageCount.inputCount.toLocaleString()} available`;
+      const refine = $('study-set-add-refine');
+      if (refine) {
+        refine.hidden = !searchTerms(searchInput.value).length || !stageCount || stageCount.count === 0;
+        if (stageCount) refine.textContent = `+ Refine these ${stageCount.count.toLocaleString()} cards`;
+      }
+      return;
+    }
+
     const input = event.target.closest('[data-study-set-tag-search]');
     if (!input) return;
     const field = input.getAttribute('data-study-set-tag-search');
@@ -409,11 +591,23 @@
     });
   });
 
-  window.addEventListener(api?.EVENT_NAME || 'wlp-classification-metadata-changed', renderAll);
-  window.addEventListener('storage', event => {
-    if ([api?.STORAGE_KEY, LOCAL_OVERRIDES_KEY].includes(event.key)) renderAll();
+  window.addEventListener(api?.EVENT_NAME || 'wlp-classification-metadata-changed', () => {
+    refreshClassificationCache();
+    renderAll();
   });
-  window.addEventListener('pageshow', () => { if (rows.length) renderAll(); });
+  window.addEventListener('storage', event => {
+    if (event.key === api?.STORAGE_KEY) {
+      refreshClassificationCache();
+      renderAll();
+    } else if (event.key === LOCAL_OVERRIDES_KEY) {
+      renderAll();
+    }
+  });
+  window.addEventListener('pageshow', () => {
+    if (!rows.length) return;
+    refreshClassificationCache();
+    renderAll();
+  });
 
   load();
 })();
