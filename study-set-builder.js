@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.126 — Build a Study Set v1. */
+/* WLP Stage 7 v1.8.6.127 — Shared shell + discoverable filter suggestions. */
 (() => {
   'use strict';
 
@@ -7,6 +7,7 @@
   const TEMP_SET_KEY = 'wlp:temporary-study-set:v1';
   const BUILDER_STATE_KEY = 'wlp:study-set-builder-state:v1';
   const PREVIEW_LIMIT = 60;
+  const COLLAPSED_TAG_LIMIT = 12;
   const api = window.WLPClassificationMetadata;
   const $ = id => document.getElementById(id);
   const AXES = [
@@ -16,10 +17,42 @@
     {field:'discoveryTags', title:'Discovery', placeholder:'Find Discovery tags…'}
   ];
   const CARD_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
+  const TAXONOMY = {
+    entryTypes:[
+      'word','phrase','idiom','phrasal verb','collocation','construction','term','proper noun',
+      'abbreviation','initialism','interjection','contrast set','polysemy set','sentence pattern',
+      'response formula','rhetorical question pattern','meme construction','discourse expression',
+      'internet term','fandom term','slang expression','nonce formation','verb pattern','noun phrase','adjective phrase'
+    ],
+    usageTags:[
+      'formal','informal','casual','colloquial','conversational','slang','internet slang','literary',
+      'academic','technical','dated','archaic','humorous','playful','figurative','evaluative','critical',
+      'derogatory','disparaging','offensive','profane','vulgar','affectionate','warm','skeptical','speculative',
+      'American English','British English','North American English','Gen Z','softening','ironic'
+    ],
+    topicTags:[
+      'everyday life','business','work','workplace','travel','shopping','family','friends','relationships','dating',
+      'romance','communication','education','technology','security','internet','social media','media','news','anime',
+      'manga','fandom','games','law','science','research','psychology','mental health','self-help','health','wellness',
+      'food','restaurants','hospitality','culture','art','fashion','music','finance','planning','decision-making',
+      'language learning','testing','assessment','performance','entertainment','sports','problem-solving'
+    ],
+    discoveryTags:[
+      'agreement','disagreement','soft correction','criticism','softened criticism','complaint','warning',
+      'reassurance','encouragement','support','suggestion','recommendation','boundary-setting','expressing need','self-assessment',
+      'uncertainty','speculation','possibility','lack of knowledge','hedging','impression','perception','subjective judgment','evaluation',
+      'loyalty','betrayal','social trust','social approval','nonconformity','solidarity',
+      'prevention','containment','removal','release','resolution','iteration','trial and error','minor adjustment','improvement','incremental improvement',
+      'excessive emotion','emotional intensity','maximum effort','commitment','determination',
+      'early stage','premature judgment','too soon to tell','prelude','precursor','escalation','continuity','building on success',
+      'exploiting rules','gaming the system','loopholes','metric optimization','score vs ability'
+    ]
+  };
 
   let rows = [];
   let currentMatches = [];
   const tagQueries = Object.fromEntries(AXES.map(axis => [axis.field, '']));
+  const expandedAxes = new Set();
 
   const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
   const fold = value => clean(value).toLocaleLowerCase('en-US');
@@ -176,24 +209,37 @@
     renderAll();
   }
 
+  function allAxisTags(field) {
+    const canonical = TAXONOMY[field] || [];
+    const used = api?.tagsFor?.(field) || [];
+    return sortTags(api?.uniqueTags?.([...canonical, ...used]) || [...canonical, ...used]);
+  }
+
   function renderAxes() {
     const root = $('study-set-axis-list');
     if (!root || !api) return;
     root.innerHTML = AXES.map(axis => {
-      const tags = sortTags(api.tagsFor(axis.field));
+      const tags = allAxisTags(axis.field);
       const query = fold(tagQueries[axis.field]);
-      const visible = tags.filter(tag => !query || fold(tag).includes(query));
+      const filtered = tags.filter(tag => !query || fold(tag).includes(query));
       const includeCount = state.axes[axis.field].include.length;
+      const isExpanded = expandedAxes.has(axis.field);
+      let visible = filtered;
+      if (!query && !isExpanded && filtered.length > COLLAPSED_TAG_LIMIT) {
+        const selected = [...state.axes[axis.field].include, ...state.axes[axis.field].exclude];
+        visible = api.uniqueTags([...filtered.slice(0, COLLAPSED_TAG_LIMIT), ...selected.filter(tag => filtered.some(value => fold(value) === fold(tag)))]);
+      }
       const buttons = visible.map(tag => {
         const status = tagState(axis.field, tag);
         const marker = status === 'include' ? '+' : status === 'exclude' ? '−' : '·';
         const label = status === 'include' ? `Included: ${tag}. Activate to exclude.` : status === 'exclude' ? `Excluded: ${tag}. Activate to clear.` : `${tag}. Activate to include.`;
         return `<button type="button" class="study-set-tag${status === 'include' ? ' is-include' : status === 'exclude' ? ' is-exclude' : ''}" data-study-set-tag-field="${esc(axis.field)}" data-study-set-tag="${esc(tag)}" aria-label="${esc(label)}"><span class="study-set-tag-marker" aria-hidden="true">${marker}</span><span>${esc(tag)}</span></button>`;
       }).join('');
+      const showToggle = !query && filtered.length > COLLAPSED_TAG_LIMIT;
       return `<section class="study-set-axis" data-study-set-axis="${esc(axis.field)}">
         <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count">${tags.length} tag${tags.length === 1 ? '' : 's'}</span></div>
         <input class="study-set-axis-search" type="search" autocomplete="off" spellcheck="false" value="${esc(tagQueries[axis.field])}" data-study-set-tag-search="${esc(axis.field)}" placeholder="${esc(axis.placeholder)}" aria-label="${esc(axis.placeholder)}">
-        ${tags.length ? `<div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>` : '<p class="study-set-axis-empty">No saved tags in this axis yet. Classification Metadata stays local to this device.</p>'}
+        ${tags.length ? `<div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>${showToggle ? `<div class="study-set-axis-tag-footer"><small>${isExpanded ? 'All available tags are shown.' : `Showing ${Math.min(COLLAPSED_TAG_LIMIT, filtered.length)} suggested tags.`}</small><button type="button" class="study-set-show-all" data-study-set-show-all="${esc(axis.field)}">${isExpanded ? 'Show less' : `Show all ${filtered.length}`}</button></div>` : ''}` : '<p class="study-set-axis-empty">No tags are available in this axis yet.</p>'}
         <div class="study-set-axis-mode" ${includeCount > 1 ? '' : 'hidden'}><span>Included tags match:</span><button type="button" data-study-set-mode="any" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'any' ? 'is-active' : ''}">ANY</button><button type="button" data-study-set-mode="all" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'all' ? 'is-active' : ''}">ALL</button></div>
       </section>`;
     }).join('');
@@ -268,6 +314,7 @@
   function clearAll() {
     state = blankState();
     AXES.forEach(axis => { tagQueries[axis.field] = ''; });
+    expandedAxes.clear();
     saveState();
     renderAll();
     $('study-set-search')?.focus();
@@ -335,6 +382,14 @@
       const field = tag.getAttribute('data-study-set-tag-field');
       const value = tag.getAttribute('data-study-set-tag');
       if (AXES.some(axis => axis.field === field) && value) cycleTag(field, value);
+      return;
+    }
+    const showAll = event.target.closest('[data-study-set-show-all]');
+    if (showAll) {
+      const field = showAll.getAttribute('data-study-set-show-all');
+      if (expandedAxes.has(field)) expandedAxes.delete(field);
+      else expandedAxes.add(field);
+      renderAxes();
       return;
     }
     const mode = event.target.closest('[data-study-set-mode]');
