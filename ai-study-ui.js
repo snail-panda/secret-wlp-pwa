@@ -3,7 +3,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.9.4';
+  const VERSION = '1.9.5';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
@@ -153,7 +153,8 @@
       locked: false,
       hintEvents: [],
       openProductionHintPlan: [],
-      clozeHintPlan: []
+      clozeHintPlan: [],
+      universalFallbackHintPlan: []
     };
   }
 
@@ -2782,7 +2783,14 @@
     const initialVisibility = clean(state.assistance?.initialTargetVisibility).toLowerCase() || 'hidden';
     const targetIsTaskVisible = !state.reconstruction && initialVisibility === 'visible';
     if (targetIsTaskVisible) {
-      wrap.hidden = true;
+      // Universal Target support: the target is already part of the task, so keep
+      // the support control present without treating it as learner-requested help.
+      wrap.hidden = false;
+      button.hidden = false;
+      button.disabled = true;
+      button.textContent = 'Target shown';
+      textEl.textContent = `Target: ${target}`;
+      textEl.hidden = true;
       syncAssistancePanelVisibility();
       return;
     }
@@ -3174,6 +3182,91 @@
     return buildOpenProductionHintPlan(selected).map(item => item.text);
   }
 
+  function isUniversalFallbackHintType(experienceType = currentExperienceType()) {
+    const type = clean(experienceType).toLowerCase();
+    if (!type || type === 'sentence-reconstruction') return false;
+    return !isOpenProductionHintType(type) && !isClozeHintType(type);
+  }
+
+  function selectUniversalFallbackHintPlan({ target = '', readiness = {}, difficulty = 'standard', experienceType = '', context = {}, hintLimit = DEFAULT_HINT_LIMIT, seed = '', recentCategories = [] } = {}) {
+    if (!isUniversalFallbackHintType(experienceType)) return [];
+    // Reuse the already-tested low-leakage generic candidate/ordering logic, but
+    // only as a fallback. Dedicated Reconstruction, Cloze, and Open Production
+    // hint profiles continue to win before this function is ever considered.
+    return selectOpenProductionHintPlan({
+      target,
+      readiness,
+      difficulty,
+      experienceType: 'open-description',
+      context,
+      hintLimit,
+      seed: `${seed}|fallback|${clean(experienceType).toLowerCase()}`,
+      recentCategories
+    });
+  }
+
+  function buildUniversalFallbackHintPlan(selected = null) {
+    const assistance = state.assistance || resetAssistanceState();
+    if (Array.isArray(assistance.universalFallbackHintPlan) && assistance.universalFallbackHintPlan.length) return assistance.universalFallbackHintPlan;
+
+    const response = state.activePlanner?.result?.response || {};
+    const experience = response.experience || {};
+    const target = clean(selected?.target || response.selectedTarget?.target);
+    const plan = selectUniversalFallbackHintPlan({
+      target,
+      readiness: state.activePlanner?.diagnostics?.targetReadiness || {},
+      difficulty: state.session?.difficulty || 'standard',
+      experienceType: experience.type,
+      context: response,
+      hintLimit: activeHintLimit(),
+      seed: `${state.session?.sessionId || 'session'}|${state.session?.completed || 0}|${clean(response.selectedTarget?.wordId)}|${target}`,
+      recentCategories: recentHintCategories()
+    });
+    assistance.universalFallbackHintPlan = plan;
+    return plan;
+  }
+
+  function buildUniversalFallbackHints(selected = null) {
+    return buildUniversalFallbackHintPlan(selected).map(item => item.text);
+  }
+
+  function runUniversalSupportSelfTest() {
+    const readiness = { kind: 'simple', handling: 'single', posCategories: ['adjective'] };
+    const context = {
+      communicativeFocus: { foreground: 'a mismatch between two things that should fit together' },
+      experience: { anticipatedNaturalAlternatives: ['incongruous'] }
+    };
+    const unsupported = ['contrast', 'reformulation', 'reverse-reconstruction', 'multi-expression-composition'];
+    const checks = unsupported.map(type => {
+      const result = selectUniversalFallbackHintPlan({
+        target: 'discordant', readiness, difficulty: 'standard', experienceType: type,
+        context, hintLimit: 4, seed: `fallback-${type}`, recentCategories: []
+      });
+      return {
+        name: `fallback-${type}`,
+        passed: result.length > 0 && result.every(item => !item.text.toLowerCase().includes('discordant')),
+        result
+      };
+    });
+    [
+      ['open-description', 'dedicated-open-production-not-replaced'],
+      ['cloze', 'dedicated-cloze-not-replaced'],
+      ['sentence-reconstruction', 'dedicated-reconstruction-not-replaced']
+    ].forEach(([type, name]) => {
+      const result = selectUniversalFallbackHintPlan({
+        target: 'discordant', readiness, difficulty: 'standard', experienceType: type,
+        context, hintLimit: 4, seed: `protected-${type}`, recentCategories: []
+      });
+      checks.push({ name, passed: result.length === 0, result });
+    });
+    const zero = selectUniversalFallbackHintPlan({
+      target: 'discordant', readiness, difficulty: 'standard', experienceType: 'contrast',
+      context, hintLimit: 0, seed: 'fallback-zero', recentCategories: []
+    });
+    checks.push({ name: 'fallback-respects-no-hints-setting', passed: zero.length === 0, result: zero });
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
   function clozeGrammarHint(readiness = {}) {
     const pos = Array.isArray(readiness?.posCategories) ? readiness.posCategories.map(clean).filter(Boolean) : [];
     const handling = clean(readiness?.handling).toLowerCase();
@@ -3442,7 +3535,8 @@
     const isReconstruction = Boolean(state.reconstruction);
     const isOpenProduction = !isReconstruction && isOpenProductionHintType();
     const isCloze = !isReconstruction && isClozeHintType();
-    if (!isReconstruction && !isOpenProduction && !isCloze) {
+    const isUniversalFallback = !isReconstruction && !isOpenProduction && !isCloze && isUniversalFallbackHintType();
+    if (!isReconstruction && !isOpenProduction && !isCloze && !isUniversalFallback) {
       wrap.hidden = true;
       list.hidden = true;
       list.replaceChildren();
@@ -3454,7 +3548,9 @@
       ? limitHints(buildReconstructionHints(selected), activeHintLimit())
       : isCloze
         ? buildClozeHints(selected)
-        : buildOpenProductionHints(selected);
+        : isOpenProduction
+          ? buildOpenProductionHints(selected)
+          : buildUniversalFallbackHints(selected);
     if (!hints.length) {
       wrap.hidden = true;
       list.hidden = true;
@@ -4441,14 +4537,26 @@
         renderTaskHints();
         return;
       }
-      if (!isOpenProductionHintType()) return;
-      const plan = buildOpenProductionHintPlan();
+      if (isOpenProductionHintType()) {
+        const plan = buildOpenProductionHintPlan();
+        if (!plan.length) return;
+        const assistance = state.assistance || resetAssistanceState();
+        const nextStage = Math.min(plan.length, num(assistance.taskHintStage) + 1);
+        assistance.taskHintStage = nextStage;
+        const currentHint = plan[nextStage - 1] || {};
+        noteHintUse(`open-production:${clean(currentHint.category) || 'hint'}`, nextStage);
+        rememberHintCategory(currentHint.category);
+        renderTaskHints();
+        return;
+      }
+      if (!isUniversalFallbackHintType()) return;
+      const plan = buildUniversalFallbackHintPlan();
       if (!plan.length) return;
       const assistance = state.assistance || resetAssistanceState();
       const nextStage = Math.min(plan.length, num(assistance.taskHintStage) + 1);
       assistance.taskHintStage = nextStage;
       const currentHint = plan[nextStage - 1] || {};
-      noteHintUse(`open-production:${clean(currentHint.category) || 'hint'}`, nextStage);
+      noteHintUse(`fallback:${clean(currentHint.category) || 'hint'}`, nextStage);
       rememberHintCategory(currentHint.category);
       renderTaskHints();
     });
@@ -4535,6 +4643,7 @@
       runAssistanceSelfTest,
       runOpenProductionHintSelfTest,
       runClozeHintSelfTest,
+      runUniversalSupportSelfTest,
       runFeedbackLayerSelfTest,
       runExactWIDHookSelfTest,
       armExactWIDTest,
@@ -4542,6 +4651,7 @@
       getExactWIDTest: () => clone(exactWIDTestState()),
       getOpenProductionHintPlan: () => clone(buildOpenProductionHintPlan()),
       getClozeHintPlan: () => clone(buildClozeHintPlan()),
+      getUniversalFallbackHintPlan: () => clone(buildUniversalFallbackHintPlan()),
       getAssistance: () => clone(assistanceSnapshot())
     });
   }
