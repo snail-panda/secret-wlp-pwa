@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study 1.9.4 + Study Set Source bridge v1.8.6.133
-   Preserve the validated AI Practice 1.9.4 behavior; add only temporary Study Set source support. */
+/* WLP Stage 7 — AI Study 1.9.6 + Study Set Source bridge + universal support v1.8.6.135
+   Preserve validated dedicated support; keep task-visible targets learner-toggleable. */
 (() => {
   'use strict';
 
-  const VERSION = '1.9.5';
+  const VERSION = '1.9.6';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
@@ -154,7 +154,8 @@
       hintEvents: [],
       openProductionHintPlan: [],
       clozeHintPlan: [],
-      universalFallbackHintPlan: []
+      universalFallbackHintPlan: [],
+      taskVisibleTargetHidden: false
     };
   }
 
@@ -2783,12 +2784,18 @@
     const initialVisibility = clean(state.assistance?.initialTargetVisibility).toLowerCase() || 'hidden';
     const targetIsTaskVisible = !state.reconstruction && initialVisibility === 'visible';
     if (targetIsTaskVisible) {
-      // Universal Target support: the target is already part of the task, so keep
-      // the support control present without treating it as learner-requested help.
+      // The Planner may intentionally make the target visible as part of the task.
+      // Keep that evidence classification, but let the learner hide/show it locally.
+      const hiddenByLearner = state.assistance?.taskVisibleTargetHidden === true;
+      const visibleTarget = $('#wlp-ai-visible-target');
+      if (visibleTarget) {
+        visibleTarget.textContent = `Target: ${target}`;
+        visibleTarget.hidden = hiddenByLearner;
+      }
       wrap.hidden = false;
       button.hidden = false;
-      button.disabled = true;
-      button.textContent = 'Target shown';
+      button.disabled = state.assistance?.locked === true;
+      button.textContent = hiddenByLearner ? 'Show target' : 'Hide target';
       textEl.textContent = `Target: ${target}`;
       textEl.hidden = true;
       syncAssistancePanelVisibility();
@@ -4510,6 +4517,14 @@
     $('#wlp-ai-target-hint-button')?.addEventListener('click', () => {
       if (!state.activePlanner || state.busy || state.assistance?.locked) return;
       const assistance = state.assistance || resetAssistanceState();
+      const taskVisible = !state.reconstruction && clean(assistance.initialTargetVisibility).toLowerCase() === 'visible';
+      if (taskVisible) {
+        // The target was already visible by task design, so toggling it must not be
+        // counted as a learner-requested target reveal.
+        assistance.taskVisibleTargetHidden = assistance.taskVisibleTargetHidden !== true;
+        renderTargetHint();
+        return;
+      }
       assistance.targetRevealed = !assistance.targetRevealed;
       if (assistance.targetRevealed) noteTargetReveal();
       if (state.reconstruction) state.reconstruction.targetRevealed = assistance.targetRevealed;

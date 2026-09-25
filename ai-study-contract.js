@@ -1,12 +1,12 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.1.7';
+  const VERSION = '1.1.8';
 
   const ENUMS = Object.freeze({
     groundingModes: ['experiential','situational','conceptual','procedural','terminological','contrastive','discourse'],
     directions: ['world-to-expression','expression-to-world','concept-to-expression','expression-to-concept','message-to-expression','expression-to-message','neighbor-to-target','target-to-neighbor','cross-domain-transfer','cross-sense-transfer','free-composition'],
-    experienceTypes: ['situational-production','reverse-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
+    experienceTypes: ['situational-production','reverse-reconstruction','sentence-reconstruction','open-description','dialogue','micro-story','contrast','continuation','cloze','reformulation','free-composition','multi-expression-composition'],
     targetVisibility: ['hidden','visible','partial'],
     responseConstraints: ['open','fixed-frame'],
     motivationStrength: ['weak','natural','strong'],
@@ -780,8 +780,19 @@
     firstObservationInterpreter.profilePatch.operations = [{ action: 'ADD_PROFILE_OBSERVATION', payload: { description: 'Possible broad-before-specific lexical selection pattern.', suggestedConfidence: 'hypothesis' } }];
     firstObservationInterpreter.evidence.profilePromotionAllowed = false;
 
+    const sentenceReconstructionPlanner = JSON.parse(JSON.stringify(goodPlanner));
+    sentenceReconstructionPlanner.requestId = 'self-plan-sentence-reconstruction';
+    sentenceReconstructionPlanner.experience.type = 'sentence-reconstruction';
+    sentenceReconstructionPlanner.experience.targetVisibility = 'visible';
+    sentenceReconstructionPlanner.experience.responseMode = 'reconstruction';
+    sentenceReconstructionPlanner.experience.responseConstraint = 'open';
+    sentenceReconstructionPlanner.experience.responseFrame = '';
+    sentenceReconstructionPlanner.experience.frameCompatibleAlternatives = [];
+    sentenceReconstructionPlanner.experience.frameCompatibilityVerified = true;
+
     const checks = [
       { name: 'planner-valid', expected: 'VALID', actual: validatePlannerResponse(goodPlanner).status },
+      { name: 'planner-valid-sentence-reconstruction-type', expected: 'VALID', actual: validatePlannerResponse(sentenceReconstructionPlanner).status },
       { name: 'planner-reject-missing-intended-example', expected: 'REJECT', actual: validatePlannerResponse(missingIntendedExamplePlanner).status },
       { name: 'planner-valid-less-common-but-motivated', expected: 'VALID', actual: validatePlannerResponse(lessCommonButMotivated).status },
       { name: 'planner-valid-fixed-frame-compatible-alternatives', expected: 'VALID', actual: validatePlannerResponse(fixedFramePlanner).status },

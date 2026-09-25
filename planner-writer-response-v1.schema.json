@@ -231,6 +231,7 @@
           "enum": [
             "situational-production",
             "reverse-reconstruction",
+            "sentence-reconstruction",
             "open-description",
             "dialogue",
             "micro-story",
