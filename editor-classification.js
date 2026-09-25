@@ -319,7 +319,7 @@
     const chosen = new Set((working?.[field] || []).map(normalize));
     const needle = normalize(query);
     const filtered = merged.filter(tag => !chosen.has(normalize(tag)) && (!needle || normalize(tag).includes(needle)));
-    return filtered.slice(0, field === 'discoveryTags' ? 10 : 20);
+    return filtered.sort((a, b) => String(a).localeCompare(String(b), 'en', {sensitivity:'base'}));
   }
 
   function refreshTagField(field, focusInput = false) {
