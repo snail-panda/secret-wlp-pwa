@@ -71,7 +71,9 @@
     stages.forEach((stage, index) => {
       const query = clean(stage?.query);
       if (!query) return;
-      lines.push(`Search ${index + 1}: ${query} · ${stage?.mode === 'any' ? 'ANY' : 'ALL'}`);
+      const scopeNames = { anywhere:'Anywhere', headword:'Headword', synonyms:'Synonyms', 'card-content':'Card Content', classification:'Classification' };
+      const scope = scopeNames[stage?.scope] || 'Anywhere';
+      lines.push(`Search ${index + 1}: ${query} · ${scope} · ${stage?.mode === 'any' ? 'ANY' : 'ALL'}`);
     });
     const axisNames = { entryTypes:'Entry Type', usageTags:'Usage', topicTags:'Topic', discoveryTags:'Discovery' };
     Object.entries(axisNames).forEach(([field, label]) => {

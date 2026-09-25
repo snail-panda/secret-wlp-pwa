@@ -226,3 +226,12 @@ body.study-set-page{margin:0;min-height:100vh;padding:0 0 calc(88px + env(safe-a
 }
 
 @media (max-width:560px){.study-set-start-actions{display:grid;grid-template-columns:1fr}.study-set-start,.study-set-use-practice{width:100%}}
+
+
+/* v1.8.6.132 — per-stage search scope. */
+.study-set-search-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.study-set-search-scope{display:flex;align-items:center;gap:6px;color:#687b71;font-size:.68rem;font-weight:600}
+.study-set-search-scope select{min-height:30px;border:1px solid #d4e0d8;border-radius:9px;background:#fff;color:#4f675a;padding:5px 28px 5px 8px;font:inherit;font-size:.72rem;font-weight:600;outline:none}
+.study-set-search-scope select:focus{border-color:#9fb7a8;box-shadow:0 0 0 3px rgba(83,121,99,.09)}
+.study-set-search-controls .study-set-search-mode{margin-top:0}
+@media(max-width:560px){.study-set-search-controls{align-items:flex-start;flex-direction:column;gap:7px}.study-set-search-scope{width:100%}.study-set-search-scope select{flex:1;min-width:0}.study-set-search-controls .study-set-search-mode{width:100%}}

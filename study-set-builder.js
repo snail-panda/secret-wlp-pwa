@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.131 — Study Set handoff to Standard / AI Practice. */
+/* WLP Stage 7 v1.8.6.132 — scoped progressive search for Study Set Builder. */
 (() => {
   'use strict';
 
@@ -17,6 +17,13 @@
     {field:'discoveryTags', title:'Discovery', placeholder:'Find Discovery tags…'}
   ];
   const CARD_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
+  const SEARCH_SCOPES = [
+    {value:'anywhere', label:'Anywhere'},
+    {value:'headword', label:'Headword'},
+    {value:'synonyms', label:'Synonyms'},
+    {value:'card-content', label:'Card Content'},
+    {value:'classification', label:'Classification'}
+  ];
   const TAXONOMY = {
     entryTypes:[
       'word','phrase','idiom','phrasal verb','collocation','construction','term','proper noun',
@@ -62,7 +69,7 @@
   const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
 
   function blankAxis() { return {include:[], exclude:[], mode:'any'}; }
-  function blankSearchStage() { return {query:'', mode:'all'}; }
+  function blankSearchStage() { return {query:'', mode:'all', scope:'anywhere'}; }
   function blankState() {
     return {searchStages:[blankSearchStage()], axes:Object.fromEntries(AXES.map(axis => [axis.field, blankAxis()]))};
   }
@@ -73,7 +80,11 @@
       ? raw.searchStages
       : (clean(raw?.search) ? [{query:raw.search, mode:'all'}] : []);
     next.searchStages = rawStages.length
-      ? rawStages.map(stage => ({query:clean(stage?.query), mode:stage?.mode === 'any' ? 'any' : 'all'}))
+      ? rawStages.map(stage => ({
+          query:clean(stage?.query),
+          mode:stage?.mode === 'any' ? 'any' : 'all',
+          scope:SEARCH_SCOPES.some(item => item.value === stage?.scope) ? stage.scope : 'anywhere'
+        }))
       : [blankSearchStage()];
     AXES.forEach(axis => {
       const source = raw?.axes?.[axis.field] || {};
@@ -164,20 +175,34 @@
 
   function searchableFields(row, record) {
     return [
-      {label:'Word', value:row.Word},
-      {label:'IPA', value:row.IPA},
-      {label:'Part of Speech', value:row['Part of Speech']},
-      {label:'Definition', value:row.Definition},
-      {label:'Synonyms', value:row['Synonym(s)']},
-      {label:'Example', value:row['Example Sentence']},
-      {label:'Notes', value:row['Note(s)']},
-      {label:'Category', value:row.Category},
-      {label:'Source', value:row.Source},
-      {label:'Entry Type', value:(record.entryTypes || []).join(' | ')},
-      {label:'Usage', value:(record.usageTags || []).join(' | ')},
-      {label:'Topic', value:(record.topicTags || []).join(' | ')},
-      {label:'Discovery', value:(record.discoveryTags || []).join(' | ')}
+      {label:'Word', group:'headword', value:row.Word},
+      {label:'IPA', group:'card-content', value:row.IPA},
+      {label:'Part of Speech', group:'card-content', value:row['Part of Speech']},
+      {label:'Definition', group:'card-content', value:row.Definition},
+      {label:'Synonyms', group:'synonyms', value:row['Synonym(s)']},
+      {label:'Example', group:'card-content', value:row['Example Sentence']},
+      {label:'Notes', group:'card-content', value:row['Note(s)']},
+      {label:'Category', group:'card-content', value:row.Category},
+      {label:'Source', group:'card-content', value:row.Source},
+      {label:'Entry Type', group:'classification', value:(record.entryTypes || []).join(' | ')},
+      {label:'Usage', group:'classification', value:(record.usageTags || []).join(' | ')},
+      {label:'Topic', group:'classification', value:(record.topicTags || []).join(' | ')},
+      {label:'Discovery', group:'classification', value:(record.discoveryTags || []).join(' | ')}
     ];
+  }
+
+  function normalizedSearchScope(value) {
+    return SEARCH_SCOPES.some(item => item.value === value) ? value : 'anywhere';
+  }
+
+  function searchScopeLabel(value) {
+    return SEARCH_SCOPES.find(item => item.value === normalizedSearchScope(value))?.label || 'Anywhere';
+  }
+
+  function scopedSearchableFields(row, record, scope) {
+    const normalized = normalizedSearchScope(scope);
+    const fields = searchableFields(row, record);
+    return normalized === 'anywhere' ? fields : fields.filter(field => field.group === normalized);
   }
 
   function searchTerms(query) {
@@ -190,10 +215,10 @@
     });
   }
 
-  function termLocations(row, record, term) {
+  function termLocations(row, record, term, scope = 'anywhere') {
     const needle = fold(term);
     if (!needle) return [];
-    return searchableFields(row, record)
+    return scopedSearchableFields(row, record, scope)
       .filter(field => fold(field.value).includes(needle))
       .map(field => field.label);
   }
@@ -202,7 +227,7 @@
     const terms = searchTerms(stage?.query);
     if (!terms.length) return true;
     const record = classificationFor(row);
-    const matches = terms.map(term => termLocations(row, record, term).length > 0);
+    const matches = terms.map(term => termLocations(row, record, term, stage?.scope).length > 0);
     return stage?.mode === 'any' ? matches.some(Boolean) : matches.every(Boolean);
   }
 
@@ -241,7 +266,8 @@
         inputCount,
         count:candidates.length,
         terms,
-        mode:stage.mode === 'any' ? 'any' : 'all'
+        mode:stage.mode === 'any' ? 'any' : 'all',
+        scope:normalizedSearchScope(stage.scope)
       };
     });
     return candidates;
@@ -261,7 +287,7 @@
       const terms = searchTerms(stage.query);
       if (!terms.length) return null;
       const matchedTerms = terms.map(term => {
-        const locations = termLocations(row, record, term);
+        const locations = termLocations(row, record, term, stage.scope);
         return locations.length ? {term, locations} : null;
       }).filter(Boolean);
       if (!matchedTerms.length) return null;
@@ -306,23 +332,31 @@
     if (!root) return;
     root.innerHTML = state.searchStages.map((stage, index) => {
       const snapshot = searchStageSnapshots[index] || {inputCount:index ? (searchStageSnapshots[index - 1]?.count || rows.length) : rows.length, count:rows.length, terms:searchTerms(stage.query)};
-      const title = index === 0 ? 'Search All Metadata' : `Search within ${snapshot.inputCount.toLocaleString()} cards`;
+      const scope = normalizedSearchScope(stage.scope);
+      const scopeLabel = searchScopeLabel(scope);
+      const title = index === 0
+        ? (scope === 'anywhere' ? 'Search All Metadata' : `Search ${scopeLabel}`)
+        : `Search within ${snapshot.inputCount.toLocaleString()} cards`;
       const termCount = snapshot.terms.length;
       const countLabel = termCount ? `${snapshot.count.toLocaleString()} cards` : `${snapshot.inputCount.toLocaleString()} available`;
+      const scopeOptions = SEARCH_SCOPES.map(item => `<option value="${esc(item.value)}"${item.value === scope ? ' selected' : ''}>${esc(item.label)}</option>`).join('');
       return `<section class="study-set-search-stage" data-study-set-search-stage="${index}">
         <div class="study-set-search-stage-head">
           <div><span class="study-set-kicker">Search ${index + 1}</span><h3>${esc(title)}</h3></div>
           <div class="study-set-search-stage-side"><span class="study-set-search-stage-count">${esc(countLabel)}</span>${index > 0 ? `<button type="button" class="study-set-search-stage-remove" data-study-set-search-remove="${index}" aria-label="Remove Search ${index + 1}">Remove</button>` : ''}</div>
         </div>
         <label class="study-set-search-field">
-          <span>Separate terms with commas. Each term can match anywhere in card text or metadata.</span>
+          <span>Separate terms with commas.</span>
           <input type="search" autocomplete="off" spellcheck="false" value="${esc(stage.query)}" data-study-set-search-input="${index}" placeholder="${index === 0 ? 'e.g. give, phrasal verb' : 'e.g. business, communication'}" aria-label="Search ${index + 1} terms">
         </label>
-        <div class="study-set-search-mode" role="group" aria-label="Search ${index + 1} match mode">
-          <span>Match terms:</span>
-          <button type="button" data-study-set-search-mode="all" data-study-set-search-mode-index="${index}" class="${stage.mode !== 'any' ? 'is-active' : ''}">ALL</button>
-          <button type="button" data-study-set-search-mode="any" data-study-set-search-mode-index="${index}" class="${stage.mode === 'any' ? 'is-active' : ''}">ANY</button>
-          <small>${stage.mode === 'any' ? 'One or more terms may match.' : 'Every term in this step must match.'}</small>
+        <div class="study-set-search-controls">
+          <label class="study-set-search-scope"><span>Search in:</span><select data-study-set-search-scope="${index}" aria-label="Search ${index + 1} scope">${scopeOptions}</select></label>
+          <div class="study-set-search-mode" role="group" aria-label="Search ${index + 1} match mode">
+            <span>Match terms:</span>
+            <button type="button" data-study-set-search-mode="all" data-study-set-search-mode-index="${index}" class="${stage.mode !== 'any' ? 'is-active' : ''}">ALL</button>
+            <button type="button" data-study-set-search-mode="any" data-study-set-search-mode-index="${index}" class="${stage.mode === 'any' ? 'is-active' : ''}">ANY</button>
+            <small>${stage.mode === 'any' ? 'One or more terms may match.' : 'Every term in this step must match.'}</small>
+          </div>
         </div>
       </section>`;
     }).join('');
@@ -373,7 +407,7 @@
     const chips = [];
     state.searchStages.forEach((stage, index) => {
       const terms = searchTerms(stage.query);
-      if (terms.length) chips.push(`<span class="study-set-filter-chip is-search">Search ${index + 1} · ${stage.mode.toUpperCase()}: ${esc(terms.join(', '))}</span>`);
+      if (terms.length) chips.push(`<span class="study-set-filter-chip is-search">Search ${index + 1} · ${esc(searchScopeLabel(stage.scope))} · ${stage.mode.toUpperCase()}: ${esc(terms.join(', '))}</span>`);
     });
     AXES.forEach(axis => {
       const selection = state.axes[axis.field];
@@ -568,6 +602,16 @@
     }
     const mode = event.target.closest('[data-study-set-mode]');
     if (mode) setAxisMode(mode.getAttribute('data-study-set-mode-field'), mode.getAttribute('data-study-set-mode'));
+  });
+
+  document.addEventListener('change', event => {
+    const scopeSelect = event.target.closest('[data-study-set-search-scope]');
+    if (!scopeSelect) return;
+    const index = Number(scopeSelect.getAttribute('data-study-set-search-scope'));
+    if (!Number.isInteger(index) || !state.searchStages[index]) return;
+    state.searchStages[index].scope = normalizedSearchScope(scopeSelect.value);
+    saveState();
+    renderAll();
   });
 
   document.addEventListener('input', event => {
