@@ -118,6 +118,24 @@
       .practice-hub-card{grid-template-columns:42px minmax(0,1fr) 32px;min-height:73px;padding:10px 11px;gap:9px}
     }
 
+    /* Stage 7 v1.8.6.128 — first-class custom Study Set entry. */
+    .study-set-home-card{
+      min-height:84px;
+      border-color:rgba(79,119,92,.24);
+      background:linear-gradient(135deg,#f8fcf7 0%,#e5f1e7 100%);
+      box-shadow:0 6px 18px rgba(44,74,55,.06);
+    }
+    .study-set-home-card .practice-hub-icon{background:rgba(255,255,255,.88);color:#315f49}
+    .study-set-home-card .practice-hub-copy .section-kicker{color:#5e806b}
+    .study-set-home-card .practice-hub-copy strong{font-size:1.30rem;color:#284f3d}
+    .study-set-home-card .practice-hub-copy small{font-size:.75rem;color:#5f7568}
+    .study-set-home-card .practice-hub-arrow{background:rgba(255,255,255,.68);border-radius:50%;color:#547461}
+    @media(max-width:390px){
+      .study-set-home-card{min-height:78px}
+      .study-set-home-card .practice-hub-copy strong{font-size:1.22rem}
+      .study-set-home-card .practice-hub-copy small{font-size:.71rem}
+    }
+
 </style>
   <link rel="stylesheet" href="./study-options.css?v=20260915-s7-options-v12">
 </head>
@@ -184,6 +202,20 @@
           <span class="section-kicker">Language experiences</span>
           <strong>Practice</strong>
           <small>Study Q · Situations, Review &amp; deck ranges</small>
+        </span>
+        <span class="practice-hub-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+        </span>
+      </a>
+
+      <a class="practice-hub-card study-set-home-card" href="./study-set-builder.html">
+        <span class="practice-hub-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16l-6.5 7v5l-3 2v-7L4 5Z"/></svg>
+        </span>
+        <span class="practice-hub-copy">
+          <span class="section-kicker">Custom study sets</span>
+          <strong>Build a Study Set</strong>
+          <small>Filter &amp; combine cards by Entry Type, Usage, Topic &amp; Discovery</small>
         </span>
         <span class="practice-hub-arrow" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
