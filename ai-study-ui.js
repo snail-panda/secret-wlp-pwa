@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study 1.9.6 + Study Set Source bridge + universal support v1.8.6.135
-   Preserve validated dedicated support; keep task-visible targets learner-toggleable. */
+/* WLP Stage 7 — AI Study 1.9.7 + Study Set Source bridge + universal support + voice input v1.8.6.136
+   Preserve validated dedicated support; add voice only when the editable response field is active. */
 (() => {
   'use strict';
 
-  const VERSION = '1.9.6';
+  const VERSION = '1.9.7';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
@@ -68,7 +68,17 @@
     devExactWID: ''
   };
 
+  let aiVoiceRecognition = null;
+  let aiVoiceListening = false;
+  let aiVoiceTimeout = 0;
+  let aiVoiceMicPrimed = false;
+
   const $ = selector => document.querySelector(selector);
+  const AISpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const AI_STUDY_UA = navigator.userAgent || '';
+  const AI_STUDY_IS_IOS = /iPad|iPhone|iPod/i.test(AI_STUDY_UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const AI_STUDY_IS_IOS_SAFARI = AI_STUDY_IS_IOS && /Safari/i.test(AI_STUDY_UA) && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|Brave/i.test(AI_STUDY_UA);
+  const AI_STUDY_IS_IOS_CHROME = AI_STUDY_IS_IOS && /CriOS/i.test(AI_STUDY_UA);
   const clean = value => String(value ?? '').trim();
   const num = value => Number(value || 0);
   const makeId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -2371,6 +2381,14 @@
           <textarea id="wlp-ai-response" rows="3" placeholder="Type the expression or sentence that comes naturally."></textarea>
           <small>Say what comes naturally. If another expression fits better, that is useful learning evidence too.</small>
         </label>
+        <div class="study-response-tools" id="wlp-ai-response-voice-tools" hidden>
+          <button id="wlp-ai-response-voice" class="study-response-voice" type="button" aria-label="Speak your response" title="Speak your response" hidden>
+            <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path></svg>
+            <svg class="voice-stop-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="7.5" width="9" height="9" rx="1.4"></rect></svg>
+            <span id="wlp-ai-response-voice-label">Speak response</span>
+          </button>
+        </div>
+        <div id="wlp-ai-response-voice-help" class="study-response-voice-help" hidden></div>
         <div class="wlp-ai-actions">
           <button class="wlp-ai-submit-button" id="wlp-ai-submit" type="button">Interpret my response</button>
           <button class="wlp-ai-secondary-button" id="wlp-ai-no-idea" type="button">No idea</button>
@@ -2454,8 +2472,227 @@
     sourcePanel.insertAdjacentElement('afterend', aiRoot);
   }
 
+  function hideAIVoiceHelp() {
+    const help = $('#wlp-ai-response-voice-help');
+    if (!help) return;
+    help.hidden = true;
+    help.innerHTML = '';
+  }
+
+  function aiVoiceBrowserName() {
+    if (AI_STUDY_IS_IOS_SAFARI) return 'Safari';
+    if (AI_STUDY_IS_IOS_CHROME) return 'Chrome';
+    if (/Brave/i.test(AI_STUDY_UA)) return 'Brave';
+    if (/FxiOS|Firefox/i.test(AI_STUDY_UA)) return 'Firefox';
+    return 'this browser';
+  }
+
+  function showAIVoiceHelp(message, permission = false, errorCode = '') {
+    const help = $('#wlp-ai-response-voice-help');
+    if (!help) return;
+    if (permission) {
+      const browser = aiVoiceBrowserName();
+      const code = clean(errorCode);
+      if (AI_STUDY_IS_IOS_SAFARI) {
+        const micLine = aiVoiceMicPrimed
+          ? 'Safari was able to access the microphone, but its speech-recognition service still did not start.'
+          : 'Safari could not start voice input. This does not always mean the site microphone setting is wrong.';
+        help.innerHTML = `<strong>Voice input could not start in Safari.</strong><br>${micLine}${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br><br>Check Safari’s Page Menu → … → Website Settings → Microphone → Ask or Allow. Also check iPhone Settings → General → Keyboard → Enable Dictation.<br><br>If those are already enabled and it still fails, this can be Safari/WebKit speech-recognition behavior rather than your WLP setting. Chrome can be used for AI Practice voice input for now.<br><button type="button">Dismiss</button>`;
+      } else if (AI_STUDY_IS_IOS_CHROME) {
+        help.innerHTML = `<strong>Voice input could not start in Chrome.</strong>${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br>Check the site microphone prompt/permission and iPhone Settings → Apps → Chrome → Microphone. Then try Speak response again.<br><button type="button">Dismiss</button>`;
+      } else {
+        help.innerHTML = `<strong>Voice input could not start in ${browser}.</strong>${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br>Check this browser’s microphone and speech-recognition permissions, then try again.<br><button type="button">Dismiss</button>`;
+      }
+      help.querySelector('button')?.addEventListener('click', hideAIVoiceHelp);
+    } else {
+      help.textContent = message || 'Voice input could not hear that. Try again.';
+    }
+    help.hidden = false;
+  }
+
+  async function primeAISafariMicrophone() {
+    aiVoiceMicPrimed = false;
+    if (!AI_STUDY_IS_IOS_SAFARI || !navigator.mediaDevices?.getUserMedia) return { ok: true };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      aiVoiceMicPrimed = true;
+      stream.getTracks().forEach(track => track.stop());
+      await new Promise(resolve => setTimeout(resolve, 220));
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error };
+    }
+  }
+
+  function setAIVoiceListening(listening) {
+    aiVoiceListening = Boolean(listening);
+    if (!aiVoiceListening && aiVoiceTimeout) {
+      clearTimeout(aiVoiceTimeout);
+      aiVoiceTimeout = 0;
+    }
+    const button = $('#wlp-ai-response-voice');
+    const label = $('#wlp-ai-response-voice-label');
+    if (!button) return;
+    button.classList.toggle('is-listening', aiVoiceListening);
+    button.setAttribute('aria-pressed', String(aiVoiceListening));
+    button.setAttribute('aria-label', aiVoiceListening ? 'Stop voice input' : 'Speak your response');
+    button.setAttribute('title', aiVoiceListening ? 'Stop voice input' : 'Speak your response');
+    if (label) label.textContent = aiVoiceListening ? 'Stop' : 'Speak response';
+  }
+
+  function stopAIVoice() {
+    if (aiVoiceRecognition) {
+      try { aiVoiceRecognition.abort(); } catch (_) {}
+    }
+    aiVoiceRecognition = null;
+    setAIVoiceListening(false);
+  }
+
+  function insertAIVoiceTranscript(transcript) {
+    const input = $('#wlp-ai-response');
+    const spoken = clean(transcript);
+    if (!input || !spoken || input.disabled) return;
+    const start = Number.isFinite(input.selectionStart) ? input.selectionStart : input.value.length;
+    const end = Number.isFinite(input.selectionEnd) ? input.selectionEnd : input.value.length;
+    const before = input.value.slice(0, start);
+    const after = input.value.slice(end);
+    const lead = before && !/\s$/.test(before) ? ' ' : '';
+    const trail = after && !/^\s/.test(after) ? ' ' : '';
+    input.value = `${before}${lead}${spoken}${trail}${after}`;
+    const caret = before.length + lead.length + spoken.length;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      try { input.setSelectionRange(caret, caret); } catch (_) {}
+    });
+  }
+
+  function aiVoiceResponseFieldActive() {
+    const field = $('#wlp-ai-response-field');
+    return Boolean(field && !field.hidden && !state.reconstruction);
+  }
+
+  function shouldOfferAIVoice({ recognitionAvailable = false, aiMode = false, responseFieldActive = false, responseEditable = false } = {}) {
+    return Boolean(recognitionAvailable && aiMode && responseFieldActive && responseEditable);
+  }
+
+  function syncAIVoiceAvailability() {
+    const tools = $('#wlp-ai-response-voice-tools');
+    const button = $('#wlp-ai-response-voice');
+    const input = $('#wlp-ai-response');
+    if (!tools || !button) return;
+    const show = shouldOfferAIVoice({
+      recognitionAvailable: Boolean(AISpeechRecognition),
+      aiMode: state.mode === 'ai',
+      responseFieldActive: aiVoiceResponseFieldActive(),
+      responseEditable: Boolean(input && !input.disabled)
+    });
+    tools.hidden = !show;
+    button.hidden = !show;
+    button.disabled = !show || state.busy;
+    if (!show && aiVoiceListening) stopAIVoice();
+    if (!show) hideAIVoiceHelp();
+  }
+
+  function runVoiceInputSelfTest() {
+    const cases = [
+      { name: 'editable-text-response', input: { recognitionAvailable: true, aiMode: true, responseFieldActive: true, responseEditable: true }, expected: true },
+      { name: 'sentence-reconstruction-hidden-field', input: { recognitionAvailable: true, aiMode: true, responseFieldActive: false, responseEditable: true }, expected: false },
+      { name: 'completed-response-not-editable', input: { recognitionAvailable: true, aiMode: true, responseFieldActive: true, responseEditable: false }, expected: false },
+      { name: 'standard-mode-does-not-own-ai-mic', input: { recognitionAvailable: true, aiMode: false, responseFieldActive: true, responseEditable: true }, expected: false },
+      { name: 'unsupported-browser-hides-control', input: { recognitionAvailable: false, aiMode: true, responseFieldActive: true, responseEditable: true }, expected: false }
+    ];
+    const checks = cases.map(item => {
+      const actual = shouldOfferAIVoice(item.input);
+      return { name: item.name, passed: actual === item.expected, expected: item.expected, actual };
+    });
+    return { passed: checks.every(item => item.passed), checks };
+  }
+
+  function installAIVoice() {
+    const button = $('#wlp-ai-response-voice');
+    if (!button || !AISpeechRecognition) {
+      syncAIVoiceAvailability();
+      return;
+    }
+    button.setAttribute('aria-pressed', 'false');
+
+    const beginRecognition = async () => {
+      hideAIVoiceHelp();
+      if (!aiVoiceResponseFieldActive() || state.busy || $('#wlp-ai-response')?.disabled) return;
+      if (AI_STUDY_IS_IOS_SAFARI) {
+        const primed = await primeAISafariMicrophone();
+        if (!primed.ok) {
+          const code = clean(primed.error?.name || primed.error?.message || 'microphone-not-available');
+          showAIVoiceHelp('', true, code);
+          return;
+        }
+      } else {
+        aiVoiceMicPrimed = false;
+      }
+
+      try {
+        const recognition = new AISpeechRecognition();
+        aiVoiceRecognition = recognition;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.continuous = false;
+        recognition.maxAlternatives = 1;
+        recognition.onstart = () => {
+          hideAIVoiceHelp();
+          setAIVoiceListening(true);
+          aiVoiceTimeout = window.setTimeout(() => {
+            try { recognition.stop(); } catch (_) {}
+          }, 12000);
+        };
+        recognition.onend = () => {
+          setAIVoiceListening(false);
+          aiVoiceRecognition = null;
+          syncAIVoiceAvailability();
+        };
+        recognition.onerror = event => {
+          setAIVoiceListening(false);
+          aiVoiceRecognition = null;
+          if (event?.error === 'aborted' || event?.error === 'no-speech') return;
+          if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+            showAIVoiceHelp('', true, event?.error || 'not-allowed');
+            return;
+          }
+          showAIVoiceHelp(`Voice input could not start (${clean(event?.error) || 'unknown error'}). Try again.`);
+        };
+        recognition.onresult = event => {
+          const transcript = clean(event?.results?.[0]?.[0]?.transcript);
+          if (!transcript) return;
+          insertAIVoiceTranscript(transcript);
+          try { recognition.stop(); } catch (_) {}
+        };
+        recognition.start();
+      } catch (error) {
+        console.error('AI Practice voice input could not start:', error);
+        setAIVoiceListening(false);
+        aiVoiceRecognition = null;
+        showAIVoiceHelp('', true, clean(error?.name || error?.message || 'unavailable'));
+      }
+    };
+
+    button.addEventListener('click', async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (aiVoiceListening && aiVoiceRecognition) {
+        try { aiVoiceRecognition.stop(); } catch (_) {}
+        return;
+      }
+      await beginRecognition();
+    });
+    window.addEventListener('pagehide', stopAIVoice);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopAIVoice(); });
+    syncAIVoiceAvailability();
+  }
+
   function setMode(mode, persist = true) {
-    state.mode = mode === 'ai' ? 'ai' : 'standard';
+    const nextMode = mode === 'ai' ? 'ai' : 'standard';
+    if (nextMode !== 'ai') stopAIVoice();
+    state.mode = nextMode;
     document.body.classList.toggle('wlp-ai-study-mode', state.mode === 'ai');
     document.querySelectorAll('[data-wlp-practice-mode]').forEach(button => {
       const active = button.dataset.wlpPracticeMode === state.mode;
@@ -2471,11 +2708,13 @@
     } else {
       syncAISessionSizePreferenceUI();
     }
+    syncAIVoiceAvailability();
   }
 
   function setBusy(busy, message = '') {
     state.busy = Boolean(busy);
-    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear', '#wlp-ai-target-hint-button', '#wlp-ai-task-hint-button', '#wlp-ai-retry-generation', '#wlp-ai-retry-interpreter'].forEach(selector => {
+    if (state.busy) stopAIVoice();
+    ['#wlp-ai-start', '#wlp-ai-submit', '#wlp-ai-no-idea', '#wlp-ai-next', '#wlp-ai-end', '#wlp-ai-reconstruction-undo', '#wlp-ai-reconstruction-clear', '#wlp-ai-target-hint-button', '#wlp-ai-task-hint-button', '#wlp-ai-retry-generation', '#wlp-ai-retry-interpreter', '#wlp-ai-response-voice'].forEach(selector => {
       const el = $(selector);
       if (el) el.disabled = state.busy;
     });
@@ -2494,6 +2733,7 @@
         if (clear) clear.disabled = true;
       }
     }
+    syncAIVoiceAvailability();
     if (message) setStatus(message);
   }
 
@@ -3938,6 +4178,8 @@
   }
 
   function prepareExperienceLoading(message = 'Creating a new AI experience…') {
+    stopAIVoice();
+    hideAIVoiceHelp();
     hideGenerationRetry();
     hideInterpreterRetry();
     const experience = $('#wlp-ai-experience');
@@ -3963,6 +4205,7 @@
     if (responseBox) { responseBox.value = ''; responseBox.disabled = true; }
     const responseField = $('#wlp-ai-response-field');
     if (responseField) responseField.hidden = true;
+    syncAIVoiceAvailability();
     const submit = $('#wlp-ai-submit');
     const noIdea = $('#wlp-ai-no-idea');
     if (submit) submit.hidden = true;
@@ -4052,8 +4295,9 @@
     $('#wlp-ai-no-idea').hidden = false;
     $('#wlp-ai-submit').disabled = Boolean(reconstruction);
     $('#wlp-ai-no-idea').disabled = false;
+    syncAIVoiceAvailability();
     setStatus('');
-    responseBox.focus({ preventScroll: true });
+    if (!responseField.hidden) responseBox.focus({ preventScroll: true });
     $('#wlp-ai-experience').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -4225,6 +4469,7 @@
   }
 
   function renderFeedback(response, committed, turnDiagnostics = {}) {
+    stopAIVoice();
     if (state.assistance) state.assistance.locked = true;
     const selected = state.activePlanner?.result?.response?.selectedTarget || {};
     const target = clean(selected.target);
@@ -4404,6 +4649,7 @@
   }
 
   function finishSession() {
+    stopAIVoice();
     if (!state.session) return;
     const session = state.session;
     $('#wlp-ai-experience').hidden = true;
@@ -4455,6 +4701,8 @@
   }
 
   function resetSession({ focusStart = false, scrollStart = false } = {}) {
+    stopAIVoice();
+    hideAIVoiceHelp();
     state.generationEpoch += 1;
     try { state.generationController?.abort?.(); } catch (_) {}
     state.generationController = null;
@@ -4629,6 +4877,7 @@
     injectUI();
     ensureSessionSizePreferenceUI();
     bindEvents();
+    installAIVoice();
     if (state.mode === 'ai') applySavedAISessionSize();
     else syncAISessionSizePreferenceUI();
     let stored = 'standard';
@@ -4659,6 +4908,7 @@
       runOpenProductionHintSelfTest,
       runClozeHintSelfTest,
       runUniversalSupportSelfTest,
+      runVoiceInputSelfTest,
       runFeedbackLayerSelfTest,
       runExactWIDHookSelfTest,
       armExactWIDTest,
