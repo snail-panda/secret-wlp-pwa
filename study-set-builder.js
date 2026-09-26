@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.140 — Builder readability + results jump. */
+/* WLP Stage 7 v1.8.6.141 — Builder typography hierarchy rebalance. */
 (() => {
   'use strict';
 
@@ -69,20 +69,36 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
 
-  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v140';
+  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v141';
 
   function installReadabilityEnhancements() {
     const main = $('study-set-search-stages')?.closest('main') || document.querySelector('main');
     if (main) {
       main.classList.add('wlp-study-set-builder-readable');
-      const readableStarts = [
-        'Build your set step by step.',
-        'Each Search step searches within the result above it.',
-        'These filters match saved Classification tags'
+
+      const copyRoles = [
+        ['Build your set step by step.', 'study-set-intro-copy'],
+        ['Headword searches the Word field;', 'study-set-scope-guide'],
+        ['Each Search step searches within the result above it.', 'study-set-active-guide'],
+        ['These filters match saved Classification tags', 'study-set-filter-guide']
       ];
       main.querySelectorAll('p, small').forEach(el => {
         const text = clean(el.textContent);
-        if (readableStarts.some(prefix => text.startsWith(prefix))) el.classList.add('study-set-readable-copy');
+        const role = copyRoles.find(([prefix]) => text.startsWith(prefix));
+        if (role) el.classList.add(role[1]);
+      });
+
+      const majorTitles = new Set(['Search & Refine', 'Narrow by Classification', 'Matched Cards']);
+      const minorTitles = new Set(['Active Filters']);
+      main.querySelectorAll('h1, h2, h3').forEach(el => {
+        const text = clean(el.textContent);
+        if (majorTitles.has(text)) el.classList.add('study-set-major-title');
+        else if (minorTitles.has(text)) el.classList.add('study-set-minor-title');
+      });
+
+      const eyebrowLabels = new Set(['PROGRESSIVE SEARCH', 'CURRENT CRITERIA', 'EXACT FILTERS', 'RESULTS']);
+      main.querySelectorAll('span, p, div').forEach(el => {
+        if (!el.children.length && eyebrowLabels.has(clean(el.textContent))) el.classList.add('study-set-static-eyebrow');
       });
     }
 
@@ -101,19 +117,19 @@
         appearance: none;
         border: 0;
         background: transparent;
-        color: #355f4d;
+        color: #426957;
         font: inherit;
-        font-size: .92rem;
-        font-weight: 700;
+        font-size: .88rem;
+        font-weight: 650;
         line-height: 1.25;
-        padding: .38rem .15rem;
+        padding: .32rem .12rem;
         text-decoration: underline;
         text-decoration-thickness: 1px;
         text-underline-offset: .22em;
         cursor: pointer;
       }
       .study-set-results-jump button:hover,
-      .study-set-results-jump button:focus-visible { color: #234b3b; }
+      .study-set-results-jump button:focus-visible { color: #294f3f; }
       .study-set-results-jump button:focus-visible {
         outline: 2px solid currentColor;
         outline-offset: 4px;
@@ -122,112 +138,272 @@
       .study-set-results-anchor-target { scroll-margin-top: 7rem; }
 
       @media (max-width: 820px) {
-        .wlp-study-set-builder-readable .study-set-readable-copy {
-          font-size: 1rem !important;
-          line-height: 1.52 !important;
-          color: #586f64 !important;
-          opacity: 1 !important;
+        /* Level 1: section hierarchy. Keep page title untouched. */
+        .wlp-study-set-builder-readable .study-set-major-title {
+          font-size: 1.24rem !important;
+          line-height: 1.18 !important;
+          font-weight: 750 !important;
+          color: #2f5947 !important;
         }
+        .wlp-study-set-builder-readable .study-set-minor-title {
+          font-size: 1.14rem !important;
+          line-height: 1.2 !important;
+          font-weight: 720 !important;
+          color: #355f4d !important;
+        }
+        .wlp-study-set-builder-readable .study-set-static-eyebrow,
         .wlp-study-set-builder-readable .study-set-kicker {
-          font-size: .79rem !important;
-          color: #5d756a !important;
+          font-size: .72rem !important;
+          line-height: 1.2 !important;
+          font-weight: 700 !important;
+          letter-spacing: .12em !important;
+          color: #6f8378 !important;
           opacity: 1 !important;
         }
-        .wlp-study-set-builder-readable .study-set-search-field > span,
-        .wlp-study-set-builder-readable .study-set-search-scope > span,
-        .wlp-study-set-builder-readable .study-set-search-mode > span {
+        .wlp-study-set-builder-readable #study-set-clear {
+          font-size: .86rem !important;
+          font-weight: 600 !important;
+          color: #5d7166 !important;
+          border-color: rgba(53, 95, 77, .22) !important;
+          opacity: 1 !important;
+        }
+
+        /* Level 2: readable explanatory copy. Bold words keep weight, not extra size. */
+        .wlp-study-set-builder-readable .study-set-intro-copy {
+          font-size: .96rem !important;
+          line-height: 1.5 !important;
+          color: #536b5f !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-scope-guide,
+        .wlp-study-set-builder-readable .study-set-active-guide {
+          font-size: .92rem !important;
+          line-height: 1.46 !important;
+          color: #5b7166 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-filter-guide {
           font-size: .95rem !important;
-          color: #556d61 !important;
+          line-height: 1.48 !important;
+          color: #566e62 !important;
           opacity: 1 !important;
         }
-        .wlp-study-set-builder-readable .study-set-search-mode small {
-          font-size: .91rem !important;
-          line-height: 1.42 !important;
-          color: #657a70 !important;
+        .wlp-study-set-builder-readable .study-set-intro-copy strong,
+        .wlp-study-set-builder-readable .study-set-scope-guide strong,
+        .wlp-study-set-builder-readable .study-set-active-guide strong,
+        .wlp-study-set-builder-readable .study-set-filter-guide strong {
+          font-size: inherit !important;
+          font-weight: 700 !important;
+          color: #355f4d !important;
+        }
+
+        /* Search cards: title first, controls second, helper copy third. */
+        .wlp-study-set-builder-readable .study-set-search-stage h3 {
+          font-size: 1.16rem !important;
+          line-height: 1.2 !important;
+          font-weight: 740 !important;
+          color: #315a49 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-stage-count {
+          display: inline-flex !important;
+          align-items: baseline;
+          gap: .25em;
+          font-size: .81rem !important;
+          font-weight: 400 !important;
+          color: #708278 !important;
           opacity: 1 !important;
         }
-        .wlp-study-set-builder-readable .study-set-search-stage-count,
-        .wlp-study-set-builder-readable .study-set-axis-count,
-        .wlp-study-set-builder-readable .study-set-result-id,
-        .wlp-study-set-builder-readable #study-set-match-count span {
-          font-size: .84rem !important;
-          color: #6a7e73 !important;
-          opacity: 1 !important;
+        .wlp-study-set-builder-readable .study-set-search-stage-count strong {
+          font-size: 1em !important;
+          font-weight: 700 !important;
+          color: #476554 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-stage-count span {
+          font-size: 1em !important;
+          font-weight: 400 !important;
+          color: #75867d !important;
         }
         .wlp-study-set-builder-readable .study-set-search-stage-remove {
-          font-size: .88rem !important;
+          font-size: .84rem !important;
+          font-weight: 600 !important;
         }
+        .wlp-study-set-builder-readable .study-set-search-field > span {
+          font-size: .90rem !important;
+          line-height: 1.35 !important;
+          font-weight: 500 !important;
+          color: #60756a !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-scope > span,
+        .wlp-study-set-builder-readable .study-set-search-mode > span {
+          font-size: .92rem !important;
+          line-height: 1.3 !important;
+          font-weight: 650 !important;
+          color: #526b5e !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-scope select {
+          font-size: .94rem !important;
+          font-weight: 600 !important;
+          color: #436251 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-mode button {
+          font-size: .88rem !important;
+          font-weight: 650 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-mode small {
+          font-size: .85rem !important;
+          line-height: 1.4 !important;
+          color: #6b7f74 !important;
+          opacity: 1 !important;
+        }
+
+        /* Active criteria: readable, but subordinate to the section title. */
         .wlp-study-set-builder-readable .study-set-filter-chip {
-          font-size: .87rem !important;
-          color: #566f63 !important;
+          font-size: .84rem !important;
+          line-height: 1.25 !important;
+          color: #586f63 !important;
           border-color: rgba(53, 95, 77, .24) !important;
           opacity: 1 !important;
         }
+
+        /* Classification: axis title > Suggested Tags > guide > metadata. */
+        .wlp-study-set-builder-readable .study-set-axis h2 {
+          font-size: 1.15rem !important;
+          line-height: 1.2 !important;
+          font-weight: 740 !important;
+          color: #315a49 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-axis-count {
+          display: inline-flex !important;
+          align-items: baseline;
+          gap: .22em;
+          font-size: .79rem !important;
+          font-weight: 400 !important;
+          color: #72847a !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-axis-count strong {
+          font-size: 1em !important;
+          font-weight: 600 !important;
+          color: #5d7467 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-axis-count span {
+          font-size: 1em !important;
+          font-weight: 400 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-axis-search {
+          font-size: .92rem !important;
+          color: #4f685b !important;
+        }
+        .wlp-study-set-builder-readable .study-set-axis-search::placeholder {
+          color: #7b8d83 !important;
+          opacity: 1 !important;
+        }
         .wlp-study-set-builder-readable .study-set-suggestion-guide strong {
-          font-size: 1rem !important;
+          font-size: .97rem !important;
+          line-height: 1.25 !important;
+          font-weight: 700 !important;
+          color: #3d6251 !important;
         }
         .wlp-study-set-builder-readable .study-set-suggestion-guide small {
-          font-size: .95rem !important;
-          line-height: 1.48 !important;
-          color: #5d7368 !important;
+          font-size: .90rem !important;
+          line-height: 1.43 !important;
+          color: #60756a !important;
           opacity: 1 !important;
         }
         .wlp-study-set-builder-readable .study-set-tag {
-          font-size: .96rem !important;
+          min-height: 0 !important;
+          padding: .34rem .68rem !important;
+          font-size: .90rem !important;
+          line-height: 1.22 !important;
         }
         .wlp-study-set-builder-readable .study-set-axis-tag-footer small,
         .wlp-study-set-builder-readable .study-set-axis-empty,
         .wlp-study-set-builder-readable .study-set-result-more {
-          font-size: .88rem !important;
-          line-height: 1.4 !important;
-          color: #697d72 !important;
+          font-size: .83rem !important;
+          line-height: 1.38 !important;
+          color: #6e8176 !important;
           opacity: 1 !important;
         }
         .wlp-study-set-builder-readable .study-set-show-all {
-          font-size: .92rem !important;
+          font-size: .88rem !important;
+          font-weight: 650 !important;
+        }
+
+        /* Results: headword is the card title; definition is readable body copy. */
+        .wlp-study-set-builder-readable #study-set-match-count strong {
+          font-size: 1rem !important;
+          font-weight: 740 !important;
+          color: #355f4d !important;
+        }
+        .wlp-study-set-builder-readable #study-set-match-count span {
+          font-size: .80rem !important;
+          line-height: 1.3 !important;
+          color: #72847a !important;
+          opacity: 1 !important;
         }
         .wlp-study-set-builder-readable #study-set-result-note {
-          font-size: .93rem !important;
-          line-height: 1.45 !important;
-          color: #64796e !important;
+          font-size: .90rem !important;
+          line-height: 1.42 !important;
+          color: #62776c !important;
           opacity: 1 !important;
         }
         .wlp-study-set-builder-readable .study-set-result-word {
-          font-size: 1.08rem !important;
+          font-size: 1.16rem !important;
+          line-height: 1.24 !important;
+          font-weight: 740 !important;
+          color: #315a49 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-result-id {
+          font-size: .78rem !important;
+          line-height: 1.3 !important;
+          color: #718278 !important;
+          opacity: 1 !important;
         }
         .wlp-study-set-builder-readable .study-set-result-definition {
-          font-size: .96rem !important;
-          line-height: 1.5 !important;
+          font-size: .93rem !important;
+          line-height: 1.47 !important;
           color: #566d62 !important;
           opacity: 1 !important;
         }
         .wlp-study-set-builder-readable .study-set-result-match > strong {
-          font-size: .9rem !important;
+          font-size: .84rem !important;
+          line-height: 1.25 !important;
+          font-weight: 740 !important;
+          color: #476655 !important;
         }
         .wlp-study-set-builder-readable .study-set-result-match-stage > span,
         .wlp-study-set-builder-readable .study-set-result-match-stage small {
-          font-size: .88rem !important;
-          line-height: 1.42 !important;
-          color: #5e7469 !important;
+          font-size: .84rem !important;
+          line-height: 1.38 !important;
+          color: #60756a !important;
           opacity: 1 !important;
         }
+        .wlp-study-set-builder-readable .study-set-result-match-stage small b {
+          font-weight: 700 !important;
+          color: #42614f !important;
+        }
         .wlp-study-set-builder-readable .study-set-result-tags span {
-          font-size: .82rem !important;
-          color: #667b70 !important;
+          font-size: .79rem !important;
+          line-height: 1.25 !important;
+          color: #6a7d72 !important;
           opacity: 1 !important;
         }
         .wlp-study-set-builder-readable #study-set-start-note {
-          font-size: .89rem !important;
-          line-height: 1.45 !important;
-          color: #64796e !important;
+          font-size: .86rem !important;
+          line-height: 1.42 !important;
+          color: #687c71 !important;
           opacity: 1 !important;
         }
+
         .study-set-results-jump {
-          margin: .4rem 0 1.05rem;
+          margin: .38rem 0 .9rem;
         }
         .study-set-results-jump button {
-          font-size: .96rem;
-          padding: .48rem .2rem;
+          font-size: .88rem;
+          font-weight: 650;
+          padding: .36rem .15rem;
         }
       }
     `;
@@ -543,12 +719,13 @@
         ? (scope === 'anywhere' ? 'Search All Metadata' : `Search ${scopeLabel}`)
         : `Search within ${snapshot.inputCount.toLocaleString()} cards`;
       const termCount = snapshot.terms.length;
-      const countLabel = termCount ? `${snapshot.count.toLocaleString()} cards` : `${snapshot.inputCount.toLocaleString()} available`;
+      const countValue = termCount ? snapshot.count.toLocaleString() : snapshot.inputCount.toLocaleString();
+      const countUnit = termCount ? 'cards' : 'available';
       const scopeOptions = SEARCH_SCOPES.map(item => `<option value="${esc(item.value)}"${item.value === scope ? ' selected' : ''}>${esc(item.label)}</option>`).join('');
       return `<section class="study-set-search-stage" data-study-set-search-stage="${index}">
         <div class="study-set-search-stage-head">
           <div><span class="study-set-kicker">Search ${index + 1}</span><h3>${esc(title)}</h3></div>
-          <div class="study-set-search-stage-side"><span class="study-set-search-stage-count">${esc(countLabel)}</span>${index > 0 ? `<button type="button" class="study-set-search-stage-remove" data-study-set-search-remove="${index}" aria-label="Remove Search ${index + 1}">Remove</button>` : ''}</div>
+          <div class="study-set-search-stage-side"><span class="study-set-search-stage-count"><strong>${esc(countValue)}</strong><span>${esc(countUnit)}</span></span>${index > 0 ? `<button type="button" class="study-set-search-stage-remove" data-study-set-search-remove="${index}" aria-label="Remove Search ${index + 1}">Remove</button>` : ''}</div>
         </div>
         <label class="study-set-search-field">
           <span>Separate terms with commas.</span>
@@ -598,7 +775,7 @@
       }).join('');
       const showToggle = !query && filtered.length > COLLAPSED_TAG_LIMIT;
       return `<section class="study-set-axis" data-study-set-axis="${esc(axis.field)}">
-        <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count">${tags.length} tag${tags.length === 1 ? '' : 's'}</span></div>
+        <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count"><strong>${tags.length}</strong><span>tag${tags.length === 1 ? '' : 's'}</span></span></div>
         <input class="study-set-axis-search" type="search" autocomplete="off" spellcheck="false" value="${esc(tagQueries[axis.field])}" data-study-set-tag-search="${esc(axis.field)}" placeholder="${esc(axis.placeholder)}" aria-label="${esc(axis.placeholder)}">
         ${tags.length ? `<div class="study-set-suggestion-guide"><strong>Suggested Tags</strong><small>Use the field above to find a tag, or choose below. Tap a tag to cycle: Include (+) → Exclude (−) → Off.</small></div><div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>${showToggle ? `<div class="study-set-axis-tag-footer"><small>${isExpanded ? 'All available tags are shown.' : `Showing ${Math.min(COLLAPSED_TAG_LIMIT, filtered.length)} suggested tags.`}</small><button type="button" class="study-set-show-all" data-study-set-show-all="${esc(axis.field)}">${isExpanded ? 'Show less' : `Show all ${filtered.length}`}</button></div>` : ''}` : '<p class="study-set-axis-empty">No tags are available in this axis yet.</p>'}
         <div class="study-set-axis-mode" ${includeCount > 1 ? '' : 'hidden'}><span>Included tags match:</span><button type="button" data-study-set-mode="any" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'any' ? 'is-active' : ''}">ANY</button><button type="button" data-study-set-mode="all" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'all' ? 'is-active' : ''}">ALL</button></div>
@@ -870,7 +1047,12 @@
 
       const stageCount = searchStageSnapshots[index];
       const countEl = searchInput.closest('.study-set-search-stage')?.querySelector('.study-set-search-stage-count');
-      if (countEl && stageCount) countEl.textContent = searchTerms(searchInput.value).length ? `${stageCount.count.toLocaleString()} cards` : `${stageCount.inputCount.toLocaleString()} available`;
+      if (countEl && stageCount) {
+        const hasTerms = searchTerms(searchInput.value).length > 0;
+        const countValue = hasTerms ? stageCount.count.toLocaleString() : stageCount.inputCount.toLocaleString();
+        const countUnit = hasTerms ? 'cards' : 'available';
+        countEl.innerHTML = `<strong>${countValue}</strong><span>${countUnit}</span>`;
+      }
       const refine = $('study-set-add-refine');
       if (refine) {
         refine.hidden = !searchTerms(searchInput.value).length || !stageCount || stageCount.count === 0;
