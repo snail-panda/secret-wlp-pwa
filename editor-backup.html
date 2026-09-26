@@ -186,6 +186,78 @@
           <section class="backup-status local-restore-status" id="local-restore-status" hidden aria-live="polite"></section>
         </section>
 
+        <section class="backup-panel authoring-transfer-panel" id="learning-sync" aria-label="Learning Sync">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Learning Sync</span>
+              <h2>Merge learning history between devices</h2>
+              <p>Combine Standard Practice, AI Practice, card activity, Review / Progress and learning-state history without replacing the rest of this browser.</p>
+            </div>
+          </div>
+
+          <div class="local-restore-rules" aria-label="Learning Sync rules">
+            <span>History is merged, not replaced</span>
+            <span>Current Review state follows chronology</span>
+            <span>Authoring / Classification stay untouched</span>
+          </div>
+
+          <div class="authoring-transfer-actions">
+            <div class="authoring-transfer-card">
+              <h3>Export Learning Sync</h3>
+              <p>Create a portable learning-history snapshot from this device. Use the same file for manual iPhone ⇄ PC syncing.</p>
+              <button class="backup-secondary-action" id="learning-sync-export" type="button">Export Learning Sync <span>.json</span></button>
+              <small id="learning-sync-export-summary">Checking learning history…</small>
+            </div>
+            <div class="authoring-transfer-card">
+              <h3>Import &amp; Merge</h3>
+              <p>Choose a Learning Sync JSON. Existing Full Local Backup JSON files are also accepted as a learning-history source.</p>
+              <input id="learning-sync-file" type="file" accept=".json,application/json" hidden>
+              <button class="backup-import-button" id="learning-sync-choose" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 20h14"/></svg>
+                <span><strong>Choose Sync File</strong><small>Learning Sync or Full Local Backup .json</small></span>
+              </button>
+            </div>
+          </div>
+
+          <section class="local-restore-preview" id="learning-sync-preview" hidden aria-live="polite">
+            <div class="local-restore-preview-head">
+              <div><span class="editor-tool-kicker">Merge Preview</span><h3 id="learning-sync-file-name">Selected Sync file</h3></div>
+              <button type="button" class="local-restore-clear" id="learning-sync-clear">Clear</button>
+            </div>
+            <div class="local-restore-meta">
+              <span>Exported <strong id="learning-sync-exported">—</strong></span>
+              <span>Source <strong id="learning-sync-source">—</strong></span>
+            </div>
+            <div class="local-restore-counts">
+              <div><strong id="learning-sync-standard-events">0</strong><span>Standard events after merge</span></div>
+              <div><strong id="learning-sync-standard-sessions">0</strong><span>Standard sessions after merge</span></div>
+              <div><strong id="learning-sync-ai-events">0</strong><span>AI events after merge</span></div>
+              <div><strong id="learning-sync-activity-events">0</strong><span>Card activity after merge</span></div>
+              <div><strong id="learning-sync-progress-records">0</strong><span>Progress cards after merge</span></div>
+            </div>
+            <p class="metadata-import-note" id="learning-sync-preview-summary">Compare ready.</p>
+            <p class="local-restore-warning">This merge keeps unique history from both sides. Same-ID revisions use the newer timestamp when available; unresolved same-time conflicts stay on this device. Review / Attention current state is rebuilt from chronological state-changing events where available.</p>
+            <div class="local-restore-actions">
+              <button type="button" class="local-restore-secondary" id="learning-sync-cancel-preview">Clear Preview</button>
+              <button type="button" class="local-restore-primary" id="learning-sync-start">Merge Learning Data</button>
+            </div>
+            <div class="local-restore-confirm" id="learning-sync-confirm" hidden>
+              <strong>Confirm Learning Sync merge?</strong>
+              <span>A rollback copy of the current learning state will be kept on this device. Authoring data and Master TSV are not changed.</span>
+              <div>
+                <button type="button" class="local-restore-secondary" id="learning-sync-confirm-cancel">Cancel</button>
+                <button type="button" class="local-restore-primary" id="learning-sync-confirm-do">Confirm Merge</button>
+              </div>
+            </div>
+          </section>
+
+          <div class="local-restore-undo" id="learning-sync-undo" hidden>
+            <div><strong>Learning Sync rollback available</strong><span>Undo only while no newer learning activity has been recorded after the merge.</span></div>
+            <button type="button" id="learning-sync-undo-button">Undo Last Learning Sync</button>
+          </div>
+          <section class="backup-status local-restore-status" id="learning-sync-status" hidden aria-live="polite"></section>
+        </section>
+
         <section class="backup-panel authoring-transfer-panel" id="authoring-transfer" aria-label="Authoring transfer">
           <div class="backup-panel-head">
             <div>
@@ -556,8 +628,10 @@
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
   <script src="./classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-backup.js?v=20260924-s7-classification-transfer-v186121"></script>
-  <script src="./local-data-safety.js?v=20260924-s7-classification-backup-v186121"></script>
+  <script src="./ai-study-data.js?v=20260927-s7-learning-sync-v186144"></script>
+  <script src="./learning-sync.js?v=20260927-s7-learning-sync-v186144"></script>
+  <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186144"></script>
+  <script src="./local-data-safety.js?v=20260927-s7-learning-sync-v186144"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>

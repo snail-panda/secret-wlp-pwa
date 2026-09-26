@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.121 — Classification transfer + Authoring integration. */
+/* WLP Stage 7 v1.8.6.144 — Learning Sync + Classification / Authoring transfer. */
 (() => {
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
@@ -16,6 +16,8 @@
   const $ = id => document.getElementById(id);
   const isAdmin = () => localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin';
   let masterRows = [];
+  let pendingLearningSyncPlan = null;
+  let pendingLearningSyncFileName = '';
 
   function makeLocalDraftId(){
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `local-${crypto.randomUUID()}`;
@@ -109,6 +111,85 @@
   function dateStamp(){const n=new Date();return [n.getFullYear(),String(n.getMonth()+1).padStart(2,'0'),String(n.getDate()).padStart(2,'0')].join('-');}
   function downloadTSV(text,name){const blob=new Blob(['\uFEFF',text],{type:'text/tab-separated-values;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
   function downloadJSON(value,name){const blob=new Blob([JSON.stringify(value,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
+
+  function learningSyncApi(){const api=window.WLPLearningSync;if(!api)throw new Error('Learning Sync engine is not available.');return api;}
+  function learningSyncShowStatus(text,error=false){const node=$('learning-sync-status');if(!node)return;node.textContent=String(text||'');node.hidden=!text;node.classList.toggle('is-error',Boolean(error));}
+  function learningSyncFormatDate(value){const raw=String(value||'').trim();if(!raw)return'Unknown';const ms=Date.parse(raw);if(!Number.isFinite(ms))return raw;try{return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms));}catch{return raw;}}
+  function learningSyncSourceLabel(plan){if(plan.sourceDeviceId&&plan.sourceDeviceId===plan.currentDeviceId)return'This device';if(plan.sourceDeviceId)return plan.sourceDeviceId;return plan.sourceFormat==='WLP_LOCAL_DATA_BACKUP'?'Full Local Backup':'Unknown device';}
+  function learningSyncUpdateSummary(){
+    const node=$('learning-sync-export-summary');if(!node)return;
+    try{const c=learningSyncApi().currentCounts();node.textContent=`${c.standardEvents} Standard events · ${c.aiEvents} AI events · ${c.progressRecords} Progress cards`;}
+    catch(error){node.textContent=error?.message||'Learning Sync unavailable.';}
+    const undo=$('learning-sync-undo');if(undo){try{undo.hidden=!learningSyncApi().rollbackAvailable();}catch{undo.hidden=true;}}
+  }
+  function clearLearningSyncPreview(){
+    pendingLearningSyncPlan=null;pendingLearningSyncFileName='';
+    const wrap=$('learning-sync-preview');if(wrap)wrap.hidden=true;
+    const confirm=$('learning-sync-confirm');if(confirm)confirm.hidden=true;
+  }
+  function learningSyncStatsText(plan){
+    const s=plan.stats||{};const added=Number(plan.totalAdded)||0,updated=Number(plan.totalUpdated)||0,conflicts=Number(plan.totalConflicts)||0;
+    const truncated=(Number(s.standardEvents?.truncated)||0)+(Number(s.standardSessions?.truncated)||0)+(Number(s.aiEvents?.truncated)||0)+(Number(s.activityEvents?.truncated)||0)+(Number(s.interactionEvents?.truncated)||0);
+    const parts=[`${added} new record${added===1?'':'s'}`,`${updated} merged / newer revision${updated===1?'':'s'}`];
+    if(conflicts)parts.push(`${conflicts} unresolved same-time conflict${conflicts===1?'':'s'} kept on this device`);
+    if(truncated)parts.push(`${truncated} oldest record${truncated===1?'':'s'} outside current history limits`);
+    if(!plan.changed)parts.push('already synchronized');
+    return parts.join(' · ');
+  }
+  function renderLearningSyncPreview(plan,fileName){
+    pendingLearningSyncPlan=plan;pendingLearningSyncFileName=fileName||'Selected Sync file';
+    const wrap=$('learning-sync-preview');if(!wrap)return;wrap.hidden=false;
+    $('learning-sync-file-name').textContent=pendingLearningSyncFileName;
+    $('learning-sync-exported').textContent=learningSyncFormatDate(plan.exportedAt);
+    $('learning-sync-source').textContent=learningSyncSourceLabel(plan);
+    $('learning-sync-standard-events').textContent=String(plan.afterCounts?.standardEvents||0);
+    $('learning-sync-standard-sessions').textContent=String(plan.afterCounts?.standardSessions||0);
+    $('learning-sync-ai-events').textContent=String(plan.afterCounts?.aiEvents||0);
+    $('learning-sync-activity-events').textContent=String(plan.afterCounts?.activityEvents||0);
+    $('learning-sync-progress-records').textContent=String(plan.afterCounts?.progressRecords||0);
+    $('learning-sync-preview-summary').textContent=learningSyncStatsText(plan);
+    const start=$('learning-sync-start');if(start)start.disabled=!plan.changed;
+    const confirm=$('learning-sync-confirm');if(confirm)confirm.hidden=true;
+  }
+  function installLearningSync(){
+    const exportButton=$('learning-sync-export'),choose=$('learning-sync-choose'),file=$('learning-sync-file'),clear=$('learning-sync-clear'),cancelPreview=$('learning-sync-cancel-preview'),start=$('learning-sync-start'),confirmBox=$('learning-sync-confirm'),confirmCancel=$('learning-sync-confirm-cancel'),confirmDo=$('learning-sync-confirm-do'),undo=$('learning-sync-undo-button');
+    exportButton?.addEventListener('click',()=>{
+      try{const snapshot=learningSyncApi().buildSnapshot();downloadJSON(snapshot,`wlp-learning-sync-${dateStamp()}.json`);learningSyncShowStatus(`Learning Sync file ready · ${snapshot.counts.standardEvents} Standard events · ${snapshot.counts.aiEvents} AI events · ${snapshot.counts.progressRecords} Progress cards.`);}
+      catch(error){learningSyncShowStatus(error?.message||String(error),true);}
+    });
+    choose?.addEventListener('click',()=>file?.click());
+    file?.addEventListener('change',async()=>{
+      const selected=file.files?.[0];file.value='';if(!selected)return;
+      try{const payload=JSON.parse(await selected.text());const plan=learningSyncApi().compareSnapshot(payload);renderLearningSyncPreview(plan,selected.name||'Selected Sync file');learningSyncShowStatus(`Compare ready · ${learningSyncStatsText(plan)}`);}
+      catch(error){clearLearningSyncPreview();learningSyncShowStatus(`Could not compare this Sync file. ${error?.message||String(error)}`,true);}
+    });
+    clear?.addEventListener('click',()=>{clearLearningSyncPreview();learningSyncShowStatus('Learning Sync preview cleared.');});
+    cancelPreview?.addEventListener('click',()=>{clearLearningSyncPreview();learningSyncShowStatus('Learning Sync preview cleared.');});
+    start?.addEventListener('click',()=>{if(!pendingLearningSyncPlan?.changed)return;if(confirmBox)confirmBox.hidden=false;});
+    confirmCancel?.addEventListener('click',()=>{if(confirmBox)confirmBox.hidden=true;});
+    confirmDo?.addEventListener('click',()=>{
+      if(!pendingLearningSyncPlan)return;
+      try{
+        const result=learningSyncApi().applyMerge(pendingLearningSyncPlan);
+        if(confirmBox)confirmBox.hidden=true;
+        const counts=result.counts||learningSyncApi().currentCounts();
+        clearLearningSyncPreview();syncSummary();window.WLPLocalDataSafety?.render?.();learningSyncUpdateSummary();
+        learningSyncShowStatus(`Learning Sync complete · ${counts.standardEvents} Standard events · ${counts.aiEvents} AI events · ${counts.activityEvents} Card activity events · ${counts.progressRecords} Progress cards.`);
+      }catch(error){if(confirmBox)confirmBox.hidden=true;learningSyncShowStatus(error?.message||String(error),true);}
+    });
+    undo?.addEventListener('click',()=>{
+      if(undo.dataset.confirm!=='yes'){
+        undo.dataset.confirm='yes';const old=undo.textContent;undo.dataset.oldLabel=old;undo.textContent='Confirm Undo Learning Sync';
+        setTimeout(()=>{if(undo.dataset.confirm==='yes'){delete undo.dataset.confirm;undo.textContent=undo.dataset.oldLabel||'Undo Last Learning Sync';delete undo.dataset.oldLabel;}},5000);return;
+      }
+      try{
+        const result=learningSyncApi().undoLastMerge();delete undo.dataset.confirm;undo.textContent=undo.dataset.oldLabel||'Undo Last Learning Sync';delete undo.dataset.oldLabel;
+        syncSummary();window.WLPLocalDataSafety?.render?.();learningSyncUpdateSummary();learningSyncShowStatus(`Previous learning state restored · ${result.counts.standardEvents} Standard events · ${result.counts.aiEvents} AI events · ${result.counts.progressRecords} Progress cards.`);
+      }catch(error){learningSyncShowStatus(error?.message||String(error),true);}
+    });
+    learningSyncUpdateSummary();
+  }
+
   const DRAFT_COMPARE_FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   function draftFingerprint(value){const d=normalizeDraft(value);return DRAFT_COMPARE_FIELDS.map(f=>String(d[f]||'').trim()).join('\u241F');}
   function importedRowToDraft(row,existing=null){
@@ -403,7 +484,8 @@
     writeDrafts(plan.next);syncSummary();showStatus(`Import complete · ${plan.added} added · ${plan.updated} updated · ${plan.unchanged} unchanged skipped`);clearImportPreview();
   });
 
-  async function init(){syncSummary();try{await loadMaster();syncSummary();}catch(error){showStatus(error?.message||String(error),true);const button=$('deck-export-entire');if(button)button.disabled=true;}}
-  window.addEventListener('pageshow',()=>{syncSummary();});window.addEventListener('focus',syncSummary);window.addEventListener('storage',event=>{if([LOCAL_ADDITIONS_KEY,LOCAL_OVERRIDES_KEY,window.WLPLearningHooks?.STORAGE_KEY,window.WLPLearningHooks?.LEGACY_STORAGE_KEY,window.WLPLearningHooks?.MERGE_ROLLBACK_KEY,window.WLPClassificationMetadata?.STORAGE_KEY,window.WLPClassificationMetadata?.MERGE_ROLLBACK_KEY,AUTHORING_ROLLBACK_KEY].includes(event.key))syncSummary();});window.addEventListener('wlp-learning-hooks-changed',syncSummary);window.addEventListener('wlp-classification-metadata-changed',syncSummary);
+  async function init(){syncSummary();installLearningSync();try{await loadMaster();syncSummary();}catch(error){showStatus(error?.message||String(error),true);const button=$('deck-export-entire');if(button)button.disabled=true;}}
+  const refreshBackupSummaries=()=>{syncSummary();learningSyncUpdateSummary();};
+  window.addEventListener('pageshow',refreshBackupSummaries);window.addEventListener('focus',refreshBackupSummaries);window.addEventListener('storage',event=>{if(!event.key||event.key.startsWith('fc:wordid:')||event.key.startsWith('wlp:'))refreshBackupSummaries();});window.addEventListener('wlp-learning-hooks-changed',refreshBackupSummaries);window.addEventListener('wlp-classification-metadata-changed',refreshBackupSummaries);
   init();
 })();

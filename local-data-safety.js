@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.121 — Classification-aware local backup safety. */
+/* WLP Stage 7 v1.8.6.144 — Learning Sync rollback-safe local backup safety. */
 (() => {
   'use strict';
 
@@ -8,6 +8,7 @@
   const LEGACY_LEARNING_META_KEY = 'wlp:learning-meta:v1';
   const CLASSIFICATION_KEY = 'wlp:classification-meta:v1';
   const CLASSIFICATION_MERGE_ROLLBACK_KEY = 'wlp:classification-meta:merge-rollback:v1';
+  const LEARNING_SYNC_ROLLBACK_KEY = 'wlp:learning-sync-rollback:v1';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
   const METADATA_MERGE_ROLLBACK_KEY = 'wlp:learning-meta:merge-rollback:v1';
   const BACKUP_META_KEY = 'wlp:local-data-backup-meta:v1';
@@ -164,7 +165,7 @@
 
   function isBackupKey(key) {
     if (!key) return false;
-    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY || key === DEVICE_ID_KEY || key === METADATA_MERGE_ROLLBACK_KEY || key === CLASSIFICATION_MERGE_ROLLBACK_KEY) return false;
+    if (key === BACKUP_META_KEY || key === ROLE_KEY || key === SESSION_ADMIN_KEY || key === RESTORE_ROLLBACK_KEY || key === DEVICE_ID_KEY || key === METADATA_MERGE_ROLLBACK_KEY || key === CLASSIFICATION_MERGE_ROLLBACK_KEY || key === LEARNING_SYNC_ROLLBACK_KEY) return false;
     return key.startsWith('wlp:') || key.startsWith(PROGRESS_PREFIX);
   }
 
@@ -416,6 +417,7 @@
       // metadata-merge rollback would no longer describe the active branch.
       localStorage.removeItem(METADATA_MERGE_ROLLBACK_KEY);
       localStorage.removeItem(CLASSIFICATION_MERGE_ROLLBACK_KEY);
+      localStorage.removeItem(LEARNING_SYNC_ROLLBACK_KEY);
     } catch (error) {
       try { writeManagedSnapshot(currentBackup); } catch {}
       throw new Error(`Restore could not be completed safely: ${error?.message || 'storage write failed'}`);
@@ -450,6 +452,7 @@
     const backup = rollback.backup;
 
     writeManagedSnapshot(backup);
+    localStorage.removeItem(LEARNING_SYNC_ROLLBACK_KEY);
 
     const restoredSummary = summaryFromStorage(backup.storage);
     localStorage.setItem(BACKUP_META_KEY, JSON.stringify({
