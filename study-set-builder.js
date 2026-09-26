@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.139 — Study Set Builder POS scope + single-card view. */
+/* WLP Stage 7 v1.8.6.140 — Builder readability + results jump. */
 (() => {
   'use strict';
 
@@ -68,6 +68,208 @@
   const fold = value => clean(value).toLocaleLowerCase('en-US');
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+
+  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v140';
+
+  function installReadabilityEnhancements() {
+    const main = $('study-set-search-stages')?.closest('main') || document.querySelector('main');
+    if (main) {
+      main.classList.add('wlp-study-set-builder-readable');
+      const readableStarts = [
+        'Build your set step by step.',
+        'Each Search step searches within the result above it.',
+        'These filters match saved Classification tags'
+      ];
+      main.querySelectorAll('p, small').forEach(el => {
+        const text = clean(el.textContent);
+        if (readableStarts.some(prefix => text.startsWith(prefix))) el.classList.add('study-set-readable-copy');
+      });
+    }
+
+    if ($(READABILITY_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = READABILITY_STYLE_ID;
+    style.textContent = `
+      .study-set-results-jump {
+        display: flex;
+        justify-content: flex-end;
+        margin: .25rem 0 1rem;
+        padding: 0 .15rem;
+      }
+      .study-set-results-jump[hidden] { display: none !important; }
+      .study-set-results-jump button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: #355f4d;
+        font: inherit;
+        font-size: .92rem;
+        font-weight: 700;
+        line-height: 1.25;
+        padding: .38rem .15rem;
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: .22em;
+        cursor: pointer;
+      }
+      .study-set-results-jump button:hover,
+      .study-set-results-jump button:focus-visible { color: #234b3b; }
+      .study-set-results-jump button:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 4px;
+        border-radius: .25rem;
+      }
+      .study-set-results-anchor-target { scroll-margin-top: 7rem; }
+
+      @media (max-width: 820px) {
+        .wlp-study-set-builder-readable .study-set-readable-copy {
+          font-size: 1rem !important;
+          line-height: 1.52 !important;
+          color: #586f64 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-kicker {
+          font-size: .79rem !important;
+          color: #5d756a !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-field > span,
+        .wlp-study-set-builder-readable .study-set-search-scope > span,
+        .wlp-study-set-builder-readable .study-set-search-mode > span {
+          font-size: .95rem !important;
+          color: #556d61 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-mode small {
+          font-size: .91rem !important;
+          line-height: 1.42 !important;
+          color: #657a70 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-stage-count,
+        .wlp-study-set-builder-readable .study-set-axis-count,
+        .wlp-study-set-builder-readable .study-set-result-id,
+        .wlp-study-set-builder-readable #study-set-match-count span {
+          font-size: .84rem !important;
+          color: #6a7e73 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-stage-remove {
+          font-size: .88rem !important;
+        }
+        .wlp-study-set-builder-readable .study-set-filter-chip {
+          font-size: .87rem !important;
+          color: #566f63 !important;
+          border-color: rgba(53, 95, 77, .24) !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-suggestion-guide strong {
+          font-size: 1rem !important;
+        }
+        .wlp-study-set-builder-readable .study-set-suggestion-guide small {
+          font-size: .95rem !important;
+          line-height: 1.48 !important;
+          color: #5d7368 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-tag {
+          font-size: .96rem !important;
+        }
+        .wlp-study-set-builder-readable .study-set-axis-tag-footer small,
+        .wlp-study-set-builder-readable .study-set-axis-empty,
+        .wlp-study-set-builder-readable .study-set-result-more {
+          font-size: .88rem !important;
+          line-height: 1.4 !important;
+          color: #697d72 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-show-all {
+          font-size: .92rem !important;
+        }
+        .wlp-study-set-builder-readable #study-set-result-note {
+          font-size: .93rem !important;
+          line-height: 1.45 !important;
+          color: #64796e !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-result-word {
+          font-size: 1.08rem !important;
+        }
+        .wlp-study-set-builder-readable .study-set-result-definition {
+          font-size: .96rem !important;
+          line-height: 1.5 !important;
+          color: #566d62 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-result-match > strong {
+          font-size: .9rem !important;
+        }
+        .wlp-study-set-builder-readable .study-set-result-match-stage > span,
+        .wlp-study-set-builder-readable .study-set-result-match-stage small {
+          font-size: .88rem !important;
+          line-height: 1.42 !important;
+          color: #5e7469 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-result-tags span {
+          font-size: .82rem !important;
+          color: #667b70 !important;
+          opacity: 1 !important;
+        }
+        .wlp-study-set-builder-readable #study-set-start-note {
+          font-size: .89rem !important;
+          line-height: 1.45 !important;
+          color: #64796e !important;
+          opacity: 1 !important;
+        }
+        .study-set-results-jump {
+          margin: .4rem 0 1.05rem;
+        }
+        .study-set-results-jump button {
+          font-size: .96rem;
+          padding: .48rem .2rem;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureResultsJump() {
+    const axisRoot = $('study-set-axis-list');
+    if (!axisRoot) return null;
+    let jump = $('study-set-results-jump');
+    if (!jump) {
+      jump = document.createElement('div');
+      jump.id = 'study-set-results-jump';
+      jump.className = 'study-set-results-jump';
+      jump.innerHTML = '<button type="button" data-study-set-jump-results aria-controls="study-set-results">View matched cards ↓</button>';
+      jump.hidden = true;
+      const heading = [...document.querySelectorAll('h1, h2, h3')].find(el => clean(el.textContent) === 'Narrow by Classification');
+      const classificationSection = heading?.closest('section') || axisRoot.closest('section');
+      if (classificationSection?.parentNode) classificationSection.parentNode.insertBefore(jump, classificationSection);
+      else axisRoot.parentNode?.insertBefore(jump, axisRoot);
+    }
+    return jump;
+  }
+
+  function updateResultsJump() {
+    const jump = ensureResultsJump();
+    if (!jump) return;
+    const button = jump.querySelector('[data-study-set-jump-results]');
+    const available = hasCriteria() && currentMatches.length > 0;
+    jump.hidden = !available;
+    if (!button) return;
+    button.textContent = `View ${currentMatches.length.toLocaleString()} matched ${currentMatches.length === 1 ? 'card' : 'cards'} ↓`;
+    button.setAttribute('aria-label', `View ${currentMatches.length.toLocaleString()} matched ${currentMatches.length === 1 ? 'card' : 'cards'}`);
+  }
+
+  function jumpToResults() {
+    const target = $('study-set-match-count')?.closest('section') || $('study-set-results');
+    if (!target) return;
+    target.classList.add('study-set-results-anchor-target');
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({behavior: reduceMotion ? 'auto' : 'smooth', block: 'start'});
+  }
 
   function blankAxis() { return {include:[], exclude:[], mode:'any'}; }
   function blankSearchStage() { return {query:'', mode:'all', scope:'anywhere'}; }
@@ -456,6 +658,7 @@
       start.textContent = 'Study These Cards';
       practice.textContent = 'Use in Practice';
       startNote.textContent = 'Choose at least one search term or filter. The temporary set stays separate from your Master and saved Classification Metadata.';
+      updateResultsJump();
       return;
     }
 
@@ -483,6 +686,7 @@
     startNote.textContent = currentMatches.length
       ? 'Study opens the matched cards directly. Practice uses this same temporary set as the source for Standard Practice or AI Practice.'
       : 'Adjust the filters to get at least one matched card.';
+    updateResultsJump();
   }
 
   function renderAll() {
@@ -563,7 +767,11 @@
     }
   }
 
+  installReadabilityEnhancements();
+  ensureResultsJump();
+
   $('study-set-clear')?.addEventListener('click', clearAll);
+  document.querySelector('[data-study-set-jump-results]')?.addEventListener('click', jumpToResults);
   $('study-set-add-refine')?.addEventListener('click', () => {
     const last = searchStageSnapshots[searchStageSnapshots.length - 1];
     if (!last || !last.terms.length || last.count === 0) return;
