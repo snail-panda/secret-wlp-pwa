@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.132 — scoped progressive search for Study Set Builder. */
+/* WLP Stage 7 v1.8.6.139 — Study Set Builder POS scope + single-card view. */
 (() => {
   'use strict';
 
@@ -20,6 +20,7 @@
   const SEARCH_SCOPES = [
     {value:'anywhere', label:'Anywhere'},
     {value:'headword', label:'Headword'},
+    {value:'part-of-speech', label:'Part of Speech'},
     {value:'synonyms', label:'Synonyms'},
     {value:'card-content', label:'Card Content'},
     {value:'classification', label:'Classification'}
@@ -202,7 +203,9 @@
   function scopedSearchableFields(row, record, scope) {
     const normalized = normalizedSearchScope(scope);
     const fields = searchableFields(row, record);
-    return normalized === 'anywhere' ? fields : fields.filter(field => field.group === normalized);
+    if (normalized === 'anywhere') return fields;
+    if (normalized === 'part-of-speech') return fields.filter(field => field.label === 'Part of Speech');
+    return fields.filter(field => field.group === normalized);
   }
 
   function searchTerms(query) {
@@ -424,6 +427,16 @@
     return AXES.flatMap(axis => (record[axis.field] || []).map(tag => ({axis:axis.title, tag})));
   }
 
+  function cardHrefForRow(row) {
+    const params = new URLSearchParams();
+    params.set('batch', String(Number(row?.['Batch #']) || row?.['Batch #']).padStart(3, '0'));
+    params.set('wordid', clean(row?.WordID));
+    params.set('solo', '1');
+    params.set('from', 'study-set');
+    params.set('return', '../../study-set-builder.html');
+    return `./flashcards/wlp/batch.html?${params.toString()}`;
+  }
+
   function renderResults() {
     const count = $('study-set-match-count');
     const note = $('study-set-result-note');
@@ -454,7 +467,8 @@
       const tags = classificationTags(record).slice(0, 8);
       const reasons = matchReasonForRow(row);
       const reasonHtml = reasons.length ? `<div class="study-set-result-match"><strong>Why it matched</strong>${reasons.map(reason => `<div class="study-set-result-match-stage"><span>Search ${reason.index + 1}</span>${reason.matchedTerms.map(item => { const shown = item.locations.slice(0,3); const extra = item.locations.length > 3 ? ` +${item.locations.length - 3}` : ''; return `<small><b>${esc(item.term)}</b> → ${esc(shown.join(' · '))}${extra}</small>`; }).join('')}</div>`).join('')}</div>` : '';
-      return `<article class="study-set-result">
+      const cardHref = cardHrefForRow(row);
+      return `<article class="study-set-result" data-study-set-view-card="${esc(cardHref)}" tabindex="0" role="link" aria-label="View card: ${esc(row.Word || '(untitled)')}">
         <div class="study-set-result-top"><span class="study-set-result-word">${esc(row.Word || '(untitled)')}</span><span class="study-set-result-id">WID${esc(row.WordID)} · WLP${esc(String(Number(row['Batch #']) || row['Batch #']).padStart(3,'0'))}</span></div>
         ${clean(row.Definition) ? `<p class="study-set-result-definition">${esc(clean(row.Definition).slice(0,220))}${clean(row.Definition).length > 220 ? '…' : ''}</p>` : ''}
         ${reasonHtml}
@@ -565,6 +579,11 @@
   $('study-set-use-practice')?.addEventListener('click', useStudySetInPractice);
 
   document.addEventListener('click', event => {
+    const resultCard = event.target.closest('[data-study-set-view-card]');
+    if (resultCard && !event.target.closest('a,button,input,select,textarea,label')) {
+      location.href = resultCard.getAttribute('data-study-set-view-card');
+      return;
+    }
     const searchMode = event.target.closest('[data-study-set-search-mode]');
     if (searchMode) {
       const index = Number(searchMode.getAttribute('data-study-set-search-mode-index'));
@@ -602,6 +621,13 @@
     }
     const mode = event.target.closest('[data-study-set-mode]');
     if (mode) setAxisMode(mode.getAttribute('data-study-set-mode-field'), mode.getAttribute('data-study-set-mode'));
+  });
+
+  document.addEventListener('keydown', event => {
+    const resultCard = event.target.closest?.('[data-study-set-view-card]');
+    if (!resultCard || event.target !== resultCard || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    location.href = resultCard.getAttribute('data-study-set-view-card');
   });
 
   document.addEventListener('change', event => {
