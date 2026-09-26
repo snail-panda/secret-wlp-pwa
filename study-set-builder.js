@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.141 — Builder typography hierarchy rebalance. */
+/* WLP Stage 7 v1.8.6.142 — Builder input sizing + Safari focus stability. */
 (() => {
   'use strict';
 
@@ -69,7 +69,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
 
-  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v141';
+  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v142';
 
   function installReadabilityEnhancements() {
     const main = $('study-set-search-stages')?.closest('main') || document.querySelector('main');
@@ -234,6 +234,14 @@
           color: #60756a !important;
           opacity: 1 !important;
         }
+        .wlp-study-set-builder-readable .study-set-search-field input {
+          font-size: 1.04rem !important;
+          line-height: 1.35 !important;
+          color: #405f50 !important;
+        }
+        .wlp-study-set-builder-readable .study-set-search-field input::placeholder {
+          font-size: 1em !important;
+        }
         .wlp-study-set-builder-readable .study-set-search-scope > span,
         .wlp-study-set-builder-readable .study-set-search-mode > span {
           font-size: .92rem !important;
@@ -293,7 +301,7 @@
           font-weight: 400 !important;
         }
         .wlp-study-set-builder-readable .study-set-axis-search {
-          font-size: .92rem !important;
+          font-size: .95rem !important;
           color: #4f685b !important;
         }
         .wlp-study-set-builder-readable .study-set-axis-search::placeholder {
@@ -387,7 +395,7 @@
         .wlp-study-set-builder-readable .study-set-result-tags span {
           font-size: .79rem !important;
           line-height: 1.25 !important;
-          color: #6a7d72 !important;
+          color: #566f62 !important;
           opacity: 1 !important;
         }
         .wlp-study-set-builder-readable #study-set-start-note {
@@ -753,6 +761,42 @@
     }
   }
 
+  function updateSearchStageSummaries() {
+    state.searchStages.forEach((stage, index) => {
+      const stageEl = document.querySelector(`[data-study-set-search-stage="${index}"]`);
+      if (!stageEl) return;
+      const snapshot = searchStageSnapshots[index] || {
+        inputCount: index ? (searchStageSnapshots[index - 1]?.count || rows.length) : rows.length,
+        count: rows.length,
+        terms: searchTerms(stage.query)
+      };
+      const scope = normalizedSearchScope(stage.scope);
+      const scopeLabel = searchScopeLabel(scope);
+      const title = index === 0
+        ? (scope === 'anywhere' ? 'Search All Metadata' : `Search ${scopeLabel}`)
+        : `Search within ${snapshot.inputCount.toLocaleString()} cards`;
+      const heading = stageEl.querySelector('h3');
+      if (heading) heading.textContent = title;
+
+      const hasTerms = snapshot.terms.length > 0;
+      const countEl = stageEl.querySelector('.study-set-search-stage-count');
+      if (countEl) {
+        const countValue = hasTerms ? snapshot.count.toLocaleString() : snapshot.inputCount.toLocaleString();
+        const countUnit = hasTerms ? 'cards' : 'available';
+        countEl.innerHTML = `<strong>${countValue}</strong><span>${countUnit}</span>`;
+      }
+    });
+
+    const lastIndex = state.searchStages.length - 1;
+    const lastSnapshot = searchStageSnapshots[lastIndex];
+    const lastHasTerms = searchTerms(state.searchStages[lastIndex]?.query).length > 0;
+    const refine = $('study-set-add-refine');
+    if (refine) {
+      refine.hidden = !lastHasTerms || !lastSnapshot || lastSnapshot.count === 0;
+      refine.textContent = lastSnapshot ? `+ Refine these ${lastSnapshot.count.toLocaleString()} cards` : '+ Refine these cards';
+    }
+  }
+
   function renderAxes() {
     const root = $('study-set-axis-list');
     if (!root || !api) return;
@@ -1035,29 +1079,9 @@
       computeMatches();
       renderActiveFilters();
       renderResults();
-
-      if (index < state.searchStages.length - 1) {
-        renderSearchStages();
-        requestAnimationFrame(() => {
-          const next = document.querySelector(`[data-study-set-search-input="${index}"]`);
-          if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
-        });
-        return;
-      }
-
-      const stageCount = searchStageSnapshots[index];
-      const countEl = searchInput.closest('.study-set-search-stage')?.querySelector('.study-set-search-stage-count');
-      if (countEl && stageCount) {
-        const hasTerms = searchTerms(searchInput.value).length > 0;
-        const countValue = hasTerms ? stageCount.count.toLocaleString() : stageCount.inputCount.toLocaleString();
-        const countUnit = hasTerms ? 'cards' : 'available';
-        countEl.innerHTML = `<strong>${countValue}</strong><span>${countUnit}</span>`;
-      }
-      const refine = $('study-set-add-refine');
-      if (refine) {
-        refine.hidden = !searchTerms(searchInput.value).length || !stageCount || stageCount.count === 0;
-        if (stageCount) refine.textContent = `+ Refine these ${stageCount.count.toLocaleString()} cards`;
-      }
+      // Keep the active input node intact while typing. Replacing the Search-stage
+      // DOM here causes iPhone Safari to drop focus and dismiss the software keyboard.
+      updateSearchStageSummaries();
       return;
     }
 
