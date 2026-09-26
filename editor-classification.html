@@ -36,6 +36,13 @@
       margin:0!important;
     }
   </style>
+  <style id="classification-import-styles">
+    .classification-import-card{margin:0 0 1rem;padding:1rem;border:1px solid rgba(71,101,79,.18);border-radius:18px;background:rgba(255,255,255,.58);box-shadow:0 8px 22px rgba(50,72,57,.05)}
+    .classification-import-head{display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.classification-import-head h2{margin:.12rem 0 .22rem;font-size:1.05rem}.classification-import-head p{margin:0;max-width:56rem;color:var(--ink-muted,#66736b);font-size:.88rem;line-height:1.45}.classification-import-kicker{display:block;color:#61766a;font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    .classification-import-actions{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.85rem}.classification-import-actions button{appearance:none;border:1px solid rgba(71,101,79,.26);border-radius:999px;background:#fff;color:#315f49;padding:.58rem .9rem;font:inherit;font-size:.84rem;font-weight:650;cursor:pointer}.classification-import-actions button.primary{background:#315f49;color:#fff;border-color:#315f49}.classification-import-actions button:disabled{opacity:.45;cursor:default}
+    .classification-import-preview{margin-top:1rem;padding-top:.9rem;border-top:1px solid rgba(71,101,79,.13)}.classification-import-file{margin:0 0 .7rem;font-size:.83rem;color:#56685e;overflow-wrap:anywhere}.classification-import-counts{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.45rem}.classification-import-counts div{padding:.58rem .35rem;border:1px solid rgba(71,101,79,.12);border-radius:12px;background:rgba(247,250,247,.8);text-align:center}.classification-import-counts strong{display:block;font-size:1rem}.classification-import-counts span{display:block;margin-top:.1rem;color:#6d786f;font-size:.65rem;line-height:1.15}.classification-import-note,.classification-import-status{margin:.72rem 0 0;color:#5f6d64;font-size:.8rem;line-height:1.4}.classification-import-status.is-error{color:#8b3d35}
+    @media(max-width:640px){.classification-import-counts{grid-template-columns:repeat(3,minmax(0,1fr))}.classification-import-actions button{flex:1 1 auto}}
+  </style>
 </head>
 <body class="app-body editor-page editor-local-edits-page classification-page stage7-bottom-nav-page">
   <div class="app-shell">
@@ -85,6 +92,37 @@
       </section>
 
       <div class="editor-workspace" id="editor-workspace">
+        <section class="classification-import-card" aria-label="Classification JSON import">
+          <div class="classification-import-head">
+            <div>
+              <span class="classification-import-kicker">Classification Transfer</span>
+              <h2>Import Classification JSON</h2>
+              <p>Preview and safely merge Classification Metadata only. Master cards, Learning Metadata, Draft content, Progress, and Review data are not changed.</p>
+            </div>
+          </div>
+          <input id="classification-import-file" type="file" accept=".json,application/json" hidden>
+          <div class="classification-import-actions">
+            <button class="primary" id="classification-import-button" type="button">Choose Classification JSON</button>
+            <button id="classification-import-undo" type="button" hidden>Undo Last Import</button>
+          </div>
+          <div class="classification-import-preview" id="classification-import-preview" hidden aria-live="polite">
+            <p class="classification-import-file" id="classification-import-file-name">Selected Classification JSON</p>
+            <div class="classification-import-counts">
+              <div><strong id="classification-import-new">0</strong><span>New</span></div>
+              <div><strong id="classification-import-newer">0</strong><span>Incoming newer</span></div>
+              <div><strong id="classification-import-same">0</strong><span>Same</span></div>
+              <div><strong id="classification-import-local-newer">0</strong><span>This device newer</span></div>
+              <div><strong id="classification-import-conflicts">0</strong><span>Conflicts</span></div>
+              <div><strong id="classification-import-skipped">0</strong><span>Skipped</span></div>
+            </div>
+            <p class="classification-import-note" id="classification-import-note">New and newer incoming records can merge automatically. Newer local records and unresolved conflicts stay on this device.</p>
+            <div class="classification-import-actions">
+              <button id="classification-import-clear" type="button">Clear</button>
+              <button class="primary" id="classification-import-continue" type="button">Import Safe Changes</button>
+            </div>
+          </div>
+          <p class="classification-import-status" id="classification-import-status" hidden></p>
+        </section>
         <div class="classification-toolbar">
           <div class="classification-search-wrap">
             <input class="classification-search" id="classification-search" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search word, phrase, WID312, or 312…" aria-label="Search cards for Classification">
@@ -165,8 +203,8 @@
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./classification-metadata.js?v=20260924-s7-classification-v186118"></script>
-  <script src="./editor-classification.js?v=20260924-s7-classification-v186120"></script>
+  <script src="./classification-metadata.js?v=20260926-s7-classification-v186138"></script>
+  <script src="./editor-classification.js?v=20260926-s7-classification-v186138"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

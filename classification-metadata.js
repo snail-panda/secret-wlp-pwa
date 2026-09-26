@@ -1,14 +1,13 @@
-/* WLP Stage 7 v1.8.6.121 — Classification Metadata v1 transfer + merge support. */
+/* WLP Stage 7 v1.8.6.138 — Classification Metadata v1 + safe snapshot import. */
 (() => {
   'use strict';
 
   const STORAGE_KEY = 'wlp:classification-meta:v1';
   const EVENT_NAME = 'wlp-classification-metadata-changed';
   const VERSION = 1;
+  const FORMAT = 'WLP_CLASSIFICATION_METADATA_V1';
+  const ROLLBACK_KEY = 'wlp:classification-import-rollback:v1';
   const ARRAY_FIELDS = ['entryTypes', 'usageTags', 'topicTags', 'discoveryTags'];
-  const PORTABLE_FORMAT = 'WLP_CLASSIFICATION_METADATA_V1';
-  const MERGE_ROLLBACK_KEY = 'wlp:classification-meta:merge-rollback:v1';
-  const DEVICE_ID_KEY = 'wlp:device-id:v1';
 
   const cleanTag = value => String(value ?? '').replace(/\s+/g, ' ').trim();
   const fold = value => cleanTag(value).toLocaleLowerCase('en-US');
@@ -48,7 +47,7 @@
         : parsed;
       const records = {};
       Object.entries(rawRecords).forEach(([key, value]) => {
-        if (!/^(?:wid|draft):/.test(key) || !value || typeof value !== 'object' || Array.isArray(value)) return;
+        if (!/^wid:|^draft:/.test(key) || !value || typeof value !== 'object' || Array.isArray(value)) return;
         records[key] = normalizeRecord(value);
       });
       return {version: VERSION, records};
@@ -116,6 +115,150 @@
     return true;
   }
 
+
+  function contentEqual(a = {}, b = {}) {
+    return ARRAY_FIELDS.every(field => {
+      const left = uniqueTags(a?.[field]);
+      const right = uniqueTags(b?.[field]);
+      return left.length === right.length && left.every((value, index) => fold(value) === fold(right[index]));
+    });
+  }
+
+  function portableSnapshot() {
+    return {
+      format: FORMAT,
+      schemaVersion: VERSION,
+      exportedAt: new Date().toISOString(),
+      records: all()
+    };
+  }
+
+  function normalizePortableSnapshot(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Classification JSON must be an object.');
+    if (cleanTag(payload.format) !== FORMAT) throw new Error('This is not a WLP Classification Metadata JSON.');
+    if (Number(payload.schemaVersion) !== VERSION) throw new Error(`Unsupported Classification schema version: ${payload.schemaVersion ?? 'unknown'}.`);
+    if (!payload.records || typeof payload.records !== 'object' || Array.isArray(payload.records)) throw new Error('Classification JSON has no records object.');
+
+    const records = {};
+    let invalid = 0;
+    Object.entries(payload.records).forEach(([rawKey, rawRecord]) => {
+      const key = String(rawKey || '').trim();
+      if (!/^(?:wid|draft):/.test(key) || !rawRecord || typeof rawRecord !== 'object' || Array.isArray(rawRecord)) { invalid++; return; }
+      const record = normalizeRecord(rawRecord);
+      if (key.startsWith('wid:')) {
+        const id = cleanTag(rawRecord.wordId || key.slice(4));
+        if (!id || key !== `wid:${id}`) { invalid++; return; }
+        record.wordId = id;
+        delete record.localDraftId;
+      } else {
+        const id = cleanTag(rawRecord.localDraftId || key.slice(6));
+        if (!id || key !== `draft:${id}`) { invalid++; return; }
+        record.localDraftId = id;
+        delete record.wordId;
+      }
+      if (!hasClassification(record)) { invalid++; return; }
+      records[key] = record;
+    });
+    return {
+      format: FORMAT,
+      schemaVersion: VERSION,
+      exportedAt: cleanTag(payload.exportedAt),
+      sourceDeviceId: cleanTag(payload.sourceDeviceId),
+      records,
+      invalid
+    };
+  }
+
+  function comparePortableSnapshot(payload, options = {}) {
+    const snapshot = normalizePortableSnapshot(payload);
+    const state = readState();
+    const allowedInput = Array.isArray(options.allowedKeys) ? options.allowedKeys : [];
+    const allowed = allowedInput.length ? new Set(allowedInput.map(value => String(value || '').trim())) : null;
+    const counts = {incoming:0, new:0, incomingNewer:0, same:0, localNewer:0, conflict:0, unknown:0, invalid:snapshot.invalid};
+    const items = [];
+
+    Object.entries(snapshot.records).forEach(([key, incoming]) => {
+      counts.incoming++;
+      if (allowed && !allowed.has(key)) {
+        counts.unknown++;
+        items.push({key, kind:'unknown', incoming, existing:null});
+        return;
+      }
+      const existing = state.records[key] ? normalizeRecord(state.records[key]) : null;
+      if (!existing) {
+        counts.new++;
+        items.push({key, kind:'new', incoming, existing:null});
+        return;
+      }
+      if (contentEqual(existing, incoming)) {
+        counts.same++;
+        items.push({key, kind:'same', incoming, existing});
+        return;
+      }
+      const incomingTime = Date.parse(incoming.updatedAt || '');
+      const localTime = Date.parse(existing.updatedAt || '');
+      let kind = 'conflict';
+      if (Number.isFinite(incomingTime) && Number.isFinite(localTime) && incomingTime !== localTime) {
+        kind = incomingTime > localTime ? 'incomingNewer' : 'localNewer';
+      }
+      counts[kind]++;
+      items.push({key, kind, incoming, existing});
+    });
+
+    return {
+      snapshot,
+      items,
+      counts,
+      actionable: counts.new + counts.incomingNewer
+    };
+  }
+
+  function applyPortableMerge(plan, resolutions = {}) {
+    if (!plan || !Array.isArray(plan.items) || !plan.counts) throw new Error('Classification import plan is invalid.');
+    const current = readState();
+    localStorage.setItem(ROLLBACK_KEY, JSON.stringify({savedAt:new Date().toISOString(), state:current}, null, 2));
+    const next = {version: VERSION, records: {...current.records}};
+    const result = {added:0, updated:0, conflictIncoming:0, conflictLocal:0, localNewer:0, same:0, unknown:0};
+
+    plan.items.forEach(item => {
+      if (!item || !item.key || !item.incoming) return;
+      if (item.kind === 'new') {
+        next.records[item.key] = normalizeRecord(item.incoming);
+        result.added++;
+      } else if (item.kind === 'incomingNewer') {
+        next.records[item.key] = normalizeRecord(item.incoming);
+        result.updated++;
+      } else if (item.kind === 'conflict') {
+        if (resolutions[item.key] === 'incoming') {
+          next.records[item.key] = normalizeRecord(item.incoming);
+          result.conflictIncoming++;
+        } else result.conflictLocal++;
+      } else if (item.kind === 'localNewer') result.localNewer++;
+      else if (item.kind === 'same') result.same++;
+      else if (item.kind === 'unknown') result.unknown++;
+    });
+
+    writeState(next);
+    return result;
+  }
+
+  function canUndoPortableMerge() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(ROLLBACK_KEY) || 'null');
+      return Boolean(parsed?.state?.records && typeof parsed.state.records === 'object');
+    } catch { return false; }
+  }
+
+  function undoLastPortableMerge() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(ROLLBACK_KEY) || 'null');
+      if (!parsed?.state?.records || typeof parsed.state.records !== 'object') return false;
+      writeState(parsed.state);
+      localStorage.removeItem(ROLLBACK_KEY);
+      return true;
+    } catch { return false; }
+  }
+
   function tagsFor(field) {
     if (!ARRAY_FIELDS.includes(field)) return [];
     const values = [];
@@ -123,206 +266,13 @@
     return uniqueTags(values).sort((a, b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
   }
 
-  function stableValue(value) {
-    if (Array.isArray(value)) return value.map(stableValue);
-    if (value && typeof value === 'object') {
-      return Object.keys(value).sort().reduce((out, key) => {
-        out[key] = stableValue(value[key]);
-        return out;
-      }, {});
-    }
-    return value;
-  }
-
-  function stableStringify(value) {
-    return JSON.stringify(stableValue(value));
-  }
-
-  function comparableRecord(record) {
-    const normalized = normalizeRecord(record);
-    return Object.fromEntries(ARRAY_FIELDS.map(field => [
-      field,
-      normalized[field].map(fold).sort((a, b) => a.localeCompare(b, 'en-US'))
-    ]));
-  }
-
-  function parseTime(value) {
-    const ms = Date.parse(String(value || '').trim());
-    return Number.isFinite(ms) ? ms : null;
-  }
-
-  function timeRelation(localRecord, incomingRecord) {
-    const local = parseTime(localRecord?.updatedAt);
-    const incoming = parseTime(incomingRecord?.updatedAt);
-    if (local === null || incoming === null) return 'unknown';
-    if (incoming > local) return 'incoming-newer';
-    if (incoming < local) return 'local-newer';
-    return 'same-time';
-  }
-
-  function portableSnapshot() {
-    return {
-      format: PORTABLE_FORMAT,
-      schemaVersion: VERSION,
-      exportedAt: new Date().toISOString(),
-      sourceDeviceId: String(localStorage.getItem(DEVICE_ID_KEY) || ''),
-      records: all()
-    };
-  }
-
-  function validatePortableSnapshot(payload) {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      throw new Error('This file is not a Classification Metadata JSON.');
-    }
-    if (String(payload.format || '') !== PORTABLE_FORMAT) {
-      throw new Error('This JSON is not a compatible Classification Metadata export.');
-    }
-    if (Number(payload.schemaVersion) !== VERSION) {
-      throw new Error(`Classification schema v${payload.schemaVersion ?? '?'} cannot be merged into v${VERSION}.`);
-    }
-    if (!payload.records || typeof payload.records !== 'object' || Array.isArray(payload.records)) {
-      throw new Error('This Classification file has no records object.');
-    }
-    const records = {};
-    Object.entries(payload.records).forEach(([key, value]) => {
-      if (!/^(?:wid|draft):/.test(key)) throw new Error(`Invalid Classification identity: ${key}`);
-      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid Classification record: ${key}`);
-      const normalized = normalizeRecord(value);
-      if (key.startsWith('wid:')) {
-        normalized.wordId = cleanTag(value.wordId || key.slice(4));
-        delete normalized.localDraftId;
-      } else {
-        normalized.localDraftId = cleanTag(value.localDraftId || key.slice(6));
-        delete normalized.wordId;
-      }
-      if (hasClassification(normalized)) records[key] = normalized;
-    });
-    return {
-      format: PORTABLE_FORMAT,
-      schemaVersion: VERSION,
-      exportedAt: String(payload.exportedAt || ''),
-      sourceDeviceId: String(payload.sourceDeviceId || ''),
-      records
-    };
-  }
-
-  function comparePortableSnapshot(payload) {
-    const incoming = validatePortableSnapshot(payload);
-    const localRecords = all();
-    const items = [];
-    const counts = {new:0, incomingNewer:0, same:0, localNewer:0, conflict:0};
-
-    Object.entries(incoming.records).forEach(([key, incomingRecord]) => {
-      const localRecord = localRecords[key] ? normalizeRecord(localRecords[key]) : null;
-      if (!localRecord) {
-        items.push({id:key, key, kind:'new', local:null, incoming:incomingRecord, reason:'No Classification record with this identity exists on this device.'});
-        counts.new += 1;
-        return;
-      }
-      if (stableStringify(comparableRecord(localRecord)) === stableStringify(comparableRecord(incomingRecord))) {
-        items.push({id:key, key, kind:'same', local:localRecord, incoming:incomingRecord, reason:'Same Classification content.'});
-        counts.same += 1;
-        return;
-      }
-      const relation = timeRelation(localRecord, incomingRecord);
-      if (relation === 'incoming-newer') {
-        items.push({id:key, key, kind:'incoming-newer', local:localRecord, incoming:incomingRecord, reason:'The incoming Classification record has a later Updated At time.'});
-        counts.incomingNewer += 1;
-      } else if (relation === 'local-newer') {
-        items.push({id:key, key, kind:'local-newer', local:localRecord, incoming:incomingRecord, reason:'This device has the later Classification record.'});
-        counts.localNewer += 1;
-      } else {
-        items.push({id:key, key, kind:'conflict', local:localRecord, incoming:incomingRecord, timeRelation:relation, reason:relation === 'same-time' ? 'Classification content differs with the same Updated At time.' : 'Classification content differs and WLP cannot safely determine which copy is newer.'});
-        counts.conflict += 1;
-      }
-    });
-
-    return {
-      format: incoming.format,
-      schemaVersion: incoming.schemaVersion,
-      exportedAt: incoming.exportedAt,
-      sourceDeviceId: incoming.sourceDeviceId,
-      currentDeviceId: String(localStorage.getItem(DEVICE_ID_KEY) || ''),
-      baseRaw: localStorage.getItem(STORAGE_KEY),
-      items,
-      counts
-    };
-  }
-
-  function hasMergeRollback() {
-    try {
-      const rollback = JSON.parse(localStorage.getItem(MERGE_ROLLBACK_KEY) || 'null');
-      return Boolean(rollback && Object.prototype.hasOwnProperty.call(rollback, 'beforeRaw'));
-    } catch {
-      return false;
-    }
-  }
-
-  function applyPortableMerge(plan, resolutions = {}, options = {}) {
-    if (!plan || !Array.isArray(plan.items)) throw new Error('Classification merge plan is invalid.');
-    const currentRaw = localStorage.getItem(STORAGE_KEY);
-    if ((currentRaw ?? null) !== (plan.baseRaw ?? null)) {
-      throw new Error('Classification Metadata changed after this preview was created. Compare the file again before merging.');
-    }
-    const state = readState();
-    let added = 0, updated = 0, conflictIncoming = 0, conflictLocal = 0;
-    plan.items.forEach(item => {
-      if (item.kind === 'new') {
-        state.records[item.key] = normalizeRecord(item.incoming);
-        added += 1;
-      } else if (item.kind === 'incoming-newer') {
-        state.records[item.key] = normalizeRecord(item.incoming);
-        updated += 1;
-      } else if (item.kind === 'conflict') {
-        if (resolutions[item.id] === 'incoming') {
-          state.records[item.key] = normalizeRecord(item.incoming);
-          conflictIncoming += 1;
-        } else {
-          conflictLocal += 1;
-        }
-      }
-    });
-    const changed = added + updated + conflictIncoming;
-    if (!changed) return {changed, added, updated, conflictIncoming, conflictLocal};
-
-    const beforeRaw = currentRaw;
-    writeState(state);
-    const afterRaw = localStorage.getItem(STORAGE_KEY);
-    if (options.saveRollback !== false) {
-      localStorage.setItem(MERGE_ROLLBACK_KEY, JSON.stringify({
-        savedAt: new Date().toISOString(),
-        sourceExportedAt: String(plan.exportedAt || ''),
-        sourceDeviceId: String(plan.sourceDeviceId || ''),
-        beforeRaw,
-        afterRaw
-      }, null, 2));
-    }
-    return {changed, added, updated, conflictIncoming, conflictLocal};
-  }
-
-  function undoLastPortableMerge() {
-    try {
-      const rollback = JSON.parse(localStorage.getItem(MERGE_ROLLBACK_KEY) || 'null');
-      if (!rollback || !Object.prototype.hasOwnProperty.call(rollback, 'beforeRaw')) return false;
-      const currentRaw = localStorage.getItem(STORAGE_KEY);
-      if ((currentRaw ?? null) !== (rollback.afterRaw ?? null)) return false;
-      if (rollback.beforeRaw === null || rollback.beforeRaw === undefined) localStorage.removeItem(STORAGE_KEY);
-      else localStorage.setItem(STORAGE_KEY, rollback.beforeRaw);
-      localStorage.removeItem(MERGE_ROLLBACK_KEY);
-      window.dispatchEvent(new CustomEvent(EVENT_NAME));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   window.WLPClassificationMetadata = Object.freeze({
     STORAGE_KEY,
     EVENT_NAME,
     VERSION,
+    FORMAT,
+    ROLLBACK_KEY,
     ARRAY_FIELDS: [...ARRAY_FIELDS],
-    PORTABLE_FORMAT,
-    MERGE_ROLLBACK_KEY,
     cleanTag,
     uniqueTags,
     hasClassification,
@@ -333,12 +283,11 @@
     count,
     save,
     remove,
-    tagsFor,
     portableSnapshot,
-    validatePortableSnapshot,
     comparePortableSnapshot,
     applyPortableMerge,
-    hasMergeRollback,
-    undoLastPortableMerge
+    canUndoPortableMerge,
+    undoLastPortableMerge,
+    tagsFor
   });
 })();

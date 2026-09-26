@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.120 — Classification semantic return navigation. */
+/* WLP Stage 7 v1.8.6.138 — Classification safe bulk import. */
 (() => {
   'use strict';
 
@@ -15,30 +15,19 @@
     'word','phrase','idiom','phrasal verb','collocation','construction','term','proper noun',
     'abbreviation','initialism','interjection','contrast set','polysemy set','sentence pattern',
     'response formula','rhetorical question pattern','meme construction','discourse expression',
-    'internet term','fandom term','slang expression','nonce formation','verb pattern','noun phrase','adjective phrase'
+    'internet term','fandom term','slang expression','metaphor','verb pattern','noun phrase','adjective phrase'
   ];
   const USAGE_TAGS = [
     'formal','informal','casual','colloquial','conversational','slang','internet slang','literary',
     'academic','technical','dated','archaic','humorous','playful','figurative','evaluative','critical',
     'derogatory','disparaging','offensive','profane','vulgar','affectionate','warm','skeptical','speculative',
-    'American English','British English','North American English','Gen Z','softening','ironic'
+    'American English','British English','North American English','Gen Z'
   ];
   const TOPIC_TAGS = [
     'everyday life','business','work','workplace','travel','shopping','family','friends','relationships','dating',
     'romance','communication','education','technology','security','internet','social media','media','news','anime',
     'manga','fandom','games','law','science','research','psychology','mental health','self-help','health','wellness',
-    'food','restaurants','hospitality','culture','art','fashion','music','finance','planning','decision-making',
-    'language learning','testing','assessment','performance','entertainment','sports','problem-solving'
-  ];
-  const DISCOVERY_TAGS = [
-    'agreement','disagreement','soft correction','criticism','softened criticism','complaint','warning',
-    'reassurance','encouragement','support','suggestion','recommendation','boundary-setting','expressing need','self-assessment',
-    'uncertainty','speculation','possibility','lack of knowledge','hedging','impression','perception','subjective judgment','evaluation',
-    'loyalty','betrayal','social trust','social approval','nonconformity','solidarity',
-    'prevention','containment','removal','release','resolution','iteration','trial and error','minor adjustment','improvement','incremental improvement',
-    'excessive emotion','emotional intensity','maximum effort','commitment','determination',
-    'early stage','premature judgment','too soon to tell','prelude','precursor','escalation','continuity','building on success',
-    'exploiting rules','gaming the system','loopholes','metric optimization','score vs ability'
+    'food','restaurants','hospitality','culture','art','fashion','music','finance','planning','decision-making'
   ];
 
   let masterSourceRows = [];
@@ -48,6 +37,8 @@
   let activeKey = '';
   let working = null;
   let loadError = '';
+  let pendingClassificationImport = null;
+  let pendingClassificationFileName = '';
 
   function parseTSV(text) {
     const table = [];
@@ -314,12 +305,12 @@
   }
 
   function currentSuggestions(field, query = '') {
-    const staticMap = {entryTypes:ENTRY_TYPES, usageTags:USAGE_TAGS, topicTags:TOPIC_TAGS, discoveryTags:DISCOVERY_TAGS};
+    const staticMap = {entryTypes:ENTRY_TYPES, usageTags:USAGE_TAGS, topicTags:TOPIC_TAGS, discoveryTags:[]};
     const merged = api.uniqueTags([...(staticMap[field] || []), ...api.tagsFor(field)]);
     const chosen = new Set((working?.[field] || []).map(normalize));
     const needle = normalize(query);
     const filtered = merged.filter(tag => !chosen.has(normalize(tag)) && (!needle || normalize(tag).includes(needle)));
-    return filtered.sort((a, b) => String(a).localeCompare(String(b), 'en', {sensitivity:'base'}));
+    return filtered.slice(0, field === 'discoveryTags' ? 10 : 14);
   }
 
   function refreshTagField(field, focusInput = false) {
@@ -506,6 +497,119 @@
     if (activeKey) requestAnimationFrame(refreshAllFields);
   }
 
+
+  function setClassificationImportStatus(message = '', error = false) {
+    const status = $('classification-import-status');
+    if (!status) return;
+    status.hidden = !message;
+    status.textContent = message;
+    status.classList.toggle('is-error', Boolean(error));
+  }
+
+  function syncClassificationUndo() {
+    const button = $('classification-import-undo');
+    if (button) button.hidden = !api?.canUndoPortableMerge?.();
+  }
+
+  function clearClassificationImportPreview() {
+    pendingClassificationImport = null;
+    pendingClassificationFileName = '';
+    const preview = $('classification-import-preview');
+    if (preview) preview.hidden = true;
+  }
+
+  function renderClassificationImportPreview(plan, fileName = '') {
+    const preview = $('classification-import-preview');
+    if (!preview || !plan?.counts) return;
+    preview.hidden = false;
+    const name = $('classification-import-file-name');
+    if (name) name.textContent = `${fileName || 'Selected Classification JSON'} · ${plan.counts.incoming.toLocaleString()} valid incoming record${plan.counts.incoming === 1 ? '' : 's'}`;
+    const values = {
+      'classification-import-new':plan.counts.new,
+      'classification-import-newer':plan.counts.incomingNewer,
+      'classification-import-same':plan.counts.same,
+      'classification-import-local-newer':plan.counts.localNewer,
+      'classification-import-conflicts':plan.counts.conflict,
+      'classification-import-skipped':plan.counts.unknown + plan.counts.invalid
+    };
+    Object.entries(values).forEach(([id, value]) => { const el = $(id); if (el) el.textContent = Number(value || 0).toLocaleString(); });
+    const note = $('classification-import-note');
+    if (note) {
+      const parts = ['New and newer incoming records can merge automatically.'];
+      if (plan.counts.localNewer) parts.push(`${plan.counts.localNewer.toLocaleString()} newer local record${plan.counts.localNewer === 1 ? '' : 's'} will be kept.`);
+      if (plan.counts.conflict) parts.push(`${plan.counts.conflict.toLocaleString()} conflict${plan.counts.conflict === 1 ? '' : 's'} will be kept local unless explicitly resolved in a future merge UI.`);
+      if (plan.counts.unknown || plan.counts.invalid) parts.push(`${(plan.counts.unknown + plan.counts.invalid).toLocaleString()} invalid or unknown record${plan.counts.unknown + plan.counts.invalid === 1 ? '' : 's'} will be skipped.`);
+      parts.push('A one-step rollback copy is created before import.');
+      note.textContent = parts.join(' ');
+    }
+    const go = $('classification-import-continue');
+    if (go) go.disabled = !plan.actionable;
+  }
+
+  function allowedClassificationKeys() {
+    refreshIndex();
+    return [...masterRows, ...draftRows].map(item => item.key).filter(Boolean);
+  }
+
+  async function readClassificationImportFile(file) {
+    if (!file) return;
+    if (!api?.comparePortableSnapshot) {
+      setClassificationImportStatus('Classification import engine is unavailable.', true);
+      return;
+    }
+    try {
+      const payload = JSON.parse(await file.text());
+      const plan = api.comparePortableSnapshot(payload, {allowedKeys:allowedClassificationKeys()});
+      pendingClassificationImport = plan;
+      pendingClassificationFileName = file.name || 'Selected Classification JSON';
+      renderClassificationImportPreview(plan, pendingClassificationFileName);
+      setClassificationImportStatus(`Preview ready · ${plan.counts.incoming.toLocaleString()} valid incoming · ${plan.actionable.toLocaleString()} safe change${plan.actionable === 1 ? '' : 's'} ready.`);
+    } catch (error) {
+      console.error('Classification import preview failed:', error);
+      clearClassificationImportPreview();
+      setClassificationImportStatus(`Could not read this Classification JSON. ${error?.message || String(error)}`, true);
+    }
+  }
+
+  function applyClassificationImport() {
+    const plan = pendingClassificationImport;
+    if (!plan?.actionable) return;
+    const count = plan.actionable;
+    const ok = window.confirm(`Import ${count.toLocaleString()} safe Classification change${count === 1 ? '' : 's'}?\n\nNewer local records and unresolved conflicts will stay unchanged. A rollback copy will be saved first.`);
+    if (!ok) return;
+    try {
+      const result = api.applyPortableMerge(plan);
+      activeKey = '';
+      working = null;
+      clearClassificationImportPreview();
+      render();
+      syncClassificationUndo();
+      setClassificationImportStatus(`Classification import complete · ${result.added.toLocaleString()} new · ${result.updated.toLocaleString()} newer incoming · ${result.localNewer.toLocaleString()} newer local kept · ${result.conflictLocal.toLocaleString()} conflict${result.conflictLocal === 1 ? '' : 's'} kept local.`);
+    } catch (error) {
+      console.error('Classification import failed:', error);
+      setClassificationImportStatus(error?.message || String(error), true);
+    }
+  }
+
+  function undoClassificationImport() {
+    if (!api?.canUndoPortableMerge?.()) {
+      syncClassificationUndo();
+      setClassificationImportStatus('No Classification import rollback is available.', true);
+      return;
+    }
+    if (!window.confirm('Undo the most recent Classification import on this browser?')) return;
+    if (!api.undoLastPortableMerge()) {
+      setClassificationImportStatus('Could not restore the previous Classification state.', true);
+      return;
+    }
+    activeKey = '';
+    working = null;
+    clearClassificationImportPreview();
+    render();
+    syncClassificationUndo();
+    setClassificationImportStatus('Last Classification import was undone. The previous Classification state is active again.');
+  }
+
   async function load() {
     if (!api) {
       loadError = 'Classification Metadata engine is unavailable.';
@@ -523,6 +627,7 @@
       loadError = 'The Master TSV could not be loaded. Classification records already saved on this device remain intact.';
     }
     render();
+    syncClassificationUndo();
   }
 
   $('classification-search')?.addEventListener('input', () => {
@@ -539,6 +644,21 @@
     render();
     input.focus();
   });
+
+
+  $('classification-import-button')?.addEventListener('click', () => $('classification-import-file')?.click());
+  $('classification-import-file')?.addEventListener('change', event => {
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
+    if (input) input.value = '';
+    if (file) readClassificationImportFile(file);
+  });
+  $('classification-import-clear')?.addEventListener('click', () => {
+    clearClassificationImportPreview();
+    setClassificationImportStatus('Classification import preview cleared.');
+  });
+  $('classification-import-continue')?.addEventListener('click', applyClassificationImport);
+  $('classification-import-undo')?.addEventListener('click', undoClassificationImport);
 
   document.addEventListener('click', event => {
     const edit = event.target.closest('[data-classification-edit]');
