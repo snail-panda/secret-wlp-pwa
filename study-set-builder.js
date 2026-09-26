@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.142 — Builder input sizing + Safari focus stability. */
+/* WLP Stage 7 v1.8.6.143 — Search box height + Classification Safari focus stability. */
 (() => {
   'use strict';
 
@@ -69,7 +69,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const sortTags = values => [...values].sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
 
-  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v142';
+  const READABILITY_STYLE_ID = 'wlp-study-set-builder-readability-v143';
 
   function installReadabilityEnhancements() {
     const main = $('study-set-search-stages')?.closest('main') || document.querySelector('main');
@@ -236,7 +236,6 @@
         }
         .wlp-study-set-builder-readable .study-set-search-field input {
           font-size: 1.04rem !important;
-          line-height: 1.35 !important;
           color: #405f50 !important;
         }
         .wlp-study-set-builder-readable .study-set-search-field input::placeholder {
@@ -797,34 +796,62 @@
     }
   }
 
+  function axisViewData(axis) {
+    const tags = allAxisTags(axis.field);
+    const query = fold(tagQueries[axis.field]);
+    const filtered = tags.filter(tag => !query || fold(tag).includes(query));
+    const isExpanded = expandedAxes.has(axis.field);
+    let visible = filtered;
+    if (!query && !isExpanded && filtered.length > COLLAPSED_TAG_LIMIT) {
+      const selected = [...state.axes[axis.field].include, ...state.axes[axis.field].exclude];
+      visible = api.uniqueTags([...filtered.slice(0, COLLAPSED_TAG_LIMIT), ...selected.filter(tag => filtered.some(value => fold(value) === fold(tag)))]);
+    }
+    const buttons = visible.map(tag => {
+      const status = tagState(axis.field, tag);
+      const marker = status === 'include' ? '+' : status === 'exclude' ? '−' : '·';
+      const label = status === 'include' ? `Included: ${tag}. Activate to exclude.` : status === 'exclude' ? `Excluded: ${tag}. Activate to clear.` : `${tag}. Activate to include.`;
+      return `<button type="button" class="study-set-tag${status === 'include' ? ' is-include' : status === 'exclude' ? ' is-exclude' : ''}" data-study-set-tag-field="${esc(axis.field)}" data-study-set-tag="${esc(tag)}" aria-label="${esc(label)}"><span class="study-set-tag-marker" aria-hidden="true">${marker}</span><span>${esc(tag)}</span></button>`;
+    }).join('');
+    return {tags, query, filtered, isExpanded, buttons, showToggle: !query && filtered.length > COLLAPSED_TAG_LIMIT};
+  }
+
+  function axisTagFooterMarkup(axis, view) {
+    if (!view.showToggle) return '';
+    return `<div class="study-set-axis-tag-footer"><small>${view.isExpanded ? 'All available tags are shown.' : `Showing ${Math.min(COLLAPSED_TAG_LIMIT, view.filtered.length)} suggested tags.`}</small><button type="button" class="study-set-show-all" data-study-set-show-all="${esc(axis.field)}">${view.isExpanded ? 'Show less' : `Show all ${view.filtered.length}`}</button></div>`;
+  }
+
   function renderAxes() {
     const root = $('study-set-axis-list');
     if (!root || !api) return;
     root.innerHTML = AXES.map(axis => {
-      const tags = allAxisTags(axis.field);
-      const query = fold(tagQueries[axis.field]);
-      const filtered = tags.filter(tag => !query || fold(tag).includes(query));
+      const view = axisViewData(axis);
       const includeCount = state.axes[axis.field].include.length;
-      const isExpanded = expandedAxes.has(axis.field);
-      let visible = filtered;
-      if (!query && !isExpanded && filtered.length > COLLAPSED_TAG_LIMIT) {
-        const selected = [...state.axes[axis.field].include, ...state.axes[axis.field].exclude];
-        visible = api.uniqueTags([...filtered.slice(0, COLLAPSED_TAG_LIMIT), ...selected.filter(tag => filtered.some(value => fold(value) === fold(tag)))]);
-      }
-      const buttons = visible.map(tag => {
-        const status = tagState(axis.field, tag);
-        const marker = status === 'include' ? '+' : status === 'exclude' ? '−' : '·';
-        const label = status === 'include' ? `Included: ${tag}. Activate to exclude.` : status === 'exclude' ? `Excluded: ${tag}. Activate to clear.` : `${tag}. Activate to include.`;
-        return `<button type="button" class="study-set-tag${status === 'include' ? ' is-include' : status === 'exclude' ? ' is-exclude' : ''}" data-study-set-tag-field="${esc(axis.field)}" data-study-set-tag="${esc(tag)}" aria-label="${esc(label)}"><span class="study-set-tag-marker" aria-hidden="true">${marker}</span><span>${esc(tag)}</span></button>`;
-      }).join('');
-      const showToggle = !query && filtered.length > COLLAPSED_TAG_LIMIT;
       return `<section class="study-set-axis" data-study-set-axis="${esc(axis.field)}">
-        <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count"><strong>${tags.length}</strong><span>tag${tags.length === 1 ? '' : 's'}</span></span></div>
+        <div class="study-set-axis-head"><div><span class="study-set-kicker">Classification</span><h2>${esc(axis.title)}</h2></div><span class="study-set-axis-count"><strong>${view.tags.length}</strong><span>tag${view.tags.length === 1 ? '' : 's'}</span></span></div>
         <input class="study-set-axis-search" type="search" autocomplete="off" spellcheck="false" value="${esc(tagQueries[axis.field])}" data-study-set-tag-search="${esc(axis.field)}" placeholder="${esc(axis.placeholder)}" aria-label="${esc(axis.placeholder)}">
-        ${tags.length ? `<div class="study-set-suggestion-guide"><strong>Suggested Tags</strong><small>Use the field above to find a tag, or choose below. Tap a tag to cycle: Include (+) → Exclude (−) → Off.</small></div><div class="study-set-axis-tags">${buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>${showToggle ? `<div class="study-set-axis-tag-footer"><small>${isExpanded ? 'All available tags are shown.' : `Showing ${Math.min(COLLAPSED_TAG_LIMIT, filtered.length)} suggested tags.`}</small><button type="button" class="study-set-show-all" data-study-set-show-all="${esc(axis.field)}">${isExpanded ? 'Show less' : `Show all ${filtered.length}`}</button></div>` : ''}` : '<p class="study-set-axis-empty">No tags are available in this axis yet.</p>'}
+        ${view.tags.length ? `<div class="study-set-suggestion-guide"><strong>Suggested Tags</strong><small>Use the field above to find a tag, or choose below. Tap a tag to cycle: Include (+) → Exclude (−) → Off.</small></div><div class="study-set-axis-tags">${view.buttons || '<span class="study-set-axis-empty">No tags match this search.</span>'}</div>${axisTagFooterMarkup(axis, view)}` : '<p class="study-set-axis-empty">No tags are available in this axis yet.</p>'}
         <div class="study-set-axis-mode" ${includeCount > 1 ? '' : 'hidden'}><span>Included tags match:</span><button type="button" data-study-set-mode="any" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'any' ? 'is-active' : ''}">ANY</button><button type="button" data-study-set-mode="all" data-study-set-mode-field="${esc(axis.field)}" class="${state.axes[axis.field].mode === 'all' ? 'is-active' : ''}">ALL</button></div>
       </section>`;
     }).join('');
+  }
+
+  function updateAxisSearchResults(field) {
+    const axis = AXES.find(item => item.field === field);
+    if (!axis || !api) return;
+    const section = document.querySelector(`[data-study-set-axis="${CSS.escape(field)}"]`);
+    if (!section) return;
+    const view = axisViewData(axis);
+    const tagsRoot = section.querySelector('.study-set-axis-tags');
+    if (tagsRoot) tagsRoot.innerHTML = view.buttons || '<span class="study-set-axis-empty">No tags match this search.</span>';
+
+    const oldFooter = section.querySelector('.study-set-axis-tag-footer');
+    const footerMarkup = axisTagFooterMarkup(axis, view);
+    if (!footerMarkup) {
+      oldFooter?.remove();
+      return;
+    }
+    if (oldFooter) oldFooter.outerHTML = footerMarkup;
+    else section.querySelector('.study-set-axis-mode')?.insertAdjacentHTML('beforebegin', footerMarkup);
   }
 
   function renderActiveFilters() {
@@ -1090,11 +1117,10 @@
     const field = input.getAttribute('data-study-set-tag-search');
     if (!AXES.some(axis => axis.field === field)) return;
     tagQueries[field] = input.value;
-    renderAxes();
-    requestAnimationFrame(() => {
-      const next = document.querySelector(`[data-study-set-tag-search="${CSS.escape(field)}"]`);
-      if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
-    });
+    // Keep the active Classification search input node intact while typing.
+    // Replacing the whole axis DOM on every keystroke makes iPhone Safari
+    // hesitate/drop focus; only the filtered tag results need to change here.
+    updateAxisSearchResults(field);
   });
 
   window.addEventListener(api?.EVENT_NAME || 'wlp-classification-metadata-changed', () => {
