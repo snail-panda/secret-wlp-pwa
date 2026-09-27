@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.144 — Learning Sync rollback-safe local backup safety. */
+/* WLP Stage 7 v1.8.6.146 — Compact backup markers + Learning Sync storage headroom. */
 (() => {
   'use strict';
 
@@ -32,6 +32,25 @@
       return value ?? fallback;
     } catch {
       return fallback;
+    }
+  }
+
+  function setBackupMetaValue(payload) {
+    const nextValue = JSON.stringify(payload);
+    const previous = localStorage.getItem(BACKUP_META_KEY);
+    try {
+      localStorage.setItem(BACKUP_META_KEY, nextValue);
+      return true;
+    } catch (error) {
+      if (previous == null) throw error;
+      localStorage.removeItem(BACKUP_META_KEY);
+      try {
+        localStorage.setItem(BACKUP_META_KEY, nextValue);
+        return true;
+      } catch (retryError) {
+        try { localStorage.setItem(BACKUP_META_KEY, previous); } catch (_) {}
+        throw retryError;
+      }
     }
   }
 
@@ -96,57 +115,137 @@
     return JSON.stringify(stableValue(value));
   }
 
-  function currentEditorState() {
-    const drafts = {};
+  function hashTextParts(parts) {
+    let h1 = 2166136261 >>> 0;
+    let h2 = 2246822519 >>> 0;
+    let length = 0;
+    const feed = text => {
+      const value = String(text ?? '');
+      length += value.length;
+      for (let i = 0; i < value.length; i += 1) {
+        const code = value.charCodeAt(i);
+        h1 ^= code;
+        h1 = Math.imul(h1, 16777619) >>> 0;
+        h2 ^= code + ((i & 255) << 8);
+        h2 = Math.imul(h2, 3266489917) >>> 0;
+      }
+    };
+    parts.forEach(part => { feed(part); feed('\u001f'); });
+    return `${length}:${h1.toString(36)}:${h2.toString(36)}`;
+  }
+
+  function digestPairs(pairs) {
+    const normalized = (Array.isArray(pairs) ? pairs : [])
+      .map(([key, value]) => [String(key ?? ''), String(value ?? '')])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    const parts = [];
+    normalized.forEach(([key, value]) => {
+      parts.push(key, value);
+    });
+    return { count: normalized.length, digest: hashTextParts(parts) };
+  }
+
+  function currentEditorDigest() {
+    const drafts = [];
     readDrafts().forEach((draft, index) => {
       const id = String(draft.localId || `draft-${index}-${draft.Word || ''}`);
       const content = {};
       DRAFT_FIELDS.forEach(field => { content[field] = String(draft[field] ?? ''); });
-      drafts[id] = stableStringify(content);
+      drafts.push([id, stableStringify(content)]);
     });
 
-    const overrides = {};
+    const overrides = [];
     Object.entries(readOverrides()).forEach(([wordId, edit]) => {
       if (!edit || typeof edit !== 'object' || Array.isArray(edit)) return;
       const content = {};
       DRAFT_FIELDS.forEach(field => { content[field] = String(edit[field] ?? ''); });
-      overrides[String(wordId)] = stableStringify(content);
+      overrides.push([String(wordId), stableStringify(content)]);
     });
 
-    const learningHooks = {};
+    const learningHooks = [];
     Object.entries(readLearningMeta()).forEach(([key, value]) => {
       if (!learningMetaContent(value)) return;
-      learningHooks[String(key)] = stableStringify(value);
+      learningHooks.push([String(key), stableStringify(value)]);
     });
 
-    const classification = {};
+    const classification = [];
     Object.entries(readClassificationMeta()).forEach(([key, value]) => {
-      classification[String(key)] = stableStringify(value);
+      classification.push([String(key), stableStringify(value)]);
     });
 
-    return { drafts, overrides, learningHooks, classification };
+    return {
+      format: 'digest-v1',
+      drafts: digestPairs(drafts),
+      overrides: digestPairs(overrides),
+      learningHooks: digestPairs(learningHooks),
+      classification: digestPairs(classification)
+    };
   }
 
-  function changedRecordCount(before, after) {
-    const ids = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
-    let changed = 0;
-    ids.forEach(id => {
-      if ((before || {})[id] !== (after || {})[id]) changed += 1;
-    });
-    return changed;
+  function digestLegacyEditorState(editorState) {
+    if (!editorState || typeof editorState !== 'object' || Array.isArray(editorState)) return null;
+    const digestMap = value => digestPairs(Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {}));
+    return {
+      format: 'digest-v1',
+      drafts: digestMap(editorState.drafts),
+      overrides: digestMap(editorState.overrides),
+      learningHooks: digestMap(editorState.learningHooks),
+      classification: digestMap(editorState.classification)
+    };
   }
 
-  function changesSinceBackup(meta, current) {
-    if (!meta?.editorState) return null;
-    return changedRecordCount(meta.editorState.drafts, current.drafts) +
-      changedRecordCount(meta.editorState.overrides, current.overrides) +
-      changedRecordCount(meta.editorState.learningHooks || {}, current.learningHooks || {}) +
-      changedRecordCount(meta.editorState.classification || {}, current.classification || {});
+  function changedEditorCategories(meta, currentDigest) {
+    const baseline = meta?.editorStateDigest || digestLegacyEditorState(meta?.editorState);
+    if (!baseline) return null;
+    const defs = [
+      ['drafts', 'Drafts'],
+      ['overrides', 'Local Edits'],
+      ['learningHooks', 'Learning Metadata'],
+      ['classification', 'Classification']
+    ];
+    return defs.filter(([key]) => {
+      const before = baseline[key] || {};
+      const after = currentDigest?.[key] || {};
+      return Number(before.count || 0) !== Number(after.count || 0) || String(before.digest || '') !== String(after.digest || '');
+    }).map(([, label]) => label);
+  }
+
+  function compactBackupMetaValue(meta) {
+    if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
+    if (meta.editorStateDigest?.format === 'digest-v1' && !meta.editorState) return meta;
+    const digest = meta.editorStateDigest?.format === 'digest-v1'
+      ? meta.editorStateDigest
+      : digestLegacyEditorState(meta.editorState);
+    if (!digest) return meta;
+    const next = { ...meta, metaVersion: 2, editorStateDigest: digest };
+    delete next.editorState;
+    return next;
+  }
+
+  function compactBackupMeta() {
+    const raw = parseJson(localStorage.getItem(BACKUP_META_KEY), null);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const compact = compactBackupMetaValue(raw);
+    if (compact !== raw) {
+      try { setBackupMetaValue(compact); } catch (_) {}
+    }
+    return compact;
   }
 
   function readMeta() {
-    const value = parseJson(localStorage.getItem(BACKUP_META_KEY), null);
-    return value && typeof value === 'object' ? value : null;
+    return compactBackupMeta();
+  }
+
+  function backupMetaPayload({ lastBackupAt, fileName, summary: backupSummary, restoredAt = '' }) {
+    const payload = {
+      metaVersion: 2,
+      lastBackupAt,
+      fileName,
+      editorStateDigest: currentEditorDigest(),
+      summary: backupSummary
+    };
+    if (restoredAt) payload.restoredAt = restoredAt;
+    return payload;
   }
 
   function countProgressRecords() {
@@ -250,9 +349,9 @@
 
   function render() {
     const data = summary();
-    const state = currentEditorState();
+    const state = currentEditorDigest();
     const meta = readMeta();
-    const changes = changesSinceBackup(meta, state);
+    const changedCategories = changedEditorCategories(meta, state);
 
     document.querySelectorAll('[data-safety-drafts]').forEach(node => { node.textContent = String(data.drafts); });
     document.querySelectorAll('[data-safety-edits]').forEach(node => { node.textContent = String(data.localEdits); });
@@ -264,20 +363,23 @@
     });
 
     document.querySelectorAll('[data-safety-change-count]').forEach(node => {
-      if (changes === null) {
+      if (changedCategories === null) {
         node.textContent = 'Not backed up yet';
         node.dataset.state = 'warning';
-      } else if (changes === 0) {
-        node.textContent = 'No Authoring metadata changes since backup';
+      } else if (!changedCategories.length) {
+        node.textContent = 'No Authoring changes since backup';
         node.dataset.state = 'safe';
+      } else if (changedCategories.length === 1) {
+        node.textContent = `${changedCategories[0]} changed since backup`;
+        node.dataset.state = 'warning';
       } else {
-        node.textContent = `${changes} local content change${changes === 1 ? '' : 's'} since backup`;
-        node.dataset.state = changes >= 10 ? 'urgent' : 'warning';
+        node.textContent = `Authoring content changed since backup · ${changedCategories.join(', ')}`;
+        node.dataset.state = 'warning';
       }
     });
 
     document.querySelectorAll('[data-local-safety]').forEach(panel => {
-      panel.dataset.backupState = changes === null ? 'never' : changes === 0 ? 'safe' : changes >= 10 ? 'urgent' : 'changed';
+      panel.dataset.backupState = changedCategories === null ? 'never' : !changedCategories.length ? 'safe' : 'changed';
     });
   }
 
@@ -288,16 +390,25 @@
 
     downloadJson(backup, filename);
 
-    const editorState = currentEditorState();
-    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({
-      lastBackupAt: backup.exportedAt,
-      fileName: filename,
-      editorState,
-      summary: backup.summary
-    }));
+    let markerSaved = true;
+    try {
+      setBackupMetaValue(backupMetaPayload({
+        lastBackupAt: backup.exportedAt,
+        fileName: filename,
+        summary: backup.summary
+      }));
+    } catch (error) {
+      markerSaved = false;
+      console.warn('Backup file downloaded, but the local backup marker could not be saved:', error);
+    }
 
     render();
-    setInlineStatus(`Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · ${backup.summary.learningHooks || 0} Learning Metadata · ${backup.summary.classificationRecords || 0} Classification · Progress included. If you cannot remember where it was saved, search this filename in Files.`, 'success');
+    setInlineStatus(
+      markerSaved
+        ? `Backup ready: ${filename} · ${backup.summary.drafts} Drafts · ${backup.summary.localEdits} Local Edits · ${backup.summary.learningHooks || 0} Learning Metadata · ${backup.summary.classificationRecords || 0} Classification · Progress included. If you cannot remember where it was saved, search this filename in Files.`
+        : `Backup file downloaded: ${filename}. The file is valid, but WLP could not update the local Last Backup marker because browser storage is full.`,
+      markerSaved ? 'success' : 'warning'
+    );
 
     if (button) {
       const old = button.textContent;
@@ -425,11 +536,9 @@
 
     const restoredSummary = summaryFromStorage(backup.storage);
     const restoredAt = backup.exportedAt || new Date().toISOString();
-    const editorState = currentEditorState();
-    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({
+    setBackupMetaValue(backupMetaPayload({
       lastBackupAt: restoredAt,
       fileName: sourceFileName || 'restored-local-data-backup.json',
-      editorState,
       summary: restoredSummary,
       restoredAt: new Date().toISOString()
     }));
@@ -455,10 +564,9 @@
     localStorage.removeItem(LEARNING_SYNC_ROLLBACK_KEY);
 
     const restoredSummary = summaryFromStorage(backup.storage);
-    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({
+    setBackupMetaValue(backupMetaPayload({
       lastBackupAt: backup.exportedAt || new Date().toISOString(),
       fileName: 'rollback-before-restore',
-      editorState: currentEditorState(),
       summary: restoredSummary,
       restoredAt: new Date().toISOString()
     }));
@@ -607,7 +715,8 @@
   window.addEventListener('pageshow', render);
   window.addEventListener('focus', render);
 
+  compactBackupMeta();
   render();
   installRestore();
-  window.WLPLocalDataSafety = { render, buildBackup };
+  window.WLPLocalDataSafety = { render, buildBackup, compactBackupMeta };
 })();

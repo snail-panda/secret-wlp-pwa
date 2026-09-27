@@ -1,13 +1,14 @@
-/* WLP Stage 7 v1.8.6.145 — Learning Sync compact rollback + merge detail support. */
+/* WLP Stage 7 v1.8.6.146 — Incremental Learning Sync writes + quota diagnostics. */
 (() => {
   'use strict';
 
-  const VERSION = '1.0.1';
+  const VERSION = '1.0.2';
   const FORMAT = 'WLP_LEARNING_SYNC';
   const SCHEMA_VERSION = 1;
   const FULL_BACKUP_FORMAT = 'WLP_LOCAL_DATA_BACKUP';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
   const ROLLBACK_KEY = 'wlp:learning-sync-rollback:v1';
+  const SESSION_ROLLBACK_KEY = 'wlp:learning-sync-rollback-session:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
 
   const KEYS = Object.freeze({
@@ -56,6 +57,63 @@
   }
 
   const stableStringify = value => JSON.stringify(stableValue(value));
+
+  function localStorageUsageApprox() {
+    let chars = 0;
+    const largest = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const value = localStorage.getItem(key) || '';
+      const size = key.length + value.length;
+      chars += size;
+      largest.push([key, size]);
+    }
+    largest.sort((a, b) => b[1] - a[1]);
+    return {
+      approxMiB: (chars * 2 / 1024 / 1024).toFixed(2),
+      largest: largest.slice(0, 3).map(([key, size]) => `${key} ~${Math.max(1, Math.round(size * 2 / 1024))} KiB`)
+    };
+  }
+
+  function isQuotaError(error) {
+    const text = `${error?.name || ''} ${error?.message || ''}`.toLowerCase();
+    return text.includes('quota') || text.includes('storage') && text.includes('exceed');
+  }
+
+  function setStorageValue(key, value, label) {
+    const nextValue = String(value);
+    const previous = localStorage.getItem(key);
+    try {
+      localStorage.setItem(key, nextValue);
+      return;
+    } catch (error) {
+      if (!isQuotaError(error) || previous == null) {
+        if (isQuotaError(error)) {
+          const usage = localStorageUsageApprox();
+          const largest = usage.largest.length ? ` Largest local keys: ${usage.largest.join(' · ')}.` : '';
+          throw new Error(`Browser storage quota was exceeded while writing ${label} (${key}). Approx localStorage size before this write: ${usage.approxMiB} MiB.${largest}`);
+        }
+        throw new Error(`${label} could not be saved (${key}): ${error?.message || 'storage write failed'}`);
+      }
+
+      // Some iPhone/WebKit storage paths can reject a growing replacement
+      // near quota because the replacement briefly needs both old + new.
+      // Retry as remove -> write, and immediately restore the old value if
+      // the new value still cannot fit.
+      localStorage.removeItem(key);
+      try {
+        localStorage.setItem(key, nextValue);
+        return;
+      } catch (retryError) {
+        try { localStorage.setItem(key, previous); } catch (_) {}
+        const usage = localStorageUsageApprox();
+        const largest = usage.largest.length ? ` Largest local keys: ${usage.largest.join(' · ')}.` : '';
+        throw new Error(`Browser storage quota was exceeded while writing ${label} (${key}) even after freeing the previous value first. Approx localStorage size: ${usage.approxMiB} MiB.${largest}`);
+      }
+    }
+  }
+
 
   function timestampValue(...values) {
     for (const value of values) {
@@ -781,10 +839,33 @@
       (Number(stats?.progress?.changed) || 0);
   }
 
+  function noOpStats(stats) {
+    const next = clone(stats) || {};
+    ['standardEvents','aiEvents','activityEvents','interactionEvents','practiceEvents'].forEach(key => {
+      if (!next[key]) return;
+      next[key].added = 0;
+      next[key].incomingNewer = 0;
+      next[key].conflicts = 0;
+    });
+    ['standardSessions','aiSessions'].forEach(key => {
+      if (!next[key]) return;
+      next[key].added = 0;
+      next[key].merged = 0;
+    });
+    if (next.progress) {
+      next.progress.added = 0;
+      next.progress.changed = 0;
+      next.progress.conflicts = 0;
+    }
+    return next;
+  }
+
   function compareSnapshot(input) {
     const incoming = normalizeSnapshot(input);
     const local = currentData();
     const merged = mergeData(local, incoming.data);
+    const changed = signatureOfData(local) !== signatureOfData(merged.data);
+    const stats = changed ? merged.stats : noOpStats(merged.stats);
     return {
       format: FORMAT,
       version: SCHEMA_VERSION,
@@ -795,11 +876,11 @@
       beforeCounts: countsOf(local),
       incomingCounts: countsOf(incoming.data),
       afterCounts: countsOf(merged.data),
-      stats: merged.stats,
-      totalAdded: totalAdded(merged.stats),
-      totalUpdated: totalUpdated(merged.stats),
-      totalConflicts: totalConflicts(merged.stats),
-      changed: signatureOfData(local) !== signatureOfData(merged.data),
+      stats,
+      totalAdded: totalAdded(stats),
+      totalUpdated: totalUpdated(stats),
+      totalConflicts: totalConflicts(stats),
+      changed,
       baselineSignature: signatureOfData(local),
       mergedData: merged.data
     };
@@ -833,25 +914,50 @@
     });
   }
 
-  function writeMergedData(data) {
-    const d = normalizeData(data);
-    localStorage.setItem(KEYS.standardEvents, JSON.stringify(d.standardEvents));
-    localStorage.setItem(KEYS.standardSessions, JSON.stringify(d.standardSessions));
-    localStorage.setItem(KEYS.aiEvents, JSON.stringify(d.aiEvents));
-    localStorage.setItem(KEYS.aiSessions, JSON.stringify(d.aiSessions));
-    localStorage.setItem(KEYS.activityEvents, JSON.stringify(d.activityEvents));
-    localStorage.setItem(KEYS.interactionEvents, JSON.stringify(d.interactionEvents));
-    localStorage.setItem(KEYS.practiceEvents, JSON.stringify(d.practiceEvents));
+  const ARRAY_STORAGE_SPECS = Object.freeze([
+    ['standardEvents', KEYS.standardEvents, 'Standard Practice events'],
+    ['standardSessions', KEYS.standardSessions, 'Standard Practice sessions'],
+    ['aiEvents', KEYS.aiEvents, 'AI Practice events'],
+    ['aiSessions', KEYS.aiSessions, 'AI Practice sessions'],
+    ['activityEvents', KEYS.activityEvents, 'Card Activity'],
+    ['interactionEvents', KEYS.interactionEvents, 'Interaction history'],
+    ['practiceEvents', KEYS.practiceEvents, 'Practice history']
+  ]);
 
-    const progressKeys = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(PROGRESS_PREFIX)) progressKeys.push(key);
-    }
-    progressKeys.forEach(key => localStorage.removeItem(key));
-    Object.entries(d.progress).forEach(([wordId, record]) => {
-      localStorage.setItem(`${PROGRESS_PREFIX}${wordId}`, JSON.stringify({ ...record, wordId }));
+  function writeMergedData(beforeData, afterData) {
+    const before = normalizeData(beforeData);
+    const after = normalizeData(afterData);
+    const changedKeys = [];
+
+    ARRAY_STORAGE_SPECS.forEach(([field, key, label]) => {
+      if (stableStringify(before[field]) === stableStringify(after[field])) return;
+      setStorageValue(key, JSON.stringify(after[field]), label);
+      changedKeys.push(field);
     });
+
+    const beforeProgress = object(before.progress);
+    const afterProgress = object(after.progress);
+    const progressIds = Array.from(new Set([...Object.keys(beforeProgress), ...Object.keys(afterProgress)])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    let progressChanged = 0;
+    progressIds.forEach(wordId => {
+      const beforeRecord = beforeProgress[wordId];
+      const afterRecord = afterProgress[wordId];
+      if (stableStringify(beforeRecord) === stableStringify(afterRecord)) return;
+      const key = `${PROGRESS_PREFIX}${wordId}`;
+      if (!afterRecord) {
+        localStorage.removeItem(key);
+      } else {
+        setStorageValue(key, JSON.stringify({ ...afterRecord, wordId }), `Progress / Review state for WID ${wordId}`);
+      }
+      progressChanged += 1;
+    });
+    if (progressChanged) changedKeys.push('progress');
+
+    return {
+      changedKeys,
+      progressChanged,
+      aiEventsChanged: changedKeys.includes('aiEvents')
+    };
   }
 
   function rebuildAIDerivedState() {
@@ -860,6 +966,30 @@
       throw new Error('AI Study data engine is not available. Learning Sync did not change local data.');
     }
     return api.rebuildDerivedState();
+  }
+
+  function saveSessionRollback(rollback) {
+    try {
+      sessionStorage.setItem(SESSION_ROLLBACK_KEY, JSON.stringify(rollback));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function clearSessionRollback() {
+    try { sessionStorage.removeItem(SESSION_ROLLBACK_KEY); } catch (_) {}
+  }
+
+  function persistRollbackIfPossible(rollback) {
+    try {
+      setStorageValue(ROLLBACK_KEY, JSON.stringify(rollback), 'Learning Sync undo record');
+      clearSessionRollback();
+      return 'local';
+    } catch (_) {
+      saveSessionRollback(rollback);
+      return 'session';
+    }
   }
 
   function applyMerge(plan) {
@@ -872,36 +1002,59 @@
     }
     if (!plan.changed) return { changed: false, counts: countsOf(beforeData), stats: plan.stats };
 
+    try { window.WLPLocalDataSafety?.compactBackupMeta?.(); } catch (_) {}
+
     const beforeRaw = rawLearningState();
+    const priorRollbackRaw = localStorage.getItem(ROLLBACK_KEY);
+    localStorage.removeItem(ROLLBACK_KEY);
     const rollback = {
       savedAt: new Date().toISOString(),
       source: 'before-learning-sync',
       patch: buildRollbackPatch(beforeData, plan.mergedData),
       afterFingerprint: ''
     };
-    try {
-      localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback));
-    } catch (error) {
-      throw new Error('Not enough browser storage to create a safe Learning Sync undo record. Learning data was not changed.');
+    if (!saveSessionRollback(rollback)) {
+      try {
+        setStorageValue(ROLLBACK_KEY, JSON.stringify(rollback), 'Learning Sync undo record');
+      } catch (error) {
+        if (priorRollbackRaw != null) {
+          try { localStorage.setItem(ROLLBACK_KEY, priorRollbackRaw); } catch (_) {}
+        }
+        throw new Error(`Not enough browser storage to create a safe Learning Sync undo record. Learning data was not changed. ${error?.message || ''}`.trim());
+      }
     }
 
     try {
-      writeMergedData(plan.mergedData);
-      rebuildAIDerivedState();
-      const afterSignature = signatureOfData(currentData());
-      rollback.afterFingerprint = compactFingerprint(normalizeData(currentData()));
-      localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback));
-      return { changed: true, counts: countsOf(currentData()), stats: plan.stats, afterSignature };
+      const writes = writeMergedData(beforeData, plan.mergedData);
+      if (writes.aiEventsChanged) {
+        try {
+          rebuildAIDerivedState();
+        } catch (error) {
+          throw new Error(`AI derived state rebuild failed after AI history changed: ${error?.message || 'storage write failed'}`);
+        }
+      }
+      const afterData = currentData();
+      const afterSignature = signatureOfData(afterData);
+      rollback.afterFingerprint = compactFingerprint(normalizeData(afterData));
+      const rollbackStorage = persistRollbackIfPossible(rollback);
+      return { changed: true, counts: countsOf(afterData), stats: plan.stats, afterSignature, writes, rollbackStorage };
     } catch (error) {
       try { restoreRawLearningState(beforeRaw); } catch (_) {}
       localStorage.removeItem(ROLLBACK_KEY);
+      clearSessionRollback();
+      if (priorRollbackRaw != null) {
+        try { localStorage.setItem(ROLLBACK_KEY, priorRollbackRaw); } catch (_) {}
+      }
       throw new Error(`Learning Sync could not be completed safely: ${error?.message || 'storage write failed'}`);
     }
   }
 
   function readRollback() {
-    const value = safeParse(localStorage.getItem(ROLLBACK_KEY), null);
-    return value && typeof value === 'object' && (value.patch || value.beforeRaw) ? value : null;
+    const local = safeParse(localStorage.getItem(ROLLBACK_KEY), null);
+    if (local && typeof local === 'object' && (local.patch || local.beforeRaw)) return local;
+    let session = null;
+    try { session = safeParse(sessionStorage.getItem(SESSION_ROLLBACK_KEY), null); } catch (_) {}
+    return session && typeof session === 'object' && (session.patch || session.beforeRaw) ? session : null;
   }
 
   function undoLastMerge() {
@@ -918,19 +1071,21 @@
     if (rollback.beforeRaw) {
       restoreRawLearningState(rollback.beforeRaw);
       localStorage.removeItem(ROLLBACK_KEY);
+      clearSessionRollback();
       return { restored: true, counts: countsOf(currentData()) };
     }
 
     const currentRaw = rawLearningState();
     localStorage.removeItem(ROLLBACK_KEY);
+    clearSessionRollback();
     try {
       const restored = restoreDataFromRollbackPatch(currentDataValue, rollback.patch);
-      writeMergedData(restored);
-      rebuildAIDerivedState();
+      const writes = writeMergedData(currentDataValue, restored);
+      if (writes.aiEventsChanged) rebuildAIDerivedState();
       return { restored: true, counts: countsOf(currentData()) };
     } catch (error) {
       try { restoreRawLearningState(currentRaw); } catch (_) {}
-      try { localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback)); } catch (_) {}
+      if (persistRollbackIfPossible(rollback) !== 'local') saveSessionRollback(rollback);
       throw new Error(`Learning Sync undo could not be completed safely: ${error?.message || 'storage write failed'}`);
     }
   }
@@ -986,6 +1141,7 @@
     schemaVersion: SCHEMA_VERSION,
     keys: KEYS,
     rollbackKey: ROLLBACK_KEY,
+    sessionRollbackKey: SESSION_ROLLBACK_KEY,
     deviceId,
     buildSnapshot,
     normalizeSnapshot,
