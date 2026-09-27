@@ -1,8 +1,8 @@
-/* WLP Stage 7 v1.8.6.144 — Manual Learning Sync engine (transport-independent). */
+/* WLP Stage 7 v1.8.6.145 — Learning Sync compact rollback + merge detail support. */
 (() => {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
   const FORMAT = 'WLP_LEARNING_SYNC';
   const SCHEMA_VERSION = 1;
   const FULL_BACKUP_FORMAT = 'WLP_LOCAL_DATA_BACKUP';
@@ -393,12 +393,13 @@
     });
     let items = Array.from(localMap.values());
     items = items.map(session => {
-      const experiences = array(session.experiences).map(experience => {
+      const originalExperiences = array(session.experiences);
+      const experiences = originalExperiences.map(experience => {
         const eventId = clean(experience?.attempt?.eventId);
         const event = eventId ? eventMap.get(eventId) : null;
         return event ? { ...experience, attempt: overlayStandardAttempt(experience.attempt, event) } : experience;
       });
-      if (!experiences.length) return session;
+      if (!experiences.length || stableStringify(experiences) === stableStringify(originalExperiences)) return session;
       const counts = { 'got-it': 0, almost: 0, 'not-yet': 0, 'no-idea': 0, unrated: 0 };
       let hintCount = 0, elapsedMs = 0;
       experiences.forEach(experience => {
@@ -661,6 +662,101 @@
     return stableStringify(normalizeData(data));
   }
 
+  function compactFingerprint(value) {
+    const text = stableStringify(value);
+    let h1 = 2166136261 >>> 0;
+    let h2 = 2246822519 >>> 0;
+    for (let i = 0; i < text.length; i += 1) {
+      const code = text.charCodeAt(i);
+      h1 ^= code;
+      h1 = Math.imul(h1, 16777619) >>> 0;
+      h2 ^= code + ((i & 255) << 8);
+      h2 = Math.imul(h2, 3266489917) >>> 0;
+    }
+    return `${text.length}:${h1.toString(36)}:${h2.toString(36)}`;
+  }
+
+  function rollbackIdentity(item, idFields = []) {
+    for (const field of idFields) {
+      const value = clean(item?.[field]);
+      if (value) return `${field}:${value}`;
+    }
+    return `legacy:${compactFingerprint(item)}`;
+  }
+
+  const ROLLBACK_ARRAY_SPECS = Object.freeze({
+    standardEvents: { idFields:['eventId'], occurrence:standardOccurrenceTimestamp },
+    standardSessions: { idFields:['sessionId'], occurrence:sessionTimestamp },
+    aiEvents: { idFields:['eventId'], occurrence:aiOccurrenceTimestamp },
+    aiSessions: { idFields:['sessionId'], occurrence:sessionTimestamp },
+    activityEvents: { idFields:['eventId'], occurrence:genericOccurrenceTimestamp },
+    interactionEvents: { idFields:['eventId'], occurrence:genericOccurrenceTimestamp },
+    practiceEvents: { idFields:['eventId'], occurrence:genericOccurrenceTimestamp }
+  });
+
+  function buildArrayRollbackPatch(beforeList, afterList, spec) {
+    const idFields = array(spec?.idFields);
+    const beforeMap = new Map(array(beforeList).map(item => [rollbackIdentity(item, idFields), item]));
+    const afterMap = new Map(array(afterList).map(item => [rollbackIdentity(item, idFields), item]));
+    const remove = [];
+    const restore = [];
+    afterMap.forEach((item, id) => {
+      if (!beforeMap.has(id)) remove.push(id);
+    });
+    beforeMap.forEach((item, id) => {
+      const after = afterMap.get(id);
+      if (!after || stableStringify(item) !== stableStringify(after)) restore.push(clone(item));
+    });
+    return { remove, restore };
+  }
+
+  function restoreArrayFromPatch(currentList, patch, spec) {
+    const idFields = array(spec?.idFields);
+    const occurrence = typeof spec?.occurrence === 'function' ? spec.occurrence : genericOccurrenceTimestamp;
+    const remove = new Set(array(patch?.remove).map(clean).filter(Boolean));
+    const map = new Map();
+    array(currentList).forEach(item => {
+      const id = rollbackIdentity(item, idFields);
+      if (!remove.has(id)) map.set(id, clone(item));
+    });
+    array(patch?.restore).forEach(item => {
+      map.set(rollbackIdentity(item, idFields), clone(item));
+    });
+    return Array.from(map.values()).sort((a,b) => occurrence(a) - occurrence(b) || rollbackIdentity(a,idFields).localeCompare(rollbackIdentity(b,idFields)));
+  }
+
+  function buildRollbackPatch(beforeData, afterData) {
+    const before = normalizeData(beforeData);
+    const after = normalizeData(afterData);
+    const arrays = {};
+    Object.entries(ROLLBACK_ARRAY_SPECS).forEach(([key, spec]) => {
+      arrays[key] = buildArrayRollbackPatch(before[key], after[key], spec);
+    });
+    const beforeProgress = object(before.progress);
+    const afterProgress = object(after.progress);
+    const progress = { remove: [], restore: {} };
+    Object.keys(afterProgress).forEach(wordId => {
+      if (!beforeProgress[wordId]) progress.remove.push(wordId);
+    });
+    Object.entries(beforeProgress).forEach(([wordId, record]) => {
+      if (!afterProgress[wordId] || stableStringify(record) !== stableStringify(afterProgress[wordId])) progress.restore[wordId] = clone(record);
+    });
+    return { version:2, arrays, progress };
+  }
+
+  function restoreDataFromRollbackPatch(currentDataValue, patch) {
+    const current = normalizeData(currentDataValue);
+    const restored = { ...current };
+    Object.entries(ROLLBACK_ARRAY_SPECS).forEach(([key, spec]) => {
+      restored[key] = restoreArrayFromPatch(current[key], object(patch?.arrays)[key], spec);
+    });
+    const progress = { ...object(current.progress) };
+    array(patch?.progress?.remove).forEach(wordId => { delete progress[clean(wordId)]; });
+    Object.entries(object(patch?.progress?.restore)).forEach(([wordId, record]) => { progress[wordId] = clone(record); });
+    restored.progress = progress;
+    return normalizeData(restored);
+  }
+
   function totalConflicts(stats) {
     return ['standardEvents','aiEvents','activityEvents','interactionEvents','practiceEvents']
       .reduce((sum, key) => sum + (Number(stats?.[key]?.conflicts) || 0), 0);
@@ -770,25 +866,30 @@
     if (!plan || plan.format !== FORMAT || Number(plan.version) !== SCHEMA_VERSION || !plan.mergedData) {
       throw new Error('Learning Sync preview is not valid. Choose the file again.');
     }
-    if (signatureOfData(currentData()) !== plan.baselineSignature) {
+    const beforeData = currentData();
+    if (signatureOfData(beforeData) !== plan.baselineSignature) {
       throw new Error('Learning data changed after the preview. Choose the Sync file again before merging.');
     }
-    if (!plan.changed) return { changed: false, counts: countsOf(currentData()), stats: plan.stats };
+    if (!plan.changed) return { changed: false, counts: countsOf(beforeData), stats: plan.stats };
 
     const beforeRaw = rawLearningState();
     const rollback = {
       savedAt: new Date().toISOString(),
       source: 'before-learning-sync',
-      beforeRaw,
-      afterSignature: ''
+      patch: buildRollbackPatch(beforeData, plan.mergedData),
+      afterFingerprint: ''
     };
-    localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback));
+    try {
+      localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback));
+    } catch (error) {
+      throw new Error('Not enough browser storage to create a safe Learning Sync undo record. Learning data was not changed.');
+    }
 
     try {
       writeMergedData(plan.mergedData);
       rebuildAIDerivedState();
       const afterSignature = signatureOfData(currentData());
-      rollback.afterSignature = afterSignature;
+      rollback.afterFingerprint = compactFingerprint(normalizeData(currentData()));
       localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback));
       return { changed: true, counts: countsOf(currentData()), stats: plan.stats, afterSignature };
     } catch (error) {
@@ -800,19 +901,38 @@
 
   function readRollback() {
     const value = safeParse(localStorage.getItem(ROLLBACK_KEY), null);
-    return value && typeof value === 'object' && value.beforeRaw ? value : null;
+    return value && typeof value === 'object' && (value.patch || value.beforeRaw) ? value : null;
   }
 
   function undoLastMerge() {
     const rollback = readRollback();
     if (!rollback) throw new Error('No Learning Sync rollback is available.');
-    const currentSignature = signatureOfData(currentData());
-    if (rollback.afterSignature && currentSignature !== rollback.afterSignature) {
+    const currentDataValue = currentData();
+    const currentSignature = signatureOfData(currentDataValue);
+    if (rollback.afterFingerprint && compactFingerprint(normalizeData(currentDataValue)) !== rollback.afterFingerprint) {
       throw new Error('Learning data changed after that merge, so WLP will not roll it back over newer study activity.');
     }
-    restoreRawLearningState(rollback.beforeRaw);
+    if (!rollback.afterFingerprint && rollback.afterSignature && currentSignature !== rollback.afterSignature) {
+      throw new Error('Learning data changed after that merge, so WLP will not roll it back over newer study activity.');
+    }
+    if (rollback.beforeRaw) {
+      restoreRawLearningState(rollback.beforeRaw);
+      localStorage.removeItem(ROLLBACK_KEY);
+      return { restored: true, counts: countsOf(currentData()) };
+    }
+
+    const currentRaw = rawLearningState();
     localStorage.removeItem(ROLLBACK_KEY);
-    return { restored: true, counts: countsOf(currentData()) };
+    try {
+      const restored = restoreDataFromRollbackPatch(currentDataValue, rollback.patch);
+      writeMergedData(restored);
+      rebuildAIDerivedState();
+      return { restored: true, counts: countsOf(currentData()) };
+    } catch (error) {
+      try { restoreRawLearningState(currentRaw); } catch (_) {}
+      try { localStorage.setItem(ROLLBACK_KEY, JSON.stringify(rollback)); } catch (_) {}
+      throw new Error(`Learning Sync undo could not be completed safely: ${error?.message || 'storage write failed'}`);
+    }
   }
 
   function rollbackAvailable() {
@@ -845,6 +965,8 @@
     const std1 = merged.data.standardEvents.find(event => event.eventId === 'std-1');
     const sessionAttempt = merged.data.standardSessions[0]?.experiences?.[0]?.attempt;
     const p1 = merged.data.progress['1'];
+    const rollbackPatch = buildRollbackPatch(local, merged.data);
+    const restored = restoreDataFromRollbackPatch(merged.data, rollbackPatch);
     const results = [
       ['standard union', merged.data.standardEvents.length === 2],
       ['newer rating revision wins', std1?.selfRating === 'got-it'],
@@ -852,7 +974,8 @@
       ['ai union', merged.data.aiEvents.length === 2],
       ['activity union', merged.data.activityEvents.length === 2],
       ['attention chronology wins', p1?.reviewLevel === 'light' && p1?.review === true],
-      ['exposure union is not double-counted', p1?.exposureCount === 2]
+      ['exposure union is not double-counted', p1?.exposureCount === 2],
+      ['compact rollback restores pre-merge data', signatureOfData(restored) === signatureOfData(local)]
     ].map(([name, ok]) => ({ name, ok: Boolean(ok) }));
     return { passed: results.every(item => item.ok), passedCount: results.filter(item => item.ok).length, total: results.length, results };
   }

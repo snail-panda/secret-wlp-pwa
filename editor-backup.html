@@ -45,6 +45,7 @@
     .metadata-conflict-choice{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;padding-top:.7rem;border-top:1px solid rgba(71,101,79,.14)}.metadata-conflict-choice label{display:flex;align-items:center;gap:.35rem;padding:.48rem .65rem;border:1px solid rgba(71,101,79,.2);border-radius:999px;background:rgba(255,255,255,.72);font-size:.8rem;font-weight:600;cursor:pointer}.metadata-conflict-choice input{accent-color:#52765b}.metadata-collision-warning{margin:.65rem 0 0;padding:.55rem .65rem;border-radius:10px;background:rgba(179,116,47,.1);font-size:.78rem;line-height:1.35;color:#795023}
     .metadata-undo-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.85rem;padding:.75rem .85rem;border:1px dashed rgba(71,101,79,.24);border-radius:14px}.metadata-undo-row span{font-size:.82rem;color:var(--ink-muted,#66736b)}.metadata-undo-row button{white-space:nowrap}
     .authoring-transfer-panel{border-color:rgba(71,101,79,.28);background:linear-gradient(180deg,rgba(249,252,249,.86),rgba(255,255,255,.64))}.authoring-transfer-actions{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem}.authoring-transfer-card{padding:.9rem;border:1px solid rgba(71,101,79,.16);border-radius:16px;background:rgba(255,255,255,.58)}.authoring-transfer-card h3{margin:0 0 .3rem;font-size:1rem}.authoring-transfer-card p{margin:.25rem 0 .65rem;color:var(--ink-muted,#66736b);font-size:.86rem;line-height:1.45}.authoring-transfer-card small{display:block;margin-top:.5rem;color:var(--ink-muted,#66736b);line-height:1.35}.authoring-scope-note{margin:.85rem 0 0;padding:.68rem .75rem;border-left:3px solid rgba(82,118,91,.34);background:rgba(239,246,240,.6);font-size:.82rem;line-height:1.45;color:var(--ink-muted,#66736b)}
+    .learning-sync-details{margin:.7rem 0 .9rem;border-top:1px solid rgba(71,101,79,.14);border-bottom:1px solid rgba(71,101,79,.14);padding:.62rem 0}.learning-sync-details summary{cursor:pointer;color:var(--ink-muted,#66736b);font-size:.86rem;font-weight:600}.learning-sync-detail-list{display:grid;gap:.35rem;margin-top:.6rem}.learning-sync-detail-list>div{display:flex;justify-content:space-between;gap:1rem;font-size:.82rem}.learning-sync-detail-list span{color:var(--ink-muted,#66736b)}.learning-sync-detail-list strong{font-weight:600;text-align:right}
     @media(max-width:700px){.metadata-import-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.metadata-record-grid{grid-template-columns:1fr}.metadata-undo-row{align-items:flex-start;flex-direction:column}}
       @media(max-width:700px){.authoring-transfer-actions{grid-template-columns:1fr}}
   </style>
@@ -236,6 +237,10 @@
               <div><strong id="learning-sync-progress-records">0</strong><span>Progress cards after merge</span></div>
             </div>
             <p class="metadata-import-note" id="learning-sync-preview-summary">Compare ready.</p>
+            <details class="learning-sync-details" id="learning-sync-details">
+              <summary>View merge details</summary>
+              <div class="learning-sync-detail-list" id="learning-sync-detail-list"></div>
+            </details>
             <p class="local-restore-warning">This merge keeps unique history from both sides. Same-ID revisions use the newer timestamp when available; unresolved same-time conflicts stay on this device. Review / Attention current state is rebuilt from chronological state-changing events where available.</p>
             <div class="local-restore-actions">
               <button type="button" class="local-restore-secondary" id="learning-sync-cancel-preview">Clear Preview</button>
@@ -629,8 +634,8 @@
   <script src="./classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
   <script src="./ai-study-data.js?v=20260927-s7-learning-sync-v186144"></script>
-  <script src="./learning-sync.js?v=20260927-s7-learning-sync-v186144"></script>
-  <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186144"></script>
+  <script src="./learning-sync.js?v=20260927-s7-learning-sync-v186145"></script>
+  <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186145"></script>
   <script src="./local-data-safety.js?v=20260927-s7-learning-sync-v186144"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>

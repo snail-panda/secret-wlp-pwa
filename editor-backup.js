@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.144 — Learning Sync + Classification / Authoring transfer. */
+/* WLP Stage 7 v1.8.6.145 — Learning Sync compact rollback + merge detail preview. */
 (() => {
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
@@ -136,6 +136,26 @@
     if(!plan.changed)parts.push('already synchronized');
     return parts.join(' · ');
   }
+  function learningSyncDetailRows(plan){
+    const s=plan.stats||{};
+    const rows=[
+      ['Standard events',Number(s.standardEvents?.added)||0,(Number(s.standardEvents?.incomingNewer)||0)],
+      ['Standard sessions',Number(s.standardSessions?.added)||0,(Number(s.standardSessions?.merged)||0)],
+      ['AI events',Number(s.aiEvents?.added)||0,(Number(s.aiEvents?.incomingNewer)||0)],
+      ['AI sessions',Number(s.aiSessions?.added)||0,(Number(s.aiSessions?.merged)||0)],
+      ['Card activity',Number(s.activityEvents?.added)||0,(Number(s.activityEvents?.incomingNewer)||0)],
+      ['Interactions',Number(s.interactionEvents?.added)||0,(Number(s.interactionEvents?.incomingNewer)||0)],
+      ['Progress cards',Number(s.progress?.added)||0,(Number(s.progress?.changed)||0)]
+    ];
+    const practiceAdded=Number(s.practiceEvents?.added)||0,practiceUpdated=Number(s.practiceEvents?.incomingNewer)||0;
+    if(practiceAdded||practiceUpdated)rows.push(['Legacy practice events',practiceAdded,practiceUpdated]);
+    return rows;
+  }
+  function renderLearningSyncDetails(plan){
+    const target=$('learning-sync-detail-list');if(!target)return;
+    target.innerHTML=learningSyncDetailRows(plan).map(([label,added,updated])=>`<div><span>${escapeHtml(label)}</span><strong>+${added} new${updated?` · ${updated} updated`:''}</strong></div>`).join('');
+    const details=$('learning-sync-details');if(details)details.open=false;
+  }
   function renderLearningSyncPreview(plan,fileName){
     pendingLearningSyncPlan=plan;pendingLearningSyncFileName=fileName||'Selected Sync file';
     const wrap=$('learning-sync-preview');if(!wrap)return;wrap.hidden=false;
@@ -148,6 +168,7 @@
     $('learning-sync-activity-events').textContent=String(plan.afterCounts?.activityEvents||0);
     $('learning-sync-progress-records').textContent=String(plan.afterCounts?.progressRecords||0);
     $('learning-sync-preview-summary').textContent=learningSyncStatsText(plan);
+    renderLearningSyncDetails(plan);
     const start=$('learning-sync-start');if(start)start.disabled=!plan.changed;
     const confirm=$('learning-sync-confirm');if(confirm)confirm.hidden=true;
   }
