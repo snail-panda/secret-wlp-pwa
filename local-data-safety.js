@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.146 — Compact backup markers + Learning Sync storage headroom. */
+/* WLP Stage 7 v1.8.6.151 — Exact lightweight Authoring change counts. */
 (() => {
   'use strict';
 
@@ -145,7 +145,55 @@
     return { count: normalized.length, digest: hashTextParts(parts) };
   }
 
-  function currentEditorDigest() {
+  function recordFingerprint(value) {
+    const text = String(value ?? '');
+    let hash = 2166136261 >>> 0;
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash.toString(36);
+  }
+
+  function fingerprintPairs(pairs) {
+    const normalized = (Array.isArray(pairs) ? pairs : [])
+      .map(([key, value]) => [String(key ?? ''), String(value ?? '')]);
+    const digest = digestPairs(normalized);
+    const wid = [];
+    const numeric = [];
+    const generic = [];
+    normalized.forEach(([key, value]) => {
+      const fp = recordFingerprint(value);
+      const widMatch = key.match(/^wid:(\d+)$/);
+      if (widMatch) { wid.push([Number(widMatch[1]), fp]); return; }
+      if (/^\d+$/.test(key)) { numeric.push([Number(key), fp]); return; }
+      generic.push([key, fp]);
+    });
+    wid.sort((a, b) => a[0] - b[0]);
+    numeric.sort((a, b) => a[0] - b[0]);
+    generic.sort((a, b) => a[0].localeCompare(b[0]));
+    const lines = [];
+    let previous = 0;
+    wid.forEach(([id, fp]) => { lines.push(`w${(id - previous).toString(36)}:${fp}`); previous = id; });
+    previous = 0;
+    numeric.forEach(([id, fp]) => { lines.push(`n${(id - previous).toString(36)}:${fp}`); previous = id; });
+    generic.forEach(([key, fp]) => lines.push(`k${encodeURIComponent(key)}:${fp}`));
+    return { ...digest, records:lines.join('\n') };
+  }
+
+  function digestOnlyState(state) {
+    if (!state || typeof state !== 'object') return null;
+    const pick = value => ({ count:Number(value?.count || 0), digest:String(value?.digest || '') });
+    return {
+      format: 'digest-v1',
+      drafts: pick(state.drafts),
+      overrides: pick(state.overrides),
+      learningHooks: pick(state.learningHooks),
+      classification: pick(state.classification)
+    };
+  }
+
+  function currentEditorFingerprintState() {
     const drafts = [];
     readDrafts().forEach((draft, index) => {
       const id = String(draft.localId || `draft-${index}-${draft.Word || ''}`);
@@ -174,52 +222,116 @@
     });
 
     return {
-      format: 'digest-v1',
-      drafts: digestPairs(drafts),
-      overrides: digestPairs(overrides),
-      learningHooks: digestPairs(learningHooks),
-      classification: digestPairs(classification)
+      format: 'fingerprints-v1',
+      drafts: fingerprintPairs(drafts),
+      overrides: fingerprintPairs(overrides),
+      learningHooks: fingerprintPairs(learningHooks),
+      classification: fingerprintPairs(classification)
+    };
+  }
+
+  function fingerprintsFromLegacyEditorState(editorState) {
+    if (!editorState || typeof editorState !== 'object' || Array.isArray(editorState)) return null;
+    const fingerprintMap = value => fingerprintPairs(Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {}));
+    return {
+      format: 'fingerprints-v1',
+      drafts: fingerprintMap(editorState.drafts),
+      overrides: fingerprintMap(editorState.overrides),
+      learningHooks: fingerprintMap(editorState.learningHooks),
+      classification: fingerprintMap(editorState.classification)
     };
   }
 
   function digestLegacyEditorState(editorState) {
-    if (!editorState || typeof editorState !== 'object' || Array.isArray(editorState)) return null;
-    const digestMap = value => digestPairs(Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {}));
-    return {
-      format: 'digest-v1',
-      drafts: digestMap(editorState.drafts),
-      overrides: digestMap(editorState.overrides),
-      learningHooks: digestMap(editorState.learningHooks),
-      classification: digestMap(editorState.classification)
-    };
+    return digestOnlyState(fingerprintsFromLegacyEditorState(editorState));
   }
 
-  function changedEditorCategories(meta, currentDigest) {
-    const baseline = meta?.editorStateDigest || digestLegacyEditorState(meta?.editorState);
-    if (!baseline) return null;
+  function fingerprintMap(block) {
+    const out = new Map();
+    const raw = String(block?.records || '');
+    if (!raw) return out;
+    let previousWid = 0;
+    let previousNumeric = 0;
+    raw.split('\n').forEach(line => {
+      const split = line.indexOf(':');
+      if (split < 2) return;
+      const kind = line[0];
+      const encoded = line.slice(1, split);
+      const fingerprint = line.slice(split + 1);
+      if (!fingerprint) return;
+      if (kind === 'w') {
+        const delta = parseInt(encoded, 36);
+        if (!Number.isFinite(delta)) return;
+        previousWid += delta;
+        out.set(`wid:${previousWid}`, fingerprint);
+        return;
+      }
+      if (kind === 'n') {
+        const delta = parseInt(encoded, 36);
+        if (!Number.isFinite(delta)) return;
+        previousNumeric += delta;
+        out.set(String(previousNumeric), fingerprint);
+        return;
+      }
+      if (kind === 'k') {
+        try { out.set(decodeURIComponent(encoded), fingerprint); } catch (_) {}
+      }
+    });
+    return out;
+  }
+
+  function changedFingerprintCount(beforeBlock, afterBlock) {
+    const before = fingerprintMap(beforeBlock);
+    const after = fingerprintMap(afterBlock);
+    const ids = new Set([...before.keys(), ...after.keys()]);
+    let changed = 0;
+    ids.forEach(id => { if (before.get(id) !== after.get(id)) changed += 1; });
+    return changed;
+  }
+
+  function compareEditorState(meta, currentState) {
+    if (!meta || !currentState) return null;
     const defs = [
       ['drafts', 'Drafts'],
       ['overrides', 'Local Edits'],
       ['learningHooks', 'Learning Metadata'],
       ['classification', 'Classification']
     ];
-    return defs.filter(([key]) => {
+
+    const exactBaseline = meta.editorStateFingerprints?.format === 'fingerprints-v1'
+      ? meta.editorStateFingerprints
+      : fingerprintsFromLegacyEditorState(meta.editorState);
+    if (exactBaseline) {
+      const details = defs.map(([key, label]) => ({ key, label, count:changedFingerprintCount(exactBaseline[key], currentState[key]) }));
+      return { exact:true, total:details.reduce((sum, item) => sum + item.count, 0), details };
+    }
+
+    const baseline = meta.editorStateDigest?.format === 'digest-v1' ? meta.editorStateDigest : digestLegacyEditorState(meta.editorState);
+    if (!baseline) return null;
+    const details = defs.map(([key, label]) => {
       const before = baseline[key] || {};
-      const after = currentDigest?.[key] || {};
-      return Number(before.count || 0) !== Number(after.count || 0) || String(before.digest || '') !== String(after.digest || '');
-    }).map(([, label]) => label);
+      const after = currentState[key] || {};
+      const changed = Number(before.count || 0) !== Number(after.count || 0) || String(before.digest || '') !== String(after.digest || '');
+      return { key, label, changed };
+    });
+    return { exact:false, details };
   }
 
   function compactBackupMetaValue(meta) {
     if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
-    if (meta.editorStateDigest?.format === 'digest-v1' && !meta.editorState) return meta;
-    const digest = meta.editorStateDigest?.format === 'digest-v1'
-      ? meta.editorStateDigest
-      : digestLegacyEditorState(meta.editorState);
-    if (!digest) return meta;
-    const next = { ...meta, metaVersion: 2, editorStateDigest: digest };
-    delete next.editorState;
-    return next;
+    if (meta.editorStateFingerprints?.format === 'fingerprints-v1' && !meta.editorState) {
+      if (Number(meta.metaVersion) >= 3 && meta.editorStateDigest?.format === 'digest-v1') return meta;
+      return { ...meta, metaVersion:3, editorStateDigest:digestOnlyState(meta.editorStateFingerprints) };
+    }
+    if (meta.editorState) {
+      const fingerprints = fingerprintsFromLegacyEditorState(meta.editorState);
+      if (!fingerprints) return meta;
+      const next = { ...meta, metaVersion:3, editorStateDigest:digestOnlyState(fingerprints), editorStateFingerprints:fingerprints };
+      delete next.editorState;
+      return next;
+    }
+    if (meta.editorStateDigest?.format === 'digest-v1') return meta;
+    return meta;
   }
 
   function compactBackupMeta() {
@@ -237,11 +349,13 @@
   }
 
   function backupMetaPayload({ lastBackupAt, fileName, summary: backupSummary, restoredAt = '' }) {
+    const fingerprints = currentEditorFingerprintState();
     const payload = {
-      metaVersion: 2,
+      metaVersion: 3,
       lastBackupAt,
       fileName,
-      editorStateDigest: currentEditorDigest(),
+      editorStateDigest: digestOnlyState(fingerprints),
+      editorStateFingerprints: fingerprints,
       summary: backupSummary
     };
     if (restoredAt) payload.restoredAt = restoredAt;
@@ -349,9 +463,9 @@
 
   function render() {
     const data = summary();
-    const state = currentEditorDigest();
+    const state = currentEditorFingerprintState();
     const meta = readMeta();
-    const changedCategories = changedEditorCategories(meta, state);
+    const comparison = compareEditorState(meta, state);
 
     document.querySelectorAll('[data-safety-drafts]').forEach(node => { node.textContent = String(data.drafts); });
     document.querySelectorAll('[data-safety-edits]').forEach(node => { node.textContent = String(data.localEdits); });
@@ -363,23 +477,46 @@
     });
 
     document.querySelectorAll('[data-safety-change-count]').forEach(node => {
-      if (changedCategories === null) {
+      if (comparison === null) {
         node.textContent = 'Not backed up yet';
         node.dataset.state = 'warning';
-      } else if (!changedCategories.length) {
+        return;
+      }
+
+      if (comparison.exact) {
+        const changed = comparison.details.filter(item => item.count > 0);
+        if (!comparison.total) {
+          node.textContent = 'No Authoring changes since backup';
+          node.dataset.state = 'safe';
+        } else if (changed.length === 1) {
+          const item = changed[0];
+          node.textContent = `${item.count} ${item.label} change${item.count === 1 ? '' : 's'} since backup`;
+          node.dataset.state = comparison.total >= 10 ? 'urgent' : 'warning';
+        } else {
+          const detail = changed.map(item => `${item.label} ${item.count}`).join(' · ');
+          node.textContent = `${comparison.total} Authoring change${comparison.total === 1 ? '' : 's'} since backup · ${detail}`;
+          node.dataset.state = comparison.total >= 10 ? 'urgent' : 'warning';
+        }
+        return;
+      }
+
+      const changed = comparison.details.filter(item => item.changed);
+      if (!changed.length) {
         node.textContent = 'No Authoring changes since backup';
         node.dataset.state = 'safe';
-      } else if (changedCategories.length === 1) {
-        node.textContent = `${changedCategories[0]} changed since backup`;
+      } else if (changed.length === 1) {
+        node.textContent = `${changed[0].label} changed since backup · exact count after next backup`;
         node.dataset.state = 'warning';
       } else {
-        node.textContent = `Authoring content changed since backup · ${changedCategories.join(', ')}`;
+        node.textContent = `Authoring content changed since backup · ${changed.map(item => item.label).join(', ')} · exact count after next backup`;
         node.dataset.state = 'warning';
       }
     });
 
     document.querySelectorAll('[data-local-safety]').forEach(panel => {
-      panel.dataset.backupState = changedCategories === null ? 'never' : !changedCategories.length ? 'safe' : 'changed';
+      if (comparison === null) panel.dataset.backupState = 'never';
+      else if (comparison.exact) panel.dataset.backupState = comparison.total === 0 ? 'safe' : comparison.total >= 10 ? 'urgent' : 'changed';
+      else panel.dataset.backupState = comparison.details.some(item => item.changed) ? 'changed' : 'safe';
     });
   }
 
