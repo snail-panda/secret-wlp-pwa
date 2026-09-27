@@ -1265,16 +1265,19 @@
     $('ai-target-count').textContent = fmt(m.targets);
     $('ai-session-count').textContent = fmt(m.sessions);
     $('ai-route-count').textContent = fmt(m.evidenceRoutes);
-    $('ai-summary-line').textContent = events.length
-      ? `${fmt(m.events)} interpreted experience${m.events === 1 ? '' : 's'} across ${fmt(m.targets)} target${m.targets === 1 ? '' : 's'} and ${fmt(m.sessions)} session${m.sessions === 1 ? '' : 's'} in this time window.`
-      : 'No AI Practice evidence recorded in this time window yet.';
+    const aiSummaryLine = $('ai-summary-line');
+    if (events.length) {
+      aiSummaryLine.innerHTML = `<strong class="ai-summary-number">${fmt(m.events)}</strong> interpreted experience${m.events === 1 ? '' : 's'} across <strong class="ai-summary-number">${fmt(m.targets)}</strong> target${m.targets === 1 ? '' : 's'} and <strong class="ai-summary-number">${fmt(m.sessions)}</strong> session${m.sessions === 1 ? '' : 's'} in this time window.`;
+    } else {
+      aiSummaryLine.textContent = 'No AI Practice evidence recorded in this time window yet.';
+    }
     const evidenceTarget = $('ai-evidence-types');
     const evidenceEntries = Object.entries(m.evidence).sort((a,b) => b[1] - a[1]);
     evidenceTarget.innerHTML = evidenceEntries.length
       ? evidenceEntries.map(([type,count]) => `<span class="ai-evidence-chip"><b>${fmt(count)}</b>${escapeHtml(aiEvidenceLabel(type))}</span>`).join('')
       : '<p class="ai-evidence-empty">No evidence-route observations are available for this period yet.</p>';
-    $('ai-graph-summary').textContent = `Current graph: ${fmt(m.neighbors)} learner-generated neighbors · ${fmt(m.anchors)} personal anchors · ${fmt(m.connections)} connections · ${fmt(m.weakRoutes)} weak/failed routes`;
-    $('ai-profile-summary').textContent = `Profile evidence: ${fmt(m.productionTendencies)} production tendencies · ${fmt(m.reusableConstructions)} reusable constructions · ${fmt(m.styleTendencies)} style tendencies.`;
+    $('ai-graph-summary').innerHTML = `<strong class="ai-graph-summary-label">Current graph</strong>${fmt(m.neighbors)} learner-generated neighbors · ${fmt(m.anchors)} personal anchors · ${fmt(m.connections)} connections · ${fmt(m.weakRoutes)} weak/failed routes`;
+    $('ai-profile-summary').innerHTML = `<strong class="ai-graph-summary-label">Profile evidence</strong>${fmt(m.productionTendencies)} production tendencies · ${fmt(m.reusableConstructions)} reusable constructions · ${fmt(m.styleTendencies)} style tendencies.`;
     const list = $('ai-recent-list');
     const recent = events.slice(0, 8);
     if (!recent.length) {

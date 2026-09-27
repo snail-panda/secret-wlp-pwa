@@ -77,6 +77,38 @@
       .activity-mix-row>span,.activity-mix-row b{font-size:12.5px!important;color:#4f6a5b!important}
     }
   </style>
+  <style id="progress-activity-finish-v150">
+    /* v1.8.6.150 — iPhone Activity finish pass: stronger navigation/summary text, consistent graph typography. */
+    @media(max-width:700px){
+      #progress-view-description{font-size:14.5px!important;color:#5b7064!important;line-height:1.45!important}
+      .activity-period-tabs button{font-size:12.5px!important;color:#586e61!important;font-weight:500!important}
+      .activity-period-tabs button.is-active{color:#285f47!important;font-weight:700!important}
+      .activity-source-shell>span{font-family:var(--serif)!important;font-size:12.5px!important;font-weight:600!important;color:#466353!important}
+      .activity-source-tabs button{font-family:var(--serif)!important;font-size:12.5px!important;font-weight:500!important;color:#596f63!important;opacity:1!important}
+      .activity-source-tabs button.is-active{font-weight:700!important;color:#285f47!important}
+
+      .activity-secondary-stats{font-size:12.5px!important;color:#5d7166!important}
+      .activity-secondary-stats b{font-weight:700!important;color:#315d49!important}
+      .activity-data-quality{font-size:11.75px!important;color:#60756a!important;line-height:1.42!important}
+
+      .studyq-summary-line{font-size:13.25px!important;color:#536b5e!important;line-height:1.5!important}
+      .studyq-summary-number{font-weight:700!important;color:#2f5e49!important}
+      #studyq-attention-note{font-size:12.75px!important;font-weight:500!important;color:#536b5e!important;line-height:1.5!important}
+      [data-panel="activity.studyq"] .panel-link,[data-panel="activity.ai"] .panel-link{font-size:13.5px!important;font-weight:500!important;color:#3f6955!important}
+
+      .ai-summary-line{font-size:13.5px!important;color:#536b5e!important;line-height:1.5!important}
+      .ai-summary-number{font-weight:700!important;color:#2f5e49!important}
+      .ai-graph-section .studyq-evidence-label>span,.ai-graph-section .studyq-evidence-label>small{font-family:var(--serif)!important}
+      .ai-graph-section .studyq-evidence-label>span{font-size:14px!important;font-weight:700!important;color:#365e4c!important}
+      .ai-graph-section .studyq-evidence-label>small{font-size:13px!important;font-weight:600!important;color:#5c7165!important}
+      .ai-graph-summary,.ai-profile-summary{font-family:var(--serif)!important;font-size:13.5px!important;font-weight:400!important;color:#607469!important;line-height:1.5!important}
+      .ai-graph-summary-label{font-weight:600!important;color:#3d6250!important;margin-right:.35em!important}
+
+      .trend-value{font-size:10.5px!important;font-weight:600!important;line-height:14px!important;height:14px!important;min-height:14px!important;flex:0 0 14px!important;color:#496355!important}
+      .trend-bar-wrap{height:112px!important;flex:0 0 112px!important}
+      .trend-label{font-size:10.5px!important;font-weight:500!important;line-height:18px!important;height:18px!important;flex:0 0 18px!important;color:#536c5f!important}
+    }
+  </style>
 </head>
 <body class="app-body progress-page">
   <div class="app-shell">
@@ -330,7 +362,7 @@
               <div class="studyq-evidence-label"><span>Observed evidence</span><small>What the response actually demonstrated</small></div>
               <div class="ai-evidence-types" id="ai-evidence-types"></div>
             </div>
-            <div class="ai-evidence-section">
+            <div class="ai-evidence-section ai-graph-section">
               <div class="studyq-evidence-label"><span>Learning graph</span><small>Kept separate from mastery</small></div>
               <p class="ai-graph-summary" id="ai-graph-summary"></p>
               <p class="ai-profile-summary" id="ai-profile-summary"></p>
@@ -469,7 +501,7 @@
       setInterval(()=>{if(!document.hidden)lockBottomNav();},1500);
     })();
   </script>
-  <script src="./progress.js?v=20260927-s7-standard-progress-target-return-v186147"></script>
+  <script src="./progress.js?v=20260927-s7-progress-activity-finish-v186150"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>
