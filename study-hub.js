@@ -1,3 +1,4 @@
+/* WLP Stage 7 v1.8.6.147 — Progress-context return for saved Standard Practice sessions. */
 (() => {
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
@@ -10,7 +11,7 @@
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
-  const STUDYQ_STANDARD_VERSION = '1.1.0';
+  const STUDYQ_STANDARD_VERSION = '1.1.1';
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -49,6 +50,42 @@
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
   const clampDeck = value => Math.max(1, Math.min(maxDeck, Math.round(Number(value) || 1)));
+
+  function progressReturnHrefFromQuery() {
+    const params = new URLSearchParams(location.search);
+    if (clean(params.get('from')).toLowerCase() !== 'progress') return '';
+    const raw = clean(params.get('return'));
+    if (raw) {
+      try {
+        const url = new URL(raw, location.href);
+        if (url.origin === location.origin && url.pathname.endsWith('/progress.html')) {
+          return `${url.pathname}${url.search}${url.hash}`;
+        }
+      } catch (_) {}
+    }
+    return './progress.html?view=activity';
+  }
+
+  function installStudyHubContextReturnNavigation() {
+    const href = progressReturnHrefFromQuery();
+    if (!href) return;
+    const back = document.querySelector('.study-hub-back-link');
+    if (back) {
+      back.href = href;
+      back.setAttribute('aria-label', 'Back to Progress');
+      back.setAttribute('title', 'Back to Progress');
+      const label = back.querySelector('span');
+      if (label) label.textContent = 'Back to Progress';
+    }
+    const footerBack = document.querySelector('.stage7-page-bottom-nav [data-stage7-back-source=".study-hub-back-link"]');
+    if (footerBack) {
+      footerBack.href = href;
+      footerBack.setAttribute('aria-label', 'Back to Progress');
+      footerBack.setAttribute('title', 'Back to Progress');
+      const label = footerBack.querySelector('span');
+      if (label) label.textContent = 'Progress';
+    }
+  }
 
   function readTemporaryStudySet() {
     try {
@@ -2524,6 +2561,7 @@
     runPreProgressPolishSelfTest
   });
 
+  installStudyHubContextReturnNavigation();
   installEvents();
   (async () => {
     try {

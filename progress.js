@@ -1,3 +1,4 @@
+/* WLP Stage 7 v1.8.6.147 — Standard Practice target-aware Progress history + Progress return. */
 (() => {
   'use strict';
 
@@ -116,6 +117,40 @@
     if (deck && id) return `./flashcards/wlp/batch.html?batch=${encodeURIComponent(pad3(deck))}&wordid=${encodeURIComponent(id)}&solo=1`;
     if (deck) return `./flashcards/wlp/batch.html?batch=${encodeURIComponent(pad3(deck))}`;
     return '';
+  }
+
+  function standardExperienceInfo(experience) {
+    const wordId = String(experience?.wordId || experience?.attempt?.wordId || '').trim();
+    const row = rowByWordId.get(wordId) || {};
+    const word = String(
+      field(row, 'Word') ||
+      experience?.cardHeadword ||
+      experience?.answerTarget ||
+      experience?.attempt?.cardHeadword ||
+      experience?.attempt?.target ||
+      (wordId ? `WID ${wordId}` : 'Target')
+    ).trim();
+    const deck = Number(experience?.batch || experience?.attempt?.batch || deckOf(row)) || 0;
+    return { wordId, word, deck, href: wordId ? cardHrefForWordId(wordId) : '' };
+  }
+
+  function standardSessionTargets(session) {
+    const experiences = Array.isArray(session?.experiences) ? session.experiences : [];
+    const seen = new Set();
+    return experiences.map(standardExperienceInfo).filter(item => {
+      const key = item.wordId || `${item.deck}:${item.word}`;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function standardTargetSummary(targets, limit = 3) {
+    const safe = Array.isArray(targets) ? targets : [];
+    const shown = safe.slice(0, limit).map(item => item.word).filter(Boolean);
+    if (!shown.length) return '';
+    const more = Math.max(0, safe.length - shown.length);
+    return `${shown.join(' · ')}${more ? ` · +${more} more` : ''}`;
   }
 
   function firstPracticeWordId(event) {
@@ -808,10 +843,16 @@
       const timestamp = sessionTimestamp(session);
       if (!timestamp) return;
       const experiences = Number(session?.experienceCount) || (Array.isArray(session?.experiences) ? session.experiences.length : 0);
+      const targets = standardSessionTargets(session);
+      const singleTarget = experiences === 1 && targets.length === 1 ? targets[0] : null;
+      const deckText = Array.isArray(session?.decks) && session.decks.length
+        ? (session.decks.length === 1 ? `WLP${pad3(session.decks[0])}` : `${session.decks.length} decks`)
+        : (singleTarget?.deck ? `WLP${pad3(singleTarget.deck)}` : '');
+      const targetText = !singleTarget && targets.length ? `Targets: ${standardTargetSummary(targets)}` : '';
       items.push({
         timestamp,
-        title: 'Standard Practice',
-        copy: experiences ? `${experiences} experience${experiences === 1 ? '' : 's'}` : 'Completed session',
+        title: singleTarget?.word || 'Standard Practice',
+        copy: [singleTarget ? 'Standard Practice' : (experiences ? `${experiences} experience${experiences === 1 ? '' : 's'}` : 'Completed session'), deckText, singleTarget?.wordId ? `WID ${singleTarget.wordId}` : targetText].filter(Boolean).join(' · '),
         tag: 'Standard',
         href: session?.sessionId ? `./study-hub.html?session=${encodeURIComponent(String(session.sessionId))}` : './study-hub.html'
       });
@@ -951,6 +992,7 @@
       const reviewWordIds = experiences
         .filter(item => { const attention = standardAttention(item?.attempt?.reviewAttention); return attention && attention !== 'none'; })
         .map(item => String(item?.wordId || '')).filter(Boolean);
+      const targetItems = standardSessionTargets(session).map(item => ({ wordId: item.wordId, word: item.word, deck: item.deck }));
       stream.push({
         timestamp,
         type: 'standard',
@@ -959,6 +1001,8 @@
         sourceLabel: String(session.sourceLabel || 'Standard Practice'),
         wordIds,
         reviewWordIds,
+        targetItems,
+        decks: Array.isArray(session.decks) ? session.decks.map(Number).filter(Boolean) : [],
         experienceCount: Number(session.experienceCount) || experiences.length,
         counts: session.counts || {},
         legacy: false
@@ -1075,7 +1119,10 @@
   }
 
   function activityTimelineTitle(event) {
-    if (event.type === 'standard') return 'Standard Practice';
+    if (event.type === 'standard') {
+      const targets = Array.isArray(event.targetItems) ? event.targetItems : [];
+      return targets.length === 1 ? (targets[0].word || 'Standard Practice') : 'Standard Practice';
+    }
     if (event.type === 'ai') {
       const row = rowByWordId.get(String(event.wordId || '')) || {};
       return field(row, 'Word') || (event.wordId ? `WID ${event.wordId}` : 'AI Practice');
@@ -1094,7 +1141,13 @@
     if (event.type === 'standard') {
       const summary = studyQRatingSummary(event.counts || {});
       const count = Number(event.experienceCount) || (Array.isArray(event.wordIds) ? event.wordIds.length : 0);
-      return [`${count} experience${count === 1 ? '' : 's'}`, event.sourceLabel, summary].filter(Boolean).join(' · ');
+      const targets = Array.isArray(event.targetItems) ? event.targetItems : [];
+      const deckText = Array.isArray(event.decks) && event.decks.length
+        ? (event.decks.length === 1 ? `WLP${pad3(event.decks[0])}` : `${event.decks.length} decks`)
+        : '';
+      const targetText = targets.length > 1 ? `Targets: ${standardTargetSummary(targets)}` : '';
+      const sourceText = targets.length === 1 ? 'Standard Practice' : event.sourceLabel;
+      return [sourceText, `${count} experience${count === 1 ? '' : 's'}`, deckText, targetText, summary].filter(Boolean).join(' · ');
     }
     if (event.type === 'practice') {
       const targets = Array.isArray(event.targets) ? event.targets.length : 0;
@@ -1179,18 +1232,27 @@
     target.innerHTML = recent.map(session => {
       const timestamp = sessionTimestamp(session);
       const count = Number(session.experienceCount) || (Array.isArray(session.experiences) ? session.experiences.length : 0);
-      const source = String(session.sourceLabel || 'Study Q').trim();
+      const source = String(session.sourceLabel || 'Standard Practice').trim();
       const ratingsText = studyQRatingSummary(session.counts || {});
+      const targets = standardSessionTargets(session);
+      const singleTarget = count === 1 && targets.length === 1 ? targets[0] : null;
       const deckText = Array.isArray(session.decks) && session.decks.length
         ? (session.decks.length === 1 ? `WLP${pad3(session.decks[0])}` : `${session.decks.length} decks`)
-        : '';
+        : (singleTarget?.deck ? `WLP${pad3(singleTarget.deck)}` : '');
       const planned = Number(session.plannedExperienceCount) || count;
       const isPartial = session.status === 'ended-early' || session.status === 'incomplete';
       const statusText = isPartial ? `${count}/${planned} experiences` : `${count} experience${count === 1 ? '' : 's'}`;
-      const copy = [ statusText, deckText, ratingsText ].filter(Boolean).join(' · ');
-      const href = `./study-hub.html?session=${encodeURIComponent(String(session.sessionId || ''))}`;
-      const tag = session.status === 'ended-early' ? 'Ended early' : session.status === 'incomplete' ? 'Left early' : 'Open';
-      return `<a class="studyq-session-row" href="${href}"><span class="studyq-session-time">${escapeHtml(formatWhen(timestamp))}</span><span class="studyq-session-main"><strong>${escapeHtml(source)}</strong><small>${escapeHtml(copy)}</small></span><span class="studyq-session-tag">${escapeHtml(tag)}</span></a>`;
+      const targetText = !singleTarget && targets.length ? `Targets: ${standardTargetSummary(targets)}` : '';
+      const copy = singleTarget
+        ? [ 'Standard Practice', deckText, singleTarget.wordId ? `WID ${singleTarget.wordId}` : '', ratingsText ].filter(Boolean).join(' · ')
+        : [ statusText, deckText, targetText, ratingsText ].filter(Boolean).join(' · ');
+      const sessionHref = `./study-hub.html?session=${encodeURIComponent(String(session.sessionId || ''))}`;
+      const sessionLabel = session.status === 'ended-early' ? 'Ended early' : session.status === 'incomplete' ? 'Left early' : 'Session ›';
+      const actions = [
+        singleTarget?.href ? `<a class="studyq-session-tag studyq-session-card-link" href="${singleTarget.href}">Card ›</a>` : '',
+        `<a class="studyq-session-tag" href="${sessionHref}">${escapeHtml(sessionLabel)}</a>`
+      ].filter(Boolean).join('');
+      return `<div class="studyq-session-row"><span class="studyq-session-time">${escapeHtml(formatWhen(timestamp))}</span><span class="studyq-session-main"><strong>${escapeHtml(singleTarget?.word || source)}</strong><small>${escapeHtml(copy)}</small></span><span class="studyq-session-actions">${actions}</span></div>`;
     }).join('');
   }
 
@@ -1377,16 +1439,33 @@
     return `../../progress.html?${params.toString()}`;
   }
 
+  function progressStudyHubReturnHref() {
+    const safeView = VIEW_META[activeView] ? activeView : 'overview';
+    const params = new URLSearchParams();
+    params.set('view', safeView);
+    params.set('scroll', String(Math.max(0, Math.round(window.scrollY || 0))));
+    return `./progress.html?${params.toString()}`;
+  }
+
   function prepareProgressCardReturn(event) {
     const link = event.target?.closest?.('a[href]');
     if (!link) return;
     try {
       const url = new URL(link.getAttribute('href') || '', location.href);
-      if (url.origin !== location.origin || !url.pathname.endsWith('/flashcards/wlp/batch.html')) return;
-      saveProgressHistoryPosition();
-      url.searchParams.set('from', 'progress');
-      url.searchParams.set('return', progressCardReturnHref());
-      link.href = url.href;
+      if (url.origin !== location.origin) return;
+      if (url.pathname.endsWith('/flashcards/wlp/batch.html')) {
+        saveProgressHistoryPosition();
+        url.searchParams.set('from', 'progress');
+        url.searchParams.set('return', progressCardReturnHref());
+        link.href = url.href;
+        return;
+      }
+      if (url.pathname.endsWith('/study-hub.html')) {
+        saveProgressHistoryPosition();
+        url.searchParams.set('from', 'progress');
+        url.searchParams.set('return', progressStudyHubReturnHref());
+        link.href = url.href;
+      }
     } catch (_) {}
   }
 
@@ -1685,7 +1764,7 @@
 
   function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.3.3', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.4', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
