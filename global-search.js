@@ -1,3 +1,4 @@
+/* WLP Stage 7 v1.8.6.152 — Structured WID / WLP Global Search. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260915-s7-v30';
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
@@ -26,17 +27,55 @@
   function normalize(value) {
     return String(value ?? '').toLocaleLowerCase('en-US').replace(/\s+/g, ' ').trim();
   }
-  function widQuery(value) {
-    const raw = String(value ?? '').trim();
-    const match = raw.match(/^(?:wid\s*[:#-]?\s*)?0*(\d+)$/i);
-    if (!match) return '';
-    const numeric = String(Number(match[1]));
-    return numeric === '0' ? '' : numeric;
-  }
   function isAdminMode() {
     return localStorage.getItem(WLP_UI_ROLE_KEY) === 'admin' || sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY) === 'admin';
   }
   function pad3(value) { return String(value).padStart(3, '0'); }
+  function parseStructuredQuery(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+
+    const wlp = raw.match(/^wlp\s*:\s*0*(\d+)$/i);
+    if (wlp) {
+      const deck = Number(wlp[1]);
+      return Number.isFinite(deck) && deck > 0 ? { type:'wlp', value:String(deck), number:deck } : null;
+    }
+
+    // Preserve the existing exact-WID behavior: bare numbers, WID312,
+    // WID 312, WID:312, and simple punctuation variants all mean one WID.
+    const wid = raw.match(/^(?:wid\s*[:#._-]?\s*)?0*(\d+)$/i);
+    if (wid) {
+      const wordId = Number(wid[1]);
+      return Number.isFinite(wordId) && wordId > 0 ? { type:'wid', value:String(wordId), number:wordId } : null;
+    }
+    return null;
+  }
+
+  function structuredHits(spec) {
+    if (!spec) return [];
+    if (spec.type === 'wid') {
+      return effectiveRows
+        .filter(row => row.__source !== 'draft' && Number(row.WordID || 0) === spec.number)
+        .map(row => ({ row, score:2000, match:null, query:'', tokens:[], structured:spec }));
+    }
+    if (spec.type === 'wlp') {
+      return effectiveRows
+        .filter(row => row.__source !== 'draft' && Number(row['Batch #'] || 0) === spec.number)
+        .sort((a, b) => Number(a.WordID || 0) - Number(b.WordID || 0))
+        .map(row => ({ row, score:1900, match:null, query:'', tokens:[], structured:spec }));
+    }
+    return [];
+  }
+
+  function structuredSnippet(row) {
+    return String(row.Definition || row['Example Sentence'] || row['Note(s)'] || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function structuredResultMeta(spec, count) {
+    if (spec?.type === 'wid') return count ? `${count} card for WID${spec.value}` : `No card found for WID${spec.value}`;
+    if (spec?.type === 'wlp') return count ? `${count} card${count === 1 ? '' : 's'} in WLP${pad3(spec.number)}` : `No cards found in WLP${pad3(spec.number)}`;
+    return '';
+  }
   function parseTSV(text) {
     const table = [];
     let row = [], field = '', quoted = false;
@@ -107,18 +146,6 @@
   function scoreRow(row, query) {
     const q = normalize(query);
     if (!q) return null;
-    const wantedWid = widQuery(query);
-    if (wantedWid) {
-      const rowWid = String(Number(String(row.WordID || '').trim()));
-      if (!row.WordID || rowWid !== wantedWid) return null;
-      return {
-        row,
-        score: 5000,
-        match: {key:'WordID', label:'WID', raw:`WID${String(row.WordID).trim()}`, norm:wantedWid},
-        query: wantedWid,
-        tokens: [wantedWid]
-      };
-    }
     const tokens = q.split(' ').filter(Boolean);
     const values = SEARCH_FIELDS.map(([key,label]) => ({key,label,raw:String(row[key] || ''),norm:normalize(row[key])}));
     const word = values[0].norm;
@@ -148,7 +175,6 @@
   function snippetFor(hit) {
     const row = hit.row;
     const match = hit.match;
-    if (match?.key === 'WordID') return '';
     let raw = match?.raw || '';
     if (match?.key === 'Word') raw = String(row.Definition || row['Example Sentence'] || row.Word || '');
     const clean = String(raw).replace(/\s+/g, ' ').trim();
@@ -240,7 +266,7 @@
     return {existing:false, word, draft};
   }
   function appendNoHeadwordNotice(resultsNode, query) {
-    if (!query || widQuery(query) || hasExactHeadword(query)) return;
+    if (!query || hasExactHeadword(query)) return;
     const notice = document.createElement('aside');
     notice.className = 'search-headword-gap';
     const copy = document.createElement('div');
@@ -289,19 +315,32 @@
     clear.hidden = !q;
     if (!q) {
       meta.textContent = 'Type something to search.';
-      resultsNode.innerHTML = '<div class="search-empty-state"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><p>Start with a word, phrase, meaning, synonym, or example.</p></div>';
+      resultsNode.innerHTML = '<div class="search-empty-state"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><p>Start with a word, phrase, meaning, synonym, or example. Use WID:2883 for one card or WLP:275 for a deck.</p></div>';
       return;
     }
     if (!effectiveRows.length) {
       meta.textContent = 'The deck is still loading…';
       return;
     }
-    const hits = effectiveRows.map(row => scoreRow(row,q)).filter(Boolean).sort((a,b) => b.score - a.score || String(a.row.Word || '').localeCompare(String(b.row.Word || '')));
-    meta.textContent = `${hits.length.toLocaleString()} result${hits.length === 1 ? '' : 's'} for “${q}”`;
+    const structured = parseStructuredQuery(q);
+    const hits = structured
+      ? structuredHits(structured)
+      : effectiveRows.map(row => scoreRow(row,q)).filter(Boolean).sort((a,b) => b.score - a.score || String(a.row.Word || '').localeCompare(String(b.row.Word || '')));
+    meta.textContent = structured
+      ? structuredResultMeta(structured, hits.length)
+      : `${hits.length.toLocaleString()} result${hits.length === 1 ? '' : 's'} for “${q}”`;
     resultsNode.innerHTML = '';
-    appendNoHeadwordNotice(resultsNode, q);
+    if (!structured) appendNoHeadwordNotice(resultsNode, q);
     if (!hits.length) {
-      const empty = document.createElement('div'); empty.className='search-empty-state'; empty.innerHTML='<p>No matching card found.</p>'; resultsNode.append(empty); return;
+      const empty = document.createElement('div');
+      empty.className='search-empty-state';
+      empty.innerHTML = structured?.type === 'wid'
+        ? `<p>No card found for WID${structured.value}.</p>`
+        : structured?.type === 'wlp'
+          ? `<p>No cards found in WLP${pad3(structured.number)}.</p>`
+          : '<p>No matching card found.</p>';
+      resultsNode.append(empty);
+      return;
     }
     hits.slice(0,RESULT_LIMIT).forEach(hit => {
       const row = hit.row;
@@ -316,8 +355,14 @@
       if (row.__source === 'draft') { const b=document.createElement('span'); b.className='local-badge'; b.textContent='Local draft'; loc.append(b); }
       else if (row.__hasOverride) { const b=document.createElement('span'); b.className='local-badge'; b.textContent='Local edit'; loc.append(b); }
       const label = document.createElement('div'); label.className='search-match-label';
-      const strong = document.createElement('strong'); strong.textContent=`Matched in ${hit.match?.label || 'card'}`; label.append(strong);
-      const snip = document.createElement('p'); snip.className='search-result-snippet'; appendHighlighted(snip, snippetFor(hit), q);
+      const strong = document.createElement('strong');
+      if (structured?.type === 'wid') strong.textContent = `Exact WID${structured.value}`;
+      else if (structured?.type === 'wlp') strong.textContent = `Deck WLP${pad3(structured.number)}`;
+      else strong.textContent = `Matched in ${hit.match?.label || 'card'}`;
+      label.append(strong);
+      const snip = document.createElement('p');
+      snip.className='search-result-snippet';
+      appendHighlighted(snip, structured ? structuredSnippet(row) : snippetFor(hit), structured ? '' : q);
       main.append(top,loc,label); if (snip.textContent) main.append(snip);
       const open = document.createElement('a'); open.className='search-open-card'; open.href=resultHref(row); open.setAttribute('aria-label',`Open ${row.Word || 'card'}`); open.title='Open card'; open.innerHTML='<span>Open Card</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
       card.append(main,open); resultsNode.append(card);
@@ -499,8 +544,7 @@
   const setDrawer=open=>{drawer.classList.toggle('open',open);drawer.setAttribute('aria-hidden',String(!open));menu.setAttribute('aria-expanded',String(open));backdrop.hidden=!open;};
   menu.addEventListener('click',()=>setDrawer(true)); close.addEventListener('click',()=>setDrawer(false)); backdrop.addEventListener('click',()=>setDrawer(false));
   const showToast=text=>{toast.textContent=text;toast.hidden=false;clearTimeout(window.__wlpSearchToastTimer);window.__wlpSearchToastTimer=setTimeout(()=>toast.hidden=true,2200);};
-  const drawerSettings=$('drawer-settings');
-  if(drawerSettings instanceof HTMLButtonElement) drawerSettings.addEventListener('click',()=>{setDrawer(false);showToast('Settings will move into the Stage 7 app shell.');});
+  $('drawer-settings').addEventListener('click',()=>{setDrawer(false);showToast('Settings will move into the Stage 7 app shell.');});
   document.querySelectorAll('.drawer-placeholder').forEach(button=>button.addEventListener('click',()=>{setDrawer(false);showToast(button.dataset.placeholder||'Coming soon.');}));
   const getRole=()=>localStorage.getItem(WLP_UI_ROLE_KEY)==='admin'||sessionStorage.getItem(WLP_UI_SESSION_ADMIN_KEY)==='admin'?'admin':'guest';
   const clearAdmin=()=>{localStorage.removeItem(WLP_UI_ROLE_KEY);sessionStorage.removeItem(WLP_UI_SESSION_ADMIN_KEY);};

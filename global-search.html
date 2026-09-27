@@ -59,10 +59,10 @@
       <section class="search-hero" aria-labelledby="global-search-title">
         <p class="search-eyebrow">Search the Effective Deck</p>
         <h1 id="global-search-title">Find a word anywhere.</h1>
-        <p class="search-intro">Search headwords, WIDs, definitions, synonyms, examples, and notes across the Master plus your local edits and drafts.</p>
+        <p class="search-intro">Search headwords, exact WIDs, WLP decks, definitions, synonyms, examples, and notes across the Master plus your local edits and drafts.</p>
         <label class="global-search-box" for="global-search-input">
           <svg class="global-search-leading-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
-          <input id="global-search-input" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search words, WID, meanings, examples…">
+          <input id="global-search-input" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search words, WID:2883, WLP:275, meanings…">
           <span class="global-search-controls">
             <button id="global-search-voice" class="global-search-voice" type="button" aria-label="Search by voice" title="Search by voice" hidden>
               <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -89,7 +89,7 @@
         <div id="search-results" class="search-results">
           <div class="search-empty-state">
             <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg>
-            <p>Start with a word, phrase, meaning, synonym, or example.</p>
+            <p>Start with a word, phrase, meaning, synonym, or example. Use WID:2883 for one card or WLP:275 for a deck.</p>
           </div>
         </div>
       </section>
@@ -147,19 +147,19 @@
       </a>
       <a class="drawer-item drawer-admin-only stage7-backup-restore-item" href="./editor-backup.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M5 13.5V20h14v-6.5"/><path d="M7 16.5h10"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Backup &amp; Restore</span><small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small></span></a>
       <hr>
-      <a class="drawer-item drawer-action" id="drawer-settings" href="./settings.html">
+      <button class="drawer-item drawer-action" id="drawer-settings" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21H10v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span>
-      </a>
+      </button>
       <button class="drawer-item drawer-action" id="drawer-role-action" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span>
       </button>
       <hr>
-      <a class="drawer-item" href="./help.html">
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="Help is coming to the Stage 7 menu.">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.9.5-1.2 1-1.2 2M12 17h.01"/></svg><span>Help</span>
-      </a>
-      <a class="drawer-item" href="./about.html">
+      </button>
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="About WLP will live here.">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>About</span>
-      </a>
+      </button>
       <p class="drawer-motto">“More words.<br>A wider world.”</p>
     </nav>
   </aside>
@@ -184,7 +184,7 @@
   </div>
 
   <div class="toast" id="search-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./global-search.js?v=20260923-s7-wid-search-v186102"></script>
+  <script src="./global-search.js?v=20260927-s7-wid-wlp-search-v186152"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script>
