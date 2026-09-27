@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.152 — Structured WID / WLP Global Search. */
+/* WLP Stage 7 v1.8.6.154 — Search context readability over structured WID / WLP search. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260915-s7-v30';
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
@@ -75,6 +75,35 @@
     if (spec?.type === 'wid') return count ? `${count} card for WID${spec.value}` : `No card found for WID${spec.value}`;
     if (spec?.type === 'wlp') return count ? `${count} card${count === 1 ? '' : 's'} in WLP${pad3(spec.number)}` : `No cards found in WLP${pad3(spec.number)}`;
     return '';
+  }
+  function renderSourceMeta() {
+    const node = $('search-source-meta');
+    if (!node) return;
+    node.innerHTML = `<strong>${masterCount.toLocaleString()}</strong> Master cards · <strong>${draftCount.toLocaleString()}</strong> local draft${draftCount === 1 ? '' : 's'} · <strong>${overrideCount.toLocaleString()}</strong> local edit${overrideCount === 1 ? '' : 's'}`;
+  }
+  function renderResultsMeta(node, spec, count, query) {
+    if (!node) return;
+    if (!spec) {
+      node.textContent = `${count.toLocaleString()} result${count === 1 ? '' : 's'} for “${query}”`;
+      return;
+    }
+    if (!count) {
+      node.textContent = structuredResultMeta(spec, count);
+      return;
+    }
+    node.replaceChildren();
+    const countStrong = document.createElement('strong');
+    countStrong.className = 'search-result-count';
+    countStrong.textContent = String(count);
+    const targetStrong = document.createElement('strong');
+    targetStrong.className = 'search-result-target';
+    if (spec.type === 'wid') {
+      targetStrong.textContent = `WID${spec.value}`;
+      node.append(countStrong, document.createTextNode(' card for '), targetStrong);
+      return;
+    }
+    targetStrong.textContent = `WLP${pad3(spec.number)}`;
+    node.append(countStrong, document.createTextNode(` card${count === 1 ? '' : 's'} in `), targetStrong);
   }
   function parseTSV(text) {
     const table = [];
@@ -262,7 +291,7 @@
       __source:'draft', __localId:draft.localId, __draftIndex:draftIndex
     });
     draftCount = drafts.length;
-    $('search-source-meta').textContent = `${masterCount.toLocaleString()} Master cards · ${draftCount.toLocaleString()} local draft${draftCount === 1 ? '' : 's'} · ${overrideCount.toLocaleString()} local edit${overrideCount === 1 ? '' : 's'}`;
+    renderSourceMeta();
     return {existing:false, word, draft};
   }
   function appendNoHeadwordNotice(resultsNode, query) {
@@ -326,9 +355,7 @@
     const hits = structured
       ? structuredHits(structured)
       : effectiveRows.map(row => scoreRow(row,q)).filter(Boolean).sort((a,b) => b.score - a.score || String(a.row.Word || '').localeCompare(String(b.row.Word || '')));
-    meta.textContent = structured
-      ? structuredResultMeta(structured, hits.length)
-      : `${hits.length.toLocaleString()} result${hits.length === 1 ? '' : 's'} for “${q}”`;
+    renderResultsMeta(meta, structured, hits.length, q);
     resultsNode.innerHTML = '';
     if (!structured) appendNoHeadwordNotice(resultsNode, q);
     if (!hits.length) {
@@ -385,7 +412,7 @@
       masterCount = master.length; draftCount = drafts.length;
       overrideCount = Object.values(overrides).filter(v => v && typeof v === 'object' && !Array.isArray(v)).length;
       effectiveRows = [...applyOverrides(master,overrides), ...drafts];
-      $('search-source-meta').textContent = `${masterCount.toLocaleString()} Master cards · ${draftCount.toLocaleString()} local draft${draftCount === 1 ? '' : 's'} · ${overrideCount.toLocaleString()} local edit${overrideCount === 1 ? '' : 's'}`;
+      renderSourceMeta();
       renderResults($('global-search-input').value);
     } catch (error) {
       console.error('Global Search could not load the Effective Deck:', error);

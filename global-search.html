@@ -32,6 +32,22 @@
       margin:0!important;
     }
   </style>
+  <style id="v186154-search-context-readability">
+    /* v1.8.6.154 — keep search hints compact while making context readable on iPhone. */
+    .search-query-help{width:min(100%,600px);margin:7px auto 0;color:#64786d;font-family:"EB Garamond",Georgia,serif;font-size:.80rem;line-height:1.32;text-align:center}
+    .search-query-help .search-example-label{color:#526c5e;font-weight:600}
+    .search-query-help strong{color:#3d6250;font-weight:600}
+    .search-source-meta{font-size:.86rem;color:#62776c}
+    .search-source-meta strong{color:#365c49;font-weight:600}
+    #search-results-meta{font-size:.92rem;color:#60756a;line-height:1.35}
+    #search-results-meta .search-result-count{color:#3f6251;font-weight:600}
+    #search-results-meta .search-result-target{color:#2f5745;font-weight:600}
+    @media(max-width:560px){
+      .search-query-help{font-size:.78rem;margin-top:6px}
+      .search-source-meta{font-size:.84rem}
+      #search-results-meta{font-size:.90rem}
+    }
+  </style>
 </head>
 <body class="app-body global-search-page stage7-bottom-nav-page">
   <div class="app-shell search-shell">
@@ -76,6 +92,7 @@
             <button id="global-search-clear" class="global-search-clear" type="button" aria-label="Clear search" hidden>×</button>
           </span>
         </label>
+        <div class="search-query-help" aria-label="Search examples"><span class="search-example-label">ex)</span> <strong>2883</strong> → WID2883 · <strong>WLP:225</strong> → deck 225</div>
         <div class="search-source-meta" id="search-source-meta" aria-live="polite">Loading the garden…</div>
       </section>
 
@@ -184,7 +201,7 @@
   </div>
 
   <div class="toast" id="search-toast" role="status" aria-live="polite" hidden></div>
-  <script src="./global-search.js?v=20260927-s7-wid-wlp-search-v186152"></script>
+  <script src="./global-search.js?v=20260927-s7-search-context-v186154"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script>
