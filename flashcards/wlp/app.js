@@ -165,6 +165,10 @@ function cardContextReturnTarget() {
           return { href: `${url.pathname}${url.search}${url.hash}`, label: "Study Set", footerLabel: "Back to Study Set", kind: "study-set" };
         }
         if (url.pathname.endsWith("/deck-browser.html")) {
+          const studyMode = String(url.searchParams.get("mode") || "").trim();
+          if (studyMode === "review") {
+            return { href: `${url.pathname}${url.search}${url.hash}`, label: "Study Review", footerLabel: "Back to Study Review", kind: "deck-browser" };
+          }
           return { href: `${url.pathname}${url.search}${url.hash}`, label: "Continue", footerLabel: "Back to Continue", kind: "deck-browser" };
         }
       }

@@ -1,4 +1,4 @@
-/* WLP v1.8.6.160 — Today's Review generator + exact Review Set snapshots. */
+/* WLP v1.8.6.161 — Continue return routing + Review restart/back polish. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -435,6 +435,9 @@
     }
 
     if (context?.sourceType === 'review-set') {
+      if (restart) {
+        try { sessionStorage.removeItem(ACTIVE_CARD_CONTEXT_KEY); } catch (_) {}
+      }
       const launchContext = restart ? cloneReviewContextForRestart(context) : context;
       if (!launchContext) return '';
       const query = new URLSearchParams();
@@ -464,6 +467,7 @@
 
   async function openContext(context, action) {
     if (!context) return;
+    context = api?.getContext(context.contextId) || context;
     if (action === 'rebuild') {
       const build = api?.getBuild(context.source?.buildId);
       if (!build?.recipe) { showToast('This Build recipe is no longer available.'); return; }
@@ -478,6 +482,7 @@
       try { localStorage.setItem(PRACTICE_MODE_KEY, 'standard'); } catch (_) {}
       const query = new URLSearchParams();
       query.set(restart ? 'restartcontext' : 'resumecontext', context.contextId);
+      query.set('return', './deck-browser.html?mode=continue');
       location.href = `./study-hub.html?${query.toString()}`;
       return;
     }
@@ -639,7 +644,7 @@
       ? `Completed today · ${progress.total} ${progress.total === 1 ? 'card' : 'cards'}`
       : `${progress.completed} / ${progress.total} completed`;
     copy.textContent = "Today's set is fixed to the snapshot you started earlier, so you can resume it or run the same set again without the selection changing underneath you.";
-    primary.textContent = resumable ? 'Resume' : 'Study Again';
+    primary.textContent = resumable ? 'Resume' : 'Start Again';
     primary.onclick = () => { void openContext(existing, resumable ? 'resume' : 'restart'); };
     secondary.hidden = !resumable;
     if (resumable) {
@@ -647,6 +652,13 @@
       secondary.onclick = () => { void openContext(existing, 'restart'); };
     }
   }
+
+  function refreshActiveStudyPanel() {
+    if (mode === 'continue') renderContinue();
+    else if (mode === 'review') renderReviewSummary();
+  }
+
+  window.addEventListener('pageshow', refreshActiveStudyPanel);
 
   function bindRangeJump() {
     const link = document.querySelector('.range-jump-link');

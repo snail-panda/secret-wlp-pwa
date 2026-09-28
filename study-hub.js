@@ -52,6 +52,23 @@
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
   const clampDeck = value => Math.max(1, Math.min(maxDeck, Math.round(Number(value) || 1)));
 
+  function applyStudyHubReturnNavigation() {
+    const back = $('study-hub-back-link');
+    const raw = clean(new URLSearchParams(location.search).get('return'));
+    if (!back || !raw) return;
+    try {
+      const url = new URL(raw, location.href);
+      if (url.origin !== location.origin || !url.pathname.endsWith('/deck-browser.html')) return;
+      const returnMode = clean(url.searchParams.get('mode'));
+      const label = returnMode === 'review' ? 'Back to Study Review' : 'Back to Continue';
+      back.href = `${url.pathname}${url.search}${url.hash}`;
+      back.setAttribute('aria-label', label);
+      back.setAttribute('title', label);
+      const span = back.querySelector('span');
+      if (span) span.textContent = label;
+    } catch (_) {}
+  }
+
   function readTemporaryStudySet() {
     try {
       const parsed = JSON.parse(sessionStorage.getItem(TEMP_STUDY_SET_KEY) || 'null');
@@ -2757,6 +2774,7 @@
     runPreProgressPolishSelfTest
   });
 
+  applyStudyHubReturnNavigation();
   installEvents();
   (async () => {
     try {
