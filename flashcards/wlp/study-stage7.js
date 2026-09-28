@@ -199,7 +199,7 @@
       }
     });
     if (completed && context.sourceType === 'review-set') {
-      showToast(`Review set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`);
+      showToast(`Review set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`, 3000);
     }
     activeStudyContextId = context.contextId;
     lastTrackedContextWordId = wordId;
@@ -429,12 +429,12 @@
   close?.addEventListener('click', () => setDrawer(false));
   backdrop?.addEventListener('click', () => setDrawer(false));
 
-  const showToast = text => {
+  const showToast = (text, durationMs = 2200) => {
     if (!toast) return;
     toast.textContent = text;
     toast.hidden = false;
     clearTimeout(window.__wlpStudyToastTimer);
-    window.__wlpStudyToastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
+    window.__wlpStudyToastTimer = setTimeout(() => { toast.hidden = true; }, durationMs);
   };
 
   const drawerSettings = document.getElementById('drawer-settings');
