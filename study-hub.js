@@ -53,7 +53,7 @@
   const clampDeck = value => Math.max(1, Math.min(maxDeck, Math.round(Number(value) || 1)));
 
   function applyStudyHubReturnNavigation() {
-    const back = $('study-hub-back-link');
+    const back = document.querySelector('.study-hub-back-link');
     const raw = clean(new URLSearchParams(location.search).get('return'));
     if (!back || !raw) return;
     try {
