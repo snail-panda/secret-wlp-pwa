@@ -1,10 +1,16 @@
-/* WLP v1.8.6.158 — Study entrance: New / Continue / Review. */
+/* WLP v1.8.6.160 — Today's Review generator + exact Review Set snapshots. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   const BUILDER_STATE_KEY = 'wlp:study-set-builder-state:v1';
   const ACTIVE_CARD_CONTEXT_KEY = 'wlp:active-card-study-context:v1';
   const PRACTICE_MODE_KEY = 'wlp:study-hub-practice-mode:v1';
+  const PROGRESS_PREFIX = 'fc:wordid:';
+  const STUDYQ_EVENT_KEY = 'wlp:studyq-events:v1';
+  const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
+  const AI_STUDY_EVENT_KEY = 'wlp:ai-study-events:v1';
+  const REVIEW_SET_SIZE = 15;
+  const REVIEW_GENERATOR_VERSION = '1.0.0';
   const api = window.WLPStudyContext || null;
   const $ = id => document.getElementById(id);
   const clean = value => String(value ?? '').trim();
@@ -41,6 +47,254 @@
     const headers = table[0].map(value => clean(value));
     return table.slice(1).map(cols => Object.fromEntries(headers.map((header, index) => [header, clean(cols[index])])))
       .filter(rowValue => clean(rowValue.WordID));
+  }
+
+  function readJsonArray(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function timestampFrom(values) {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+      const parsed = Date.parse(String(value || ''));
+      if (parsed) return parsed;
+    }
+    return 0;
+  }
+
+  function standardEventTimestamp(event) {
+    return Number(event?._reviewEvidenceTimestamp) || timestampFrom([
+      event?.completedAt, event?.startedAt, event?.occurredAt, event?.createdAt, event?.timestamp, event?.updatedAt
+    ]);
+  }
+
+  function aiEventTimestamp(event) {
+    return timestampFrom([
+      event?.observedAt, event?.createdAt, event?.timestamp, event?.committedAt,
+      event?.recordedAt, event?.interpretedAt, event?.receivedAt, event?.occurredAt, event?.updatedAt
+    ]);
+  }
+
+  function localDayKey(value = Date.now()) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return '';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function readReviewPool() {
+    const out = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(PROGRESS_PREFIX)) continue;
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || '{}');
+        if (!(value?.review === true || value?.lastResult === 'review')) continue;
+        const wordId = clean(value.wordId || key.slice(PROGRESS_PREFIX.length));
+        if (!wordId) continue;
+        const level = ['high', 'medium', 'light'].includes(clean(value.reviewLevel).toLowerCase())
+          ? clean(value.reviewLevel).toLowerCase()
+          : '';
+        out.push({
+          wordId,
+          reviewLevel: level,
+          reviewReasons: Array.isArray(value.reviewReasons) ? value.reviewReasons.map(item => clean(item).toLowerCase()).filter(Boolean) : [],
+          reviewCount: Math.max(0, Number(value.reviewCount) || 0),
+          lastSeen: Math.max(0, Number(value.lastSeen) || 0),
+          lastAttentionUpdated: Math.max(0, Number(value.lastAttentionUpdated) || 0)
+        });
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  function standardSessionFallbackEvents() {
+    const out = [];
+    readJsonArray(STUDYQ_SESSION_KEY).forEach(session => {
+      const timestamp = timestampFrom([session?.completedAt, session?.endedAt, session?.startedAt]);
+      (Array.isArray(session?.experiences) ? session.experiences : []).forEach(experience => {
+        const attempt = experience?.attempt || {};
+        const wordId = clean(experience?.wordId || attempt?.wordId);
+        if (wordId) out.push({ ...attempt, wordId, _reviewEvidenceTimestamp: timestamp });
+      });
+    });
+    return out;
+  }
+
+  function latestStandardEvidence() {
+    const map = new Map();
+    [...standardSessionFallbackEvents(), ...readJsonArray(STUDYQ_EVENT_KEY)].forEach((event, index) => {
+      const wordId = clean(event?.wordId);
+      if (!wordId) return;
+      const timestamp = standardEventTimestamp(event);
+      const prior = map.get(wordId);
+      if (!prior || timestamp > prior.timestamp || (timestamp === prior.timestamp && index > prior.index)) {
+        map.set(wordId, { event, timestamp, index });
+      }
+    });
+    return map;
+  }
+
+  function readAIEvents() {
+    try {
+      const value = JSON.parse(localStorage.getItem(AI_STUDY_EVENT_KEY) || '[]');
+      let list = [];
+      if (Array.isArray(value)) list = value;
+      else if (Array.isArray(value?.events)) list = value.events;
+      else if (Array.isArray(value?.items)) list = value.items;
+      else if (value?.records && typeof value.records === 'object') list = Array.isArray(value.records) ? value.records : Object.values(value.records);
+      return list.filter(item => item && typeof item === 'object');
+    } catch {
+      return [];
+    }
+  }
+
+  function aiWordId(event) {
+    return clean(event?.wordId || event?.targetWordId || event?.target?.wordId || event?.selectedTarget?.wordId);
+  }
+
+  function latestAIEvidence() {
+    const map = new Map();
+    readAIEvents().forEach((event, index) => {
+      const wordId = aiWordId(event);
+      if (!wordId) return;
+      const timestamp = aiEventTimestamp(event);
+      const prior = map.get(wordId);
+      if (!prior || timestamp > prior.timestamp || (timestamp === prior.timestamp && index > prior.index)) {
+        map.set(wordId, { event, timestamp, index });
+      }
+    });
+    return map;
+  }
+
+  function hasAIssue(value) {
+    if (value === null || value === undefined || value === false) return false;
+    const text = clean(value).toLowerCase();
+    return !['', 'none', 'null', 'false', 'no', 'n/a'].includes(text);
+  }
+
+  function aiPrioritySignal(event) {
+    const interpretation = event?.interpretation || event?.response?.interpretation || event?.result?.response?.interpretation || {};
+    const classes = (Array.isArray(interpretation?.responseClasses) ? interpretation.responseClasses : Array.isArray(event?.responseClasses) ? event.responseClasses : [])
+      .map(value => clean(value).toLowerCase()).filter(Boolean);
+    const confidence = clean(interpretation?.interpretationConfidence || event?.interpretationConfidence).toLowerCase();
+    const uncertain = classes.includes('stt-uncertain') || classes.includes('uncertain') || confidence === 'low';
+    const formIssue = hasAIssue(interpretation?.formIssue ?? event?.formIssue);
+    const senseIssue = hasAIssue(interpretation?.senseIssue ?? event?.senseIssue);
+    const targetProduced = interpretation?.targetProduced === true || interpretation?.targetFamilyReached === true || event?.targetProduced === true || event?.targetFamilyReached === true;
+    const failureClasses = new Set(['partial-concept', 'form-mismatch', 'sense-mismatch', 'unrelated']);
+    const negative = !uncertain && (classes.some(value => failureClasses.has(value)) || formIssue || senseIssue || clean(event?.interpretationStatus).toLowerCase() === 'no-idea');
+    const assistance = event?.assistance || event?.telemetry?.assistance || {};
+    const experience = event?.experience || event?.interpretationContext?.experience || event?.request?.interpretationContext?.experience || {};
+    const assisted = assistance?.targetRevealed === true || assistance?.targetShown === true || experience?.targetVisible === true || event?.targetShown === true || event?.targetRevealed === true;
+    const positive = !uncertain && targetProduced && !formIssue && !senseIssue && !assisted;
+    return { negative, positive };
+  }
+
+  function reviewAgePriority(lastSeen) {
+    const seen = Number(lastSeen) || 0;
+    if (!seen) return 55;
+    const hours = Math.max(0, Date.now() - seen) / 3600000;
+    if (hours < 6) return -20;
+    if (hours < 24) return -8;
+    const days = hours / 24;
+    if (days < 3) return 8;
+    if (days < 7) return 20;
+    if (days < 14) return 32;
+    if (days < 30) return 44;
+    return 55;
+  }
+
+  function reviewPriorityScore(record, standardMap, aiMap) {
+    const base = ({ high: 320, medium: 240, light: 160, '': 180 })[record.reviewLevel] ?? 180;
+    let score = base + reviewAgePriority(record.lastSeen) + Math.min(28, record.reviewCount * 2);
+    const authority = Number(record.lastAttentionUpdated) || 0;
+    const standard = standardMap.get(record.wordId);
+    if (standard && (!authority || standard.timestamp > authority)) {
+      const rating = clean(standard.event?.selfRating).toLowerCase();
+      score += ({ 'no-idea': 70, 'not-yet': 55, almost: 20, 'got-it': -12 })[rating] || 0;
+      if (Number(standard.event?.hintCount) >= 2) score += 8;
+      if (standard.event?.targetShown === true && !['got-it'].includes(rating)) score += 6;
+    }
+    const ai = aiMap.get(record.wordId);
+    if (ai && (!authority || ai.timestamp > authority)) {
+      const signal = aiPrioritySignal(ai.event);
+      if (signal.negative) score += 58;
+      else if (signal.positive) score -= 12;
+    }
+    return score;
+  }
+
+  function reviewBreakdown(records) {
+    const counts = { high: 0, medium: 0, light: 0, unassigned: 0 };
+    records.forEach(record => {
+      if (record.reviewLevel && counts[record.reviewLevel] !== undefined) counts[record.reviewLevel]++;
+      else counts.unassigned++;
+    });
+    return counts;
+  }
+
+  function generateTodayReview(pool = readReviewPool()) {
+    const standardMap = latestStandardEvidence();
+    const aiMap = latestAIEvidence();
+    const ranked = pool.map(record => ({ ...record, _score: reviewPriorityScore(record, standardMap, aiMap) }))
+      .sort((a, b) => (b._score - a._score) || ((a.lastSeen || 0) - (b.lastSeen || 0)) || (b.reviewCount - a.reviewCount) || (Number(a.wordId) - Number(b.wordId)) || a.wordId.localeCompare(b.wordId));
+    const selected = ranked.slice(0, REVIEW_SET_SIZE);
+    return {
+      wordIds: selected.map(record => record.wordId),
+      records: selected,
+      breakdown: reviewBreakdown(selected),
+      poolCount: pool.length
+    };
+  }
+
+  function todaysGeneratedReviewContext() {
+    if (!api) return null;
+    const today = localDayKey();
+    return api.readContexts().find(context => (
+      context.sourceType === 'review-set' &&
+      context.practiceMode === 'cards' &&
+      context.source?.selectionMode === 'today-review' &&
+      context.source?.generatedFor === today
+    )) || null;
+  }
+
+  function createTodayReviewContext(selection) {
+    if (!api || !selection?.wordIds?.length) return null;
+    return api.createContext({
+      sourceType: 'review-set',
+      practiceMode: 'cards',
+      status: 'active',
+      source: {
+        label: "Today's Review",
+        selectionMode: 'today-review',
+        generatedFor: localDayKey(),
+        generatorVersion: REVIEW_GENERATOR_VERSION,
+        attentionBreakdown: selection.breakdown,
+        wordIds: selection.wordIds
+      },
+      progress: { currentIndex: 0, completedCount: 0, totalCount: selection.wordIds.length, completedWordIds: [] }
+    });
+  }
+
+  function cloneReviewContextForRestart(context) {
+    if (!api || !context) return null;
+    const ids = sourceWordIds(context);
+    if (!ids.length) return null;
+    return api.createContext({
+      sourceType: 'review-set',
+      practiceMode: 'cards',
+      status: 'active',
+      source: { ...context.source, wordIds: ids },
+      progress: { currentIndex: 0, completedCount: 0, totalCount: ids.length, completedWordIds: [] }
+    });
   }
 
   function ensureRows() {
@@ -181,18 +435,16 @@
     }
 
     if (context?.sourceType === 'review-set') {
+      const launchContext = restart ? cloneReviewContextForRestart(context) : context;
+      if (!launchContext) return '';
       const query = new URLSearchParams();
       query.set('review', '1');
       query.set('from', 'review');
-      query.set('return', '../../deck-browser.html?mode=continue');
-      if (source.reviewLevel) query.set('reviewlevel', source.reviewLevel);
-      if (source.reviewReason) query.set('reviewreason', source.reviewReason);
-      if (!restart) {
-        query.set('context', context.contextId);
-        const ids = sourceWordIds(context);
-        const index = ids.indexOf(nextWordId(context, false));
-        if (index >= 0) query.set('s7card', String(index + 1));
-      }
+      query.set('return', '../../deck-browser.html?mode=review');
+      query.set('context', launchContext.contextId);
+      const ids = sourceWordIds(launchContext);
+      const index = ids.indexOf(nextWordId(launchContext, false));
+      if (index >= 0) query.set('s7card', String(index + 1));
       return `./flashcards/wlp/batch.html?${query.toString()}`;
     }
 
@@ -333,24 +585,67 @@
   }
 
   function renderReviewSummary() {
-    const counts = { total: 0, high: 0, medium: 0, light: 0, unassigned: 0 };
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key?.startsWith('fc:wordid:')) continue;
-      try {
-        const record = JSON.parse(localStorage.getItem(key) || '{}');
-        if (!(record?.review === true || record?.lastResult === 'review')) continue;
-        counts.total++;
-        const level = clean(record.reviewLevel).toLowerCase();
-        if (['high', 'medium', 'light'].includes(level)) counts[level]++;
-        else counts.unassigned++;
-      } catch (_) {}
-    }
+    const pool = readReviewPool();
+    const counts = { total: pool.length, ...reviewBreakdown(pool) };
     $('study-review-total').textContent = counts.total.toLocaleString();
     $('study-review-high').textContent = counts.high.toLocaleString();
     $('study-review-medium').textContent = counts.medium.toLocaleString();
     $('study-review-light').textContent = counts.light.toLocaleString();
     $('study-review-unassigned').textContent = counts.unassigned.toLocaleString();
+
+    const existing = todaysGeneratedReviewContext();
+    const generated = existing ? null : generateTodayReview(pool);
+    const wordIds = existing ? sourceWordIds(existing) : generated.wordIds;
+    const breakdown = existing?.source?.attentionBreakdown && typeof existing.source.attentionBreakdown === 'object'
+      ? existing.source.attentionBreakdown
+      : generated.breakdown;
+    const progress = existing ? progressFor(existing) : { completed: 0, total: wordIds.length };
+
+    $('study-review-today-total').textContent = wordIds.length.toLocaleString();
+    $('study-review-selected-high').textContent = Number(breakdown?.high || 0).toLocaleString();
+    $('study-review-selected-medium').textContent = Number(breakdown?.medium || 0).toLocaleString();
+    $('study-review-selected-light').textContent = Number(breakdown?.light || 0).toLocaleString();
+    $('study-review-selected-unassigned').textContent = Number(breakdown?.unassigned || 0).toLocaleString();
+
+    const status = $('study-review-today-status');
+    const copy = $('study-review-today-copy');
+    const primary = $('study-review-start');
+    const secondary = $('study-review-restart');
+    if (!wordIds.length) {
+      status.textContent = 'Nothing waiting right now';
+      copy.textContent = 'Cards will appear here when they are marked for Review.';
+      primary.textContent = 'Start Review';
+      primary.disabled = true;
+      secondary.hidden = true;
+      return;
+    }
+
+    primary.disabled = false;
+    if (!existing) {
+      status.textContent = `${wordIds.length} ${wordIds.length === 1 ? 'card' : 'cards'} ready`;
+      copy.textContent = "Higher Attention leads the set; older cards and recent difficulty can move cards up. Recent success can lower priority, but never removes a card from Review. The set stays fixed once you start it.";
+      primary.textContent = 'Start Review';
+      secondary.hidden = true;
+      primary.onclick = () => {
+        const context = createTodayReviewContext(generated);
+        if (!context) { showToast('This Review set could not be created.'); return; }
+        void openContext(context, 'resume');
+      };
+      return;
+    }
+
+    const resumable = existing.status !== 'completed' && progress.completed < progress.total;
+    status.textContent = existing.status === 'completed'
+      ? `Completed today · ${progress.total} ${progress.total === 1 ? 'card' : 'cards'}`
+      : `${progress.completed} / ${progress.total} completed`;
+    copy.textContent = "Today's set is fixed to the snapshot you started earlier, so you can resume it or run the same set again without the selection changing underneath you.";
+    primary.textContent = resumable ? 'Resume' : 'Study Again';
+    primary.onclick = () => { void openContext(existing, resumable ? 'resume' : 'restart'); };
+    secondary.hidden = !resumable;
+    if (resumable) {
+      secondary.textContent = 'Start Again';
+      secondary.onclick = () => { void openContext(existing, 'restart'); };
+    }
   }
 
   function bindRangeJump() {
@@ -383,7 +678,7 @@
       void ensureRows();
     } else if (mode === 'review') {
       title.textContent = 'Review';
-      copy.textContent = 'Return to cards that still need attention.';
+      copy.textContent = "Start with today's focused Review set, or inspect the full Review pool.";
       deckCount.hidden = true;
       renderReviewSummary();
     } else {

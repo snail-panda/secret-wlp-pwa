@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./deck-browser.css?v=20260928-s7-study-entry-v186158">
+  <link rel="stylesheet" href="./deck-browser.css?v=20260928-s7-todays-review-v186160">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
 <style>
     /* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
@@ -198,9 +198,30 @@
       </section>
 
       <section id="study-review-panel" class="study-mode-panel study-review-panel" role="tabpanel" data-study-panel="review" hidden>
+        <section class="browser-section review-today-section">
+          <div class="section-head"><div><h2>Today's Review</h2><span>A focused set from your current Review evidence</span></div></div>
+          <div class="review-today-card">
+            <div class="review-today-heading">
+              <div class="review-today-total"><strong id="study-review-today-total">0</strong><span>cards</span></div>
+              <span class="review-today-status" id="study-review-today-status">Preparing…</span>
+            </div>
+            <div class="review-pool-levels review-today-levels" aria-label="Today's Review attention mix">
+              <span><strong id="study-review-selected-high">0</strong><small>High</small></span>
+              <span><strong id="study-review-selected-medium">0</strong><small>Medium</small></span>
+              <span><strong id="study-review-selected-light">0</strong><small>Light</small></span>
+              <span><strong id="study-review-selected-unassigned">0</strong><small>Unassigned</small></span>
+            </div>
+            <p id="study-review-today-copy">Higher Attention leads the set, with recency and study evidence used to refine the order.</p>
+            <div class="study-context-actions review-today-actions">
+              <button class="study-context-action is-primary" id="study-review-start" type="button">Start Review</button>
+              <button class="study-context-action" id="study-review-restart" type="button" hidden>Start Again</button>
+            </div>
+          </div>
+        </section>
+
         <section class="browser-section review-pool-section">
-          <div class="section-head"><div><h2>Review Pool</h2><span>Your current cards marked for review</span></div></div>
-          <div class="review-pool-card">
+          <div class="section-head"><div><h2>Review Pool</h2><span>Your full set of cards marked for review</span></div></div>
+          <div class="review-pool-card is-secondary">
             <div class="review-pool-total"><strong id="study-review-total">0</strong><span>cards in Review</span></div>
             <div class="review-pool-levels" aria-label="Review attention counts">
               <span><strong id="study-review-high">0</strong><small>High</small></span>
@@ -208,8 +229,8 @@
               <span><strong id="study-review-light">0</strong><small>Light</small></span>
               <span><strong id="study-review-unassigned">0</strong><small>Unassigned</small></span>
             </div>
-            <p>Open Review to inspect attention, reasons, and the cards currently waiting for another pass.</p>
-            <a class="study-context-action is-primary review-pool-open" href="./review.html">Open Review Hub</a>
+            <p>Inspect Attention, learning needs, evidence, and the full Review list.</p>
+            <a class="study-context-action is-quiet review-pool-open" href="./review.html">Open Review Hub</a>
           </div>
         </section>
       </section>
@@ -323,7 +344,7 @@
   </script>
   <script src="./study-context-data.js?v=20260928-s7-study-context-v186157"></script>
   <script src="./deck-browser.js?v=20260928-s7-study-entry-v186158"></script>
-  <script src="./study-entry.js?v=20260928-s7-study-entry-v186158"></script>
+  <script src="./study-entry.js?v=20260928-s7-todays-review-v186160"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
 </body>

@@ -447,3 +447,29 @@
   .review-pool-levels>span{padding:8px 3px}
   .review-pool-levels small{font-size:9px}
 }
+
+/* WLP v1.8.6.160 — Today's Review generator. */
+.review-today-section{margin-top:20px}
+.review-today-card{
+  padding:17px;
+  border:1px solid #cdded1;
+  border-radius:18px;
+  background:linear-gradient(135deg,#fbfdf9,#e8f2e9);
+  box-shadow:0 5px 16px rgba(40,70,55,.035);
+}
+.review-today-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.review-today-total{display:flex;align-items:baseline;gap:8px}
+.review-today-total strong{font-family:"EB Garamond",Georgia,serif;font-size:2.15rem;font-weight:500;color:#315f49}
+.review-today-total span{color:#6e7d75;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.review-today-status{color:#60766a;font:600 11px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:right}
+.review-today-levels{margin-top:12px}
+.review-today-card p{margin:13px 0 0;color:#687970;font-family:"EB Garamond",Georgia,serif;font-size:.95rem;line-height:1.4}
+.review-today-actions{margin-top:13px}
+.review-today-actions button:disabled{opacity:.45;cursor:default}
+.review-pool-card.is-secondary{background:rgba(255,255,255,.68);box-shadow:none}
+.review-pool-card.is-secondary p{margin-bottom:12px}
+@media(max-width:390px){
+  .review-today-card{padding:15px}
+  .review-today-total strong{font-size:2rem}
+  .review-today-status{font-size:10px}
+}

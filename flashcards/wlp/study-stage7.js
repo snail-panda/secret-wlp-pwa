@@ -192,7 +192,7 @@
     studyContextApi.updateContext(activeStudyContextId, { status: 'incomplete' });
   };
 
-  /* v1.8.6.101 R2-J7O — reuse the proven semantic-back header for
+  /* v1.8.6.160 — reuse the proven semantic-back header for
      Progress / Review card entry points without changing Search, Connected,
      Draft, or normal Deck Browser behavior. */
   const safeContextReturn = pageName => {
@@ -212,6 +212,15 @@
     back.setAttribute('aria-label', labelText);
     const label = back.querySelector('span');
     if (label) label.textContent = labelText;
+  };
+  const safeStudyEntryReturn = () => {
+    const raw = String(params.get('return') || '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, location.href);
+      if (url.origin === location.origin && url.pathname.endsWith('/deck-browser.html')) return url.href;
+    } catch (_) {}
+    return '';
   };
 
   if (isFromSearch) {
@@ -262,7 +271,7 @@
   }
 
   if (isFromReview || (!isFromProgress && Boolean(params.get('review')) && !isFromSearch && !isFromConnected)) {
-    setStudyHeaderBack(safeContextReturn('review.html'), 'Back to Review');
+    setStudyHeaderBack(safeStudyEntryReturn() || safeContextReturn('review.html'), 'Back to Review');
   }
 
   /* Stage 7 v3.0 — Global Search always knows how to return to the exact

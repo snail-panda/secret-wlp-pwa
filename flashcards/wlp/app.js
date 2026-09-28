@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
+// Stage 7 v1.8.6.160 — exact Study Context Review Set snapshots + Build Study Set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -50,6 +50,12 @@ const FROM_PARAM =
 const RETURN_PARAM =
   PARAMS.get("return");
 
+const CONTEXT_PARAM =
+  String(PARAMS.get("context") || "").trim();
+
+const STUDY_CONTEXT_KEY =
+  "wlp:study-contexts:v1";
+
 const STUDY_SET_PARAM =
   PARAMS.get("studyset");
 
@@ -71,6 +77,23 @@ const IS_FROM_STUDY_SET =
 const IS_STUDY_SET_MODE =
   STUDY_SET_PARAM === "1" &&
   Boolean(WORDID_PARAM);
+
+function reviewContextWordIds() {
+  if (!REVIEW_PARAM || !CONTEXT_PARAM) return [];
+  try {
+    const contexts = JSON.parse(localStorage.getItem(STUDY_CONTEXT_KEY) || "[]");
+    if (!Array.isArray(contexts)) return [];
+    const context = contexts.find(item =>
+      item &&
+      String(item.contextId || "").trim() === CONTEXT_PARAM &&
+      String(item.sourceType || "").trim() === "review-set"
+    );
+    if (!context || !Array.isArray(context.source?.wordIds)) return [];
+    return Array.from(new Set(context.source.wordIds.map(value => String(value || "").trim()).filter(Boolean)));
+  } catch (_) {
+    return [];
+  }
+}
 
 function readTemporaryStudySet() {
   try {
@@ -1454,26 +1477,6 @@ function pickReviewRows(
   reviewDeckStr
 ) {
 
-  const deckNo =
-    Math.max(
-      1,
-      Number(
-        reviewDeckStr
-      ) || 1
-    );
-
-  const reviewRecords =
-    readAllReviewProgress();
-
-  const start =
-    (deckNo - 1) * 10;
-
-  const selected =
-    reviewRecords.slice(
-      start,
-      start + 10
-    );
-
   const rowMap =
     new Map();
 
@@ -1495,6 +1498,40 @@ function pickReviewRows(
 
   });
 
+  // v1.8.6.160 — a generated Review Set is a frozen Study Context snapshot.
+  // Resume / Start Again must use that exact WID order rather than re-running
+  // the live Review filters underneath the learner.
+  const contextWordIds =
+    reviewContextWordIds();
+
+  if (contextWordIds.length) {
+
+    return contextWordIds
+      .map(wordId => rowMap.get(wordId))
+      .filter(Boolean);
+
+  }
+
+  const deckNo =
+    Math.max(
+      1,
+      Number(
+        reviewDeckStr
+      ) || 1
+    );
+
+  const reviewRecords =
+    readAllReviewProgress();
+
+  const start =
+    (deckNo - 1) * 10;
+
+  const selected =
+    reviewRecords.slice(
+      start,
+      start + 10
+    );
+
   return selected
     .map(
       record =>
@@ -1505,6 +1542,7 @@ function pickReviewRows(
     .filter(Boolean);
 
 }
+
 
   function wordIdOf(row) {
 
