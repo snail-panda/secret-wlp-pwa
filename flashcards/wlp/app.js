@@ -190,6 +190,17 @@ function updateCardContextNavLabel(link, text) {
   if (textNode) textNode.textContent = ` ${text}`;
 }
 
+function installBottomContextBack(target) {
+  const back = document.getElementById("prev-deck-link");
+  if (!back || !target?.href) return;
+  back.href = target.href;
+  back.hidden = false;
+  back.style.display = "inline-flex";
+  back.setAttribute("aria-label", target.footerLabel || "Back");
+  back.setAttribute("title", target.footerLabel || "Back");
+  updateCardContextNavLabel(back, "Back");
+}
+
 function installCardContextReturnNavigation() {
   const target = cardContextReturnTarget();
   if (!target) return;
@@ -225,6 +236,11 @@ function installCardContextReturnNavigation() {
         });
       }
     }
+    if (target.kind === "deck-browser" && target.label === "Study Review") {
+      const legacyReviewBack = document.getElementById("review-back-link");
+      if (legacyReviewBack) legacyReviewBack.style.display = "none";
+      installBottomContextBack(target);
+    }
     return;
   }
 
@@ -237,10 +253,14 @@ function installCardContextReturnNavigation() {
     progressLink.href = target.href;
     progressLink.textContent = target.footerLabel;
   }
-  if (target.label === "Review" && reviewWrap && reviewLink) {
-    reviewWrap.style.display = "block";
-    reviewLink.href = target.href;
-    reviewLink.textContent = target.footerLabel;
+  if (target.label === "Review") {
+    if (reviewWrap) reviewWrap.style.display = "none";
+    if (reviewLink) {
+      reviewLink.href = target.href;
+      reviewLink.textContent = target.footerLabel;
+    }
+    installBottomContextBack(target);
+    return;
   }
   const home = document.querySelector("#deck-nav-links .deck-home-link");
   if (home) {
@@ -481,8 +501,9 @@ if (IS_REVIEW_MODE || IS_FROM_REVIEW_HUB) {
 
   if (reviewBackLink) {
 
+    // Review navigation now lives in the header and fixed bottom nav.
     reviewBackLink.style.display =
-      "block";
+      "none";
 
   }
 
