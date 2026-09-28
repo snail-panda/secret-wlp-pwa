@@ -12,6 +12,7 @@
   const isFromConnected = params.get('from') === 'connected';
   const isFromProgress = params.get('from') === 'progress';
   const isFromReview = params.get('from') === 'review';
+  const isFromClassification = params.get('from') === 'classification';
   const isSearchSolo = isFromSearch && params.get('solo') === '1';
   const isConnectedSolo = isFromConnected && params.get('solo') === '1';
   const connectedReturnRaw = String(params.get('return') || '').replace(/^\/+/, '');
@@ -22,6 +23,174 @@
   const safeSearchReturn = searchReturnRaw && !searchReturnRaw.includes('..') && /^[A-Za-z0-9_./?&=%#-]+$/.test(searchReturnRaw)
     ? searchReturnRaw
     : '';
+
+  /* v1.8.6.157 — Study Context V1. Card Study keeps a small, durable
+     context record separate from shallow Recent Decks / Activity history. */
+  const studyContextApi = window.WLPStudyContext || null;
+  const ACTIVE_CARD_CONTEXT_KEY = 'wlp:active-card-study-context:v1';
+  const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
+  let activeStudyContextId = '';
+  let lastTrackedContextWordId = '';
+
+  const readJson = (storage, key, fallback = null) => {
+    try { return JSON.parse(storage.getItem(key) || 'null') ?? fallback; }
+    catch { return fallback; }
+  };
+
+  const cardWordId = card => {
+    const text = String(card?.querySelector?.('.card-tag')?.textContent || '');
+    const match = text.match(/\bWID\s*(\d+)\b/i);
+    return match ? match[1] : '';
+  };
+
+  const renderedCardWordIds = () => {
+    if (!studyContextApi) return [];
+    return studyContextApi.uniqueWordIds(
+      Array.from(document.querySelectorAll('#cards .flashcard')).map(cardWordId)
+    );
+  };
+
+  const readTemporaryStudySet = () => {
+    const value = readJson(sessionStorage, TEMP_STUDY_SET_KEY, null);
+    return value && typeof value === 'object' && Array.isArray(value.items) ? value : null;
+  };
+
+  const cardStudySource = () => {
+    if (!studyContextApi || params.get('draft') || isFromSearch || isFromConnected || isFromProgress || isFromClassification || (isFromReview && !params.get('review'))) return null;
+
+    if (params.get('studyset') === '1' && params.get('from') === 'study-set') {
+      const snapshot = readTemporaryStudySet();
+      const build = studyContextApi.ensureBuild(snapshot);
+      if (!snapshot || !build) return null;
+      if (snapshot.buildId !== build.buildId) {
+        try { sessionStorage.setItem(TEMP_STUDY_SET_KEY, JSON.stringify({ ...snapshot, buildId: build.buildId })); } catch (_) {}
+      }
+      return {
+        sourceType: 'built-set',
+        signature: `built-set:${build.buildId}`,
+        totalCount: build.cardCount,
+        source: {
+          label: `Study Set · ${build.cardCount} ${build.cardCount === 1 ? 'card' : 'cards'}`,
+          buildId: build.buildId,
+          wordIds: []
+        }
+      };
+    }
+
+    if (params.get('review')) {
+      const wordIds = renderedCardWordIds();
+      if (!wordIds.length) return null;
+      const level = String(params.get('reviewlevel') || '').trim().toLowerCase();
+      const reason = String(params.get('reviewreason') || '').trim().toLowerCase();
+      return {
+        sourceType: 'review-set',
+        signature: `review-set:${level}:${reason}:${wordIds.join(',')}`,
+        source: { label: 'Review Set', reviewLevel: level, reviewReason: reason, wordIds }
+      };
+    }
+
+    if (isNormalDeck) {
+      const wordIds = renderedCardWordIds();
+      if (!wordIds.length) return null;
+      return {
+        sourceType: 'deck',
+        signature: `deck:${batchNum}:${wordIds.join(',')}`,
+        source: { label: `WLP${String(batchNum).padStart(3, '0')}`, deck: batchNum, wordIds }
+      };
+    }
+
+    return null;
+  };
+
+  const readActiveCardContextRef = () => {
+    const value = readJson(sessionStorage, ACTIVE_CARD_CONTEXT_KEY, null);
+    return value && typeof value === 'object' ? value : null;
+  };
+
+  const writeActiveCardContextRef = (contextId, signature) => {
+    try { sessionStorage.setItem(ACTIVE_CARD_CONTEXT_KEY, JSON.stringify({ contextId, signature })); } catch (_) {}
+  };
+
+  const ensureCardStudyContext = () => {
+    if (!studyContextApi) return null;
+    const sourceInfo = cardStudySource();
+    if (!sourceInfo) return null;
+
+    const requestedContextId = String(params.get('context') || '').trim();
+    if (requestedContextId) {
+      const requested = studyContextApi.getContext(requestedContextId);
+      if (requested && requested.practiceMode === 'cards') {
+        activeStudyContextId = requested.contextId;
+        writeActiveCardContextRef(requested.contextId, sourceInfo.signature);
+        return requested;
+      }
+    }
+
+    const activeRef = readActiveCardContextRef();
+    if (activeRef?.signature === sourceInfo.signature && activeRef?.contextId) {
+      const existing = studyContextApi.getContext(activeRef.contextId);
+      if (existing && existing.status !== 'completed') {
+        activeStudyContextId = existing.contextId;
+        return existing;
+      }
+    }
+
+    const context = studyContextApi.createContext({
+      sourceType: sourceInfo.sourceType,
+      practiceMode: 'cards',
+      status: 'active',
+      source: sourceInfo.source,
+      progress: { currentIndex: 0, completedCount: 0, totalCount: Number(sourceInfo.totalCount) || sourceInfo.source.wordIds.length, completedWordIds: [] }
+    });
+    if (!context) return null;
+    activeStudyContextId = context.contextId;
+    writeActiveCardContextRef(context.contextId, sourceInfo.signature);
+    return context;
+  };
+
+  const syncCardStudyContextProgress = () => {
+    if (!studyContextApi) return;
+    const context = activeStudyContextId ? studyContextApi.getContext(activeStudyContextId) : ensureCardStudyContext();
+    if (!context) return;
+    const activeCard = document.querySelector('#cards .flashcard.active') || document.querySelector('#cards .flashcard');
+    const wordId = cardWordId(activeCard);
+    if (!wordId || (wordId === lastTrackedContextWordId && activeStudyContextId === context.contextId)) return;
+
+    let sourceWordIds = studyContextApi.uniqueWordIds(context.source?.wordIds || []);
+    if (!sourceWordIds.length && context.sourceType === 'built-set' && context.source?.buildId) {
+      sourceWordIds = studyContextApi.uniqueWordIds(studyContextApi.getBuild(context.source.buildId)?.wordIds || []);
+    }
+    const completedWordIds = studyContextApi.uniqueWordIds([...(context.progress?.completedWordIds || []), wordId]);
+    const totalCount = Number(context.progress?.totalCount) || sourceWordIds.length || completedWordIds.length;
+    const sourceIndex = sourceWordIds.indexOf(wordId);
+    const currentIndex = sourceIndex >= 0 ? sourceIndex : Math.max(0, Number(context.progress?.currentIndex) || 0);
+    const completed = totalCount > 0 && completedWordIds.length >= totalCount;
+
+    studyContextApi.updateContext(context.contextId, {
+      status: completed ? 'completed' : 'active',
+      lastMeaningfulAt: new Date().toISOString(),
+      progress: {
+        currentIndex,
+        currentWordId: wordId,
+        completedWordIds: completed ? [] : completedWordIds,
+        completedCount: completedWordIds.length,
+        totalCount
+      }
+    });
+    activeStudyContextId = context.contextId;
+    lastTrackedContextWordId = wordId;
+  };
+
+  const finishCardStudyContextOnLeave = () => {
+    if (!studyContextApi || !activeStudyContextId) return;
+    const context = studyContextApi.getContext(activeStudyContextId);
+    if (!context) return;
+    if (context.status === 'completed') {
+      try { sessionStorage.removeItem(ACTIVE_CARD_CONTEXT_KEY); } catch (_) {}
+      return;
+    }
+    studyContextApi.updateContext(activeStudyContextId, { status: 'incomplete' });
+  };
 
   /* v1.8.6.101 R2-J7O — reuse the proven semantic-back header for
      Progress / Review card entry points without changing Search, Connected,
@@ -503,6 +672,7 @@
     requestAnimationFrame(() => {
       uiSyncQueued = false;
       focusRequestedCard();
+      syncCardStudyContextProgress();
       syncStage7VoiceControls();
       syncFrontProgressProxies();
       syncRecordingLayout();
@@ -648,6 +818,8 @@
       if (real && !real.hidden) real.click();
     }
   });
+
+  window.addEventListener('pagehide', finishCardStudyContextOnLeave);
 
   const uiObserver = new MutationObserver(queueStage7UiSync);
   uiObserver.observe(cardsMount, {

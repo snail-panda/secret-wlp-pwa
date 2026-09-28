@@ -1,4 +1,3 @@
-/* WLP Stage 7 v1.8.6.147 — Progress-context return for saved Standard Practice sessions. */
 (() => {
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
@@ -11,7 +10,8 @@
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
-  const STUDYQ_STANDARD_VERSION = '1.1.1';
+  const STUDYQ_STANDARD_VERSION = '1.1.0';
+  const studyContextApi = window.WLPStudyContext || null;
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -35,6 +35,7 @@
   let currentSessionId = '';
   let currentSessionStartedAt = '';
   let currentSessionPlannedCount = 0;
+  let currentStudyContextId = '';
   let viewingSavedSession = false;
   let deckPickerTargetId = '';
   let deckPickerMode = 'wheel';
@@ -50,42 +51,6 @@
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
   const clampDeck = value => Math.max(1, Math.min(maxDeck, Math.round(Number(value) || 1)));
-
-  function progressReturnHrefFromQuery() {
-    const params = new URLSearchParams(location.search);
-    if (clean(params.get('from')).toLowerCase() !== 'progress') return '';
-    const raw = clean(params.get('return'));
-    if (raw) {
-      try {
-        const url = new URL(raw, location.href);
-        if (url.origin === location.origin && url.pathname.endsWith('/progress.html')) {
-          return `${url.pathname}${url.search}${url.hash}`;
-        }
-      } catch (_) {}
-    }
-    return './progress.html?view=activity';
-  }
-
-  function installStudyHubContextReturnNavigation() {
-    const href = progressReturnHrefFromQuery();
-    if (!href) return;
-    const back = document.querySelector('.study-hub-back-link');
-    if (back) {
-      back.href = href;
-      back.setAttribute('aria-label', 'Back to Progress');
-      back.setAttribute('title', 'Back to Progress');
-      const label = back.querySelector('span');
-      if (label) label.textContent = 'Back to Progress';
-    }
-    const footerBack = document.querySelector('.stage7-page-bottom-nav [data-stage7-back-source=".study-hub-back-link"]');
-    if (footerBack) {
-      footerBack.href = href;
-      footerBack.setAttribute('aria-label', 'Back to Progress');
-      footerBack.setAttribute('title', 'Back to Progress');
-      const label = footerBack.querySelector('span');
-      if (label) label.textContent = 'Progress';
-    }
-  }
 
   function readTemporaryStudySet() {
     try {
@@ -156,6 +121,88 @@
     return temporaryStudySet;
   }
 
+
+  /* v1.8.6.157 — Standard Practice writes the same Study Context V1 model
+     used by card Study. Existing Study Q session/event storage remains authoritative. */
+  function ensureTemporaryStudySetBuild() {
+    if (!studyContextApi || !temporaryStudySet?.items?.length) return null;
+    const build = studyContextApi.ensureBuild(temporaryStudySet);
+    if (!build) return null;
+    if (temporaryStudySet.buildId !== build.buildId) {
+      temporaryStudySet = { ...temporaryStudySet, buildId: build.buildId };
+      try { sessionStorage.setItem(TEMP_STUDY_SET_KEY, JSON.stringify(temporaryStudySet)); } catch (_) {}
+    }
+    return build;
+  }
+
+  function standardStudyContextSource(mode = sourceMode, queue = sessionQueue) {
+    if (!studyContextApi) return null;
+    const wordIds = studyContextApi.uniqueWordIds(queue.map(item => clean(item?.wordId)));
+    if (!wordIds.length) return null;
+
+    if (mode === 'study-set') {
+      const build = ensureTemporaryStudySetBuild();
+      if (!build) return null;
+      return {
+        sourceType: 'built-set',
+        source: { label: sourceLabel(mode), buildId: build.buildId, wordIds }
+      };
+    }
+    if (mode === 'review') {
+      return { sourceType: 'review-set', source: { label: sourceLabel(mode), wordIds } };
+    }
+    if (mode === 'range') {
+      let start = clampDeck(lastSessionSpec?.rangeStart ?? $('study-range-start')?.value);
+      let end = clampDeck(lastSessionSpec?.rangeEnd ?? $('study-range-end')?.value);
+      if (start > end) [start, end] = [end, start];
+      return { sourceType: 'range', source: { label: sourceLabel(mode), rangeStart: start, rangeEnd: end, wordIds } };
+    }
+    const deck = clampDeck(lastSessionSpec?.deck ?? $('study-deck')?.value);
+    return { sourceType: 'deck', source: { label: sourceLabel('deck'), deck, wordIds } };
+  }
+
+  function startStandardStudyContext() {
+    if (!studyContextApi || document.body.classList.contains('wlp-ai-study-mode') || !currentSessionId || !sessionQueue.length) {
+      currentStudyContextId = '';
+      return null;
+    }
+    const sourceInfo = standardStudyContextSource(lastSessionSpec?.mode || sourceMode, sessionQueue);
+    if (!sourceInfo) return null;
+    const context = studyContextApi.createContext({
+      sourceType: sourceInfo.sourceType,
+      practiceMode: 'standard',
+      status: 'active',
+      source: sourceInfo.source,
+      progress: { currentIndex: 0, completedCount: 0, totalCount: currentSessionPlannedCount || sessionQueue.length, completedWordIds: [] },
+      sessionRef: { type: 'standard', sessionId: currentSessionId }
+    });
+    currentStudyContextId = context?.contextId || '';
+    return context;
+  }
+
+  function updateStandardStudyContext(status = 'active', wordIds = null, plannedCount = currentSessionPlannedCount || sessionQueue.length) {
+    if (!studyContextApi || !currentStudyContextId) return null;
+    const attempted = wordIds
+      ? studyContextApi.uniqueWordIds(wordIds)
+      : studyContextApi.uniqueWordIds(attemptedSessionSlices().queue.map(item => clean(item?.wordId)));
+    const totalCount = Math.max(attempted.length, Number(plannedCount) || 0);
+    const currentWordId = attempted[attempted.length - 1] || clean(sessionQueue[sessionIndex]?.wordId);
+    const currentIndex = currentWordId
+      ? Math.max(0, sessionQueue.findIndex(item => clean(item?.wordId) === currentWordId))
+      : Math.max(0, sessionIndex);
+    return studyContextApi.updateContext(currentStudyContextId, {
+      status,
+      lastMeaningfulAt: new Date().toISOString(),
+      progress: {
+        currentIndex,
+        currentWordId,
+        completedWordIds: status === 'completed' ? [] : attempted,
+        completedCount: attempted.length,
+        totalCount
+      },
+      sessionRef: { type: 'standard', sessionId: currentSessionId }
+    });
+  }
 
   function standardSessionSizeValue() {
     const select = $('study-session-size');
@@ -1347,6 +1394,7 @@
     if (index >= 0) sessions[index] = record;
     else sessions.push(record);
     writeStudySessions(sessions);
+    updateStandardStudyContext(isComplete ? 'completed' : 'incomplete', record.wordIds, record.plannedExperienceCount);
     return record;
   }
 
@@ -2094,12 +2142,14 @@
   function previousExperience() {
     if (sessionIndex <= 0) return;
     saveCurrentAttempt(false);
+    updateStandardStudyContext('active');
     sessionIndex--;
     renderExperience();
   }
 
   function nextExperience() {
     saveCurrentAttempt(true);
+    updateStandardStudyContext('active');
     if (sessionIndex >= sessionQueue.length - 1) return finishSession(false);
     sessionIndex++;
     renderExperience();
@@ -2161,6 +2211,8 @@
     closeEndSessionDialog();
 
     if (!attempted.queue.length) {
+      if (studyContextApi && currentStudyContextId) studyContextApi.discardContext(currentStudyContextId);
+      currentStudyContextId = '';
       $('study-experience').hidden = true;
       $('study-finished').hidden = true;
       $('study-start-panel').hidden = false;
@@ -2196,7 +2248,11 @@
       if (attemptHasActivity(currentAttempt)) persistAttempt(currentAttempt, false);
     }
     const attempted = attemptedSessionSlices();
-    if (!attempted.queue.length) return;
+    if (!attempted.queue.length) {
+      if (studyContextApi && currentStudyContextId) studyContextApi.discardContext(currentStudyContextId);
+      currentStudyContextId = '';
+      return;
+    }
     persistCurrentSession({
       status: 'incomplete',
       queue: attempted.queue,
@@ -2225,6 +2281,7 @@
     viewingSavedSession = false;
     currentSessionId = makeEventId().replace(/^studyq-/, 'studyq-session-');
     currentSessionStartedAt = new Date().toISOString();
+    startStandardStudyContext();
     renderExperience();
   }
 
@@ -2561,7 +2618,6 @@
     runPreProgressPolishSelfTest
   });
 
-  installStudyHubContextReturnNavigation();
   installEvents();
   (async () => {
     try {
