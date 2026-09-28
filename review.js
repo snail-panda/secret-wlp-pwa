@@ -35,8 +35,9 @@
     try{
       const url=new URL(raw,location.href);
       if(url.origin!==location.origin)return null;
-      if(!url.pathname.endsWith('/progress.html'))return null;
-      return {href:`./progress.html${url.search}${url.hash}`,label:'Back to Progress'};
+      if(url.pathname.endsWith('/progress.html')) return {href:`./progress.html${url.search}${url.hash}`,label:'Back to Progress',kind:'progress'};
+      if(url.pathname.endsWith('/deck-browser.html')&&url.searchParams.get('mode')==='review') return {href:`./deck-browser.html${url.search}${url.hash}`,label:'Back to Study Review',kind:'study-review'};
+      return null;
     }catch{return null;}
   }
   function reviewScrollFromUrl(){
@@ -83,7 +84,9 @@
       try{
         if(!document.referrer)return;
         const ref=new URL(document.referrer);
-        if(ref.origin===location.origin&&ref.pathname.endsWith('/progress.html')){event.preventDefault();history.back();}
+        const matchingProgress=target.kind==='progress'&&ref.origin===location.origin&&ref.pathname.endsWith('/progress.html');
+        const matchingStudyReview=target.kind==='study-review'&&ref.origin===location.origin&&ref.pathname.endsWith('/deck-browser.html')&&ref.searchParams.get('mode')==='review';
+        if(matchingProgress||matchingStudyReview){event.preventDefault();history.back();}
       }catch(_){}
     };
     if(top)top.addEventListener('click',useHistoryBack);

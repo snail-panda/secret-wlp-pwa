@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.160 — exact Study Context Review Set snapshots + Build Study Set navigation.
+// Stage 7 v1.8.6.163 — Review position emphasis + completed-round preservation support.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -2177,11 +2177,9 @@ function renderCards(
       const cardTagText =
   IS_DRAFT_MODE
     ? `#Draft${label}      ${index + 1}/${batchRows.length}`
-    : IS_REVIEW_MODE
-      ? `#Review${label}${cardWidText}      ${index + 1}/${batchRows.length}`
-      : studySetPosition
-        ? `#Study Set${cardWidText}      ${studySetPosition.index + 1}/${studySetPosition.total}`
-        : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
+    : studySetPosition
+      ? `#Study Set${cardWidText}      ${studySetPosition.index + 1}/${studySetPosition.total}`
+      : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
 
 root
   .querySelectorAll(
@@ -2189,8 +2187,15 @@ root
   )
   .forEach(
     tag => {
-      tag.textContent =
-        cardTagText;
+      if (IS_REVIEW_MODE) {
+        tag.textContent = `#Review${label}${cardWidText}      `;
+        const position = document.createElement('span');
+        position.className = 'review-card-position';
+        position.textContent = `${index + 1}/${batchRows.length}`;
+        tag.append(position);
+      } else {
+        tag.textContent = cardTagText;
+      }
     }
   );
 
@@ -2269,7 +2274,7 @@ root
         }
         if (row.__hasLocalOverride) {
           root.querySelectorAll(".card-tag").forEach(tag => {
-            tag.textContent += " · Local edit";
+            tag.append(document.createTextNode(" · Local edit"));
           });
         }
       }

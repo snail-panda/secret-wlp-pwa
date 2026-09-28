@@ -1,4 +1,4 @@
-/* WLP v1.8.6.161 — Continue return routing + Review restart/back polish. */
+/* WLP v1.8.6.163 — Review round completion + Next Review Set + Review Hub return. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -241,10 +241,13 @@
     return counts;
   }
 
-  function generateTodayReview(pool = readReviewPool()) {
+  function generateTodayReview(pool = readReviewPool(), excludedWordIds = []) {
+    const excluded = new Set(api?.uniqueWordIds(excludedWordIds) || []);
     const standardMap = latestStandardEvidence();
     const aiMap = latestAIEvidence();
-    const ranked = pool.map(record => ({ ...record, _score: reviewPriorityScore(record, standardMap, aiMap) }))
+    const ranked = pool
+      .filter(record => !excluded.has(record.wordId))
+      .map(record => ({ ...record, _score: reviewPriorityScore(record, standardMap, aiMap) }))
       .sort((a, b) => (b._score - a._score) || ((a.lastSeen || 0) - (b.lastSeen || 0)) || (b.reviewCount - a.reviewCount) || (Number(a.wordId) - Number(b.wordId)) || a.wordId.localeCompare(b.wordId));
     const selected = ranked.slice(0, REVIEW_SET_SIZE);
     return {
@@ -255,19 +258,29 @@
     };
   }
 
-  function todaysGeneratedReviewContext() {
-    if (!api) return null;
+  function todaysReviewContexts() {
+    if (!api) return [];
     const today = localDayKey();
-    return api.readContexts().find(context => (
+    return api.readContexts().filter(context => (
       context.sourceType === 'review-set' &&
       context.practiceMode === 'cards' &&
       context.source?.selectionMode === 'today-review' &&
       context.source?.generatedFor === today
-    )) || null;
+    ));
+  }
+
+  function todaysGeneratedReviewContext() {
+    return todaysReviewContexts()[0] || null;
+  }
+
+  function reviewedTodayWordIds() {
+    if (!api) return [];
+    return api.uniqueWordIds(todaysReviewContexts().flatMap(context => sourceWordIds(context)));
   }
 
   function createTodayReviewContext(selection) {
     if (!api || !selection?.wordIds?.length) return null;
+    const setNumber = todaysReviewContexts().length + 1;
     return api.createContext({
       sourceType: 'review-set',
       practiceMode: 'cards',
@@ -277,6 +290,7 @@
         selectionMode: 'today-review',
         generatedFor: localDayKey(),
         generatorVersion: REVIEW_GENERATOR_VERSION,
+        reviewSetNumber: setNumber,
         attentionBreakdown: selection.breakdown,
         wordIds: selection.wordIds
       },
@@ -646,10 +660,24 @@
     copy.textContent = "Today's set is fixed to the snapshot you started earlier, so you can resume it or run the same set again without the selection changing underneath you.";
     primary.textContent = resumable ? 'Resume' : 'Start Again';
     primary.onclick = () => { void openContext(existing, resumable ? 'resume' : 'restart'); };
-    secondary.hidden = !resumable;
+
+    secondary.hidden = false;
+    secondary.disabled = false;
+    secondary.removeAttribute('title');
     if (resumable) {
       secondary.textContent = 'Start Again';
       secondary.onclick = () => { void openContext(existing, 'restart'); };
+    } else {
+      const nextSelection = generateTodayReview(pool, reviewedTodayWordIds());
+      secondary.textContent = 'Next Review Set';
+      secondary.disabled = !nextSelection.wordIds.length;
+      if (!nextSelection.wordIds.length) secondary.title = 'All current Review cards have already appeared in today\'s Review sets.';
+      secondary.onclick = () => {
+        if (!nextSelection.wordIds.length) return;
+        const context = createTodayReviewContext(nextSelection);
+        if (!context) { showToast('The next Review set could not be created.'); return; }
+        void openContext(context, 'resume');
+      };
     }
   }
 

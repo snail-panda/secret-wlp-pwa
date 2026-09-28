@@ -160,11 +160,32 @@
     if (!sourceWordIds.length && context.sourceType === 'built-set' && context.source?.buildId) {
       sourceWordIds = studyContextApi.uniqueWordIds(studyContextApi.getBuild(context.source.buildId)?.wordIds || []);
     }
-    const completedWordIds = studyContextApi.uniqueWordIds([...(context.progress?.completedWordIds || []), wordId]);
-    const totalCount = Number(context.progress?.totalCount) || sourceWordIds.length || completedWordIds.length;
+    const totalCount = Number(context.progress?.totalCount) || sourceWordIds.length || 0;
     const sourceIndex = sourceWordIds.indexOf(wordId);
     const currentIndex = sourceIndex >= 0 ? sourceIndex : Math.max(0, Number(context.progress?.currentIndex) || 0);
-    const completed = totalCount > 0 && completedWordIds.length >= totalCount;
+
+    // Once a Review round is complete, extra laps remain free-form review.
+    // They update recency/current position but never turn the completed Context active again.
+    if (context.status === 'completed') {
+      studyContextApi.updateContext(context.contextId, {
+        status: 'completed',
+        lastMeaningfulAt: new Date().toISOString(),
+        progress: {
+          currentIndex,
+          currentWordId: wordId,
+          completedWordIds: [],
+          completedCount: totalCount || Number(context.progress?.completedCount) || 0,
+          totalCount: totalCount || Number(context.progress?.completedCount) || 0
+        }
+      });
+      activeStudyContextId = context.contextId;
+      lastTrackedContextWordId = wordId;
+      return;
+    }
+
+    const completedWordIds = studyContextApi.uniqueWordIds([...(context.progress?.completedWordIds || []), wordId]);
+    const resolvedTotalCount = totalCount || completedWordIds.length;
+    const completed = resolvedTotalCount > 0 && completedWordIds.length >= resolvedTotalCount;
 
     studyContextApi.updateContext(context.contextId, {
       status: completed ? 'completed' : 'active',
@@ -174,9 +195,12 @@
         currentWordId: wordId,
         completedWordIds: completed ? [] : completedWordIds,
         completedCount: completedWordIds.length,
-        totalCount
+        totalCount: resolvedTotalCount
       }
     });
+    if (completed && context.sourceType === 'review-set') {
+      showToast(`Review set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`);
+    }
     activeStudyContextId = context.contextId;
     lastTrackedContextWordId = wordId;
   };
@@ -271,7 +295,7 @@
   }
 
   if (isFromReview || (!isFromProgress && Boolean(params.get('review')) && !isFromSearch && !isFromConnected)) {
-    setStudyHeaderBack(safeStudyEntryReturn() || safeContextReturn('review.html'), 'Back to Review');
+    setStudyHeaderBack(safeStudyEntryReturn() || safeContextReturn('review.html'), safeStudyEntryReturn() ? 'Back to Study Review' : 'Back to Review');
   }
 
   /* Stage 7 v3.0 — Global Search always knows how to return to the exact
