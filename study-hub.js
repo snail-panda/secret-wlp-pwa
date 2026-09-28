@@ -204,6 +204,145 @@
     });
   }
 
+
+  function standardModeForContext(context) {
+    return ({ deck: 'deck', range: 'range', 'built-set': 'study-set', 'review-set': 'review' })[context?.sourceType] || 'deck';
+  }
+
+  function restoreBuiltSetForContext(context) {
+    if (!studyContextApi || context?.sourceType !== 'built-set') return true;
+    const build = studyContextApi.getBuild(context.source?.buildId);
+    if (!build) return false;
+    const items = (build.wordIds || []).map(wordId => {
+      const row = rowByWordId.get(clean(wordId));
+      if (!row) return null;
+      return { wordId: clean(row.WordID), batch: clean(row['Batch #']), word: clean(row.Word) };
+    }).filter(Boolean);
+    if (!items.length) return false;
+    const snapshot = {
+      version: 1,
+      createdAt: clean(build.createdAt) || new Date().toISOString(),
+      criteria: build.recipe || {},
+      buildId: build.buildId,
+      items
+    };
+    try { sessionStorage.setItem(TEMP_STUDY_SET_KEY, JSON.stringify(snapshot)); }
+    catch { return false; }
+    temporaryStudySet = snapshot;
+    renderTemporaryStudySetSource();
+    return true;
+  }
+
+  function inferStandardSpecFromContext(context, mode) {
+    const source = context?.source || {};
+    const total = Math.max(1, Number(context?.progress?.totalCount) || (source.wordIds || []).length || 1);
+    return {
+      mode,
+      coverage: 'all',
+      deck: clampDeck(source.deck || 1),
+      rangeStart: clampDeck(source.rangeStart || source.deck || 1),
+      rangeEnd: clampDeck(source.rangeEnd || source.deck || 1),
+      size: total
+    };
+  }
+
+  function applyStandardContextControls(context, spec, mode) {
+    if (mode === 'deck' && context.source?.deck) $('study-deck').value = String(clampDeck(context.source.deck));
+    if (mode === 'range') {
+      $('study-range-start').value = String(clampDeck(context.source?.rangeStart || spec.rangeStart));
+      $('study-range-end').value = String(clampDeck(context.source?.rangeEnd || spec.rangeEnd));
+    }
+    if (mode === 'study-set' && !restoreBuiltSetForContext(context)) return false;
+    setCoverageMode(spec.coverage === 'situations' ? 'situations' : 'all');
+    setSourceMode(mode);
+    return true;
+  }
+
+  function generatedExperienceForWordId(wordId) {
+    const row = rowByWordId.get(clean(wordId));
+    if (!row) return null;
+    const experiences = experiencesForRow(row);
+    return experiences[0] || null;
+  }
+
+  function openStandardContextFromContinue(contextId, { restart = false } = {}) {
+    if (!studyContextApi) return false;
+    const context = studyContextApi.getContext(contextId);
+    if (!context || context.practiceMode !== 'standard') return false;
+    const sourceIds = studyContextApi.uniqueWordIds(context.source?.wordIds || []);
+    if (!sourceIds.length) return false;
+
+    const sessions = readStudySessions();
+    const savedRecord = sessions.find(item => clean(item?.sessionId) === clean(context.sessionRef?.sessionId)) || null;
+    const mode = standardModeForContext(context);
+    const spec = savedRecord?.spec && typeof savedRecord.spec === 'object'
+      ? { ...savedRecord.spec, mode }
+      : inferStandardSpecFromContext(context, mode);
+    lastSessionSpec = spec;
+    if (!applyStandardContextControls(context, spec, mode)) return false;
+
+    const savedByWordId = new Map();
+    (Array.isArray(savedRecord?.experiences) ? savedRecord.experiences : []).forEach(experience => {
+      const wordId = clean(experience?.wordId);
+      if (wordId && !savedByWordId.has(wordId)) savedByWordId.set(wordId, experience);
+    });
+
+    const nextQueue = [];
+    const nextAttempts = [];
+    sourceIds.forEach(wordId => {
+      const snapshot = savedByWordId.get(wordId);
+      const item = snapshot ? itemFromSavedExperience(snapshot) : generatedExperienceForWordId(wordId);
+      if (!item) return;
+      nextQueue.push(item);
+      if (restart || !snapshot?.attempt) nextAttempts.push(null);
+      else nextAttempts.push({ ...snapshot.attempt, _elapsedBaseMs: Number(snapshot.attempt?.elapsedMs) || 0, _visitStartedMs: Date.now() });
+    });
+    if (!nextQueue.length) return false;
+
+    sessionQueue = nextQueue;
+    currentSessionPlannedCount = Math.max(nextQueue.length, Number(context.progress?.totalCount) || 0);
+    viewingSavedSession = false;
+    currentPool = nextQueue;
+
+    if (restart) {
+      sessionAttempts = Array(nextQueue.length).fill(null);
+      sessionIndex = 0;
+      currentAttempt = null;
+      currentSessionId = makeEventId().replace(/^studyq-/, 'studyq-session-');
+      currentSessionStartedAt = new Date().toISOString();
+      currentStudyContextId = '';
+      startStandardStudyContext();
+      renderExperience();
+      return true;
+    }
+
+    sessionAttempts = nextAttempts;
+    const completedIds = new Set(studyContextApi.uniqueWordIds(
+      context.progress?.completedWordIds?.length
+        ? context.progress.completedWordIds
+        : (savedRecord?.wordIds || [])
+    ));
+    let resumeIndex = nextQueue.findIndex(item => !completedIds.has(clean(item.wordId)));
+    if (resumeIndex < 0) resumeIndex = Math.min(nextQueue.length - 1, Math.max(0, Number(context.progress?.currentIndex) || 0));
+    sessionIndex = resumeIndex;
+    currentAttempt = sessionAttempts[sessionIndex] || null;
+    currentSessionId = clean(savedRecord?.sessionId || context.sessionRef?.sessionId) || makeEventId().replace(/^studyq-/, 'studyq-session-');
+    currentSessionStartedAt = clean(savedRecord?.startedAt || context.createdAt) || new Date().toISOString();
+    currentStudyContextId = context.contextId;
+    studyContextApi.updateContext(context.contextId, { status: 'active', lastMeaningfulAt: new Date().toISOString() });
+    renderExperience();
+    return true;
+  }
+
+  function openRequestedContinueContext() {
+    const params = new URLSearchParams(location.search);
+    const resumeId = clean(params.get('resumecontext'));
+    const restartId = clean(params.get('restartcontext'));
+    if (resumeId) return openStandardContextFromContinue(resumeId, { restart: false });
+    if (restartId) return openStandardContextFromContinue(restartId, { restart: true });
+    return false;
+  }
+
   function standardSessionSizeValue() {
     const select = $('study-session-size');
     const value = Math.max(1, Math.floor(Number(select?.value) || 10));
@@ -2627,9 +2766,10 @@
       rowByWordId = new Map(rows.map(row => [clean(row.WordID), row]).filter(([wordId]) => wordId));
       reviewByWordId = readReviewMap();
       setDefaults();
+      const openedContinueContext = openRequestedContinueContext();
       const requestedSession = new URLSearchParams(location.search).get('session');
-      if (requestedSession) showSavedSession(requestedSession);
-      else if (location.hash === '#recent-sessions') $('study-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!openedContinueContext && requestedSession) showSavedSession(requestedSession);
+      else if (!openedContinueContext && location.hash === '#recent-sessions') $('study-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
       console.error('Study Q could not load', error);
       $('study-eligibility').innerHTML = '<strong>Study data could not be loaded</strong><span>Reload when the Master TSV is available.</span>';

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./deck-browser.css?v=20260918-s7-rangehint-v18628">
+  <link rel="stylesheet" href="./deck-browser.css?v=20260928-s7-study-entry-v186158">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
 <style>
     /* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
@@ -98,18 +98,25 @@
         <div class="deck-intro-copy">
           <span class="section-kicker">Study</span>
           <div class="deck-title-row">
-            <h1>Choose a Deck</h1>
+            <h1 id="study-page-title">Choose a Deck</h1>
             <button class="study-options-button" type="button" aria-label="Study Options" title="Study Options" data-study-options-launch>
               <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/>
             </svg>
             </button>
           </div>
-          <p>Jump straight in, return to a recent deck, or <a class="range-jump-link" href="#browse-section">browse the garden by range<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></a>.</p>
+          <p id="study-page-copy">Jump straight in, return to a recent deck, or <a class="range-jump-link" href="#browse-section">browse the garden by range<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></a>.</p>
         </div>
         <span class="deck-count" id="deck-count">Loading…</span>
       </section>
 
+      <nav class="study-mode-tabs" role="tablist" aria-label="Study mode">
+        <button class="study-mode-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="study-new-panel" data-study-mode="new">New</button>
+        <button class="study-mode-tab" type="button" role="tab" aria-selected="false" aria-controls="study-continue-panel" data-study-mode="continue">Continue</button>
+        <button class="study-mode-tab" type="button" role="tab" aria-selected="false" aria-controls="study-review-panel" data-study-mode="review">Review</button>
+      </nav>
+
+      <div id="study-new-panel" class="study-mode-panel" role="tabpanel" data-study-panel="new">
       <section class="finder-panel" aria-label="Find a deck">
         <div class="deck-search">
           <svg class="deck-search-leading-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
@@ -145,7 +152,7 @@
       </section>
 
       <section id="continue-section" class="browser-section" hidden>
-        <div class="section-head"><div><h2>Continue Studying</h2><span>Pick up where you left off</span></div></div>
+        <div class="section-head"><div><h2>Quick Return</h2><span>Open your latest deck</span></div></div>
         <div id="continue-deck" class="continue-feature"></div>
       </section>
 
@@ -173,6 +180,38 @@
         <nav class="range-breadcrumbs" id="range-breadcrumbs" aria-label="Deck range breadcrumb" hidden></nav>
         <div id="range-grid" class="range-grid"></div>
         <div id="range-decks" class="deck-list range-decks" hidden></div>
+      </section>
+      </div>
+
+      <section id="study-continue-panel" class="study-mode-panel study-continue-panel" role="tabpanel" data-study-panel="continue" hidden>
+        <section class="browser-section continue-primary-section">
+          <div class="section-head">
+            <div><h2>Pick up where you left off</h2><span>Your most relevant unfinished study</span></div>
+          </div>
+          <div id="study-continue-featured" class="study-context-featured"></div>
+          <p id="study-continue-empty" class="study-context-empty" hidden>Start a deck, Study Set, or Standard Practice session and it will appear here.</p>
+        </section>
+        <section class="browser-section" id="study-continue-recent-section" hidden>
+          <div class="section-head"><div><h2>Recent Study</h2><span>Other recent study contexts</span></div></div>
+          <div id="study-continue-recent-list" class="study-context-list"></div>
+        </section>
+      </section>
+
+      <section id="study-review-panel" class="study-mode-panel study-review-panel" role="tabpanel" data-study-panel="review" hidden>
+        <section class="browser-section review-pool-section">
+          <div class="section-head"><div><h2>Review Pool</h2><span>Your current cards marked for review</span></div></div>
+          <div class="review-pool-card">
+            <div class="review-pool-total"><strong id="study-review-total">0</strong><span>cards in Review</span></div>
+            <div class="review-pool-levels" aria-label="Review attention counts">
+              <span><strong id="study-review-high">0</strong><small>High</small></span>
+              <span><strong id="study-review-medium">0</strong><small>Medium</small></span>
+              <span><strong id="study-review-light">0</strong><small>Light</small></span>
+              <span><strong id="study-review-unassigned">0</strong><small>Unassigned</small></span>
+            </div>
+            <p>Open Review to inspect attention, reasons, and the cards currently waiting for another pass.</p>
+            <a class="study-context-action is-primary review-pool-open" href="./review.html">Open Review Hub</a>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -227,19 +266,19 @@
       </a>
       <a class="drawer-item drawer-admin-only stage7-backup-restore-item" href="./editor-backup.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M8.5 8.5 12 12l3.5-3.5"/><path d="M5 13.5V20h14v-6.5"/><path d="M7 16.5h10"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Backup &amp; Restore</span><small><span>Back up local WLP data</span><span>Restore from a saved backup</span></small></span></a>
       <hr>
-      <a class="drawer-item drawer-action" id="drawer-settings" href="./settings.html">
+      <button class="drawer-item drawer-action" id="drawer-settings" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06-2.76 2.76-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21H10v-.09A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-2 .36l-.06.06-2.76-2.76.06-.06a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2.85 14H2v-4h.85A1.8 1.8 0 0 0 4.5 8.9a1.8 1.8 0 0 0-.36-2l-.06-.06 2.76-2.76.06.06a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 10 2.85V2h4v.85a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.06-.06 2.76 2.76-.06.06a1.8 1.8 0 0 0-.36 2A1.8 1.8 0 0 0 21.15 10H22v4h-.85A1.8 1.8 0 0 0 19.4 15Z"/></svg><span>Settings</span>
-      </a>
+      </button>
       <button class="drawer-item drawer-action" id="drawer-role-action" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-4 3.2-6 7-6s6.2 2 7 6"/></svg><span class="drawer-role-label">Admin Login</span>
       </button>
       <hr>
-      <a class="drawer-item" href="./help.html">
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="Help is coming to the Stage 7 menu.">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.9.5-1.2 1-1.2 2M12 17h.01"/></svg><span>Help</span>
-      </a>
-      <a class="drawer-item" href="./about.html">
+      </button>
+      <button class="drawer-item drawer-action drawer-placeholder" type="button" data-placeholder="About WLP will live here.">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>About</span>
-      </a>
+      </button>
       <p class="drawer-motto">“More words.<br>A wider world.”</p>
     </nav>
   </aside>
@@ -282,7 +321,9 @@
       }
     })();
   </script>
-  <script src="./deck-browser.js"></script>
+  <script src="./study-context-data.js?v=20260928-s7-study-context-v186157"></script>
+  <script src="./deck-browser.js?v=20260928-s7-study-entry-v186158"></script>
+  <script src="./study-entry.js?v=20260928-s7-study-entry-v186158"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
 </body>

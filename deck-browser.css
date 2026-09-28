@@ -325,3 +325,125 @@
   color:#35644f;
   font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
+
+/* WLP v1.8.6.158 — Study entrance: New / Continue / Review. */
+.study-mode-tabs{
+  margin:18px 0 2px;
+  padding:3px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:3px;
+  border:1px solid #d7e2da;
+  border-radius:14px;
+  background:rgba(255,255,255,.58);
+}
+.study-mode-tab{
+  min-height:38px;
+  padding:7px 9px;
+  border:0;
+  border-radius:11px;
+  background:transparent;
+  color:#6e7d75;
+  font:500 .82rem/1.1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.study-mode-tab.is-active{
+  background:#edf4ee;
+  color:#315f49;
+  box-shadow:inset 0 0 0 1px rgba(72,104,82,.08);
+}
+.study-mode-panel[hidden]{display:none!important}
+.study-continue-panel,.study-review-panel{padding-top:1px}
+.continue-primary-section{margin-top:20px}
+.study-context-featured,.study-context-list{display:grid;gap:9px}
+.study-context-card{
+  padding:14px;
+  border:1px solid var(--deck-line);
+  border-radius:17px;
+  background:rgba(255,255,255,.84);
+  box-shadow:0 4px 14px rgba(40,70,55,.03);
+}
+.study-context-card.is-featured{
+  padding:16px;
+  border-color:#cbded0;
+  background:linear-gradient(135deg,#fbfdf9,#eaf3eb);
+}
+.study-context-kicker{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:4px;
+  color:#71847a;
+  font:600 .66rem/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.study-context-kicker time{font-weight:500;letter-spacing:0;text-transform:none;color:#7d8b84}
+.study-context-card h3{
+  margin:0;
+  color:var(--ink);
+  font-family:"EB Garamond",Georgia,serif;
+  font-size:1.26rem;
+  font-weight:500;
+  line-height:1.08;
+}
+.study-context-card.is-featured h3{font-size:1.42rem}
+.study-context-kind{margin:4px 0 0;color:#718078;font:11px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.study-context-progress{margin-top:12px}
+.study-context-progress-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;color:#65766d;font:11px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.study-context-progress-line strong{color:#345d49;font-size:.84rem;font-weight:650}
+.study-context-progress-track{height:4px;margin-top:6px;border-radius:999px;background:#e1e9e3;overflow:hidden}
+.study-context-progress-track span{display:block;height:100%;border-radius:inherit;background:#71927e}
+.study-context-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.study-context-action{
+  min-height:36px;
+  padding:8px 12px;
+  border:1px solid #cfdcd3;
+  border-radius:11px;
+  background:#fff;
+  color:#486957;
+  text-decoration:none;
+  font:600 .76rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.study-context-action.is-primary{background:#e4efe6;border-color:#c5d9ca;color:#285740}
+.study-context-action.is-quiet{background:transparent;color:#61756a}
+.study-context-empty{
+  margin:0;
+  padding:24px 16px;
+  border:1px dashed #d6e0d9;
+  border-radius:16px;
+  color:#77867e;
+  background:rgba(255,255,255,.48);
+  text-align:center;
+  font-family:"EB Garamond",Georgia,serif;
+}
+.review-pool-card{
+  padding:17px;
+  border:1px solid #d3dfd6;
+  border-radius:18px;
+  background:linear-gradient(135deg,#fcfdfa,#edf4ee);
+}
+.review-pool-total{display:flex;align-items:baseline;gap:8px}
+.review-pool-total strong{font-family:"EB Garamond",Georgia,serif;font-size:2rem;font-weight:500;color:#315f49}
+.review-pool-total span{color:#6e7d75;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.review-pool-levels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:13px}
+.review-pool-levels>span{padding:9px 5px;border:1px solid #dbe5dd;border-radius:12px;background:rgba(255,255,255,.72);text-align:center}
+.review-pool-levels strong{display:block;color:#355d4a;font:650 .95rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.review-pool-levels small{display:block;margin-top:2px;color:#7a8981;font:10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.review-pool-card p{margin:13px 0;color:#6d7d74;font-family:"EB Garamond",Georgia,serif;font-size:.95rem;line-height:1.4}
+.review-pool-open{width:max-content}
+@media(max-width:390px){
+  .study-mode-tabs{margin-top:15px}
+  .study-mode-tab{min-height:37px;font-size:.79rem}
+  .study-context-card{padding:13px}
+  .study-context-card.is-featured{padding:14px}
+  .study-context-actions{gap:6px}
+  .study-context-action{padding:8px 10px}
+  .review-pool-levels{gap:4px}
+  .review-pool-levels>span{padding:8px 3px}
+  .review-pool-levels small{font-size:9px}
+}

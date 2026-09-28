@@ -105,7 +105,9 @@ function temporaryStudySetHref(item) {
   params.set("solo", "1");
   params.set("studyset", "1");
   params.set("from", "study-set");
-  params.set("return", "../../study-set-builder.html");
+  params.set("return", RETURN_PARAM || "../../study-set-builder.html");
+  const contextId = String(PARAMS.get("context") || "").trim();
+  if (contextId) params.set("context", contextId);
   return `./batch.html?${params.toString()}`;
 }
 
@@ -139,6 +141,9 @@ function cardContextReturnTarget() {
         if (url.pathname.endsWith("/study-set-builder.html")) {
           return { href: `${url.pathname}${url.search}${url.hash}`, label: "Study Set", footerLabel: "Back to Study Set", kind: "study-set" };
         }
+        if (url.pathname.endsWith("/deck-browser.html")) {
+          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Continue", footerLabel: "Back to Continue", kind: "deck-browser" };
+        }
       }
     } catch (_) {}
   }
@@ -162,15 +167,23 @@ function installCardContextReturnNavigation() {
   const target = cardContextReturnTarget();
   if (!target) return;
 
-  if (target.kind === "classification" || target.kind === "study-set") {
+  if (target.kind === "classification" || target.kind === "study-set" || target.kind === "deck-browser") {
     const back = document.querySelector(".study-back-decks");
     if (back) {
       back.href = target.href;
       back.setAttribute("aria-label", target.footerLabel);
       back.setAttribute("title", target.footerLabel);
       updateCardContextNavLabel(back, target.footerLabel);
-      const returnPath = target.kind === "classification" ? "/editor-classification.html" : "/study-set-builder.html";
-      const bindKey = target.kind === "classification" ? "classificationReturnBound" : "studySetReturnBound";
+      const returnPath = target.kind === "classification"
+        ? "/editor-classification.html"
+        : target.kind === "deck-browser"
+          ? "/deck-browser.html"
+          : "/study-set-builder.html";
+      const bindKey = target.kind === "classification"
+        ? "classificationReturnBound"
+        : target.kind === "deck-browser"
+          ? "continueReturnBound"
+          : "studySetReturnBound";
       if (back.dataset[bindKey] !== "1") {
         back.dataset[bindKey] = "1";
         back.addEventListener("click", event => {
