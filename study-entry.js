@@ -1,4 +1,4 @@
-/* WLP v1.8.6.163 — Review round completion + Next Review Set + Review Hub return. */
+/* WLP v1.8.6.165 — Review carry-over rounds. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -10,7 +10,9 @@
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const AI_STUDY_EVENT_KEY = 'wlp:ai-study-events:v1';
   const REVIEW_SET_SIZE = 15;
-  const REVIEW_GENERATOR_VERSION = '1.0.0';
+  const REVIEW_CARRYOVER_RATIO = 0.25;
+  const REVIEW_CARRYOVER_MAX_APPEARANCES = 3;
+  const REVIEW_GENERATOR_VERSION = '1.1.0';
   const api = window.WLPStudyContext || null;
   const $ = id => document.getElementById(id);
   const clean = value => String(value ?? '').trim();
@@ -241,6 +243,69 @@
     return counts;
   }
 
+  function reviewWeakEvidence(record, standardMap, aiMap) {
+    const authority = Number(record?.lastAttentionUpdated) || 0;
+    const standard = standardMap.get(record?.wordId);
+    if (standard && (!authority || standard.timestamp > authority)) {
+      const rating = clean(standard.event?.selfRating).toLowerCase();
+      if (rating === 'no-idea' || rating === 'not-yet') return true;
+    }
+    const ai = aiMap.get(record?.wordId);
+    if (ai && (!authority || ai.timestamp > authority) && aiPrioritySignal(ai.event).negative) return true;
+    return false;
+  }
+
+  function todayReviewAppearanceCounts() {
+    const counts = new Map();
+    todaysReviewContexts().forEach(context => {
+      sourceWordIds(context).forEach(wordId => counts.set(wordId, (counts.get(wordId) || 0) + 1));
+    });
+    return counts;
+  }
+
+  function generateNextTodayReview(pool = readReviewPool()) {
+    const appearances = todayReviewAppearanceCounts();
+    const standardMap = latestStandardEvidence();
+    const aiMap = latestAIEvidence();
+    const ranked = records => records
+      .map(record => ({ ...record, _score: reviewPriorityScore(record, standardMap, aiMap) }))
+      .sort((a, b) => (b._score - a._score) || ((a.lastSeen || 0) - (b.lastSeen || 0)) || (b.reviewCount - a.reviewCount) || (Number(a.wordId) - Number(b.wordId)) || a.wordId.localeCompare(b.wordId));
+
+    const unseen = ranked(pool.filter(record => !appearances.has(record.wordId)));
+    if (!unseen.length) return { wordIds: [], records: [], breakdown: reviewBreakdown([]), poolCount: pool.length, carryOverWordIds: [], freshWordIds: [] };
+
+    const carryLimit = Math.min(REVIEW_SET_SIZE - 1, Math.max(1, Math.round(REVIEW_SET_SIZE * REVIEW_CARRYOVER_RATIO)));
+    const carryCandidates = pool
+      .filter(record => {
+        const seenCount = appearances.get(record.wordId) || 0;
+        if (!seenCount || seenCount >= REVIEW_CARRYOVER_MAX_APPEARANCES) return false;
+        return record.reviewLevel === 'high' || reviewWeakEvidence(record, standardMap, aiMap);
+      })
+      .map(record => {
+        const seenCount = appearances.get(record.wordId) || 0;
+        const weak = reviewWeakEvidence(record, standardMap, aiMap);
+        const carryScore = reviewPriorityScore(record, standardMap, aiMap)
+          + (record.reviewLevel === 'high' ? 72 : 0)
+          + (weak ? 64 : 0)
+          - (seenCount * 90);
+        return { ...record, _carryScore: carryScore };
+      })
+      .sort((a, b) => (b._carryScore - a._carryScore) || ((a.lastSeen || 0) - (b.lastSeen || 0)) || (Number(a.wordId) - Number(b.wordId)) || a.wordId.localeCompare(b.wordId));
+
+    const carry = carryCandidates.slice(0, carryLimit);
+    const freshLimit = Math.max(1, REVIEW_SET_SIZE - carry.length);
+    const fresh = unseen.slice(0, freshLimit);
+    const selected = [...fresh, ...carry].slice(0, REVIEW_SET_SIZE);
+    return {
+      wordIds: selected.map(record => record.wordId),
+      records: selected,
+      breakdown: reviewBreakdown(selected),
+      poolCount: pool.length,
+      carryOverWordIds: carry.map(record => record.wordId),
+      freshWordIds: fresh.map(record => record.wordId)
+    };
+  }
+
   function generateTodayReview(pool = readReviewPool(), excludedWordIds = []) {
     const excluded = new Set(api?.uniqueWordIds(excludedWordIds) || []);
     const standardMap = latestStandardEvidence();
@@ -292,6 +357,9 @@
         generatorVersion: REVIEW_GENERATOR_VERSION,
         reviewSetNumber: setNumber,
         attentionBreakdown: selection.breakdown,
+        selectionPolicy: selection.carryOverWordIds?.length ? 'fresh-first-carryover-v1' : 'priority-v1',
+        carryOverWordIds: api.uniqueWordIds(selection.carryOverWordIds || []),
+        freshWordIds: api.uniqueWordIds(selection.freshWordIds || selection.wordIds || []),
         wordIds: selection.wordIds
       },
       progress: { currentIndex: 0, completedCount: 0, totalCount: selection.wordIds.length, completedWordIds: [] }
@@ -657,7 +725,9 @@
     status.textContent = existing.status === 'completed'
       ? `Completed today · ${progress.total} ${progress.total === 1 ? 'card' : 'cards'}`
       : `${progress.completed} / ${progress.total} completed`;
-    copy.textContent = "Today's set is fixed to the snapshot you started earlier, so you can resume it or run the same set again without the selection changing underneath you.";
+    copy.textContent = existing.status === 'completed'
+      ? "This set stays fixed. Next Review Set prioritizes cards not yet seen today and may carry over a few High-attention or clearly difficult cards."
+      : "Today's set is fixed to the snapshot you started earlier, so you can resume it or run the same set again without the selection changing underneath you.";
     primary.textContent = resumable ? 'Resume' : 'Start Again';
     primary.onclick = () => { void openContext(existing, resumable ? 'resume' : 'restart'); };
 
@@ -668,7 +738,7 @@
       secondary.textContent = 'Start Again';
       secondary.onclick = () => { void openContext(existing, 'restart'); };
     } else {
-      const nextSelection = generateTodayReview(pool, reviewedTodayWordIds());
+      const nextSelection = generateNextTodayReview(pool);
       secondary.textContent = 'Next Review Set';
       secondary.disabled = !nextSelection.wordIds.length;
       if (!nextSelection.wordIds.length) secondary.title = 'All current Review cards have already appeared in today\'s Review sets.';
