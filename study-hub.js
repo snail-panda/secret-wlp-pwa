@@ -751,6 +751,45 @@
     return redactTarget(value, target).changed;
   }
 
+  function substantialMultiwordLeak(value, target) {
+    const textTokens = normalizeTargetText(value).toLowerCase().match(/[a-z0-9]+(?:['’-][a-z0-9]+)*/g) || [];
+    const profile = target && typeof target === 'object' && Array.isArray(target.leakVariants) ? target : targetProfile(target);
+    const targetText = clean(profile.practiceTarget || profile.raw);
+    const targetTokens = normalizeTargetText(targetText).toLowerCase().match(/[a-z0-9]+(?:['’-][a-z0-9]+)*/g) || [];
+    if (targetTokens.length < 3 || textTokens.length < 2) return false;
+
+    // Articles/determiners/pronouns may legitimately vary inside the same
+    // expression (e.g. target "continue down the path" vs stored note
+    // "continue down this path"). Ignore those light tokens and detect a
+    // near-verbatim ordered skeleton instead. This is leak detection only.
+    const light = new Set(['a','an','the','this','that','these','those','my','your','his','her','its','our','their','one','ones','someone','somebody','something']);
+    const skeleton = targetTokens.filter(token => !light.has(token));
+    if (skeleton.length < 2) return false;
+
+    let cursor = -1;
+    let first = -1;
+    let last = -1;
+    for (const token of skeleton) {
+      let found = -1;
+      for (let i = cursor + 1; i < textTokens.length; i++) {
+        if (textTokens[i] === token) { found = i; break; }
+      }
+      if (found < 0) return false;
+      if (first < 0) first = found;
+      last = found;
+      cursor = found;
+    }
+    // Keep the match local: the target's lexical skeleton must occur within a
+    // compact phrase, not merely as unrelated words scattered through a note.
+    return last - first <= skeleton.length + 2;
+  }
+
+  function hasAnyHintLeak(value, item) {
+    return hintLeakProfiles(item).some(profile =>
+      hasTargetLeak(value, profile) || substantialMultiwordLeak(value, profile)
+    );
+  }
+
   function safePrompt(value, target) {
     const redacted = redactTarget(value, target);
     if (!meaningfulPrompt(redacted.text)) return { text: '', changed: redacted.changed };
@@ -2049,7 +2088,7 @@
     if (!meaningfulPrompt(redacted.text)) return '';
     // Hard safety pass: no reveal-before-Reveal, even when a stored pattern and
     // the practice target were derived through different profile paths.
-    if (hintLeakProfiles(item).some(profile => hasTargetLeak(redacted.text, profile))) return '';
+    if (hasAnyHintLeak(redacted.text, item)) return '';
     return redacted.text;
   }
 
@@ -2094,7 +2133,9 @@
     // path…”), do not turn the redacted quotation into a pseudo-hint. Skip it
     // and let the ladder continue with form / semantic / structure clues.
     const usageLeakCheck = redactAllHintTargets(usageNote, item);
-    if (meaningfulPrompt(usageNote) && !usageLeakCheck.changed) add('usage', `Usage / collocation: ${usageNote}`);
+    if (meaningfulPrompt(usageNote) && !usageLeakCheck.changed && !hasAnyHintLeak(usageNote, item)) {
+      add('usage', `Usage / collocation: ${usageNote}`);
+    }
 
     const example = splitExamples(item.row?.['Example Sentence'])
       .map(value => ({ value, safe: safePrompt(value, profile) }))
