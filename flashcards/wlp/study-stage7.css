@@ -2463,6 +2463,13 @@ body.review-attention-open{overflow:hidden}
   opacity:1;
   transform:translate(-50%,0);
 }
+.study-progress-toast.review-complete{
+  border-color:#3f7252;
+  background:#3f7252;
+  color:#fff;
+  box-shadow:0 9px 26px rgba(35,76,52,.22);
+  font-weight:700;
+}
 @media (max-width:480px){
   .review-attention-sheet{padding-left:14px;padding-right:14px}
   .review-attention-levels{gap:6px}

@@ -3617,7 +3617,7 @@ const REVIEW_REASON_OPTIONS = [
 ];
 
 let studyToastTimer = null;
-function showStudyToast(message, duration = 2200) {
+function showStudyToast(message, duration = 2200, variant = "") {
   let toast = document.getElementById("study-progress-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -3628,9 +3628,13 @@ function showStudyToast(message, duration = 2200) {
     document.body.appendChild(toast);
   }
   toast.textContent = message;
+  toast.classList.toggle("review-complete", variant === "review-complete");
   toast.classList.add("show");
   clearTimeout(studyToastTimer);
-  studyToastTimer = setTimeout(() => toast.classList.remove("show"), duration);
+  studyToastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+    toast.classList.remove("review-complete");
+  }, duration);
 }
 
 function ensureReviewAttentionSheet() {
@@ -3888,7 +3892,7 @@ function maybeShowQuickReviewCompletionToast(row) {
     if (index === lastIndex && Number(state.shownRound) < Number(state.round || 1)) {
       state.shownRound = Number(state.round) || 1;
       writeQuickReviewRoundState(state);
-      showStudyToast(`Review set complete · ${total} / ${total}`, 3000);
+      showStudyToast(`Review set complete · ${total} / ${total}`, 3000, "review-complete");
       return true;
     }
     writeQuickReviewRoundState(state);
