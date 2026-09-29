@@ -878,8 +878,43 @@
     const text = noteExcerpt(value);
     if (!text) return '';
     const parts = text.split(/(?<=[.!?])\s+|\s*;\s*/).map(clean).filter(Boolean);
-    const useful = parts.find(part => /\b(?:collocat|pattern|frame|construction|preposition|followed by|commonly|often|typically|usually|used with|used for|register)\b/i.test(part));
+    const useful = parts.find(part => {
+      if (!/\b(?:collocat|pattern|frame|construction|preposition|followed by|commonly|often|typically|usually|used with|used for|register)\b/i.test(part)) return false;
+      // Skip labels that technically mention a pattern but teach almost nothing.
+      if (/^(?:very\s+)?(?:productive|common|useful|frequent)\s+(?:pattern|construction|collocation)\.?$/i.test(part)) return false;
+      return clean(part).replace(/[^A-Za-z0-9]+/g, '').length >= 18;
+    });
     return safePrompt(useful || '', target).text;
+  }
+
+  function nearMeaningHintFor(item) {
+    const profile = item.targetProfile || targetProfile(item.row || '');
+    const pos = normalizeAnswer(item.row?.['Part of Speech']);
+    const entryType = normalizeAnswer(item.meta?.entryType);
+    const practice = clean(item.answerTarget || profile.practiceTarget || profile.raw);
+    const multiword = practice.split(/\s+/).filter(Boolean).length > 1;
+
+    // For plain noun-identification items, a synonym clue often just restates
+    // the definition and collapses the task into label recall. Keep Phase 2
+    // conservative there; expressions, verbs, adjectives, etc. get the bridge.
+    if (!multiword && /^n(?:oun)?$/.test(pos) && !entryType) return '';
+
+    const upfront = practiceFrameFor(item).map(cue => cue.text);
+    const prompt = clean(item.promptText);
+    const candidates = [];
+    const addCandidate = value => {
+      const text = clean(value);
+      if (!text || hasTargetLeak(text, profile)) return;
+      if (candidates.some(existing => normalizeAnswer(existing) === normalizeAnswer(text))) return;
+      if (upfront.some(cue => cuesOverlap(cue, text)) || cuesOverlap(prompt, text)) return;
+      candidates.push(text);
+    };
+
+    relevantAlternatives(item).forEach(alt => addCandidate(alt?.expression));
+    relatedExpressionsFor(item).forEach(addCandidate);
+
+    if (!candidates.length) return '';
+    return `Nearby expressions: ${candidates.slice(0, 2).join(' / ')}.`;
   }
 
   function whyItFitsFor(item) {
@@ -1930,7 +1965,11 @@
     } else if (profile.kind === 'construction') {
       if (entryType) bits.push(entryType);
       else if (pos) bits.push(pos);
-      if (profile.patternDisplay) bits.push(`pattern: ${profile.patternDisplay}`);
+      if (profile.patternDisplay) {
+        const safePattern = safePrompt(profile.patternDisplay, profile).text;
+        // Never let the form hint print the target itself (e.g. "pattern: same with …").
+        if (meaningfulPrompt(safePattern)) bits.push(`pattern: ${safePattern}`);
+      }
     } else if (profile.kind === 'labeled') {
       if (countLabel) bits.push(countLabel);
     } else {
@@ -1954,9 +1993,9 @@
       hints.push({ type, text: value });
     };
 
-    // V2 hint ladder: deepen meaning/usage first, then narrow the form.
-    // Synonyms are deliberately kept out of the hint ladder because they can
-    // turn retrieval into a word-identification game. They appear after Reveal.
+    // V2 Phase 2 hint ladder: deepen meaning/usage first, add a semantic
+    // bridge only after the context has done some work, then narrow the form.
+    // Nearby expressions are not treated as guaranteed substitutes.
     const sense = safePrompt(item.meta?.senseHook, profile).text;
     if (meaningfulPrompt(sense)) add('sense-nuance', `Sense / nuance: ${sense}`);
 
@@ -1970,6 +2009,9 @@
       .map(value => ({ value, safe: safePrompt(value, profile) }))
       .find(entry => entry.safe.changed && meaningfulPrompt(entry.safe.text) && !cuesOverlap(entry.safe.text, item.promptText));
     if (example) add('usage', `Usage frame: ${example.safe.text}`);
+
+    const nearMeaning = nearMeaningHintFor(item);
+    if (meaningfulPrompt(nearMeaning)) add('near-meaning', nearMeaning);
 
     add('form', formHintFor(item));
 
@@ -2035,7 +2077,7 @@
       .filter(expression => !linkedKeys.has(normalizeAnswer(expression)))
       .map(expression => ({
         expression,
-        note: 'Related expression from this card. Standard Practice does not automatically verify the exact form, collocation, or register for this context.',
+        note: '',
         kind: 'related'
       }));
     return [...linked, ...related].slice(0, 10);
@@ -2171,7 +2213,12 @@
 
     const alternatives = revealAlternatives(item);
     $('study-alternatives').hidden = !alternatives.length;
-    $('study-alternatives-title').textContent = alternatives.some(alt => alt.kind === 'related') ? 'Alternatives & related expressions' : 'Near alternatives';
+    const hasRelatedAlternatives = alternatives.some(alt => alt.kind === 'related');
+    $('study-alternatives-title').textContent = hasRelatedAlternatives ? 'Alternatives & related expressions' : 'Near alternatives';
+    $('study-alternatives-note').hidden = !hasRelatedAlternatives;
+    $('study-alternatives-note').textContent = hasRelatedAlternatives
+      ? 'Nearby expressions from this card are useful for comparison, but they are not automatically verified as interchangeable in this exact context.'
+      : '';
     $('study-alternative-list').innerHTML = alternatives.map(alt => {
       const note = clean(alt.note);
       return `<div class="study-alternative-item ${alt.kind === 'related' ? 'is-related' : 'is-linked'}"><strong>${escapeHtml(alt.expression)}</strong>${note ? `<p>${escapeHtml(note)}</p>` : ''}</div>`;
