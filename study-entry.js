@@ -873,8 +873,9 @@
       .slice(0, 3) : [];
     section.hidden = !contexts.length;
     for (const context of contexts) {
-      const item = document.createElement('article');
+      const item = document.createElement('a');
       item.className = 'review-recent-item';
+      item.href = `./review-history.html?context=${encodeURIComponent(context.contextId)}`;
 
       const main = document.createElement('div');
       main.className = 'review-recent-main';
@@ -887,10 +888,11 @@
       meta.textContent = `${count.toLocaleString()} cards · ${style} · ${status}`;
       main.append(when, meta);
 
-      const badge = document.createElement('span');
-      badge.className = `review-recent-status${context?.status === 'completed' ? ' is-complete' : ''}`;
-      badge.textContent = context?.status === 'completed' ? 'Done' : 'Open';
-      item.append(main, badge);
+      const chevron = document.createElement('span');
+      chevron.className = 'review-recent-chevron';
+      chevron.setAttribute('aria-hidden', 'true');
+      chevron.textContent = '›';
+      item.append(main, chevron);
       list.append(item);
     }
   }

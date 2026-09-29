@@ -649,3 +649,11 @@
   height:1px;
   background:rgba(197,213,202,.62);
 }
+
+
+/* WLP v1.8.6.179 — Review History shortcut + linked recent sets. */
+.review-history-shortcut-row{display:flex;justify-content:flex-end;margin:12px 2px 4px}
+.review-history-shortcut-row a{display:inline-flex;align-items:center;gap:4px;color:#4e705e;text-decoration:none;font:650 .68rem/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.review-history-shortcut-row a span{font:500 1rem/1 "EB Garamond",serif}
+.review-recent-item[href]{color:inherit;text-decoration:none}
+.review-recent-chevron{flex:none;color:#567566;font:500 1.18rem/1 "EB Garamond",serif}
