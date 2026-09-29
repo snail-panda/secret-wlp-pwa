@@ -2052,7 +2052,12 @@
     // Synonyms deliberately do NOT come first.
     const profile = item.targetProfile || targetProfile(item.row || '');
     const usageNote = usageNoteCue(item.row?.['Note(s)'], profile);
-    if (meaningfulPrompt(usageNote)) add('usage', `Usage / collocation: ${usageNote}`);
+    // Notes are useful only while they remain genuinely indirect. If a stored
+    // note contains the target itself (for example: “If we continue down this
+    // path…”), do not turn the redacted quotation into a pseudo-hint. Skip it
+    // and let the ladder continue with form / semantic / structure clues.
+    const usageLeakCheck = redactAllHintTargets(usageNote, item);
+    if (meaningfulPrompt(usageNote) && !usageLeakCheck.changed) add('usage', `Usage / collocation: ${usageNote}`);
 
     const example = splitExamples(item.row?.['Example Sentence'])
       .map(value => ({ value, safe: safePrompt(value, profile) }))
