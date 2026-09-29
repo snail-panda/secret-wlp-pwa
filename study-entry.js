@@ -897,8 +897,8 @@
 
     primary.disabled = false;
     if (!existing) {
-      status.textContent = `${wordIds.length} ${wordIds.length === 1 ? 'card' : 'cards'} ready`;
-      copy.textContent = "Higher Attention leads the set; older cards and recent difficulty can move cards up. Recent success can lower priority, but never removes a card from Review. The set stays fixed once you start it.";
+      status.textContent = 'Ready to start';
+      copy.textContent = 'Attention, recency, and recent study evidence shape the order. The set stays fixed once you start.';
       primary.textContent = 'Start Review';
       secondary.hidden = true;
       primary.onclick = () => {
@@ -911,13 +911,13 @@
 
     const resumable = existing.status !== 'completed' && progress.completed < progress.total;
     status.textContent = existing.status === 'completed'
-      ? `Completed today · ${progress.total} ${progress.total === 1 ? 'card' : 'cards'}`
+      ? 'Completed today'
       : `${progress.completed} / ${progress.total} completed`;
     copy.textContent = existing.status === 'completed'
       ? readReviewSettings().carryOver
-        ? "This set stays fixed. Next Review Set prioritizes cards not yet seen today and may carry over a few cards that still need attention."
-        : "This set stays fixed. Carry Over is off, so the next Review Set uses only cards not yet seen today."
-      : "Today's set is fixed to the snapshot you started earlier, so you can resume it or run the same set again without the selection changing underneath you.";
+        ? 'Next Review Set uses unseen cards first, with a few difficult carry-overs when useful.'
+        : 'Carry Over is off, so Next Review Set uses only cards not yet seen today.'
+      : 'This set stays fixed, so Resume and Start Again use the same snapshot.';
     primary.textContent = resumable ? 'Resume' : 'Start Again';
     primary.onclick = () => { void openContext(existing, resumable ? 'resume' : 'restart'); };
 

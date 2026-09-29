@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.169 — Quick Review storage diagnostics + reliable Auto Next.
+// Stage 7 v1.8.6.170 — Review UI polish on v1.8.6.169 storage base.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -217,6 +217,7 @@ function installBottomContextBack(target) {
   back.style.display = "inline-flex";
   back.setAttribute("aria-label", target.footerLabel || "Back");
   back.setAttribute("title", target.footerLabel || "Back");
+  back.closest("#deck-nav-links")?.classList.add("has-context-back");
   updateCardContextNavLabel(back, "Back");
 }
 

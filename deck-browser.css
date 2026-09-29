@@ -483,3 +483,72 @@
   .review-setting-row{gap:10px}
   .review-style-switch button{min-width:52px;padding-inline:7px}
 }
+
+/* WLP v1.8.6.170 — Review page visual hierarchy polish. */
+.review-today-card{
+  padding:0;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+}
+.review-today-heading{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:2px;
+}
+.review-today-status{
+  order:-1;
+  color:#244f3d;
+  font:650 1.05rem/1.15 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-today-total{
+  display:flex;
+  align-items:baseline;
+  gap:4px;
+  color:#75847c;
+}
+.review-today-total strong{
+  color:#5f7469;
+  font:650 .78rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-today-total span{
+  font:600 .64rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-today-levels{
+  gap:6px;
+  margin-top:11px;
+}
+.review-today-levels>span{
+  padding:7px 4px;
+  border-color:#dce6df;
+  border-radius:11px;
+  background:rgba(255,255,255,.50);
+}
+.review-today-levels strong{
+  font-size:.88rem;
+  font-weight:650;
+}
+.review-today-levels small{
+  margin-top:1px;
+  font-size:9px;
+}
+.review-today-card>p{
+  margin:11px 0 0;
+  max-width:620px;
+  color:#74837b;
+  font:500 .72rem/1.42 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-today-actions{
+  margin-top:11px;
+}
+.review-today-actions .study-context-action{
+  min-height:35px;
+}
+@media(max-width:390px){
+  .review-today-heading{gap:8px}
+  .review-today-status{font-size:1rem}
+  .review-today-levels{gap:5px}
+  .review-today-levels>span{padding:6px 3px}
+}

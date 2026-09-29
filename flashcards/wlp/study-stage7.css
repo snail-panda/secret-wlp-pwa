@@ -3451,3 +3451,48 @@ body.review-attention-open{overflow:hidden}
   position:relative;
   top:-2px;
 }
+
+/* =========================================================
+   WLP Stage 7 v1.8.6.170 — Quick Review + context Back polish.
+   Keep Auto Next visually secondary; keep contextual Back at the left edge.
+   ========================================================= */
+.stage7-study-body .study-practice-zone .quick-review-head{
+  align-items:center!important;
+  min-height:28px!important;
+}
+.stage7-study-body .study-practice-zone .quick-review-auto-next{
+  width:auto!important;
+  min-width:0!important;
+  min-height:27px!important;
+  margin:0!important;
+  padding:4px 9px!important;
+  border:1px solid rgba(85,114,100,.12)!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.34)!important;
+  color:#6f7f76!important;
+  box-shadow:none!important;
+  font-family:var(--s7-sans)!important;
+  font-size:.66rem!important;
+  font-weight:650!important;
+  line-height:1!important;
+  letter-spacing:.005em!important;
+}
+.stage7-study-body .study-practice-zone .quick-review-auto-next.is-on{
+  background:#e7f0e9!important;
+  border-color:rgba(76,112,90,.16)!important;
+  color:#3e654f!important;
+}
+.stage7-study-body #deck-nav-links.has-context-back > div:first-child{
+  text-align:left!important;
+}
+.stage7-study-body #deck-nav-links.has-context-back > div:first-child .deck-step-link{
+  margin-left:0!important;
+  transform:none!important;
+}
+@media(max-width:390px){
+  .stage7-study-body .study-practice-zone .quick-review-auto-next{
+    min-height:26px!important;
+    padding:4px 8px!important;
+    font-size:.63rem!important;
+  }
+}
