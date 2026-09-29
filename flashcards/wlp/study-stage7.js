@@ -207,9 +207,11 @@
     const resolvedTotalCount = totalCount || completedWordIds.length;
     const completed = resolvedTotalCount > 0 && completedWordIds.length >= resolvedTotalCount;
 
+    const meaningfulAt = new Date().toISOString();
     const savedContext = studyContextApi.updateContext(context.contextId, {
       status: completed ? 'completed' : 'active',
-      lastMeaningfulAt: new Date().toISOString(),
+      lastMeaningfulAt: meaningfulAt,
+      ...(completed && context.sourceType === 'review-set' && !context.completedAt ? { completedAt: meaningfulAt } : {}),
       progress: {
         currentIndex,
         currentWordId: wordId,

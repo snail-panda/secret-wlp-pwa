@@ -1,4 +1,4 @@
-/* WLP v1.8.6.169 — Study Context V1 + verified storage writes. */
+/* WLP v1.8.6.176 — Study Context V1 + Review completion timestamp foundation. */
 (() => {
   const CONTEXT_KEY = 'wlp:study-contexts:v1';
   const BUILD_HISTORY_KEY = 'wlp:build-history:v1';
@@ -149,6 +149,7 @@
       practiceMode: clean(raw.practiceMode) || 'cards',
       createdAt: clean(raw.createdAt) || nowIso(),
       lastMeaningfulAt: clean(raw.lastMeaningfulAt) || clean(raw.createdAt) || nowIso(),
+      completedAt: clean(raw.completedAt),
       status: ['active', 'incomplete', 'completed'].includes(clean(raw.status)) ? clean(raw.status) : 'active',
       source,
       progress: normalizeProgress(raw.progress, source.wordIds),
@@ -174,6 +175,7 @@
       practiceMode: clean(input.practiceMode) || 'cards',
       createdAt: clean(input.createdAt) || now,
       lastMeaningfulAt: clean(input.lastMeaningfulAt) || now,
+      completedAt: clean(input.completedAt),
       status: clean(input.status) || 'active',
       source,
       progress: {
