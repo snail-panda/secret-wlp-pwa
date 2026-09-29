@@ -10,7 +10,7 @@
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
-  const STUDYQ_STANDARD_VERSION = '1.1.0';
+  const STUDYQ_STANDARD_VERSION = '2.0.0';
   const studyContextApi = window.WLPStudyContext || null;
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -788,6 +788,127 @@
     return `${slice.slice(0, boundary >= 160 ? boundary + 1 : 357).trim()}…`;
   }
 
+  function cueKey(value) {
+    return normalizeAnswer(clean(value).replace(/_+/g, ' '));
+  }
+
+  function cuesOverlap(left, right) {
+    const a = cueKey(left);
+    const b = cueKey(right);
+    if (!a || !b) return false;
+    return a === b || (a.length >= 18 && b.includes(a)) || (b.length >= 18 && a.includes(b));
+  }
+
+  function practiceFrameFor(item) {
+    const profile = item.targetProfile || targetProfile(item.row || '');
+    const cues = [];
+    const add = (label, text) => {
+      const value = clean(text);
+      if (!meaningfulPrompt(value) || cues.some(cue => cuesOverlap(cue.text, value)) || cuesOverlap(item.promptText, value)) return;
+      cues.push({ label, text: value });
+    };
+
+    const need = safePrompt(item.communicativeNeed, profile).text;
+    if (meaningfulPrompt(need)) add('Situation focus', need);
+
+    const sense = safePrompt(item.meta?.senseHook, profile).text;
+    if (meaningfulPrompt(sense)) add('Sense / nuance', sense);
+
+    if (cues.length < 2) {
+      const condition = usageConditionCue(item.row?.['Note(s)'], profile);
+      if (meaningfulPrompt(condition)) add('Usage condition', condition);
+    }
+
+    if (cues.length < 2) {
+      const definition = definitionCue(item.row?.Definition, profile);
+      if (meaningfulPrompt(definition)) add('Sense / nuance', definition);
+    }
+    return cues.slice(0, 2);
+  }
+
+  function splitRelatedExpressions(value) {
+    const text = clean(value);
+    if (!text) return [];
+    const out = [];
+    let current = '';
+    let depth = 0;
+    const push = () => {
+      const value = clean(current).replace(/\s*\([^)]*\)\s*$/g, '').trim();
+      if (value) out.push(value);
+      current = '';
+    };
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (char === '(') depth++;
+      if (char === ')' && depth > 0) depth--;
+      const spacedSlash = char === '/' && /\s/.test(text[i - 1] || '') && /\s/.test(text[i + 1] || '');
+      if (depth === 0 && (char === ',' || char === ';' || spacedSlash)) {
+        push();
+        continue;
+      }
+      current += char;
+    }
+    push();
+    return out;
+  }
+
+  function relatedExpressionsFor(item) {
+    const profile = item.targetProfile || targetProfile(item.row || '');
+    const targetKeys = new Set(targetAnswerVariants(item).map(normalizeAnswer));
+    const seen = new Set();
+    return splitRelatedExpressions(item.row?.['Synonym(s)'])
+      .filter(value => {
+        const key = normalizeAnswer(value);
+        if (!key || key.length < 2 || targetKeys.has(key) || seen.has(key) || hasTargetLeak(value, profile)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 8);
+  }
+
+  function usageConditionCue(value, target) {
+    const text = noteExcerpt(value);
+    if (!text) return '';
+    const parts = text.split(/(?<=[.!?])\s+|\s*;\s*/).map(clean).filter(Boolean);
+    const condition = parts.find(part => /\b(?:formal|informal|literary|spoken|written|slang|derogatory|disapproving|approving|polite|impolite|technical|academic|legal|business|register|tone)\b/i.test(part));
+    return safePrompt(condition || '', target).text;
+  }
+
+  function usageNoteCue(value, target) {
+    const text = noteExcerpt(value);
+    if (!text) return '';
+    const parts = text.split(/(?<=[.!?])\s+|\s*;\s*/).map(clean).filter(Boolean);
+    const useful = parts.find(part => /\b(?:collocat|pattern|frame|construction|preposition|followed by|commonly|often|typically|usually|used with|used for|register)\b/i.test(part));
+    return safePrompt(useful || '', target).text;
+  }
+
+  function whyItFitsFor(item) {
+    const profile = item.targetProfile || targetProfile(item.row || '');
+    const need = safePrompt(item.communicativeNeed, profile).text;
+    const sense = safePrompt(item.meta?.senseHook, profile).text;
+    const definition = definitionCue(item.row?.Definition, profile);
+    if (meaningfulPrompt(need) && meaningfulPrompt(sense)) return `This target serves the communicative need here: ${need} Its core sense in this card is: ${sense}`;
+    if (meaningfulPrompt(sense)) return `Here the target is being practiced in this sense: ${sense}`;
+    if (meaningfulPrompt(need)) return `This target fits the communicative need in this situation: ${need}`;
+    if (meaningfulPrompt(definition)) return `Here the target is being used in the sense of: ${definition}`;
+    return '';
+  }
+
+  function typicalUsageFor(item) {
+    const profile = item.targetProfile || targetProfile(item.row || '');
+    if (profile.kind === 'construction' && clean(profile.patternDisplay)) {
+      return { label: 'Typical pattern', text: clean(profile.patternDisplay) };
+    }
+
+    const note = clean(item.row?.['Note(s)']);
+    const labeled = note.match(/(?:KEY\s+(?:FRAME|COLLOCATION|PATTERN)|COMMON\s+(?:FRAME|COLLOCATION|PATTERN)|(?:FRAME|COLLOCATION|PATTERN))\s*:\s*([^.!?]+[.!?]?)/i);
+    if (labeled && clean(labeled[1])) return { label: 'Typical pattern', text: clean(labeled[1]) };
+
+    const example = splitExamples(item.row?.['Example Sentence']).find(value => hasTargetLeak(value, profile)) || splitExamples(item.row?.['Example Sentence'])[0];
+    if (clean(example)) return { label: 'Usage example', text: clean(example) };
+    return { label: '', text: '' };
+  }
+
   function baseExperience(row, meta, review) {
     const wordId = clean(row.WordID);
     const profile = targetProfile(row);
@@ -821,7 +942,7 @@
         promptTitle: meaningfulPrompt(title) ? title : '',
         promptText: anchor,
         question: 'What might you naturally say?',
-        responseHelp: 'Multiple answers can be natural. WLP is not treating this as a one-answer quiz.',
+        responseHelp: 'More than one answer can be natural. The goal is to connect this situation to the WLP target; Standard Practice does not automatically judge every alternative.',
         communicativeNeed: meaningfulPrompt(need) ? need : ''
       });
     });
@@ -851,7 +972,7 @@
         promptTitle: '',
         promptText: redacted.text,
         question: 'What expression fits naturally here?',
-        responseHelp: 'More than one answer may work. Reveal shows the WLP target for this context.',
+        responseHelp: 'More than one answer may work. Use the context and sense first; Reveal shows the WLP target for this card.',
         communicativeNeed: ''
       };
     }).filter(Boolean);
@@ -870,7 +991,7 @@
       promptTitle: '',
       promptText: prompt,
       question: 'What word or expression matches this meaning?',
-      responseHelp: 'Other expressions may fit too. Reveal shows the WLP target for this card.',
+      responseHelp: 'Other expressions may fit too. Focus on the sense first; Reveal shows the WLP target for this card.',
       communicativeNeed: ''
     };
   }
@@ -888,7 +1009,7 @@
       promptTitle: '',
       promptText: prompt,
       question: 'What expression is this usage note pointing to?',
-      responseHelp: 'Use the clue as a starting point. Reveal shows the WLP target for this card.',
+      responseHelp: 'Use the clue to reconstruct the intended sense. Reveal shows the WLP target for this card.',
       communicativeNeed: ''
     };
   }
@@ -1326,6 +1447,8 @@
     if (contained) return { kind: 'target-contained', alternative: '', matchedTarget: contained };
     const matchedAlternative = relevantAlternatives(item).find(alt => normalizedContains(answer, alt.expression));
     if (matchedAlternative) return { kind: 'alternative', alternative: clean(matchedAlternative.expression), matchedTarget: '' };
+    const matchedRelated = relatedExpressionsFor(item).find(expression => normalizedContains(answer, expression));
+    if (matchedRelated) return { kind: 'related', alternative: clean(matchedRelated), matchedTarget: '' };
     const normalizedTarget = normalizeAnswer(preferred);
     if (/^[a-z][a-z'-]{3,}$/.test(normalizedTarget)) {
       const closeToken = normalizeAnswer(answer).split(/\s+/).find(token => Math.abs(token.length - normalizedTarget.length) <= 1 && editDistance(token, normalizedTarget) <= 1);
@@ -1822,32 +1945,37 @@
     const profile = item.targetProfile || targetProfile(item.row || '');
     const hints = [];
     const seen = new Set();
+    const upfront = practiceFrameFor(item).map(cue => cue.text);
     const add = (type, text) => {
       const value = clean(text);
       const key = normalizeAnswer(value);
-      if (!value || !key || seen.has(key)) return;
+      if (!value || !key || seen.has(key) || upfront.some(cue => cuesOverlap(cue, value))) return;
       seen.add(key);
       hints.push({ type, text: value });
     };
 
-    const synonyms = safePrompt(item.row?.['Synonym(s)'], profile).text;
-    if (meaningfulPrompt(synonyms)) add('related', `Related expression(s): ${synonyms}`);
+    // V2 hint ladder: deepen meaning/usage first, then narrow the form.
+    // Synonyms are deliberately kept out of the hint ladder because they can
+    // turn retrieval into a word-identification game. They appear after Reveal.
+    const sense = safePrompt(item.meta?.senseHook, profile).text;
+    if (meaningfulPrompt(sense)) add('sense-nuance', `Sense / nuance: ${sense}`);
+
+    const definition = definitionCue(item.row?.Definition, profile);
+    if (meaningfulPrompt(definition)) add('sense-nuance', `Meaning focus: ${definition}`);
+
+    const usageNote = usageNoteCue(item.row?.['Note(s)'], profile);
+    if (meaningfulPrompt(usageNote)) add('usage', `Usage / collocation: ${usageNote}`);
+
+    const example = splitExamples(item.row?.['Example Sentence'])
+      .map(value => ({ value, safe: safePrompt(value, profile) }))
+      .find(entry => entry.safe.changed && meaningfulPrompt(entry.safe.text) && !cuesOverlap(entry.safe.text, item.promptText));
+    if (example) add('usage', `Usage frame: ${example.safe.text}`);
 
     add('form', formHintFor(item));
-
-    if (item.kind !== 'example') {
-      const example = splitExamples(item.row?.['Example Sentence'])
-        .map(value => ({ value, safe: safePrompt(value, profile) }))
-        .find(entry => entry.safe.changed && meaningfulPrompt(entry.safe.text));
-      if (example) add('example', `Example frame: ${example.safe.text}`);
-    }
 
     const firstTarget = clean(profile.practiceTarget || item.answerTarget || profile.raw);
     const first = Array.from(firstTarget.trim())[0] || '';
     if (first) add('first-letter', `Starts with “${first}”.`);
-
-    const sense = safePrompt(item.meta?.senseHook, profile).text;
-    if (meaningfulPrompt(sense)) add('sense-hook', `Sense hook: ${sense}`);
 
     return hints;
   }
@@ -1896,12 +2024,60 @@
     });
   }
 
+  function revealAlternatives(item) {
+    const linked = relevantAlternatives(item).map(alt => ({
+      expression: clean(alt.expression),
+      note: clean(alt.note) || 'Linked natural alternative for this card or situation.',
+      kind: 'linked'
+    }));
+    const linkedKeys = new Set(linked.map(alt => normalizeAnswer(alt.expression)));
+    const related = relatedExpressionsFor(item)
+      .filter(expression => !linkedKeys.has(normalizeAnswer(expression)))
+      .map(expression => ({
+        expression,
+        note: 'Related expression from this card. Standard Practice does not automatically verify the exact form, collocation, or register for this context.',
+        kind: 'related'
+      }));
+    return [...linked, ...related].slice(0, 10);
+  }
+
+  function renderPracticeFrame(item) {
+    const box = $('study-practice-frame');
+    const list = $('study-practice-frame-list');
+    if (!box || !list) return;
+    const cues = practiceFrameFor(item);
+    list.replaceChildren();
+    cues.forEach(cue => {
+      const row = document.createElement('div');
+      row.className = 'study-practice-frame-item';
+      const label = document.createElement('span');
+      label.textContent = cue.label;
+      const copy = document.createElement('p');
+      copy.textContent = cue.text;
+      row.append(label, copy);
+      list.append(row);
+    });
+    box.hidden = !cues.length;
+  }
+
+  function renderTargetLearning(item) {
+    const why = whyItFitsFor(item);
+    const usage = typicalUsageFor(item);
+    $('study-why-it-fits').textContent = why;
+    $('study-why-it-fits-block').hidden = !why;
+    $('study-typical-pattern-label').textContent = usage.label || 'Typical pattern';
+    $('study-typical-pattern').textContent = usage.text;
+    $('study-typical-pattern-block').hidden = !usage.text;
+    $('study-target-learning').hidden = !(why || usage.text);
+  }
+
   function responseNote(item) {
     const match = responseMatch(item);
     if (match.kind === 'blank') return 'No typed response to compare. You can still self-check based on what you said or thought.';
     if (match.kind === 'target-exact') return 'Matches the stored WLP target — exact form.';
     if (match.kind === 'target-contained') return 'Your response includes the stored WLP target.';
     if (match.kind === 'alternative') return `Matches a linked natural alternative: ${match.alternative}.`;
+    if (match.kind === 'related') return `Matches a listed related expression: ${match.alternative}. Standard Practice cannot confirm that its exact form, collocation, or register fits this context; compare it with the target.`;
     if (match.kind === 'near-target') return 'Very close to the stored WLP target form. You decide whether this counts for you.';
     return 'Different from the stored WLP target. Compare them, then make your own self-check.';
   }
@@ -1911,6 +2087,7 @@
     if (match.kind === 'target-exact') return { exact: true, text: 'You got it — exact WLP target match. Still choose the rating that reflects how independently it came to you.' };
     if (match.kind === 'target-contained') return { exact: true, text: 'Your response includes the stored WLP target. Nice — still rate how independently it came to you.' };
     if (match.kind === 'alternative') return { exact: true, text: 'That matches a linked natural alternative. Nice — rate how solid it felt for you.' };
+    if (match.kind === 'related') return { exact: false, text: 'That matches a related expression on the card. Compare its form, collocation, and nuance with the WLP target before rating it.' };
     if (match.kind === 'near-target') return { exact: false, text: 'Very close to the stored target form. You decide whether that feels like Almost, Got it, or something else.' };
     if (match.kind === 'other') return { exact: false, text: 'Different from the stored WLP target. Compare them, then rate what happened for you.' };
     return { exact: false, text: 'You decide. A hint, a small spelling slip, or a natural alternative does not have to become an automatic fail.' };
@@ -1961,12 +2138,16 @@
     $('study-response').value = clean(attempt?.responseText);
 
     const need = clean(item.communicativeNeed);
-    $('study-show-need').hidden = !need;
+    // V2 surfaces the useful Situation/Sense frame before retrieval instead of
+    // hiding the core meaning behind a rescue button.
+    renderPracticeFrame(item);
+    $('study-show-need').hidden = true;
     $('study-need').textContent = need;
-    $('study-need-block').hidden = !(need && attempt?.communicativeNeedShown);
+    $('study-need-block').hidden = true;
     renderHintState(item);
 
     $('study-target').textContent = clean(item.answerTarget || item.targetProfile?.practiceTarget || item.row?.Word) || `WID ${item.wordId}`;
+    renderTargetLearning(item);
     const entryType = clean(item.meta?.entryType);
     $('study-target-type').hidden = !entryType;
     $('study-target-type').textContent = entryType ? `type: ${entryType === 'conversational frame' ? 'conv. frame' : entryType}` : '';
@@ -1988,11 +2169,12 @@
     $('study-open-card').dataset.wordId = item.wordId;
     $('study-next').textContent = sessionIndex === sessionQueue.length - 1 ? 'Finish Session' : 'Next Experience';
 
-    const alternatives = relevantAlternatives(item);
+    const alternatives = revealAlternatives(item);
     $('study-alternatives').hidden = !alternatives.length;
+    $('study-alternatives-title').textContent = alternatives.some(alt => alt.kind === 'related') ? 'Alternatives & related expressions' : 'Near alternatives';
     $('study-alternative-list').innerHTML = alternatives.map(alt => {
       const note = clean(alt.note);
-      return `<div class="study-alternative-item"><strong>${escapeHtml(alt.expression)}</strong>${note ? `<p>${escapeHtml(note)}</p>` : ''}</div>`;
+      return `<div class="study-alternative-item ${alt.kind === 'related' ? 'is-related' : 'is-linked'}"><strong>${escapeHtml(alt.expression)}</strong>${note ? `<p>${escapeHtml(note)}</p>` : ''}</div>`;
     }).join('');
 
     const targetShown = Boolean(attempt?.targetShown);
@@ -2081,6 +2263,7 @@
     if (kind === 'target-exact') return 'Matches target · exact form';
     if (kind === 'target-contained') return 'Includes the WLP target';
     if (kind === 'alternative') return attempt?.matchedAlternative ? `Linked alternative · ${attempt.matchedAlternative}` : 'Linked alternative';
+    if (kind === 'related') return attempt?.matchedAlternative ? `Related expression · ${attempt.matchedAlternative}` : 'Related expression';
     if (kind === 'near-target') return 'Very close to target form';
     if (kind === 'other') return 'Different from stored target';
     return 'No typed answer';

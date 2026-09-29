@@ -287,3 +287,21 @@ body.study-end-session-open{overflow:hidden}
 .study-session-review-rating.is-not-yet{background:#f3f7f3}
 .study-session-review-rating.is-no-idea{background:#fff}
 .study-session-review-match-hit{font-weight:800;color:#5d7768}
+
+/* v1.8.6.185 — Standard Practice V2: Situation → Sense → Expression. */
+.study-practice-frame{margin-top:10px;padding:11px 13px;border:1px solid #dce8df;border-radius:15px;background:#fbfdfb}
+.study-practice-frame-kicker{display:block;color:#758a7d;font-size:.6rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.study-practice-frame-list{display:grid;gap:8px;margin-top:6px}
+.study-practice-frame-item{display:grid;grid-template-columns:minmax(82px,auto) minmax(0,1fr);gap:9px;align-items:start;padding-top:7px;border-top:1px solid #e8eee9}
+.study-practice-frame-item:first-child{padding-top:0;border-top:0}
+.study-practice-frame-item>span{color:#728679;font-size:.62rem;font-weight:800;line-height:1.35;letter-spacing:.04em;text-transform:uppercase}
+.study-practice-frame-item>p{margin:0;color:#365b49;font-family:"EB Garamond",Georgia,serif;font-size:.94rem;line-height:1.38}
+.study-target-learning{display:grid;gap:8px;margin-top:11px;padding:10px 11px;border:1px solid #dce7df;border-radius:13px;background:#fff}
+.study-target-learning-item{display:grid;grid-template-columns:minmax(92px,auto) minmax(0,1fr);gap:10px;align-items:start}
+.study-target-learning-item+ .study-target-learning-item{padding-top:8px;border-top:1px solid #e7ede8}
+.study-target-learning-item>span{color:#6c8174;font-size:.61rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;line-height:1.35}
+.study-target-learning-item>p{margin:0;color:#3d5f4e;font-size:.74rem;line-height:1.42}
+.study-alternative-item.is-related p{color:#7c8982}
+@media(max-width:430px){
+  .study-practice-frame-item,.study-target-learning-item{grid-template-columns:1fr;gap:3px}
+}

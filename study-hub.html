@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
-  <link rel="stylesheet" href="./study-hub.css?v=20260919-s7-studyq-v18647-r9">
+  <link rel="stylesheet" href="./study-hub.css?v=20260929-s7-standard-practice-v2-v186185">
   <link rel="stylesheet" href="./ai-study-ui.css?v=20260920-s7-ai-ui-v18653-r1">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
@@ -150,7 +150,7 @@
         </div>
         <article class="study-method-card is-selected">
           <div class="study-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5h7M13 8.5h7M8 5l3.5 3.5L8 12"/><path d="M16 14v5M13.5 16.5H18.5"/></svg></div>
-          <div class="study-method-copy"><span class="study-method-status">Available now</span><strong>Situation → Expression</strong><p>Saved situations are used first. If a card has none, WLP can build a lightweight cue from its existing Example or Definition, then reveal hints, the target expression, and linked alternatives.</p></div>
+          <div class="study-method-copy"><span class="study-method-status">Standard Practice V2</span><strong>Situation → Sense → Expression</strong><p>Start from the situation and intended sense, then retrieve the expression. Hints deepen usage before narrowing the form; Reveal explains the WLP target and related options.</p></div>
         </article>
         <p class="study-method-note">Dialogue, short story, fit / not fit, register shifts, and other experience types can plug into this same Study Hub later.</p>
       </section>
@@ -183,10 +183,15 @@
           <p id="study-situation-anchor"></p>
         </div>
 
+        <div class="study-practice-frame" id="study-practice-frame" hidden>
+          <span class="study-practice-frame-kicker">Practice frame</span>
+          <div class="study-practice-frame-list" id="study-practice-frame-list"></div>
+        </div>
+
         <label class="study-response-field" for="study-response">
           <span id="study-response-question">What might you naturally say?</span>
           <textarea id="study-response" rows="3" placeholder="Type an expression or sentence — or just think it through first."></textarea>
-          <small id="study-response-help">Multiple answers can be natural. WLP is not treating this as a one-answer quiz.</small>
+          <small id="study-response-help">More than one answer can be natural. The goal is to connect this context to the WLP target; Standard Practice does not automatically judge every alternative.</small>
         </label>
         <div class="study-response-tools">
           <button id="study-response-voice" class="study-response-voice" type="button" aria-label="Speak your answer" title="Speak your answer" hidden>
@@ -217,6 +222,16 @@
           <span class="section-kicker">Target expression</span>
           <div class="study-target-head"><strong id="study-target"></strong><span id="study-target-type" hidden></span></div>
           <p class="study-response-note" id="study-response-note" hidden></p>
+
+          <div class="study-target-learning" id="study-target-learning" hidden>
+            <div class="study-target-learning-item" id="study-why-it-fits-block" hidden>
+              <span>Why it fits</span><p id="study-why-it-fits"></p>
+            </div>
+            <div class="study-target-learning-item" id="study-typical-pattern-block" hidden>
+              <span id="study-typical-pattern-label">Typical pattern</span><p id="study-typical-pattern"></p>
+            </div>
+          </div>
+
           <div class="study-answer-review" id="study-answer-review" hidden>
             <div class="study-answer-review-copy"><span>Your answer</span><strong id="study-answer-text"></strong></div>
             <div class="study-answer-review-action" id="study-answer-review-action"></div>
@@ -237,7 +252,7 @@
           </div>
 
           <div class="study-alternatives" id="study-alternatives" hidden>
-            <h3>Other natural options</h3>
+            <h3 id="study-alternatives-title">Alternatives &amp; related expressions</h3>
             <div id="study-alternative-list"></div>
           </div>
 
@@ -389,7 +404,7 @@
   <script src="./ai-study-mock-flow.js?v=20260920-s7-ai-evidence-semantics-v18652-r11"></script>
   <script src="./ai-study-transport.js?v=20260920-s7-ai-daily-quota-v18652-r14"></script>
   <script src="./study-context-data.js?v=20260928-s7-storage-stabilization-v186169"></script>
-  <script src="./study-hub.js?v=20260928-s7-continue-return-v186162"></script>
+  <script src="./study-hub.js?v=20260929-s7-standard-practice-v2-v186185"></script>
   <script src="./ai-study-ui.js?v=20260925-s7-ai-voice-input-v186136"></script>
   <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
