@@ -1,4 +1,4 @@
-/* WLP v1.8.6.181 — Build History V1. */
+/* WLP v1.8.6.183 — Build History V1 + Study Set marker display. */
 (() => {
   'use strict';
   const api = window.WLPStudyContext;
@@ -34,6 +34,20 @@
 
   function scopeLabel(value) {
     return ({anywhere:'Anywhere',headword:'Headword','part-of-speech':'Part of Speech',synonyms:'Synonyms','card-content':'Card Content',classification:'Classification'})[clean(value)] || clean(value) || 'Anywhere';
+  }
+
+  function markerLabel(value) {
+    return ({
+      'needs-another-pass': 'Needs another pass',
+      okay: 'Okay',
+      solid: 'Solid'
+    })[clean(value).toLowerCase()] || '';
+  }
+
+  function markerBadge(build) {
+    const value = clean(build?.studyMarker).toLowerCase();
+    const label = markerLabel(value);
+    return label ? `<span class="build-history-marker is-${esc(value)}">${esc(label)}</span>` : '';
   }
 
   function criteriaLines(recipe) {
@@ -105,7 +119,7 @@
   function card(build) {
     const article = document.createElement('article');
     article.className = 'build-history-card';
-    article.innerHTML = `<div class="build-history-summary" role="button" tabindex="0" aria-expanded="false"><div><div class="build-history-when">${esc(relativeWhen(build.lastUsedAt || build.createdAt))}<span class="build-history-count"><strong>${Number(build.cardCount || (build.wordIds || []).length || 0).toLocaleString()}</strong> cards</span></div><div class="build-history-meta">Built set · exact snapshot saved</div></div><svg class="build-history-summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></div><div class="build-history-detail"><span class="build-history-section-label">Saved criteria</span><div class="build-history-criteria">${criteriaLines(build.recipe)}</div><div class="build-history-actions"><button type="button" class="build-history-action is-primary" data-action="same">Study Same Set</button><button type="button" class="build-history-action" data-action="rebuild">Rebuild with Same Criteria</button></div><p class="build-history-note">Study Same Set uses the frozen saved card snapshot. Rebuild reruns the saved criteria against your current WLP data.</p></div>`;
+    article.innerHTML = `<div class="build-history-summary" role="button" tabindex="0" aria-expanded="false"><div><div class="build-history-when">${esc(relativeWhen(build.lastUsedAt || build.createdAt))}<span class="build-history-count"><strong>${Number(build.cardCount || (build.wordIds || []).length || 0).toLocaleString()}</strong> cards</span></div><div class="build-history-meta"><span>Built set · exact snapshot saved</span>${markerBadge(build)}</div></div><svg class="build-history-summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></div><div class="build-history-detail"><span class="build-history-section-label">Saved criteria</span><div class="build-history-criteria">${criteriaLines(build.recipe)}</div><div class="build-history-actions"><button type="button" class="build-history-action is-primary" data-action="same">Study Same Set</button><button type="button" class="build-history-action" data-action="rebuild">Rebuild with Same Criteria</button></div><p class="build-history-note">Study Same Set uses the frozen saved card snapshot. Rebuild reruns the saved criteria against your current WLP data.</p></div>`;
     const summary = article.querySelector('.build-history-summary');
     const toggle = () => { const open = article.classList.toggle('is-open'); summary.setAttribute('aria-expanded', open ? 'true' : 'false'); };
     summary.addEventListener('click', toggle);

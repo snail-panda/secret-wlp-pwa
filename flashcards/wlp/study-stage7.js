@@ -28,8 +28,8 @@
      context record separate from shallow Recent Decks / Activity history. */
   const studyContextApi = window.WLPStudyContext || null;
   const ACTIVE_CARD_CONTEXT_KEY = 'wlp:active-card-study-context:v1';
-  const REVIEW_COMPLETE_TOAST_SESSION_KEY = 'wlp:review-complete-toast-session:v1';
-  const STUDY_SET_COMPLETE_TOAST_SESSION_KEY = 'wlp:study-set-complete-toast-session:v1';
+  const CARD_ROUND_SESSION_KEY = 'wlp:card-round-completion-session:v1';
+  const STUDY_SET_MARKER_PROMPT_ID = 'study-set-marker-prompt';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   let activeStudyContextId = '';
   let lastTrackedContextWordId = '';
@@ -150,34 +150,82 @@
     return context;
   };
 
-  const reviewCompletionToastShown = contextId => {
-    if (!contextId) return false;
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(REVIEW_COMPLETE_TOAST_SESSION_KEY) || 'null');
-      return saved?.contextId === contextId && saved?.shown === true;
-    } catch (_) {
-      return false;
+  const readCardRoundState = contextId => {
+    const saved = readJson(sessionStorage, CARD_ROUND_SESSION_KEY, null);
+    if (saved && saved.contextId === contextId) return saved;
+    return { contextId, round: 1, shownRound: 0, lastIndex: -1 };
+  };
+
+  const writeCardRoundState = state => {
+    try { sessionStorage.setItem(CARD_ROUND_SESSION_KEY, JSON.stringify(state)); } catch (_) {}
+  };
+
+  const buildMarkerLabel = value => ({
+    'needs-another-pass': 'Needs another pass',
+    okay: 'Okay',
+    solid: 'Solid'
+  }[String(value || '').trim().toLowerCase()] || '');
+
+  const dismissStudySetMarkerPrompt = () => {
+    document.getElementById(STUDY_SET_MARKER_PROMPT_ID)?.remove();
+  };
+
+  const showStudySetMarkerPrompt = context => {
+    if (!context || context.sourceType !== 'built-set' || !context.source?.buildId || !studyContextApi?.updateBuildMarker) return;
+    dismissStudySetMarkerPrompt();
+    const panel = document.createElement('section');
+    panel.id = STUDY_SET_MARKER_PROMPT_ID;
+    panel.className = 'study-set-marker-prompt';
+    panel.setAttribute('aria-label', 'Study Set marker');
+    panel.innerHTML = `
+      <div class="study-set-marker-prompt-copy"><strong>How did this set feel?</strong><span>Save an optional marker for Build History.</span></div>
+      <div class="study-set-marker-prompt-actions">
+        <button type="button" data-study-set-marker="needs-another-pass">Another pass</button>
+        <button type="button" data-study-set-marker="okay">Okay</button>
+        <button type="button" data-study-set-marker="solid">Solid</button>
+      </div>
+      <button type="button" class="study-set-marker-prompt-skip">Not now</button>`;
+    panel.querySelectorAll('[data-study-set-marker]').forEach(button => {
+      button.addEventListener('click', () => {
+        const marker = String(button.dataset.studySetMarker || '');
+        const updated = studyContextApi.updateBuildMarker(context.source.buildId, marker);
+        if (!updated) {
+          showToast('Study Set marker could not be saved. Local storage may be full.', 3200);
+          return;
+        }
+        panel.classList.add('is-saved');
+        panel.querySelector('.study-set-marker-prompt-copy').innerHTML = `<strong>${buildMarkerLabel(marker)}</strong><span>Saved to Build History.</span>`;
+        panel.querySelector('.study-set-marker-prompt-actions')?.remove();
+        panel.querySelector('.study-set-marker-prompt-skip')?.remove();
+        setTimeout(dismissStudySetMarkerPrompt, 1200);
+      });
+    });
+    panel.querySelector('.study-set-marker-prompt-skip')?.addEventListener('click', dismissStudySetMarkerPrompt);
+    document.body.append(panel);
+  };
+
+  const maybeHandleCardRoundEnd = (context, currentIndex, totalCount) => {
+    if (!context || !totalCount || currentIndex < 0) return;
+    const isBuilt = context.sourceType === 'built-set';
+    const isReview = context.sourceType === 'review-set';
+    const isQuickReview = isReview && String(params.get('reviewstyle') || '').trim().toLowerCase() === 'quick';
+    if (!isBuilt && (!isReview || isQuickReview)) return;
+
+    const lastIndex = totalCount - 1;
+    const state = readCardRoundState(context.contextId);
+    if (state.lastIndex === lastIndex && currentIndex === 0) state.round = Math.max(1, Number(state.round) || 1) + 1;
+    state.lastIndex = currentIndex;
+
+    if (currentIndex === lastIndex && Number(state.shownRound) < Number(state.round || 1)) {
+      state.shownRound = Number(state.round) || 1;
+      if (isBuilt) {
+        showToast(`Study set complete · ${totalCount} / ${totalCount}`, 3000);
+        setTimeout(() => showStudySetMarkerPrompt(context), 450);
+      } else {
+        showToast(`Review set complete · ${totalCount} / ${totalCount}`, 3000);
+      }
     }
-  };
-
-  const markReviewCompletionToastShown = contextId => {
-    if (!contextId) return;
-    try { sessionStorage.setItem(REVIEW_COMPLETE_TOAST_SESSION_KEY, JSON.stringify({ contextId, shown:true })); } catch (_) {}
-  };
-
-  const studySetCompletionToastShown = contextId => {
-    if (!contextId) return false;
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(STUDY_SET_COMPLETE_TOAST_SESSION_KEY) || 'null');
-      return saved?.contextId === contextId && saved?.shown === true;
-    } catch (_) {
-      return false;
-    }
-  };
-
-  const markStudySetCompletionToastShown = contextId => {
-    if (!contextId) return;
-    try { sessionStorage.setItem(STUDY_SET_COMPLETE_TOAST_SESSION_KEY, JSON.stringify({ contextId, shown:true })); } catch (_) {}
+    writeCardRoundState(state);
   };
 
   const syncCardStudyContextProgress = () => {
@@ -195,6 +243,7 @@
     const totalCount = Number(context.progress?.totalCount) || sourceWordIds.length || 0;
     const sourceIndex = sourceWordIds.indexOf(wordId);
     const currentIndex = sourceIndex >= 0 ? sourceIndex : Math.max(0, Number(context.progress?.currentIndex) || 0);
+    maybeHandleCardRoundEnd(context, currentIndex, totalCount);
 
     // Once a Review round is complete, extra laps remain free-form review.
     // They update recency/current position but never turn the completed Context active again.
@@ -239,13 +288,6 @@
     if (!savedContext) {
       showToast('Review progress could not be saved. Local storage may be full.', 3000);
       return;
-    }
-    if (completed && context.sourceType === 'review-set' && !reviewCompletionToastShown(context.contextId)) {
-      markReviewCompletionToastShown(context.contextId);
-      showToast(`Review set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`, 3000);
-    } else if (completed && context.sourceType === 'built-set' && !studySetCompletionToastShown(context.contextId)) {
-      markStudySetCompletionToastShown(context.contextId);
-      showToast(`Study set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`, 3000);
     }
     activeStudyContextId = context.contextId;
     lastTrackedContextWordId = wordId;

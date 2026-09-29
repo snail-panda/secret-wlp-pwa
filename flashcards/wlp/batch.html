@@ -357,11 +357,12 @@
     #deck-nav-links .deck-home-link:hover {
       color: #274d34; background: rgba(84,112,70,.08); border-color: rgba(63,94,58,.42);
     }
-    /* v1.8.6.164 / v1.8.6.182 — slightly stronger set position without enlarging it. */
+    /* v1.8.6.164 / v1.8.6.183 — slightly stronger set position, with only the numerals emphasized. */
     .card-tag .review-card-position,
     .card-tag .study-set-card-position {
       color: #45584e;
-      font-weight: 650;
+      font-weight: 700;
+      font-size: 1.08em;
       opacity: 1;
       letter-spacing: .015em;
     }
@@ -400,7 +401,7 @@
     }
 
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260928-s7-review-ui-polish-v186170" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260929-s7-study-set-marker-v186183" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
   <link rel="stylesheet" href="../../classification-viewer.css?v=20260924-s7-classification-viewer-v186122" />
 </head>
@@ -902,9 +903,9 @@
   </script>
   <script src="../../learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
   <script src="../../classification-metadata.js?v=20260928-s7-storage-stabilization-v186169"></script>
-  <script src="../../study-context-data.js?v=20260928-s7-storage-stabilization-v186169"></script>
-  <script type="module" src="./app.js?v=20260928-s7-review-ui-polish-v186170"></script>
-  <script src="./study-stage7.js?v=20260928-s7-storage-stabilization-v186169"></script>
+  <script src="../../study-context-data.js?v=20260929-s7-study-set-marker-v186183"></script>
+  <script type="module" src="./app.js?v=20260929-s7-round-completion-v186183"></script>
+  <script src="./study-stage7.js?v=20260929-s7-round-completion-v186183"></script>
   <script src="../../study-options.js?v=20260918-s7-options-v18624"></script>
 </body>
 </html>

@@ -3582,3 +3582,58 @@ body.review-attention-open{overflow:hidden}
   }
 }
 
+
+
+/* =========================================================
+   Stage 7 v1.8.6.183 — Built Study Set completion marker.
+   Lightweight, optional set-level status saved to Build History.
+   ========================================================= */
+.stage7-study-body .study-set-marker-prompt{
+  position:fixed;
+  z-index:102;
+  left:50%;
+  bottom:calc(128px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:min(92vw,500px);
+  padding:11px 12px 9px;
+  border:1px solid rgba(73,103,84,.20);
+  border-radius:16px;
+  background:rgba(255,254,250,.97);
+  color:#395247;
+  box-shadow:0 8px 26px rgba(38,61,47,.14);
+  font-family:var(--s7-sans);
+  text-align:center;
+}
+.stage7-study-body .study-set-marker-prompt-copy{display:grid;gap:2px;margin-bottom:8px}
+.stage7-study-body .study-set-marker-prompt-copy strong{font-size:.78rem;font-weight:700;color:#314f40}
+.stage7-study-body .study-set-marker-prompt-copy span{font-size:.66rem;color:#76867e}
+.stage7-study-body .study-set-marker-prompt-actions{display:grid;grid-template-columns:1.35fr .8fr .8fr;gap:6px}
+.stage7-study-body .study-set-marker-prompt-actions button{
+  min-height:34px;
+  padding:6px 8px;
+  border:1px solid #cbd9d0;
+  border-radius:999px;
+  background:#f8fbf8;
+  color:#446653;
+  font:inherit;
+  font-size:.67rem;
+  font-weight:700;
+}
+.stage7-study-body .study-set-marker-prompt-actions button:active{background:#edf4ef}
+.stage7-study-body .study-set-marker-prompt-skip{
+  margin-top:6px;
+  padding:2px 6px;
+  border:0;
+  background:transparent;
+  color:#819087;
+  font:inherit;
+  font-size:.62rem;
+  text-decoration:underline;
+  text-underline-offset:2px;
+}
+.stage7-study-body .study-set-marker-prompt.is-saved{padding-top:12px;padding-bottom:12px}
+@media(max-width:390px){
+  .stage7-study-body .study-set-marker-prompt{width:calc(100vw - 24px);padding-left:10px;padding-right:10px}
+  .stage7-study-body .study-set-marker-prompt-actions{grid-template-columns:1.3fr .75fr .75fr;gap:5px}
+  .stage7-study-body .study-set-marker-prompt-actions button{font-size:.64rem;padding-left:6px;padding-right:6px}
+}

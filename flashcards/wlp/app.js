@@ -66,8 +66,8 @@ const REVIEW_QUICK_EVENT_KEY =
 const QUICK_REVIEW_SESSION_KEY =
   "wlp:quick-review-auto-next-session:v1";
 
-const REVIEW_COMPLETE_TOAST_SESSION_KEY =
-  "wlp:review-complete-toast-session:v1";
+const REVIEW_QUICK_ROUND_SESSION_KEY =
+  "wlp:review-quick-round-session:v1";
 
 const IS_QUICK_REVIEW =
   Boolean(REVIEW_PARAM) && REVIEW_STYLE_PARAM === "quick";
@@ -3849,38 +3849,50 @@ function refreshQuickReviewControls(root, row) {
   });
 }
 
-function quickReviewCompletionToastShown() {
-  if (!CONTEXT_PARAM) return false;
+function readQuickReviewRoundState() {
+  if (!CONTEXT_PARAM) return null;
   try {
-    const saved = JSON.parse(sessionStorage.getItem(REVIEW_COMPLETE_TOAST_SESSION_KEY) || "null");
-    return saved?.contextId === CONTEXT_PARAM && saved?.shown === true;
-  } catch (_) {
-    return false;
-  }
-}
-
-function markQuickReviewCompletionToastShown() {
-  if (!CONTEXT_PARAM) return;
-  try {
-    sessionStorage.setItem(REVIEW_COMPLETE_TOAST_SESSION_KEY, JSON.stringify({ contextId: CONTEXT_PARAM, shown: true }));
+    const saved = JSON.parse(sessionStorage.getItem(REVIEW_QUICK_ROUND_SESSION_KEY) || "null");
+    if (saved && saved.contextId === CONTEXT_PARAM) return saved;
   } catch (_) {}
+  return { contextId: CONTEXT_PARAM, round: 1, shownRound: 0, lastRatedIndex: -1 };
 }
 
-function maybeShowQuickReviewCompletionToast() {
-  if (!IS_QUICK_REVIEW || !CONTEXT_PARAM || quickReviewCompletionToastShown()) return false;
+function writeQuickReviewRoundState(state) {
+  if (!state || !CONTEXT_PARAM) return;
+  try { sessionStorage.setItem(REVIEW_QUICK_ROUND_SESSION_KEY, JSON.stringify(state)); } catch (_) {}
+}
+
+function maybeShowQuickReviewCompletionToast(row) {
+  if (!IS_QUICK_REVIEW || !CONTEXT_PARAM) return false;
   try {
     const contexts = JSON.parse(localStorage.getItem(STUDY_CONTEXT_KEY) || "[]");
     if (!Array.isArray(contexts)) return false;
     const context = contexts.find(item => item && String(item.contextId || "").trim() === CONTEXT_PARAM);
-    if (!context || String(context.status || "") !== "completed") return false;
-    const total = Math.max(
-      Number(context.progress?.totalCount) || 0,
-      Array.isArray(context.source?.wordIds) ? context.source.wordIds.length : 0
-    );
-    if (!total) return false;
-    markQuickReviewCompletionToastShown();
-    showStudyToast(`Review set complete · ${total} / ${total}`, 3000);
-    return true;
+    const wordIds = Array.isArray(context?.source?.wordIds)
+      ? context.source.wordIds.map(value => String(value || "").trim()).filter(Boolean)
+      : [];
+    const wordId = String(row?.WordID || "").trim();
+    const index = wordIds.indexOf(wordId);
+    const total = wordIds.length;
+    if (!total || index < 0) return false;
+
+    const state = readQuickReviewRoundState();
+    if (!state) return false;
+    const lastIndex = total - 1;
+    if (Number(state.lastRatedIndex) === lastIndex && index === 0) {
+      state.round = Math.max(1, Number(state.round) || 1) + 1;
+    }
+    state.lastRatedIndex = index;
+
+    if (index === lastIndex && Number(state.shownRound) < Number(state.round || 1)) {
+      state.shownRound = Number(state.round) || 1;
+      writeQuickReviewRoundState(state);
+      showStudyToast(`Review set complete · ${total} / ${total}`, 3000);
+      return true;
+    }
+    writeQuickReviewRoundState(state);
+    return false;
   } catch (_) {
     return false;
   }
@@ -3930,7 +3942,7 @@ function installQuickReviewControls(root, row) {
         try { window.dispatchEvent(new CustomEvent("wlp:review-quick-rated")); } catch (_) {}
         const autoNext = quickReviewAutoNextEnabled();
         setTimeout(() => {
-          maybeShowQuickReviewCompletionToast();
+          maybeShowQuickReviewCompletionToast(row);
           if (autoNext) advanceQuickReview(root);
         }, 180);
       });

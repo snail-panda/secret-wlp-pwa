@@ -1,4 +1,4 @@
-/* WLP v1.8.6.176 — Study Context V1 + Review completion timestamp foundation. */
+/* WLP v1.8.6.183 — Study Context V1 + Build Study Set marker support. */
 (() => {
   const CONTEXT_KEY = 'wlp:study-contexts:v1';
   const BUILD_HISTORY_KEY = 'wlp:build-history:v1';
@@ -82,6 +82,24 @@
     if (!id) return null;
     const found = readBuildHistory().find(item => item.buildId === id);
     return found ? clone(found) : null;
+  }
+
+  function updateBuildMarker(buildId, marker) {
+    const id = clean(buildId);
+    const value = clean(marker).toLowerCase();
+    if (!id || !['needs-another-pass','okay','solid',''].includes(value)) return null;
+    const history = readBuildHistory();
+    const index = history.findIndex(item => clean(item.buildId) === id);
+    if (index < 0) return null;
+    const updated = {
+      ...history[index],
+      studyMarker: value,
+      studyMarkerUpdatedAt: value ? nowIso() : ''
+    };
+    history.splice(index, 1);
+    history.unshift(updated);
+    if (!writeArray(BUILD_HISTORY_KEY, trimBuildHistory(history))) return null;
+    return clone(updated);
   }
 
   function ensureBuild(snapshot) {
@@ -251,6 +269,7 @@
     readContexts,
     readBuildHistory,
     getBuild,
+    updateBuildMarker,
     ensureBuild,
     createContext,
     getContext,
