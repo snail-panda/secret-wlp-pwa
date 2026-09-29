@@ -3498,7 +3498,7 @@ body.review-attention-open{overflow:hidden}
 }
 
 /* =========================================================
-   WLP Stage 7 — v1.8.6.172 Back → Front folded-corner polish
+   WLP Stage 7 — v1.8.6.173 Back → Front fold-angle correction
    Quiet page-corner cue: thin diagonal fold, subtle tint, small
    angled label. The visible affordance stays secondary while the
    hit target remains thumb-friendly.
@@ -3540,11 +3540,11 @@ body.review-attention-open{overflow:hidden}
   content:"";
   position:absolute;
   right:5px;
-  bottom:5px;
+  bottom:36px;
   width:44px;
   height:1px;
   background:rgba(84,111,94,.31);
-  transform:rotate(45deg);
+  transform:rotate(-45deg);
   transform-origin:right center;
   pointer-events:none;
 }
@@ -3559,7 +3559,7 @@ body.review-attention-open{overflow:hidden}
   line-height:1!important;
   letter-spacing:.01em;
   color:rgba(70,101,81,.72)!important;
-  transform:rotate(45deg);
+  transform:rotate(-45deg);
   transform-origin:center;
   pointer-events:none;
 }
