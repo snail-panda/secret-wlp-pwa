@@ -29,6 +29,7 @@
   const studyContextApi = window.WLPStudyContext || null;
   const ACTIVE_CARD_CONTEXT_KEY = 'wlp:active-card-study-context:v1';
   const REVIEW_COMPLETE_TOAST_SESSION_KEY = 'wlp:review-complete-toast-session:v1';
+  const STUDY_SET_COMPLETE_TOAST_SESSION_KEY = 'wlp:study-set-complete-toast-session:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   let activeStudyContextId = '';
   let lastTrackedContextWordId = '';
@@ -164,6 +165,21 @@
     try { sessionStorage.setItem(REVIEW_COMPLETE_TOAST_SESSION_KEY, JSON.stringify({ contextId, shown:true })); } catch (_) {}
   };
 
+  const studySetCompletionToastShown = contextId => {
+    if (!contextId) return false;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(STUDY_SET_COMPLETE_TOAST_SESSION_KEY) || 'null');
+      return saved?.contextId === contextId && saved?.shown === true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const markStudySetCompletionToastShown = contextId => {
+    if (!contextId) return;
+    try { sessionStorage.setItem(STUDY_SET_COMPLETE_TOAST_SESSION_KEY, JSON.stringify({ contextId, shown:true })); } catch (_) {}
+  };
+
   const syncCardStudyContextProgress = () => {
     if (!studyContextApi) return;
     const context = activeStudyContextId ? studyContextApi.getContext(activeStudyContextId) : ensureCardStudyContext();
@@ -227,6 +243,9 @@
     if (completed && context.sourceType === 'review-set' && !reviewCompletionToastShown(context.contextId)) {
       markReviewCompletionToastShown(context.contextId);
       showToast(`Review set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`, 3000);
+    } else if (completed && context.sourceType === 'built-set' && !studySetCompletionToastShown(context.contextId)) {
+      markStudySetCompletionToastShown(context.contextId);
+      showToast(`Study set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`, 3000);
     }
     activeStudyContextId = context.contextId;
     lastTrackedContextWordId = wordId;

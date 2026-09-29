@@ -2234,6 +2234,12 @@ root
         position.className = 'review-card-position';
         position.textContent = `${index + 1}/${batchRows.length}`;
         tag.append(position);
+      } else if (studySetPosition) {
+        tag.textContent = `#Study Set${cardWidText}      `;
+        const position = document.createElement('span');
+        position.className = 'study-set-card-position';
+        position.textContent = `${studySetPosition.index + 1}/${studySetPosition.total}`;
+        tag.append(position);
       } else {
         tag.textContent = cardTagText;
       }
