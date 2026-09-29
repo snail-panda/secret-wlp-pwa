@@ -3496,3 +3496,78 @@ body.review-attention-open{overflow:hidden}
     font-size:.63rem!important;
   }
 }
+
+/* =========================================================
+   WLP Stage 7 — v1.8.6.171 Back → Front folded-corner affordance
+   Keep the existing toolbar Front control. This is an additional
+   thumb-reachable return target on the answer card itself.
+   ========================================================= */
+.stage7-study-body .study-back-card .study-corner-front{
+  position:absolute!important;
+  right:0!important;
+  bottom:0!important;
+  z-index:6!important;
+  width:48px!important;
+  min-width:48px!important;
+  height:48px!important;
+  min-height:48px!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0 0 22px 0!important;
+  overflow:hidden!important;
+  background:
+    linear-gradient(135deg, transparent 0 49%, rgba(218,232,220,.92) 50% 100%)!important;
+  box-shadow:none!important;
+  color:#4d6b5a!important;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage7-study-body .study-back-card .study-corner-front::before{
+  content:"";
+  position:absolute;
+  right:0;
+  bottom:0;
+  width:68px;
+  height:1px;
+  background:rgba(91,115,93,.24);
+  transform:rotate(-45deg);
+  transform-origin:right bottom;
+  pointer-events:none;
+}
+.stage7-study-body .study-back-card .study-corner-front span{
+  position:absolute;
+  right:3px;
+  bottom:7px;
+  font-family:var(--s7-serif)!important;
+  font-size:.62rem!important;
+  font-weight:600!important;
+  line-height:1!important;
+  letter-spacing:.01em;
+  color:#4d6b5a!important;
+  pointer-events:none;
+}
+.stage7-study-body .study-back-card .study-corner-front:active{
+  background:
+    linear-gradient(135deg, transparent 0 49%, rgba(201,220,204,.98) 50% 100%)!important;
+}
+.stage7-study-body .study-back-card .study-corner-front:focus-visible{
+  outline:2px solid rgba(67,103,80,.48)!important;
+  outline-offset:-4px!important;
+}
+/* Keep Next Card visually/tactually separate from the corner fold. */
+.stage7-study-body .study-back-card .back-utility-row > .btn-next{
+  transform:translateX(-12px);
+}
+@media(max-width:390px){
+  .stage7-study-body .study-back-card .study-corner-front{
+    width:46px!important;
+    min-width:46px!important;
+    height:46px!important;
+    min-height:46px!important;
+  }
+  .stage7-study-body .study-back-card .back-utility-row > .btn-next{
+    transform:translateX(-10px);
+  }
+}
+
