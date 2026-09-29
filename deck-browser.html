@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./deck-browser.css?v=20260928-s7-review-ui-polish-v186170">
+  <link rel="stylesheet" href="./deck-browser.css?v=20260929-s7-review-structure-v186177">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
 <style>
     /* Stage 7 global header: stable 3-zone mobile layout v3.0.2 */
@@ -198,6 +198,22 @@
       </section>
 
       <section id="study-review-panel" class="study-mode-panel study-review-panel" role="tabpanel" data-study-panel="review" hidden>
+        <section class="browser-section review-pool-section review-pool-section-compact">
+          <div class="section-head"><div><h2>Current Review Pool</h2><span>Cards currently available for Review</span></div></div>
+          <div class="review-pool-card review-pool-card-compact is-secondary">
+            <div class="review-pool-compact-main">
+              <div class="review-pool-total"><strong id="study-review-total">0</strong><span>cards</span></div>
+              <div class="review-pool-compact-levels" aria-label="Current Review attention counts">
+                <span><strong id="study-review-high">0</strong><small>High</small></span>
+                <span><strong id="study-review-medium">0</strong><small>Medium</small></span>
+                <span><strong id="study-review-light">0</strong><small>Light</small></span>
+                <span><strong id="study-review-unassigned">0</strong><small>Unassigned</small></span>
+              </div>
+            </div>
+            <a class="study-context-action is-quiet review-pool-open" href="./review.html?return=deck-browser.html%3Fmode%3Dreview">Open Review Hub</a>
+          </div>
+        </section>
+
         <section class="browser-section review-settings-section">
           <div class="section-head"><div><h2>Review Setup</h2><span>Choose how you want to work through Review sets</span></div></div>
           <div class="review-settings-card">
@@ -225,8 +241,9 @@
             <p class="review-settings-note" id="study-review-settings-note"></p>
           </div>
         </section>
+
         <section class="browser-section review-today-section">
-          <div class="section-head"><div><h2>Today's Review</h2><span>A focused set from your current Review evidence</span></div></div>
+          <div class="section-head"><div><h2>Today's Review</h2><span>Your current focused Review Set</span></div></div>
           <div class="review-today-card">
             <div class="review-today-heading">
               <div class="review-today-total"><strong id="study-review-today-total">0</strong><span>cards</span></div>
@@ -246,19 +263,9 @@
           </div>
         </section>
 
-        <section class="browser-section review-pool-section">
-          <div class="section-head"><div><h2>Review Pool</h2><span>Your full set of cards marked for review</span></div></div>
-          <div class="review-pool-card is-secondary">
-            <div class="review-pool-total"><strong id="study-review-total">0</strong><span>cards in Review</span></div>
-            <div class="review-pool-levels" aria-label="Review attention counts">
-              <span><strong id="study-review-high">0</strong><small>High</small></span>
-              <span><strong id="study-review-medium">0</strong><small>Medium</small></span>
-              <span><strong id="study-review-light">0</strong><small>Light</small></span>
-              <span><strong id="study-review-unassigned">0</strong><small>Unassigned</small></span>
-            </div>
-            <p>Inspect Attention, learning needs, evidence, and the full Review list.</p>
-            <a class="study-context-action is-quiet review-pool-open" href="./review.html?return=deck-browser.html%3Fmode%3Dreview">Open Review Hub</a>
-          </div>
+        <section class="browser-section review-recent-section" id="recent-review-sets" hidden>
+          <div class="section-head"><div><h2>Recent Review Sets</h2><span>Your latest Review sessions</span></div></div>
+          <div id="study-review-recent-list" class="review-recent-list"></div>
         </section>
       </section>
     </main>
@@ -371,7 +378,7 @@
   </script>
   <script src="./study-context-data.js?v=20260928-s7-storage-stabilization-v186169"></script>
   <script src="./deck-browser.js?v=20260928-s7-study-entry-v186158"></script>
-  <script src="./study-entry.js?v=20260928-s7-review-ui-polish-v186170"></script>
+  <script src="./study-entry.js?v=20260929-s7-review-structure-v186177"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
 </body>

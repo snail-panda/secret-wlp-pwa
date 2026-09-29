@@ -556,3 +556,80 @@
   .review-today-levels{gap:5px}
   .review-today-levels>span{padding:6px 3px}
 }
+
+/* WLP v1.8.6.177 — Review page structure + compact Current Review Pool. */
+.review-pool-section-compact{margin-top:18px}
+.review-pool-card-compact{
+  padding:13px 14px;
+  border-radius:15px;
+  background:rgba(255,255,255,.64);
+}
+.review-pool-compact-main{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+}
+.review-pool-card-compact .review-pool-total{flex:none;gap:5px}
+.review-pool-card-compact .review-pool-total strong{
+  font-size:1.55rem;
+  line-height:1;
+}
+.review-pool-card-compact .review-pool-total span{
+  font-size:.68rem;
+  font-weight:600;
+}
+.review-pool-compact-levels{
+  min-width:0;
+  display:flex;
+  align-items:baseline;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:4px 9px;
+  color:#738179;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-pool-compact-levels>span{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap}
+.review-pool-compact-levels strong{color:#3b604d;font-size:.72rem;font-weight:650}
+.review-pool-compact-levels small{font-size:.61rem}
+.review-pool-card-compact .review-pool-open{
+  margin-top:9px;
+  min-height:31px;
+  padding:6px 9px;
+  font-size:.68rem;
+}
+.review-recent-list{
+  border-top:1px solid rgba(211,223,214,.82);
+}
+.review-recent-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:11px 1px;
+  border-bottom:1px solid rgba(211,223,214,.82);
+}
+.review-recent-main{min-width:0;display:grid;gap:2px}
+.review-recent-main strong{
+  color:#355d4a;
+  font:650 .78rem/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-recent-main span{
+  color:#78877f;
+  font:500 .66rem/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-recent-status{
+  flex:none;
+  padding:4px 7px;
+  border:1px solid #d5e0d8;
+  border-radius:999px;
+  color:#76857d;
+  background:rgba(255,255,255,.62);
+  font:650 .6rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.review-recent-status.is-complete{color:#416550;background:#edf4ee;border-color:#d1dfd4}
+@media(max-width:390px){
+  .review-pool-compact-main{align-items:flex-start;gap:10px}
+  .review-pool-compact-levels{gap:3px 7px}
+  .review-pool-compact-levels small{font-size:.58rem}
+}

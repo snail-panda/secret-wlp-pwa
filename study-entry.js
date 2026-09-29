@@ -858,8 +858,46 @@
     }
   }
 
+  function reviewContextWhen(context) {
+    return clean(context?.completedAt) || clean(context?.lastMeaningfulAt) || clean(context?.createdAt);
+  }
+
+  function renderRecentReviewSets() {
+    const section = $('recent-review-sets');
+    const list = $('study-review-recent-list');
+    if (!section || !list) return;
+    list.replaceChildren();
+    const contexts = api ? api.readContexts()
+      .filter(context => context?.sourceType === 'review-set')
+      .sort((a, b) => Date.parse(reviewContextWhen(b) || 0) - Date.parse(reviewContextWhen(a) || 0))
+      .slice(0, 3) : [];
+    section.hidden = !contexts.length;
+    for (const context of contexts) {
+      const item = document.createElement('article');
+      item.className = 'review-recent-item';
+
+      const main = document.createElement('div');
+      main.className = 'review-recent-main';
+      const when = document.createElement('strong');
+      when.textContent = relativeWhen(reviewContextWhen(context)) || 'Recent';
+      const meta = document.createElement('span');
+      const count = sourceWordIds(context).length;
+      const style = clean(context?.source?.reviewStyle).toLowerCase() === 'quick' ? 'Quick' : 'Deep';
+      const status = context?.status === 'completed' ? 'Completed' : 'Incomplete';
+      meta.textContent = `${count.toLocaleString()} cards · ${style} · ${status}`;
+      main.append(when, meta);
+
+      const badge = document.createElement('span');
+      badge.className = `review-recent-status${context?.status === 'completed' ? ' is-complete' : ''}`;
+      badge.textContent = context?.status === 'completed' ? 'Done' : 'Open';
+      item.append(main, badge);
+      list.append(item);
+    }
+  }
+
   function renderReviewSummary() {
     renderReviewSettings();
+    renderRecentReviewSets();
     const pool = readReviewPool();
     const counts = { total: pool.length, ...reviewBreakdown(pool) };
     $('study-review-total').textContent = counts.total.toLocaleString();
@@ -978,7 +1016,7 @@
       void ensureRows();
     } else if (mode === 'review') {
       title.textContent = 'Review';
-      copy.textContent = "Start with today's focused Review set, or inspect the full Review pool.";
+      copy.textContent = "Review turns cards that need your attention into focused Review Sets you can work through one at a time.";
       deckCount.hidden = true;
       renderReviewSummary();
     } else {
