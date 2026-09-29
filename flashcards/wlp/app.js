@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.163 — Review position emphasis + completed-round preservation support.
+// Stage 7 v1.8.6.167 — Quick Review judgments + session Auto Next.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -52,6 +52,22 @@ const RETURN_PARAM =
 
 const CONTEXT_PARAM =
   String(PARAMS.get("context") || "").trim();
+
+
+const REVIEW_STYLE_PARAM =
+  String(PARAMS.get("reviewstyle") || "").trim().toLowerCase();
+
+const QUICK_REVIEW_AUTO_PARAM =
+  String(PARAMS.get("autonext") || "").trim();
+
+const REVIEW_QUICK_EVENT_KEY =
+  "wlp:review-quick-events:v1";
+
+const QUICK_REVIEW_SESSION_KEY =
+  "wlp:quick-review-auto-next-session:v1";
+
+const IS_QUICK_REVIEW =
+  Boolean(REVIEW_PARAM) && REVIEW_STYLE_PARAM === "quick";
 
 const STUDY_CONTEXT_KEY =
   "wlp:study-contexts:v1";
@@ -3736,6 +3752,120 @@ function openReviewAttentionSheet(row, stateKey, onSaved) {
 // CARD EVENTS
 // =============================================================
 
+
+function readQuickReviewEvents() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REVIEW_QUICK_EVENT_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === "object") : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function quickReviewAutoNextEnabled() {
+  if (!IS_QUICK_REVIEW) return false;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(QUICK_REVIEW_SESSION_KEY) || "null");
+    if (saved && saved.contextId === CONTEXT_PARAM && typeof saved.enabled === "boolean") return saved.enabled;
+  } catch (_) {}
+  const enabled = QUICK_REVIEW_AUTO_PARAM !== "0";
+  try { sessionStorage.setItem(QUICK_REVIEW_SESSION_KEY, JSON.stringify({ contextId: CONTEXT_PARAM, enabled })); } catch (_) {}
+  return enabled;
+}
+
+function setQuickReviewAutoNext(enabled) {
+  const value = Boolean(enabled);
+  try { sessionStorage.setItem(QUICK_REVIEW_SESSION_KEY, JSON.stringify({ contextId: CONTEXT_PARAM, enabled: value })); } catch (_) {}
+  document.querySelectorAll(".quick-review-auto-next").forEach(button => {
+    button.classList.toggle("is-on", value);
+    button.setAttribute("aria-pressed", String(value));
+    button.textContent = `Auto Next ${value ? "On" : "Off"}`;
+  });
+  return value;
+}
+
+function latestQuickReviewRating(wordId) {
+  const id = String(wordId || "").trim();
+  if (!id) return "";
+  const matches = readQuickReviewEvents().filter(event =>
+    String(event.wordId || "").trim() === id &&
+    (!CONTEXT_PARAM || String(event.contextId || "").trim() === CONTEXT_PARAM)
+  );
+  const latest = matches.sort((a, b) => Date.parse(b.occurredAt || 0) - Date.parse(a.occurredAt || 0))[0];
+  return String(latest?.rating || "").trim().toLowerCase();
+}
+
+function saveQuickReviewRating(row, rating) {
+  const wordId = String(row?.WordID || "").trim();
+  const value = String(rating || "").trim().toLowerCase();
+  if (!wordId || !["again","hard","good","easy"].includes(value)) return false;
+  const events = readQuickReviewEvents();
+  events.push({
+    schemaVersion: 1,
+    eventId: `review-quick-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    occurredAt: new Date().toISOString(),
+    contextId: CONTEXT_PARAM,
+    wordId,
+    rating: value,
+    reviewStyle: "quick",
+    autoAdvance: quickReviewAutoNextEnabled()
+  });
+  try { localStorage.setItem(REVIEW_QUICK_EVENT_KEY, JSON.stringify(events.slice(-800))); }
+  catch (_) { return false; }
+  interactionEvent("review_quick_judgment", row, { rating: value, contextId: CONTEXT_PARAM });
+  return true;
+}
+
+function refreshQuickReviewControls(root, row) {
+  if (!IS_QUICK_REVIEW || !root) return;
+  const current = latestQuickReviewRating(row?.WordID);
+  root.querySelectorAll("[data-quick-review-rating]").forEach(button => {
+    const active = button.dataset.quickReviewRating === current;
+    button.classList.toggle("is-selected", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  const auto = quickReviewAutoNextEnabled();
+  root.querySelectorAll(".quick-review-auto-next").forEach(button => {
+    button.classList.toggle("is-on", auto);
+    button.setAttribute("aria-pressed", String(auto));
+    button.textContent = `Auto Next ${auto ? "On" : "Off"}`;
+  });
+}
+
+function installQuickReviewControls(root, row) {
+  if (!IS_QUICK_REVIEW || !root || !row) return;
+  root.querySelectorAll(".study-practice-zone").forEach(zone => {
+    if (zone.querySelector(".quick-review-panel")) return;
+    const panel = document.createElement("section");
+    panel.className = "quick-review-panel";
+    panel.setAttribute("aria-label", "Quick Review judgment");
+    panel.innerHTML = `
+      <div class="quick-review-head"><strong>Quick Review</strong><button type="button" class="quick-review-auto-next" aria-pressed="true">Auto Next On</button></div>
+      <div class="quick-review-ratings" role="group" aria-label="Quick Review rating">
+        <button type="button" data-quick-review-rating="again" aria-pressed="false">Again</button>
+        <button type="button" data-quick-review-rating="hard" aria-pressed="false">Hard</button>
+        <button type="button" data-quick-review-rating="good" aria-pressed="false">Good</button>
+        <button type="button" data-quick-review-rating="easy" aria-pressed="false">Easy</button>
+      </div>`;
+    zone.append(panel);
+    panel.querySelector(".quick-review-auto-next")?.addEventListener("click", () => {
+      setQuickReviewAutoNext(!quickReviewAutoNextEnabled());
+    });
+    panel.querySelectorAll("[data-quick-review-rating]").forEach(button => {
+      button.addEventListener("click", () => {
+        const rating = button.dataset.quickReviewRating;
+        if (!saveQuickReviewRating(row, rating)) {
+          showStudyToast("Quick Review rating could not be saved.", 2600);
+          return;
+        }
+        refreshQuickReviewControls(root, row);
+        if (quickReviewAutoNextEnabled()) setTimeout(() => go(1), 120);
+      });
+    });
+  });
+  refreshQuickReviewControls(root, row);
+}
+
 function bindCardBehavior(
   root,
   stateKey,
@@ -3910,6 +4040,8 @@ function bindCardBehavior(
     else if (event.target.closest(".external-link")) interactionEvent("external_reference", row);
     else if (event.target.closest("[data-youglish]")) interactionEvent("youglish", row);
   });
+
+  installQuickReviewControls(root, row);
 
   if (IS_DRAFT_MODE) {
 

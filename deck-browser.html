@@ -198,6 +198,33 @@
       </section>
 
       <section id="study-review-panel" class="study-mode-panel study-review-panel" role="tabpanel" data-study-panel="review" hidden>
+        <section class="browser-section review-settings-section">
+          <div class="section-head"><div><h2>Review Setup</h2><span>Choose how you want to work through Review sets</span></div></div>
+          <div class="review-settings-card">
+            <div class="review-setting-row review-style-row">
+              <div><strong>Review Style</strong><small>Deep keeps the full card workflow. Quick adds one-tap judgments.</small></div>
+              <div class="review-style-switch" role="group" aria-label="Review style">
+                <button type="button" data-review-style="deep" aria-pressed="true">Deep</button>
+                <button type="button" data-review-style="quick" aria-pressed="false">Quick</button>
+              </div>
+            </div>
+            <div class="review-setting-row">
+              <label for="study-review-set-size"><strong>Set Size</strong><small>Cards in each new Review set</small></label>
+              <select id="study-review-set-size" aria-label="Review set size">
+                <option value="10">10</option><option value="15" selected>15</option><option value="25">25</option><option value="50">50</option>
+              </select>
+            </div>
+            <div class="review-setting-row">
+              <div><strong>Carry Over</strong><small>Let a few difficult cards return in the next set</small></div>
+              <button id="study-review-carry-over" class="review-setting-toggle is-on" type="button" role="switch" aria-checked="true"><span>On</span></button>
+            </div>
+            <div class="review-setting-row" id="study-review-auto-next-row" hidden>
+              <div><strong>Quick Auto Next</strong><small>After Again / Hard / Good / Easy, move to the next card</small></div>
+              <button id="study-review-auto-next" class="review-setting-toggle is-on" type="button" role="switch" aria-checked="true"><span>On</span></button>
+            </div>
+            <p class="review-settings-note" id="study-review-settings-note"></p>
+          </div>
+        </section>
         <section class="browser-section review-today-section">
           <div class="section-head"><div><h2>Today's Review</h2><span>A focused set from your current Review evidence</span></div></div>
           <div class="review-today-card">
@@ -344,7 +371,7 @@
   </script>
   <script src="./study-context-data.js?v=20260928-s7-study-context-v186157"></script>
   <script src="./deck-browser.js?v=20260928-s7-study-entry-v186158"></script>
-  <script src="./study-entry.js?v=20260928-s7-review-carry-v186165"></script>
+  <script src="./study-entry.js?v=20260928-s7-quick-review-v186167"></script>
   <script src="./study-options.js?v=20260918-s7-options-v18624"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
 </body>

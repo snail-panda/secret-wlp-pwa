@@ -372,6 +372,31 @@
       #deck-nav-links a { font-size: .98rem; }
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
+
+
+    /* WLP v1.8.6.167 — Quick Review one-tap judgments. */
+    .quick-review-panel{
+      width:min(100%,560px);
+      margin:12px auto 0;
+      padding:10px 11px 11px;
+      border:1px solid rgba(85,114,100,.20);
+      border-radius:14px;
+      background:rgba(248,251,248,.88);
+      box-sizing:border-box;
+    }
+    .quick-review-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .quick-review-head strong{color:#526b5e;font:600 .68rem/1.1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase}
+    .quick-review-auto-next{min-height:28px!important;padding:5px 9px!important;border-radius:999px!important;font:600 .68rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;color:#718078!important;background:#fff!important}
+    .quick-review-auto-next.is-on{color:#315f49!important;background:#e5efe7!important;border-color:#c7d9cb!important}
+    .quick-review-ratings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+    .quick-review-ratings button{min-width:0!important;min-height:38px!important;padding:7px 5px!important;border-radius:10px!important;font:600 .76rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;color:#52675c!important;background:#fff!important;border:1px solid rgba(85,114,100,.22)!important}
+    .quick-review-ratings button.is-selected{background:#e5efe7!important;border-color:#bcd2c2!important;color:#285740!important;box-shadow:inset 0 0 0 1px rgba(72,104,82,.05)}
+    @media(max-width:390px){
+      .quick-review-panel{padding:9px 9px 10px}
+      .quick-review-ratings{gap:4px}
+      .quick-review-ratings button{font-size:.71rem!important;padding-inline:3px!important}
+    }
+
   </style>
   <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-learning-layer-alignment-v18644" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
@@ -875,7 +900,7 @@
   <script src="../../learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
   <script src="../../classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
   <script src="../../study-context-data.js?v=20260928-s7-study-context-v186157"></script>
-  <script type="module" src="./app.js?v=20260928-s7-review-nav-v186166"></script>
+  <script type="module" src="./app.js?v=20260928-s7-quick-review-v186167"></script>
   <script src="./study-stage7.js?v=20260928-s7-review-counter-v186164"></script>
   <script src="../../study-options.js?v=20260918-s7-options-v18624"></script>
 </body>
