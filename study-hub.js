@@ -531,6 +531,41 @@
     return Array.from(out);
   }
 
+  function leakFamilyForms(value) {
+    const word = normalizeTargetText(value);
+    const out = new Set();
+    if (!/^[A-Za-z][A-Za-z'-]{3,}$/.test(word)) return Array.from(out);
+    const lower = word.toLowerCase();
+
+    // Leak detection must be stricter than answer matching. A hint that prints
+    // the obvious base form of a stored inflection/gerund effectively reveals
+    // the target (e.g. target "tampering" -> hint "tamper with X"). Keep these
+    // variants leak-only; they are NOT automatically accepted as answers.
+    if (lower.endsWith('ing') && word.length > 5) {
+      const stem = word.slice(0, -3);
+      if (stem.length >= 3) {
+        out.add(stem);
+        // Handles forms such as making -> make / continuing -> continue.
+        out.add(`${stem}e`);
+        // Handles doubled final consonants such as running -> run.
+        if (/([A-Za-z])\\1$/i.test(stem)) out.add(stem.slice(0, -1));
+      }
+    }
+    if (lower.endsWith('ed') && word.length > 4) {
+      const stem = word.slice(0, -2);
+      if (stem.length >= 3) {
+        out.add(stem);
+        out.add(`${stem}e`);
+        if (/([A-Za-z])\\1$/i.test(stem)) out.add(stem.slice(0, -1));
+      }
+    }
+    if (lower.endsWith('ies') && word.length > 4) out.add(`${word.slice(0, -3)}y`);
+    if (lower.endsWith('es') && word.length > 4) out.add(word.slice(0, -2));
+    if (lower.endsWith('s') && !lower.endsWith('ss') && word.length > 4) out.add(word.slice(0, -1));
+
+    return Array.from(out).filter(candidate => candidate.length >= 3 && normalizeAnswer(candidate) !== normalizeAnswer(word));
+  }
+
   function thirdPersonForm(value) {
     const word = normalizeTargetText(value);
     if (!/^[A-Za-z][A-Za-z'-]{2,}$/.test(word)) return '';
@@ -614,6 +649,7 @@
       if (/^[A-Za-z][A-Za-z'-]{2,}$/.test(cleanPart)) {
         const partPos = (profile.kind === 'family' && posParts.length === rawParts.length ? posParts[partIndex] : pos).toLowerCase();
         simpleWordForms(cleanPart, { verb: partPos.includes('verb'), noun: partPos.includes('noun') }).forEach(form => { accepted.add(form); leaks.add(form); });
+        leakFamilyForms(cleanPart).forEach(form => leaks.add(form));
       }
       return { raw: part, clean: cleanPart, fixedPrefix, pattern, hasPlaceholder: Boolean(placeholderMatch), pos: profile.kind === 'family' && posParts.length === rawParts.length ? posParts[partIndex] : pos };
     });
@@ -640,6 +676,7 @@
       leaks.add(profile.practiceTarget);
       const posLower = pos.toLowerCase();
       simpleWordForms(profile.practiceTarget, { verb: posLower.includes('verb'), noun: posLower.includes('noun') }).forEach(form => { accepted.add(form); leaks.add(form); });
+      leakFamilyForms(profile.practiceTarget).forEach(form => leaks.add(form));
     }
     // Always retain the raw headword as a display/accepted value, but do not
     // rely on it alone for leakage detection.
