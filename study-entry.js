@@ -10,6 +10,7 @@
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const AI_STUDY_EVENT_KEY = 'wlp:ai-study-events:v1';
   const REVIEW_QUICK_EVENT_KEY = 'wlp:review-quick-events:v1';
+  const QUICK_REVIEW_SESSION_KEY = 'wlp:quick-review-auto-next-session:v1';
   const REVIEW_SETTINGS_KEY = 'wlp:review-settings:v1';
   const REVIEW_SET_SIZES = [10, 15, 25, 50];
   const REVIEW_CARRYOVER_RATIO = 0.25;
@@ -598,8 +599,21 @@
       if (restart) {
         try { sessionStorage.removeItem(ACTIVE_CARD_CONTEXT_KEY); } catch (_) {}
       }
-      const launchContext = restart ? cloneReviewContextForRestart(context) : context;
+      // Review Setup is the learner's current choice. Resume keeps the same
+      // frozen card snapshot/progress, but may switch between Deep and Quick.
+      const settings = readReviewSettings();
+      const launchContext = restart
+        ? cloneReviewContextForRestart(context)
+        : (api?.updateContext(context.contextId, {
+            source: {
+              reviewStyle: settings.style,
+              quickAutoAdvance: settings.autoAdvance
+            }
+          }) || context);
       if (!launchContext) return '';
+      // Card-page Auto Next is only a per-visit override. Leaving the card
+      // page and launching again should start from Review Setup's default.
+      try { sessionStorage.removeItem(QUICK_REVIEW_SESSION_KEY); } catch (_) {}
       const query = new URLSearchParams();
       query.set('review', '1');
       query.set('from', 'review');
@@ -777,7 +791,7 @@
     }
     const note = $('study-review-settings-note');
     if (note) note.textContent = todaysGeneratedReviewContext()
-      ? 'Resume keeps the current style. Start Again and new Review sets use the Review Setup above.'
+      ? 'Resume, Start Again, and new Review sets use the Review Setup above.'
       : 'These settings apply when the next Review set is created.';
   }
 

@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.167 — Quick Review judgments + session Auto Next.
+// Stage 7 v1.8.6.168 — Quick Review resume + reliable Auto Next + completion fallback.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -65,6 +65,9 @@ const REVIEW_QUICK_EVENT_KEY =
 
 const QUICK_REVIEW_SESSION_KEY =
   "wlp:quick-review-auto-next-session:v1";
+
+const REVIEW_COMPLETE_TOAST_SESSION_KEY =
+  "wlp:review-complete-toast-session:v1";
 
 const IS_QUICK_REVIEW =
   Boolean(REVIEW_PARAM) && REVIEW_STYLE_PARAM === "quick";
@@ -3779,7 +3782,7 @@ function setQuickReviewAutoNext(enabled) {
   document.querySelectorAll(".quick-review-auto-next").forEach(button => {
     button.classList.toggle("is-on", value);
     button.setAttribute("aria-pressed", String(value));
-    button.textContent = `Auto Next ${value ? "On" : "Off"}`;
+    button.textContent = `Auto Next · ${value ? "On" : "Off"}`;
   });
   return value;
 }
@@ -3828,8 +3831,57 @@ function refreshQuickReviewControls(root, row) {
   root.querySelectorAll(".quick-review-auto-next").forEach(button => {
     button.classList.toggle("is-on", auto);
     button.setAttribute("aria-pressed", String(auto));
-    button.textContent = `Auto Next ${auto ? "On" : "Off"}`;
+    button.textContent = `Auto Next · ${auto ? "On" : "Off"}`;
   });
+}
+
+function quickReviewCompletionToastShown() {
+  if (!CONTEXT_PARAM) return false;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(REVIEW_COMPLETE_TOAST_SESSION_KEY) || "null");
+    return saved?.contextId === CONTEXT_PARAM && saved?.shown === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function markQuickReviewCompletionToastShown() {
+  if (!CONTEXT_PARAM) return;
+  try {
+    sessionStorage.setItem(REVIEW_COMPLETE_TOAST_SESSION_KEY, JSON.stringify({ contextId: CONTEXT_PARAM, shown: true }));
+  } catch (_) {}
+}
+
+function maybeShowQuickReviewCompletionToast() {
+  if (!IS_QUICK_REVIEW || !CONTEXT_PARAM || quickReviewCompletionToastShown()) return false;
+  try {
+    const contexts = JSON.parse(localStorage.getItem(STUDY_CONTEXT_KEY) || "[]");
+    if (!Array.isArray(contexts)) return false;
+    const context = contexts.find(item => item && String(item.contextId || "").trim() === CONTEXT_PARAM);
+    if (!context || String(context.status || "") !== "completed") return false;
+    const total = Math.max(
+      Number(context.progress?.totalCount) || 0,
+      Array.isArray(context.source?.wordIds) ? context.source.wordIds.length : 0
+    );
+    if (!total) return false;
+    markQuickReviewCompletionToastShown();
+    showStudyToast(`Review set complete · ${total} / ${total}`, 3000);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function advanceQuickReview(root) {
+  // Reuse the already-proven Next control rather than maintaining a second
+  // navigation path. This also keeps all Stage 7 observers/progress hooks.
+  const next = root?.querySelector?.(".btn-next");
+  if (next instanceof HTMLButtonElement) {
+    next.click();
+    return true;
+  }
+  go(1);
+  return true;
 }
 
 function installQuickReviewControls(root, row) {
@@ -3840,7 +3892,7 @@ function installQuickReviewControls(root, row) {
     panel.className = "quick-review-panel";
     panel.setAttribute("aria-label", "Quick Review judgment");
     panel.innerHTML = `
-      <div class="quick-review-head"><strong>Quick Review</strong><button type="button" class="quick-review-auto-next" aria-pressed="true">Auto Next On</button></div>
+      <div class="quick-review-head"><strong>Quick Review</strong><button type="button" class="quick-review-auto-next" aria-pressed="true">Auto Next · On</button></div>
       <div class="quick-review-ratings" role="group" aria-label="Quick Review rating">
         <button type="button" data-quick-review-rating="again" aria-pressed="false">Again</button>
         <button type="button" data-quick-review-rating="hard" aria-pressed="false">Hard</button>
@@ -3859,7 +3911,14 @@ function installQuickReviewControls(root, row) {
           return;
         }
         refreshQuickReviewControls(root, row);
-        if (quickReviewAutoNextEnabled()) setTimeout(() => go(1), 120);
+        // Ask Stage 7 to flush progress first. Then show a completion fallback
+        // if needed and use the existing Next button for Auto Next.
+        try { window.dispatchEvent(new CustomEvent("wlp:review-quick-rated")); } catch (_) {}
+        const autoNext = quickReviewAutoNextEnabled();
+        setTimeout(() => {
+          maybeShowQuickReviewCompletionToast();
+          if (autoNext) advanceQuickReview(root);
+        }, 180);
       });
     });
   });
