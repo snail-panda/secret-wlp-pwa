@@ -3498,10 +3498,10 @@ body.review-attention-open{overflow:hidden}
 }
 
 /* =========================================================
-   WLP Stage 7 — v1.8.6.173 Back → Front fold-angle correction
-   Quiet page-corner cue: thin diagonal fold, subtle tint, small
-   angled label. The visible affordance stays secondary while the
-   hit target remains thumb-friendly.
+   WLP Stage 7 — v1.8.6.174 Back → Front folded-corner line removal
+   Quiet page-corner cue: subtle tint + small angled label only.
+   No explicit fold line; the tinted corner itself defines the affordance
+   while the hit target remains thumb-friendly.
    ========================================================= */
 .stage7-study-body .study-back-card .study-corner-front{
   position:absolute!important;
@@ -3533,19 +3533,6 @@ body.review-attention-open{overflow:hidden}
   height:37px;
   border-radius:0 0 20px 0;
   background:linear-gradient(135deg, transparent 0 48.7%, rgba(224,235,226,.56) 49.4% 100%);
-  pointer-events:none;
-}
-/* The fold itself: one quiet diagonal line from the lower-right corner inward. */
-.stage7-study-body .study-back-card .study-corner-front::after{
-  content:"";
-  position:absolute;
-  right:5px;
-  bottom:36px;
-  width:44px;
-  height:1px;
-  background:rgba(84,111,94,.31);
-  transform:rotate(-45deg);
-  transform-origin:right center;
   pointer-events:none;
 }
 .stage7-study-body .study-back-card .study-corner-front span{
@@ -3584,9 +3571,6 @@ body.review-attention-open{overflow:hidden}
   .stage7-study-body .study-back-card .study-corner-front::before{
     width:35px;
     height:35px;
-  }
-  .stage7-study-body .study-back-card .study-corner-front::after{
-    width:41px;
   }
   .stage7-study-body .study-back-card .study-corner-front span{
     font-size:.52rem!important;
