@@ -1980,28 +1980,77 @@
     return bits.length ? `Form: ${Array.from(new Set(bits)).join(' · ')}.` : '';
   }
 
-  function hintStepsFor(item) {
+  function hintLeakProfiles(item) {
+    const profiles = [];
+    const push = value => {
+      const text = clean(value);
+      if (!text) return;
+      const profile = targetProfile(text);
+      if (!profile.raw) return;
+      if (profiles.some(existing => normalizeAnswer(existing.raw) === normalizeAnswer(profile.raw))) return;
+      profiles.push(profile);
+    };
+    push(item?.targetProfile?.raw || item?.row?.Word);
+    push(item?.answerTarget);
+    (item?.acceptedAnswers || []).forEach(push);
+    return profiles;
+  }
+
+  function redactAllHintTargets(value, item) {
+    let text = clean(value);
+    let changed = false;
+    hintLeakProfiles(item).forEach(profile => {
+      const redacted = redactTarget(text, profile);
+      text = redacted.text;
+      changed = changed || redacted.changed;
+    });
+    return { text: clean(text), changed };
+  }
+
+  function safeHintText(value, item) {
+    const redacted = redactAllHintTargets(value, item);
+    if (!meaningfulPrompt(redacted.text)) return '';
+    // Hard safety pass: no reveal-before-Reveal, even when a stored pattern and
+    // the practice target were derived through different profile paths.
+    if (hintLeakProfiles(item).some(profile => hasTargetLeak(redacted.text, profile))) return '';
+    return redacted.text;
+  }
+
+  function structureHintFor(item) {
     const profile = item.targetProfile || targetProfile(item.row || '');
+    const pattern = clean(profile.patternDisplay);
+    const practice = clean(item.answerTarget || profile.practiceTarget || '');
+    if (!pattern || !practice || normalizeAnswer(pattern) === normalizeAnswer(practice)) return '';
+
+    // First remove the answer itself. Then, for a multi-word target, turn the
+    // blank into initials only ("p… a…") so the structure can help without
+    // printing "put all" or another answer verbatim.
+    const redacted = redactAllHintTargets(pattern, item);
+    if (!redacted.changed || !meaningfulPrompt(redacted.text)) return '';
+    const initials = practice.split(/\s+/).filter(Boolean).map(word => `${Array.from(word)[0] || ''}…`).filter(Boolean).join(' ');
+    const text = redacted.text.replace(/_{3,}/, initials || '…');
+    const safe = safeHintText(text, item);
+    if (!safe || normalizeAnswer(safe) === normalizeAnswer(formHintFor(item))) return '';
+    return `Structure: ${safe}`;
+  }
+
+  function hintStepsFor(item) {
     const hints = [];
     const seen = new Set();
     const upfront = practiceFrameFor(item).map(cue => cue.text);
     const add = (type, text) => {
-      const value = clean(text);
+      const value = safeHintText(text, item);
       const key = normalizeAnswer(value);
       if (!value || !key || seen.has(key) || upfront.some(cue => cuesOverlap(cue, value))) return;
       seen.add(key);
       hints.push({ type, text: value });
     };
 
-    // V2 Phase 2 hint ladder: deepen meaning/usage first, add a semantic
-    // bridge only after the context has done some work, then narrow the form.
-    // Nearby expressions are not treated as guaranteed substitutes.
-    const sense = safePrompt(item.meta?.senseHook, profile).text;
-    if (meaningfulPrompt(sense)) add('sense-nuance', `Sense / nuance: ${sense}`);
-
-    const definition = definitionCue(item.row?.Definition, profile);
-    if (meaningfulPrompt(definition)) add('sense-nuance', `Meaning focus: ${definition}`);
-
+    // V2 Phase 3 ladder:
+    // Context + Practice Frame are already visible. Hints therefore move from
+    // usage -> form -> semantic bridge -> structure/initial -> Reveal.
+    // Synonyms deliberately do NOT come first.
+    const profile = item.targetProfile || targetProfile(item.row || '');
     const usageNote = usageNoteCue(item.row?.['Note(s)'], profile);
     if (meaningfulPrompt(usageNote)) add('usage', `Usage / collocation: ${usageNote}`);
 
@@ -2010,10 +2059,12 @@
       .find(entry => entry.safe.changed && meaningfulPrompt(entry.safe.text) && !cuesOverlap(entry.safe.text, item.promptText));
     if (example) add('usage', `Usage frame: ${example.safe.text}`);
 
+    add('form', formHintFor(item));
+
     const nearMeaning = nearMeaningHintFor(item);
     if (meaningfulPrompt(nearMeaning)) add('near-meaning', nearMeaning);
 
-    add('form', formHintFor(item));
+    add('structure', structureHintFor(item));
 
     const firstTarget = clean(profile.practiceTarget || item.answerTarget || profile.raw);
     const first = Array.from(firstTarget.trim())[0] || '';
