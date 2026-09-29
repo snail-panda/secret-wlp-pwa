@@ -183,7 +183,7 @@
     // Once a Review round is complete, extra laps remain free-form review.
     // They update recency/current position but never turn the completed Context active again.
     if (context.status === 'completed') {
-      studyContextApi.updateContext(context.contextId, {
+      const savedContext = studyContextApi.updateContext(context.contextId, {
         status: 'completed',
         lastMeaningfulAt: new Date().toISOString(),
         progress: {
@@ -194,6 +194,10 @@
           totalCount: totalCount || Number(context.progress?.completedCount) || 0
         }
       });
+      if (!savedContext) {
+        showToast('Review progress could not be saved. Local storage may be full.', 3000);
+        return;
+      }
       activeStudyContextId = context.contextId;
       lastTrackedContextWordId = wordId;
       return;
@@ -203,7 +207,7 @@
     const resolvedTotalCount = totalCount || completedWordIds.length;
     const completed = resolvedTotalCount > 0 && completedWordIds.length >= resolvedTotalCount;
 
-    studyContextApi.updateContext(context.contextId, {
+    const savedContext = studyContextApi.updateContext(context.contextId, {
       status: completed ? 'completed' : 'active',
       lastMeaningfulAt: new Date().toISOString(),
       progress: {
@@ -214,6 +218,10 @@
         totalCount: resolvedTotalCount
       }
     });
+    if (!savedContext) {
+      showToast('Review progress could not be saved. Local storage may be full.', 3000);
+      return;
+    }
     if (completed && context.sourceType === 'review-set' && !reviewCompletionToastShown(context.contextId)) {
       markReviewCompletionToastShown(context.contextId);
       showToast(`Review set complete · ${resolvedTotalCount} / ${resolvedTotalCount}`, 3000);

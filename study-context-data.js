@@ -1,4 +1,4 @@
-/* WLP v1.8.6.157 — Study Context V1 + Build History V1 data foundation. */
+/* WLP v1.8.6.169 — Study Context V1 + verified storage writes. */
 (() => {
   const CONTEXT_KEY = 'wlp:study-contexts:v1';
   const BUILD_HISTORY_KEY = 'wlp:build-history:v1';
@@ -102,7 +102,7 @@
       };
       history.splice(existingIndex, 1);
       history.unshift(existing);
-      writeArray(BUILD_HISTORY_KEY, trimBuildHistory(history));
+      if (!writeArray(BUILD_HISTORY_KEY, trimBuildHistory(history))) return null;
       return clone(existing);
     }
 
@@ -117,7 +117,7 @@
       signature
     };
     history.unshift(record);
-    writeArray(BUILD_HISTORY_KEY, trimBuildHistory(history));
+    if (!writeArray(BUILD_HISTORY_KEY, trimBuildHistory(history))) return null;
     return clone(record);
   }
 
@@ -188,7 +188,7 @@
     if (!context) return null;
     const contexts = readContexts().filter(item => item.contextId !== context.contextId);
     contexts.unshift(context);
-    writeArray(CONTEXT_KEY, contexts.slice(0, CONTEXT_LIMIT));
+    if (!writeArray(CONTEXT_KEY, contexts.slice(0, CONTEXT_LIMIT))) return null;
     return clone(context);
   }
 
@@ -224,7 +224,7 @@
     });
     contexts.splice(index, 1);
     contexts.unshift(next);
-    writeArray(CONTEXT_KEY, contexts.slice(0, CONTEXT_LIMIT));
+    if (!writeArray(CONTEXT_KEY, contexts.slice(0, CONTEXT_LIMIT))) return null;
     return clone(next);
   }
 

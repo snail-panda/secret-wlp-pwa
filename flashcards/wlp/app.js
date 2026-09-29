@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.168 — Quick Review resume + reliable Auto Next + completion fallback.
+// Stage 7 v1.8.6.169 — Quick Review storage diagnostics + reliable Auto Next.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -3798,7 +3798,10 @@ function latestQuickReviewRating(wordId) {
   return String(latest?.rating || "").trim().toLowerCase();
 }
 
+let quickReviewSaveError = "";
+
 function saveQuickReviewRating(row, rating) {
+  quickReviewSaveError = "";
   const wordId = String(row?.WordID || "").trim();
   const value = String(rating || "").trim().toLowerCase();
   if (!wordId || !["again","hard","good","easy"].includes(value)) return false;
@@ -3814,7 +3817,11 @@ function saveQuickReviewRating(row, rating) {
     autoAdvance: quickReviewAutoNextEnabled()
   });
   try { localStorage.setItem(REVIEW_QUICK_EVENT_KEY, JSON.stringify(events.slice(-800))); }
-  catch (_) { return false; }
+  catch (error) {
+    console.warn("WLP Quick Review storage write failed:", error);
+    quickReviewSaveError = "Quick Review rating could not be saved. Local storage may be full.";
+    return false;
+  }
   interactionEvent("review_quick_judgment", row, { rating: value, contextId: CONTEXT_PARAM });
   return true;
 }
@@ -3907,7 +3914,7 @@ function installQuickReviewControls(root, row) {
       button.addEventListener("click", () => {
         const rating = button.dataset.quickReviewRating;
         if (!saveQuickReviewRating(row, rating)) {
-          showStudyToast("Quick Review rating could not be saved.", 2600);
+          showStudyToast(quickReviewSaveError || "Quick Review rating could not be saved.", 3200);
           return;
         }
         refreshQuickReviewControls(root, row);

@@ -1,4 +1,4 @@
-/* WLP v1.8.6.167 — Quick Review + configurable Review rounds. */
+/* WLP v1.8.6.169 — Review storage stabilization + compact Classification migration. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -12,6 +12,8 @@
   const REVIEW_QUICK_EVENT_KEY = 'wlp:review-quick-events:v1';
   const QUICK_REVIEW_SESSION_KEY = 'wlp:quick-review-auto-next-session:v1';
   const REVIEW_SETTINGS_KEY = 'wlp:review-settings:v1';
+  const CLASSIFICATION_STORAGE_KEY = 'wlp:classification-meta:v1';
+  const CLASSIFICATION_ROLLBACK_KEY = 'wlp:classification-import-rollback:v1';
   const REVIEW_SET_SIZES = [10, 15, 25, 50];
   const REVIEW_CARRYOVER_RATIO = 0.25;
   const REVIEW_CARRYOVER_MAX_APPEARANCES = 3;
@@ -25,6 +27,23 @@
   let rows = [];
   let rowsPromise = null;
 
+  function compactStoredJson(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+      const compact = JSON.stringify(JSON.parse(raw));
+      if (compact.length >= raw.length) return false;
+      localStorage.setItem(key, compact);
+      return true;
+    } catch (error) {
+      console.warn('WLP storage compaction failed:', key, error);
+      return false;
+    }
+  }
+
+  // Reclaim space before Review settings/contexts need to write.
+  compactStoredJson(CLASSIFICATION_STORAGE_KEY);
+  compactStoredJson(CLASSIFICATION_ROLLBACK_KEY);
 
   function normalizeReviewSettings(raw = {}) {
     const requestedSize = Math.max(1, Math.floor(Number(raw.setSize) || 15));
@@ -44,8 +63,14 @@
 
   function writeReviewSettings(patch = {}) {
     const next = normalizeReviewSettings({ ...readReviewSettings(), ...patch });
-    try { localStorage.setItem(REVIEW_SETTINGS_KEY, JSON.stringify(next)); } catch (_) {}
-    return next;
+    try {
+      localStorage.setItem(REVIEW_SETTINGS_KEY, JSON.stringify(next));
+      return next;
+    } catch (error) {
+      console.warn('WLP Review settings write failed:', error);
+      showToast('Review setting could not be saved. Local storage may be full.');
+      return null;
+    }
   }
 
   function latestQuickReviewEvidence() {
@@ -604,12 +629,12 @@
       const settings = readReviewSettings();
       const launchContext = restart
         ? cloneReviewContextForRestart(context)
-        : (api?.updateContext(context.contextId, {
+        : api?.updateContext(context.contextId, {
             source: {
               reviewStyle: settings.style,
               quickAutoAdvance: settings.autoAdvance
             }
-          }) || context);
+          });
       if (!launchContext) return '';
       // Card-page Auto Next is only a per-visit override. Leaving the card
       // page and launching again should start from Review Setup's default.
@@ -800,7 +825,7 @@
       if (button.dataset.reviewSettingsBound === '1') return;
       button.dataset.reviewSettingsBound = '1';
       button.addEventListener('click', () => {
-        writeReviewSettings({ style: button.dataset.reviewStyle });
+        if (!writeReviewSettings({ style: button.dataset.reviewStyle })) return;
         renderReviewSettings();
         renderReviewSummary();
       });
@@ -809,7 +834,7 @@
     if (size && size.dataset.reviewSettingsBound !== '1') {
       size.dataset.reviewSettingsBound = '1';
       size.addEventListener('change', () => {
-        writeReviewSettings({ setSize: Number(size.value) });
+        if (!writeReviewSettings({ setSize: Number(size.value) })) return;
         renderReviewSettings();
         renderReviewSummary();
       });
@@ -818,7 +843,7 @@
     if (carry && carry.dataset.reviewSettingsBound !== '1') {
       carry.dataset.reviewSettingsBound = '1';
       carry.addEventListener('click', () => {
-        writeReviewSettings({ carryOver: carry.getAttribute('aria-checked') !== 'true' });
+        if (!writeReviewSettings({ carryOver: carry.getAttribute('aria-checked') !== 'true' })) return;
         renderReviewSettings();
         renderReviewSummary();
       });
@@ -827,7 +852,7 @@
     if (auto && auto.dataset.reviewSettingsBound !== '1') {
       auto.dataset.reviewSettingsBound = '1';
       auto.addEventListener('click', () => {
-        writeReviewSettings({ autoAdvance: auto.getAttribute('aria-checked') !== 'true' });
+        if (!writeReviewSettings({ autoAdvance: auto.getAttribute('aria-checked') !== 'true' })) return;
         renderReviewSettings();
       });
     }

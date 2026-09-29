@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.138 — Classification Metadata v1 + safe snapshot import. */
+/* WLP Stage 7 v1.8.6.169 — compact Classification storage + safe snapshot import. */
 (() => {
   'use strict';
 
@@ -11,6 +11,24 @@
 
   const cleanTag = value => String(value ?? '').replace(/\s+/g, ' ').trim();
   const fold = value => cleanTag(value).toLocaleLowerCase('en-US');
+
+  function compactStoredJson(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+      const compact = JSON.stringify(JSON.parse(raw));
+      if (compact.length >= raw.length) return false;
+      localStorage.setItem(key, compact);
+      return true;
+    } catch (error) {
+      console.warn('WLP Classification storage compaction failed:', key, error);
+      return false;
+    }
+  }
+
+  // v1.8.6.169: reclaim space from older pretty-printed Classification JSON.
+  compactStoredJson(STORAGE_KEY);
+  compactStoredJson(ROLLBACK_KEY);
 
   function uniqueTags(values) {
     const seen = new Set();
@@ -58,7 +76,7 @@
 
   function writeState(state) {
     const records = state?.records && typeof state.records === 'object' ? state.records : {};
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({version: VERSION, records}, null, 2));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({version: VERSION, records}));
     window.dispatchEvent(new CustomEvent(EVENT_NAME));
   }
 
@@ -216,7 +234,7 @@
   function applyPortableMerge(plan, resolutions = {}) {
     if (!plan || !Array.isArray(plan.items) || !plan.counts) throw new Error('Classification import plan is invalid.');
     const current = readState();
-    localStorage.setItem(ROLLBACK_KEY, JSON.stringify({savedAt:new Date().toISOString(), state:current}, null, 2));
+    localStorage.setItem(ROLLBACK_KEY, JSON.stringify({savedAt:new Date().toISOString(), state:current}));
     const next = {version: VERSION, records: {...current.records}};
     const result = {added:0, updated:0, conflictIncoming:0, conflictLocal:0, localNewer:0, same:0, unknown:0};
 
