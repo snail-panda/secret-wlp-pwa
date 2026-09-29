@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Build History — WLP</title>
+  <meta name="theme-color" content="#eef6ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WLP Garden">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./pwa-icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./drawer-shell.css?v=20260919-s7-drawer-order-r10">
+  <link rel="stylesheet" href="./build-history.css?v=20260929-s7-build-history-v186181">
+  <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
+  <style id="stage7-bottom-nav-critical-lock">.stage7-page-bottom-nav{position:fixed!important;z-index:85!important;left:50%!important;right:auto!important;top:auto!important;bottom:0!important;transform:translateX(-50%)!important;width:min(100%,760px)!important;max-width:100vw!important;margin:0!important;}</style>
+</head>
+<body class="app-body build-history-page stage7-bottom-nav-page">
+  <div class="app-shell">
+    <header class="app-header">
+      <button class="icon-button" id="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="app-drawer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <a class="brand" href="./index.html" aria-label="WLP home"><svg class="brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a>
+      <button class="role-pill" id="role-pill" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="role-menu"><span class="role-dot" aria-hidden="true"></span><span id="role-label">Guest</span></button>
+    </header>
+    <main class="build-history-main">
+      <a class="build-history-back" href="./study-set-builder.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span>Back to Build a Study Set</span></a>
+      <section class="build-history-hero"><span class="build-history-kicker">Study · Built Sets</span><h1>Build History</h1><p>Reopen the exact cards from a previous meaningful Build, or restore its saved criteria and rebuild against your current WLP data.</p></section>
+      <section class="build-history-list" id="build-history-list" aria-live="polite"></section>
+    </main>
+  </div>
+  <nav class="stage7-page-bottom-nav" aria-label="Page navigation">
+    <a class="stage7-page-bottom-nav-item" href="./study-set-builder.html" data-stage7-back-source=".build-history-back" aria-label="Back to Build a Study Set"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg><span>Back</span></a>
+    <a class="stage7-page-bottom-nav-item" href="./index.html" aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
+  </nav>
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="app-drawer" id="app-drawer" aria-hidden="true"><div class="drawer-head"><a class="drawer-brand" href="./index.html" aria-label="WLP home"><svg class="drawer-brand-sprout" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 27V14M16 17C12 11 7 10 4 11c1 6 6 9 12 8M16 14c3-6 8-8 13-7-1 6-5 10-13 10"/></svg><span><strong>WLP</strong><small>The Secret Wordlist Garden</small></span></a><button id="drawer-close" class="icon-button" type="button" aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><nav class="drawer-nav"><a class="drawer-item" href="./index.html"><span>Home</span></a><a class="drawer-item" href="./deck-browser.html"><span>Study (Deck Browser)</span></a><a class="drawer-item" href="./study-hub.html"><span>Practice (Study Q)</span></a><a class="drawer-item" href="./review.html"><span>Review</span></a><a class="drawer-item" href="./progress.html"><span>Progress</span></a><a class="drawer-item" href="./help.html"><span>Help</span></a><a class="drawer-item" href="./about.html"><span>About</span></a></nav></aside>
+  <div class="role-menu" id="role-menu" role="menu" hidden><strong id="role-menu-title">Guest mode</strong><small id="role-menu-copy">Study normally without editing tools.</small><button id="role-menu-action" type="button" role="menuitem">Admin Login</button></div>
+  <div class="toast build-history-toast" id="build-history-toast" role="status" aria-live="polite" hidden></div>
+  <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
+  <script src="./study-context-data.js?v=20260929-s7-build-history-v186181"></script>
+  <script src="./build-history.js?v=20260929-s7-build-history-v186181"></script>
+  <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
+  <script>(()=>{const nav=document.querySelector('.stage7-page-bottom-nav');if(!nav)return;if(nav.parentElement!==document.body)document.body.appendChild(nav);const lock={position:'fixed',zIndex:'85',left:'50%',right:'auto',top:'auto',bottom:'0',transform:'translateX(-50%)',width:'min(100%, 760px)',maxWidth:'100vw',margin:'0'};Object.entries(lock).forEach(([key,value])=>nav.style.setProperty(key.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),value,'important'));})();</script>
+  <script src="./page-bottom-nav.js?v=20260918-s7-v18627"></script>
+</body>
+</html>

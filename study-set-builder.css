@@ -235,3 +235,13 @@ body.study-set-page{margin:0;min-height:100vh;padding:0 0 calc(88px + env(safe-a
 .study-set-search-scope select:focus{border-color:#9fb7a8;box-shadow:0 0 0 3px rgba(83,121,99,.09)}
 .study-set-search-controls .study-set-search-mode{margin-top:0}
 @media(max-width:560px){.study-set-search-controls{align-items:flex-start;flex-direction:column;gap:7px}.study-set-search-scope{width:100%}.study-set-search-scope select{flex:1;min-width:0}.study-set-search-controls .study-set-search-mode{width:100%}}
+
+
+/* WLP v1.8.6.181 — Build History shortcut */
+.study-set-history-shortcut-row{display:flex;justify-content:flex-end;margin-top:12px}
+.study-set-history-shortcut{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 2px 5px 8px;color:#476b58;text-decoration:none;font-size:.82rem;font-weight:700;line-height:1}
+.study-set-history-shortcut:hover,.study-set-history-shortcut:focus-visible{color:#2f5945}
+.study-set-history-shortcut:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:8px}
+.study-set-history-shortcut svg{display:block;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.study-set-history-book{width:17px;height:17px}
+.study-set-history-chevron{width:15px;height:15px}
