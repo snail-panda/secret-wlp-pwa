@@ -633,3 +633,19 @@
   .review-pool-compact-levels{gap:3px 7px}
   .review-pool-compact-levels small{font-size:.58rem}
 }
+
+/* WLP v1.8.6.178 — Separate Today's Review from Recent Review Sets. */
+.review-recent-section{
+  position:relative;
+  margin-top:36px;
+  padding-top:24px;
+}
+.review-recent-section::before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:3px;
+  right:3px;
+  height:1px;
+  background:rgba(197,213,202,.62);
+}
