@@ -69,6 +69,8 @@
       <button class="action" id="export-merge-sim" type="button" disabled>Export Merge Simulation</button>
       <button class="action" id="run-merge-materialize" type="button" disabled>Materialize Merged Snapshot</button>
       <button class="action" id="export-merge-materialize" type="button" disabled>Export Materialization</button>
+      <button class="action cloud-action" id="run-cutover-preflight" type="button" disabled>Run Cutover Preflight</button>
+      <button class="action" id="export-cutover-preflight" type="button" disabled>Export Cutover Preflight</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -250,6 +252,32 @@
       <p class="status-line" id="merge-materialize-status">Run Canonical Merge Simulation first. Materialization remains disabled until the simulation passes in this page session.</p>
     </section>
 
+    <section class="panel hidden" id="cutover-preflight-panel">
+      <div class="panel-head"><div><h2>Canonical Cutover Preflight · full payload hydration</h2><p>Rehydrates every row of the v200 merged Canonical candidate from verified staging plus the 35 materialized merges, verifies payload SHA-256, canonical primary-key identity, table manifests, and live references, then emits a deterministic cutover ticket. Read only: no Canonical Cloud write or Cloud → WLP apply occurs.</p></div><div class="compare-badge">Preflight <strong id="cutover-preflight-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="cutover-preflight-rows">0</strong><span>Final payloads hydrated</span></div>
+        <div class="metric"><strong id="cutover-preflight-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="cutover-preflight-pk">0</strong><span>Primary keys checked</span></div>
+        <div class="metric"><strong id="cutover-preflight-ref-blocking">0</strong><span>Reference blockers</span></div>
+        <div class="metric"><strong id="cutover-preflight-warnings">0</strong><span>Historical warnings</span></div>
+        <div class="metric"><strong id="cutover-preflight-repeat">—</strong><span>Proof repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Rehydrated merged snapshot manifest SHA-256 · must equal v200</p>
+      <div class="hash-box" id="cutover-preflight-manifest-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Cutover ticket SHA-256 · locks namespace + migration + mapping + merged manifest</p>
+      <div class="hash-box" id="cutover-preflight-ticket-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Full-snapshot table proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Hydrated rows</th><th>Expected rows</th><th>Manifest proof</th></tr></thead>
+          <tbody id="cutover-preflight-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Cutover preflight notes</h3>
+      <ul class="error-list" id="cutover-preflight-notes"></ul>
+      <p class="status-line" id="cutover-preflight-status">Run Merged Canonical Snapshot Materialization first. This preflight remains disabled until v200 materialization passes in this page session.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -296,5 +324,6 @@
   <script src="./cloud-shadow-merge-audit.js"></script>
   <script src="./cloud-shadow-merge-simulation.js"></script>
   <script src="./cloud-shadow-merge-materialization.js"></script>
+  <script src="./cloud-shadow-cutover-preflight.js"></script>
 </body>
 </html>
