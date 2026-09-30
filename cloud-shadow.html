@@ -57,6 +57,8 @@
       <button class="action" id="export-compare" type="button" disabled>Export Compare Report</button>
       <button class="action" id="run-identity" type="button" disabled>Run Card-ID Dry Run</button>
       <button class="action" id="export-identity" type="button" disabled>Export Card-ID Report</button>
+      <button class="action" id="run-migration" type="button" disabled>Run Canonical Migration Dry Run</button>
+      <button class="action" id="export-migration" type="button" disabled>Export Migration Report</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -91,6 +93,36 @@
       <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Source snapshot SHA-256</p>
       <div class="hash-box" id="identity-source-hash"></div>
       <p class="status-line" id="identity-status">Run Local Scan, then run the Card-ID dry run.</p>
+    </section>
+
+    <section class="panel hidden" id="migration-panel">
+      <div class="panel-head"><div><h2>Canonical Migration · dry run</h2><p>Transforms the current Shadow logical snapshot into the planned Cloud Schema v1 shape entirely in memory. It validates identities, references, source coverage, and deterministic hashes without writing to WLP, Shadow IndexedDB, or Supabase.</p></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="migration-source-count">0</strong><span>Source records</span></div>
+        <div class="metric"><strong id="migration-row-count">0</strong><span>Canonical rows</span></div>
+        <div class="metric"><strong id="migration-blocking-count">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="migration-warning-count">0</strong><span>Audit warnings</span></div>
+        <div class="metric"><strong id="migration-rerun">—</strong><span>Same-run repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Card mapping SHA-256 · must remain identical to the Card-ID dry run</p>
+      <div class="hash-box" id="migration-card-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Core Library SHA-256 · cards + content + classification; compare across devices</p>
+      <div class="hash-box" id="migration-core-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Personal Library SHA-256 · includes Learning Metadata; device differences may remain until canonical merge</p>
+      <div class="hash-box" id="migration-library-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning / history SHA-256 · expected to differ across devices before real merge</p>
+      <div class="hash-box" id="migration-learning-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Full Canonical SHA-256 · expected to differ while device histories differ</p>
+      <div class="hash-box" id="migration-full-hash"></div>
+      <div class="audit-wrap" style="margin-top:16px">
+        <table class="audit-table">
+          <thead><tr><th>Canonical table</th><th>Rows</th></tr></thead>
+          <tbody id="migration-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Migration audit</h3>
+      <ul class="error-list" id="migration-issues"></ul>
+      <p class="status-line" id="migration-status">Run Local Scan, then run the Canonical Migration dry run.</p>
     </section>
 
     <section class="panel hidden" id="compare-panel">
@@ -133,6 +165,7 @@
   <script src="./cloud-shadow-config.js"></script>
   <script src="./cloud-shadow-core.js"></script>
   <script src="./cloud-shadow-identity.js"></script>
+  <script src="./cloud-shadow-migration.js"></script>
   <script src="./cloud-shadow-supabase.js"></script>
 </body>
 </html>
