@@ -3,7 +3,7 @@
 
   const $ = id => document.getElementById(id);
   const STAGE_SCHEMA_VERSION = 1;
-  const APP_VERSION = '1.8.6.195-canonical-stage-v1';
+  const APP_VERSION = '1.8.6.196-canonical-stage-v1';
   const CORE_LIBRARY_TABLES = new Set(['cards', 'card_content', 'card_classification']);
   const UNION_HISTORY_TABLES = new Set([
     'learning_sessions', 'learning_events', 'study_contexts', 'study_context_cards',
@@ -403,7 +403,31 @@
 
   function crossDeviceIssues(cross) {
     const issues = [];
-    issues.push(...crossDeviceIssues(cross));
+    const union = cross?.union || {};
+    const compatibility = cross?.compatibility || {};
+    const coreDivergences = Number(union.coreDivergences || 0);
+    const divergentCollisions = Number(union.divergentCollisions || 0);
+
+    if (coreDivergences > 0) {
+      issues.push(`BLOCKING · Core Personal Library has ${coreDivergences} divergent row-key collision(s) across staged devices.`);
+    }
+    if (compatibility.namespaceMatch === false) {
+      issues.push('BLOCKING · Canonical UUID namespace differs across staged devices.');
+    }
+    if (compatibility.migrationVersionMatch === false) {
+      issues.push('BLOCKING · Canonical migration version differs across staged devices.');
+    }
+    if (compatibility.cardMappingHashMatch === false) {
+      issues.push('BLOCKING · Card Mapping Hash differs across staged devices.');
+    }
+    if (compatibility.coreLibraryHashMatch === false) {
+      issues.push('BLOCKING · Core Library Hash differs across staged devices.');
+    }
+
+    const nonCoreDivergences = Math.max(0, divergentCollisions - coreDivergences);
+    if (nonCoreDivergences > 0) {
+      issues.push(`AUDIT · ${nonCoreDivergences} non-core/history row-key collision(s) differ across devices and remain preserved for Canonical merge inspection.`);
+    }
     return issues;
   }
 
