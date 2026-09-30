@@ -1,11 +1,11 @@
-/* WLP Canonical Migration Dry Run v1.
+/* WLP Canonical Migration Dry Run v2.
    Read-only structural migration from the current Shadow logical snapshot into
    the planned Cloud Schema v1 shape. No WLP storage, Shadow IndexedDB, or
    Supabase rows are modified. */
 (() => {
   'use strict';
 
-  const MIGRATION_VERSION = 1;
+  const MIGRATION_VERSION = 2;
   const CANONICAL_NAMESPACE_UUID = '87dc20ed-dd35-5ba3-8bde-04bf389874ce';
   const state = { report: null };
   const $ = id => document.getElementById(id);
@@ -181,7 +181,9 @@
       missingEventSessions: new Map(),
       missingContextCards: new Map(),
       missingContextSessions: new Map(),
-      missingBuildCards: new Map()
+      missingBuildCards: new Map(),
+      stateZeroTimestampSentinels: 0,
+      stateAttentionAliasMappings: 0
     };
     const bump = (map, key) => { if (key) map.set(key, (map.get(key) || 0) + 1); };
     const sourceMasterHash = clean(snapshot.report?.master?.sha256);
@@ -400,6 +402,14 @@
       consumed.add(record);
     }
 
+    const legacyStateTime = value => {
+      if (value === 0 || String(value ?? '').trim() === '0') {
+        audit.stateZeroTimestampSentinels += 1;
+        return null;
+      }
+      return isoTime(value);
+    };
+
     for (const record of byType.get('learning_state') || []) {
       const legacyKey = clean(record.entityKey);
       const cardId = cardMap.get(legacyKey);
@@ -407,11 +417,16 @@
       const p = asObject(record.payload);
       const reviewLevel = clean(p.reviewLevel ?? p.attention ?? p.reviewAttention ?? p.level);
       const reviewReasons = asArray(p.reviewReasons ?? p.reasons).map(String);
-      const lastSeen = isoTime(p.lastSeen ?? p.last_seen_at);
-      const lastStudied = isoTime(p.lastStudied ?? p.lastStudiedAt ?? p.last_studied_at);
-      const lastReviewed = isoTime(p.lastReviewed ?? p.lastReviewedAt ?? p.last_reviewed_at ?? p.attentionUpdatedAt);
-      const lastPracticed = isoTime(p.lastPracticed ?? p.lastPracticedAt ?? p.last_practiced_at);
-      const updateCandidates = [lastSeen,lastStudied,lastReviewed,lastPracticed,isoTime(p.updatedAt),isoTime(p.lastAttentionUpdatedAt)].filter(Boolean).sort();
+      const lastSeen = legacyStateTime(p.lastSeen ?? p.last_seen_at);
+      const lastStudied = legacyStateTime(p.lastStudied ?? p.lastStudiedAt ?? p.last_studied_at);
+      const lastReviewed = legacyStateTime(p.lastReviewed ?? p.lastReviewedAt ?? p.last_reviewed_at ?? p.attentionUpdatedAt);
+      const lastPracticed = legacyStateTime(p.lastPracticed ?? p.lastPracticedAt ?? p.last_practiced_at);
+      const attentionRaw = p.lastAttentionUpdated ?? p.lastAttentionUpdatedAt ?? p.attentionUpdatedAt;
+      const lastAttention = legacyStateTime(attentionRaw);
+      if (p.lastAttentionUpdated != null && p.lastAttentionUpdatedAt == null && p.attentionUpdatedAt == null && lastAttention) {
+        audit.stateAttentionAliasMappings += 1;
+      }
+      const updateCandidates = [lastSeen,lastStudied,lastReviewed,lastPracticed,isoTime(p.updatedAt),lastAttention].filter(Boolean).sort();
       tables.learning_state.push({
         card_id: cardId,
         studied: Boolean(p.studied),
@@ -428,7 +443,7 @@
         last_reviewed_at: lastReviewed,
         last_practiced_at: lastPracticed,
         last_result: nullable(p.lastResult ?? p.result),
-        last_attention_updated_at: isoTime(p.lastAttentionUpdatedAt ?? p.attentionUpdatedAt),
+        last_attention_updated_at: lastAttention,
         state_source: 'migrated_snapshot',
         field_meta: {},
         revision: numeric(p.revision) || 1,
@@ -605,6 +620,12 @@
     summarizeAudit('Study Context cards', audit.missingContextCards, 'card reference');
     summarizeAudit('Study Context historical sessions', audit.missingContextSessions, 'context');
     summarizeAudit('Study Build cards', audit.missingBuildCards, 'card reference');
+    if (audit.stateZeroTimestampSentinels) {
+      warnings.push(`Learning State normalization: ${audit.stateZeroTimestampSentinels} legacy zero timestamp sentinel${audit.stateZeroTimestampSentinels === 1 ? '' : 's'} treated as null.`);
+    }
+    if (audit.stateAttentionAliasMappings) {
+      warnings.push(`Learning State normalization: ${audit.stateAttentionAliasMappings} lastAttentionUpdated value${audit.stateAttentionAliasMappings === 1 ? '' : 's'} mapped to canonical last_attention_updated_at.`);
+    }
 
     const sourceRecordCount = records.length;
     const consumedCount = consumed.size;
