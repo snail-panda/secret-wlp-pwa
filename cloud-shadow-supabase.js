@@ -587,6 +587,7 @@
     $('sign-out-cloud').disabled = state.busy || !signedIn;
     $('upload-shadow').disabled = state.busy || !configured || !signedIn || !scanned || !scanClean;
     $('compare-cloud').disabled = state.busy || !configured || !signedIn || !scanned || !scanClean;
+    window.dispatchEvent(new CustomEvent('wlp-cloud-shadow-auth-state'));
   }
 
   function renderConfig() {
@@ -638,6 +639,20 @@
     window.addEventListener('wlp-cloud-shadow-scan-complete', refreshButtons);
     refreshButtons();
   }
+
+  window.WLPCloudShadowSupabase = Object.freeze({
+    ensureSession,
+    registerDevice,
+    rest,
+    fetchPaged,
+    getDevice,
+    getState: () => ({
+      configured: Boolean(state.config?.url && state.config?.publishableKey),
+      signedIn: Boolean(state.session?.accessToken && state.session?.userId),
+      userId: state.session?.userId || '',
+      deviceKey: state.device?.deviceKey || ''
+    })
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();

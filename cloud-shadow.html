@@ -59,6 +59,10 @@
       <button class="action" id="export-identity" type="button" disabled>Export Card-ID Report</button>
       <button class="action" id="run-migration" type="button" disabled>Run Canonical Migration Dry Run</button>
       <button class="action" id="export-migration" type="button" disabled>Export Migration Report</button>
+      <button class="action cloud-action" id="stage-canonical" type="button" disabled>Stage Canonical + Round-trip</button>
+      <button class="action cloud-action" id="retry-canonical-stage" type="button" disabled>Retry Same Stage</button>
+      <button class="action cloud-action" id="read-canonical-stage" type="button" disabled>Read Canonical Stage</button>
+      <button class="action" id="export-stage" type="button" disabled>Export Stage Report</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -125,6 +129,37 @@
       <p class="status-line" id="migration-status">Run Local Scan, then run the Canonical Migration dry run.</p>
     </section>
 
+    <section class="panel hidden" id="staging-panel">
+      <div class="panel-head"><div><h2>Canonical Cloud Staging · round-trip</h2><p>Uploads the v194 Canonical representation into isolated per-device staging snapshots, reads it back, verifies transport integrity, and audits the latest staged snapshots across devices. It never applies Cloud data to WLP.</p></div><div class="compare-badge">Round-trip <strong id="staging-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="staging-local-rows">0</strong><span>Local canonical rows</span></div>
+        <div class="metric"><strong id="staging-cloud-rows">0</strong><span>Self read-back rows</span></div>
+        <div class="metric"><strong id="staging-device-count">0</strong><span>Latest staged devices</span></div>
+        <div class="metric"><strong id="staging-core-divergences">0</strong><span>Core divergences</span></div>
+        <div class="metric"><strong id="staging-union-rows">0</strong><span>History union rows</span></div>
+        <div class="metric"><strong id="staging-tombstones">0</strong><span>Explicit tombstones</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Stage key · deterministic from Full Canonical SHA-256</p>
+      <div class="hash-box" id="staging-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Read-back Full Canonical SHA-256</p>
+      <div class="hash-box" id="staging-readback-hash"></div>
+      <div class="audit-wrap" style="margin-top:16px">
+        <table class="audit-table">
+          <thead><tr><th>Latest staged device</th><th>Rows</th><th>Core hash</th><th>Learning hash</th><th>Status</th></tr></thead>
+          <tbody id="staging-device-body"></tbody>
+        </table>
+      </div>
+      <div class="audit-wrap" style="margin-top:16px">
+        <table class="audit-table">
+          <thead><tr><th>Canonical table</th><th>Union keys</th><th>Identical duplicates</th><th>Divergent collisions</th></tr></thead>
+          <tbody id="staging-union-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Staging audit</h3>
+      <ul class="error-list" id="staging-issues"></ul>
+      <p class="status-line" id="staging-status">Run Local Scan, install the staging SQL once in Supabase, then stage the Canonical representation.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -167,5 +202,6 @@
   <script src="./cloud-shadow-identity.js"></script>
   <script src="./cloud-shadow-migration.js"></script>
   <script src="./cloud-shadow-supabase.js"></script>
+  <script src="./cloud-shadow-staging.js"></script>
 </body>
 </html>
