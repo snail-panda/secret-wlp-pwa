@@ -6,13 +6,13 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.197-canonical-merge-audit-v1';
+  const APP_VERSION = '1.8.6.199-canonical-merge-audit-v1';
   const CORE_TABLES = new Set(['cards', 'card_content', 'card_classification']);
   const APPEND_ONLY_TABLES = new Set(['learning_events']);
   const STRUCTURAL_CHILD_TABLES = new Set([
     'learning_alternative_situations', 'study_context_cards', 'study_build_cards'
   ]);
-  const state = { busy: false, report: null };
+  const state = { busy: false, report: null, simulationInput: null };
 
   function stableValue(value) {
     if (Array.isArray(value)) return value.map(stableValue);
@@ -368,6 +368,7 @@
 
       const summary = summarize(collisions);
       const compatibilityBlocking = Object.values(compatibility).some(value => value === false);
+      state.simulationInput = { latestRuns, compatibility, fingerprintRows, collisions };
       state.report = {
         format: 'WLP_CANONICAL_MERGE_AUDIT_REPORT',
         version: 1,
@@ -387,6 +388,7 @@
         }
       };
       render(state.report);
+      window.dispatchEvent(new CustomEvent('wlp-canonical-merge-audit-complete'));
       setStatus(
         `Canonical Merge Audit complete · ${summary.divergent} divergent collision(s) classified · ${summary.ordered} ordered candidate(s) · ${summary.review} review candidate(s) · ${summary.blocking} automatic-merge blocker(s) · no Cloud/WLP data modified.`,
         summary.blocking || compatibilityBlocking ? 'error' : 'success'
@@ -476,6 +478,11 @@
     $('run-merge-audit').disabled = state.busy || !apiState.configured || !apiState.signedIn;
     $('export-merge-audit').disabled = state.busy || !state.report;
   }
+
+  window.WLPCanonicalMergeAudit = Object.freeze({
+    getReport: () => state.report,
+    getSimulationInput: () => state.simulationInput
+  });
 
   function init() {
     $('run-merge-audit').addEventListener('click', runAudit);

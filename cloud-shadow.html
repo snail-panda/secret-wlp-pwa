@@ -65,6 +65,8 @@
       <button class="action" id="export-stage" type="button" disabled>Export Stage Report</button>
       <button class="action cloud-action" id="run-merge-audit" type="button" disabled>Audit Canonical Merge</button>
       <button class="action" id="export-merge-audit" type="button" disabled>Export Merge Audit</button>
+      <button class="action cloud-action" id="run-merge-sim" type="button" disabled>Simulate Canonical Merge</button>
+      <button class="action" id="export-merge-sim" type="button" disabled>Export Merge Simulation</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -190,6 +192,29 @@
       <p class="status-line" id="merge-audit-status">Read-only audit has not run yet. No merge action exists in this patch.</p>
     </section>
 
+    <section class="panel hidden" id="merge-sim-panel">
+      <div class="panel-head"><div><h2>Canonical Merge Simulation · in memory</h2><p>Applies provisional field-by-field merge rules to the divergent staged variants in memory only. It preserves source variants for audit and performs no Cloud write or Cloud → WLP apply.</p></div><div class="compare-badge">Simulation <strong id="merge-sim-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="merge-sim-input">0</strong><span>Divergent input</span></div>
+        <div class="metric"><strong id="merge-sim-resolved">0</strong><span>Resolved in simulation</span></div>
+        <div class="metric"><strong id="merge-sim-unresolved">0</strong><span>Unresolved</span></div>
+        <div class="metric"><strong id="merge-sim-union">0</strong><span>Union row identities</span></div>
+        <div class="metric"><strong id="merge-sim-repeat">—</strong><span>Plan repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Deterministic merge-plan SHA-256</p>
+      <div class="hash-box" id="merge-sim-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Simulated decisions</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Row key</th><th>Status</th><th>Rule</th><th>Differing fields</th><th>Evidence</th></tr></thead>
+          <tbody id="merge-sim-detail-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Simulation policy notes</h3>
+      <ul class="error-list" id="merge-sim-notes"></ul>
+      <p class="status-line" id="merge-sim-status">Run Audit Canonical Merge first. Simulation is disabled until that read-only audit exists in this page session.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -234,5 +259,6 @@
   <script src="./cloud-shadow-supabase.js"></script>
   <script src="./cloud-shadow-staging.js"></script>
   <script src="./cloud-shadow-merge-audit.js"></script>
+  <script src="./cloud-shadow-merge-simulation.js"></script>
 </body>
 </html>
