@@ -55,6 +55,8 @@
       <button class="action cloud-action" id="upload-shadow" type="button" disabled>Upload Shadow</button>
       <button class="action cloud-action" id="compare-cloud" type="button" disabled>Compare Cloud</button>
       <button class="action" id="export-compare" type="button" disabled>Export Compare Report</button>
+      <button class="action" id="run-identity" type="button" disabled>Run Card-ID Dry Run</button>
+      <button class="action" id="export-identity" type="button" disabled>Export Card-ID Report</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -72,6 +74,23 @@
       <div class="panel-head"><div><h2>Snapshot SHA-256</h2><p>Deterministic hash of sorted logical-record identities and payload hashes.</p></div></div>
       <div class="hash-box" id="snapshot-hash"></div>
       <p class="muted" id="previous-scan" style="font-size:.78rem;margin:10px 0 0"></p>
+    </section>
+
+    <section class="panel hidden" id="identity-panel">
+      <div class="panel-head"><div><h2>Canonical Card Identity · dry run</h2><p>Derives permanent candidate Card UUIDs from WID / Draft identity without writing to WLP, Shadow IndexedDB, or Supabase.</p></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="identity-card-count">0</strong><span>Mapped cards</span></div>
+        <div class="metric"><strong id="identity-unique-count">0</strong><span>Unique UUIDs</span></div>
+        <div class="metric"><strong id="identity-errors-count">0</strong><span>Identity issues</span></div>
+        <div class="metric"><strong id="identity-rerun">—</strong><span>Same-run repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">UUID namespace · locked candidate</p>
+      <div class="hash-box" id="identity-namespace"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Mapping SHA-256 · compare this across devices</p>
+      <div class="hash-box" id="identity-mapping-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Source snapshot SHA-256</p>
+      <div class="hash-box" id="identity-source-hash"></div>
+      <p class="status-line" id="identity-status">Run Local Scan, then run the Card-ID dry run.</p>
     </section>
 
     <section class="panel hidden" id="compare-panel">
@@ -113,6 +132,7 @@
 
   <script src="./cloud-shadow-config.js"></script>
   <script src="./cloud-shadow-core.js"></script>
+  <script src="./cloud-shadow-identity.js"></script>
   <script src="./cloud-shadow-supabase.js"></script>
 </body>
 </html>
