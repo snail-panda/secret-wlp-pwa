@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>WLP · Cloud Shadow Diagnostics</title>
+  <link rel="stylesheet" href="./cloud-shadow.css">
+</head>
+<body>
+  <main class="shadow-page">
+    <header class="shadow-head">
+      <div>
+        <span class="shadow-kicker">WLP · Cloud Architecture</span>
+        <h1>Shadow Diagnostics</h1>
+        <p class="shadow-sub">Read-only migration scanner for Supabase Shadow Mode v0-A. It reads the existing WLP and computes logical-record hashes. It does not upload, restore, import, or write cloud data back into WLP.</p>
+      </div>
+      <div class="cloud-pill">Cloud <strong id="cloud-state">OFF</strong></div>
+    </header>
+
+    <section class="shadow-safety" aria-label="Safety guarantees">
+      <div class="safety-item"><strong>Existing WLP</strong><span>Read only. No localStorage or Master TSV writes.</span></div>
+      <div class="safety-item"><strong>Cloud transport</strong><span>Unavailable in v0-A. Supabase credentials are not required.</span></div>
+      <div class="safety-item"><strong>Shadow state</strong><span>Only a new isolated IndexedDB database may be created after you run a scan.</span></div>
+    </section>
+
+    <div class="actions">
+      <button class="action primary" id="run-scan" type="button">Run Local Scan</button>
+      <button class="action" id="export-report" type="button" disabled>Export Scan Report</button>
+    </div>
+    <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
+
+    <section class="panel hidden" id="summary-panel">
+      <div class="panel-head"><div><h2>Local snapshot</h2><p>Manifest-approved logical records generated from the current browser state.</p></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="metric-master">0</strong><span>Master cards</span></div>
+        <div class="metric"><strong id="metric-drafts">0</strong><span>Draft cards</span></div>
+        <div class="metric"><strong id="metric-records">0</strong><span>Logical records</span></div>
+        <div class="metric"><strong id="metric-errors">0</strong><span>Scan errors</span></div>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="hash-panel">
+      <div class="panel-head"><div><h2>Snapshot SHA-256</h2><p>Deterministic hash of sorted logical-record identities and payload hashes.</p></div></div>
+      <div class="hash-box" id="snapshot-hash"></div>
+      <p class="muted" id="previous-scan" style="font-size:.78rem;margin:10px 0 0"></p>
+    </section>
+
+    <section class="panel hidden" id="audit-panel">
+      <div class="panel-head"><div><h2>Namespace audit</h2><p>Current storage namespaces are classified before any future cloud transport is allowed.</p></div></div>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Class</th><th>Namespaces</th><th>Bytes</th><th>Notes</th></tr></thead>
+          <tbody id="audit-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="entity-panel">
+      <div class="panel-head"><div><h2>Logical entities</h2><p>Counts prepared for Shadow Mode comparison. No upload occurs in this phase.</p></div></div>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Entity type</th><th>Records</th><th>Payload bytes</th><th>Identity</th></tr></thead>
+          <tbody id="entity-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="errors-panel">
+      <div class="panel-head"><div><h2>Issues requiring inspection</h2><p>Unexpected namespaces or malformed records are surfaced instead of silently ignored.</p></div></div>
+      <ul class="error-list" id="error-list"></ul>
+    </section>
+  </main>
+
+  <script src="./cloud-shadow-config.js"></script>
+  <script src="./cloud-shadow-core.js"></script>
+</body>
+</html>
