@@ -1,15 +1,16 @@
-/* WLP Supabase Shadow Mode v0-A — local scanner configuration.
-   Cloud transport is intentionally unavailable in this phase. */
+/* WLP Supabase Shadow Mode v0-B — manual cloud shadow configuration.
+   No automatic sync. No cloud data is ever written back into WLP in this phase. */
 (() => {
   'use strict';
 
   window.WLPCloudShadowConfig = Object.freeze({
-    phase: 'v0-A',
+    phase: 'v0-B',
     manifestVersion: 1,
-    cloudEnabled: false,
-    allowCloudReads: false,
-    allowCloudWrites: false,
+    automaticSync: false,
+    writeBackToWLP: false,
     supabaseUrl: '',
-    publishableKey: ''
+    publishableKey: '',
+    uploadBatchSize: 300,
+    fetchPageSize: 1000
   });
 })();

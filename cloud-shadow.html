@@ -13,20 +13,48 @@
       <div>
         <span class="shadow-kicker">WLP · Cloud Architecture</span>
         <h1>Shadow Diagnostics</h1>
-        <p class="shadow-sub">Read-only migration scanner for Supabase Shadow Mode v0-A. It reads the existing WLP and computes logical-record hashes. It does not upload, restore, import, or write cloud data back into WLP.</p>
+        <p class="shadow-sub">Supabase Shadow Mode v0-B. Existing WLP stays the source of truth. Cloud upload and comparison happen only when you press the corresponding buttons, and Cloud data is never written back into WLP in this phase.</p>
       </div>
       <div class="cloud-pill">Cloud <strong id="cloud-state">OFF</strong></div>
     </header>
 
     <section class="shadow-safety" aria-label="Safety guarantees">
-      <div class="safety-item"><strong>Existing WLP</strong><span>Read only. No localStorage or Master TSV writes.</span></div>
-      <div class="safety-item"><strong>Cloud transport</strong><span>Unavailable in v0-A. Supabase credentials are not required.</span></div>
-      <div class="safety-item"><strong>Shadow state</strong><span>Only a new isolated IndexedDB database may be created after you run a scan.</span></div>
+      <div class="safety-item"><strong>Existing WLP</strong><span>Read only from this page. No Master TSV or WLP localStorage writes.</span></div>
+      <div class="safety-item"><strong>Cloud transport</strong><span>Manual only. No background or automatic sync in v0-B.</span></div>
+      <div class="safety-item"><strong>Cloud → WLP</strong><span>Disabled. Compare only; downloaded Shadow data cannot overwrite WLP.</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>Supabase Shadow connection</h2><p>Project URL and publishable key are safe-to-ship client settings. They are stored only in this isolated Shadow IndexedDB. Never use a secret/service-role key here.</p></div><div id="auth-state" class="auth-state">Not signed in</div></div>
+      <div class="form-grid">
+        <label><span>Project URL</span><input id="supabase-url" type="url" inputmode="url" autocomplete="off" placeholder="https://your-project.supabase.co"></label>
+        <label><span>Publishable key</span><input id="supabase-key" type="text" autocomplete="off" spellcheck="false" placeholder="sb_publishable_…"></label>
+      </div>
+      <div class="actions compact-actions">
+        <button class="action" id="save-cloud-config" type="button">Save Shadow Config</button>
+      </div>
+      <div class="form-grid auth-grid">
+        <label><span>Email</span><input id="supabase-email" type="email" autocomplete="username"></label>
+        <label><span>Password</span><input id="supabase-password" type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="actions compact-actions">
+        <button class="action" id="sign-in-cloud" type="button" disabled>Sign In</button>
+        <button class="action" id="sign-out-cloud" type="button" disabled>Sign Out</button>
+      </div>
+      <div class="device-row">
+        <label><span>Device label</span><input id="device-label" type="text" maxlength="60" autocomplete="off"></label>
+        <button class="action" id="save-device-label" type="button">Save Label</button>
+      </div>
+      <p class="device-key-line">Device key: <code id="device-key"></code></p>
+      <p class="status-line" id="cloud-status">No cloud action runs automatically.</p>
     </section>
 
     <div class="actions">
       <button class="action primary" id="run-scan" type="button">Run Local Scan</button>
       <button class="action" id="export-report" type="button" disabled>Export Scan Report</button>
+      <button class="action cloud-action" id="upload-shadow" type="button" disabled>Upload Shadow</button>
+      <button class="action cloud-action" id="compare-cloud" type="button" disabled>Compare Cloud</button>
+      <button class="action" id="export-compare" type="button" disabled>Export Compare Report</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -46,8 +74,19 @@
       <p class="muted" id="previous-scan" style="font-size:.78rem;margin:10px 0 0"></p>
     </section>
 
+    <section class="panel hidden" id="compare-panel">
+      <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
+      <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Cloud device</th><th>Same</th><th>Different</th><th>Local only</th><th>Cloud only</th><th>Aligned tombstones</th></tr></thead>
+          <tbody id="compare-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="panel hidden" id="audit-panel">
-      <div class="panel-head"><div><h2>Namespace audit</h2><p>Current storage namespaces are classified before any future cloud transport is allowed.</p></div></div>
+      <div class="panel-head"><div><h2>Namespace audit</h2><p>Current storage namespaces are classified before Shadow transport is allowed.</p></div></div>
       <div class="audit-wrap">
         <table class="audit-table">
           <thead><tr><th>Class</th><th>Namespaces</th><th>Bytes</th><th>Notes</th></tr></thead>
@@ -57,7 +96,7 @@
     </section>
 
     <section class="panel hidden" id="entity-panel">
-      <div class="panel-head"><div><h2>Logical entities</h2><p>Counts prepared for Shadow Mode comparison. No upload occurs in this phase.</p></div></div>
+      <div class="panel-head"><div><h2>Logical entities</h2><p>Counts prepared for isolated Shadow upload and comparison.</p></div></div>
       <div class="audit-wrap">
         <table class="audit-table">
           <thead><tr><th>Entity type</th><th>Records</th><th>Payload bytes</th><th>Identity</th></tr></thead>
@@ -74,5 +113,6 @@
 
   <script src="./cloud-shadow-config.js"></script>
   <script src="./cloud-shadow-core.js"></script>
+  <script src="./cloud-shadow-supabase.js"></script>
 </body>
 </html>

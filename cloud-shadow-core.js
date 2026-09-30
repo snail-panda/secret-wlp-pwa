@@ -1,9 +1,9 @@
-/* WLP Supabase Shadow Mode v0-A — READ-ONLY local scanner.
-   No cloud transport. No writes to existing WLP localStorage/sessionStorage. */
+/* WLP Supabase Shadow Mode v0-B — local scanner + isolated Shadow transport foundation.
+   Existing WLP remains read-only here. Cloud write-back into WLP is forbidden. */
 (() => {
   'use strict';
 
-  const VERSION = '0-A';
+  const VERSION = '0-B';
   const DB_NAME = 'wlp-cloud-shadow-v0';
   const DB_VERSION = 1;
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv';
@@ -161,7 +161,8 @@
       payloadHash,
       tombstone: Boolean(options.tombstone),
       payloadBytes: utf8Bytes(canonical),
-      source: options.source || ''
+      source: options.source || '',
+      payload
     };
     if (target.keySet.has(`${type}|${identity}`)) throw new Error(`Duplicate logical identity: ${type}|${identity}`);
     target.keySet.add(`${type}|${identity}`);
@@ -427,8 +428,8 @@
     const errors = [];
     try {
       const config = window.WLPCloudShadowConfig || {};
-      if (config.cloudEnabled || config.allowCloudReads || config.allowCloudWrites) {
-        throw new Error('Safety stop: v0-A requires Cloud OFF and both cloud permissions disabled.');
+      if (config.automaticSync || config.writeBackToWLP) {
+        throw new Error('Safety stop: v0-B requires automaticSync=false and writeBackToWLP=false.');
       }
 
       const local = readStorageMap(localStorage);
@@ -465,7 +466,7 @@
         version: 1,
         phase: VERSION,
         scannedAt,
-        cloud: { enabled: false, reads: false, writes: false },
+        cloud: { mode: 'manual-shadow', automaticSync: false, writeBackToWLP: false },
         master: { url: MASTER_URL, cardCount: master.rows.length, bytes: master.bytes, sha256: master.hash },
         summary: { masterCards: master.rows.length, drafts, logicalRecords: logical.records.length, errors: errors.length },
         snapshotHash,
@@ -474,8 +475,10 @@
         entitySummary,
         unexpectedNamespaces: unexpected,
         warnings: logical.warnings,
-        records: logical.records
+        records: logical.records.map(({ payload, ...record }) => record)
       };
+
+      state.logicalRecords = logical.records;
 
       $('metric-master').textContent = String(master.rows.length);
       $('metric-drafts').textContent = String(drafts);
@@ -492,8 +495,9 @@
       $('export-report').disabled = false;
       $('scan-status').className = `status-line ${errors.length ? 'error' : 'success'}`;
       $('scan-status').textContent = errors.length
-        ? `Scan complete with ${errors.length} item${errors.length === 1 ? '' : 's'} requiring inspection. Cloud remains OFF.`
-        : `Scan complete · ${logical.records.length.toLocaleString()} logical records · Cloud remains OFF.`;
+        ? `Scan complete with ${errors.length} item${errors.length === 1 ? '' : 's'} requiring inspection. Shadow upload is blocked.`
+        : `Scan complete · ${logical.records.length.toLocaleString()} logical records · ready for optional manual Shadow upload.`;
+      window.dispatchEvent(new CustomEvent('wlp-cloud-shadow-scan-complete', { detail: { errors: errors.length, snapshotHash } }));
     } catch (error) {
       console.error('WLP Shadow local scan failed:', error);
       $('scan-status').className = 'status-line error';
@@ -520,10 +524,18 @@
 
   function init() {
     const config = window.WLPCloudShadowConfig || {};
-    $('cloud-state').textContent = config.cloudEnabled ? 'ON' : 'OFF';
+    $('cloud-state').textContent = 'OFF';
     $('run-scan').addEventListener('click', runScan);
     $('export-report').addEventListener('click', exportReport);
-    window.WLPCloudShadow = Object.freeze({ version: VERSION, runScan });
+    window.WLPCloudShadow = Object.freeze({
+      version: VERSION,
+      runScan,
+      getLatestSnapshot() {
+        if (!state.report || !Array.isArray(state.logicalRecords)) return null;
+        return { report: state.report, records: state.logicalRecords };
+      },
+      setCloudState(value) { if ($('cloud-state')) $('cloud-state').textContent = String(value || 'OFF'); }
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
