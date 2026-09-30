@@ -327,6 +327,7 @@
       if (!input?.collisions || !input?.fingerprintRows) throw new Error('Run Audit Canonical Merge first on this page, then run the simulation.');
       state.report = await buildSimulation(input);
       render(state.report);
+      window.dispatchEvent(new CustomEvent('wlp-canonical-merge-simulation-complete'));
       const s = state.report.summary;
       setStatus(
         `Canonical Merge Simulation ${s.pass ? 'PASS' : 'CHECK'} · ${s.resolvedInSimulation} / ${s.divergentInput} divergent collision(s) resolved in memory · ${s.unresolved} unresolved · repeatability ${s.repeatability ? 'PASS' : 'FAIL'} · no Cloud/WLP data modified.`,
@@ -396,6 +397,10 @@
     $('run-merge-sim').disabled = state.busy || !input?.collisions;
     $('export-merge-sim').disabled = state.busy || !state.report;
   }
+  window.WLPCanonicalMergeSimulation = Object.freeze({
+    getReport: () => state.report
+  });
+
   function init() {
     $('run-merge-sim').addEventListener('click', runSimulation);
     $('export-merge-sim').addEventListener('click', exportReport);

@@ -67,6 +67,8 @@
       <button class="action" id="export-merge-audit" type="button" disabled>Export Merge Audit</button>
       <button class="action cloud-action" id="run-merge-sim" type="button" disabled>Simulate Canonical Merge</button>
       <button class="action" id="export-merge-sim" type="button" disabled>Export Merge Simulation</button>
+      <button class="action" id="run-merge-materialize" type="button" disabled>Materialize Merged Snapshot</button>
+      <button class="action" id="export-merge-materialize" type="button" disabled>Export Materialization</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -215,6 +217,39 @@
       <p class="status-line" id="merge-sim-status">Run Audit Canonical Merge first. Simulation is disabled until that read-only audit exists in this page session.</p>
     </section>
 
+    <section class="panel hidden" id="merge-materialize-panel">
+      <div class="panel-head"><div><h2>Merged Canonical Snapshot Materialization · in memory</h2><p>Builds a deterministic content-addressed manifest for the full Canonical union. Verified unchanged rows reuse staged payload hashes; divergent rows are materialized from the successful field-by-field merge plan. No Cloud write or Cloud → WLP apply occurs.</p></div><div class="compare-badge">Materialization <strong id="merge-materialize-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="merge-materialize-union">0</strong><span>Union row identities</span></div>
+        <div class="metric"><strong id="merge-materialize-unchanged">0</strong><span>Verified unchanged</span></div>
+        <div class="metric"><strong id="merge-materialize-merged">0</strong><span>Materialized merges</span></div>
+        <div class="metric"><strong id="merge-materialize-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="merge-materialize-structural">—</strong><span>Structural safety</span></div>
+        <div class="metric"><strong id="merge-materialize-repeat">—</strong><span>Repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Merged snapshot manifest SHA-256</p>
+      <div class="hash-box" id="merge-materialize-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Materialized divergent-payload SHA-256</p>
+      <div class="hash-box" id="merge-materialize-merge-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Materialized table manifest</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Rows</th><th>Manifest hash</th></tr></thead>
+          <tbody id="merge-materialize-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Divergent rows materialized in memory</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Row key</th><th>Rule</th><th>Payload hash</th><th>Sources</th></tr></thead>
+          <tbody id="merge-materialize-detail-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Materialization notes</h3>
+      <ul class="error-list" id="merge-materialize-notes"></ul>
+      <p class="status-line" id="merge-materialize-status">Run Canonical Merge Simulation first. Materialization remains disabled until the simulation passes in this page session.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -260,5 +295,6 @@
   <script src="./cloud-shadow-staging.js"></script>
   <script src="./cloud-shadow-merge-audit.js"></script>
   <script src="./cloud-shadow-merge-simulation.js"></script>
+  <script src="./cloud-shadow-merge-materialization.js"></script>
 </body>
 </html>
