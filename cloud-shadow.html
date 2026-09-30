@@ -63,6 +63,8 @@
       <button class="action cloud-action" id="retry-canonical-stage" type="button" disabled>Retry Same Stage</button>
       <button class="action cloud-action" id="read-canonical-stage" type="button" disabled>Read Canonical Stage</button>
       <button class="action" id="export-stage" type="button" disabled>Export Stage Report</button>
+      <button class="action cloud-action" id="run-merge-audit" type="button" disabled>Audit Canonical Merge</button>
+      <button class="action" id="export-merge-audit" type="button" disabled>Export Merge Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -160,6 +162,34 @@
       <p class="status-line" id="staging-status">Run Local Scan, install the staging SQL once in Supabase, then stage the Canonical representation.</p>
     </section>
 
+    <section class="panel hidden" id="merge-audit-panel">
+      <div class="panel-head"><div><h2>Canonical Merge Audit · read only</h2><p>Classifies divergent same-key rows across the latest verified Canonical staging snapshots. It reads Cloud staging only, preserves every variant, and performs no merge or Cloud → WLP apply.</p></div><div class="compare-badge">Audit <strong id="merge-audit-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="merge-audit-devices">0</strong><span>Latest staged devices</span></div>
+        <div class="metric"><strong id="merge-audit-divergent">0</strong><span>Divergent collisions</span></div>
+        <div class="metric"><strong id="merge-audit-ordered">0</strong><span>Ordered candidates</span></div>
+        <div class="metric"><strong id="merge-audit-review">0</strong><span>Review candidates</span></div>
+        <div class="metric"><strong id="merge-audit-blocking">0</strong><span>Auto-merge blockers</span></div>
+        <div class="metric"><strong id="merge-audit-tombstone">0</strong><span>Tombstone disagreements</span></div>
+      </div>
+      <div class="audit-wrap" style="margin-top:16px">
+        <table class="audit-table">
+          <thead><tr><th>Canonical table</th><th>Divergent</th><th>Ordered</th><th>Review</th><th>Blocking</th></tr></thead>
+          <tbody id="merge-audit-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Collision detail</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Row key</th><th>Class</th><th>Category</th><th>Differing fields</th><th>Evidence</th></tr></thead>
+          <tbody id="merge-audit-detail-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Merge audit notes</h3>
+      <ul class="error-list" id="merge-audit-issues"></ul>
+      <p class="status-line" id="merge-audit-status">Read-only audit has not run yet. No merge action exists in this patch.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -203,5 +233,6 @@
   <script src="./cloud-shadow-migration.js"></script>
   <script src="./cloud-shadow-supabase.js"></script>
   <script src="./cloud-shadow-staging.js"></script>
+  <script src="./cloud-shadow-merge-audit.js"></script>
 </body>
 </html>
