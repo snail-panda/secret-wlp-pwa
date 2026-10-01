@@ -3641,9 +3641,11 @@ function openReviewAttentionSheet(row, stateKey, onSaved) {
         });
         closeReviewAttentionSheet();
         showStudyToast(
-          result?.pass
-            ? "Canonical Study attention candidate passed and rolled back cleanly."
-            : "Canonical Study attention candidate was blocked. No legacy attention write occurred.",
+          result?.reloading
+            ? "Pending Canonical attention saved. Reloading once to verify local outbox persistence."
+            : result?.pass
+              ? "Canonical Study attention candidate passed."
+              : "Canonical Study attention candidate was blocked. No legacy attention write occurred.",
           result?.pass ? 5200 : 6200
         );
       } finally {
@@ -3922,6 +3924,11 @@ function bindCardBehavior(
 
   const canonicalStudyCandidateActive = Boolean(window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.());
   if (canonicalStudyCandidateActive) {
+    void window.WLPCanonicalStudyAttentionWriteCandidate?.afterRender?.({
+      stateKey,
+      wordId: String(row?.WordID || "").trim(),
+      refresh: refreshProgressControls
+    });
     if (studiedButton) {
       studiedButton.disabled = true;
       studiedButton.title = "Canonical Study attention candidate: Studied writes are locked for this test.";
