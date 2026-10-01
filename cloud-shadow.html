@@ -121,6 +121,8 @@
       <button class="action" id="export-outbox-facade-overlay" type="button" disabled>Export Outbox Facade Overlay</button>
       <button class="action cloud-action" id="run-cloud-transport-preflight" type="button">Run Cloud Mutation Transport Preflight</button>
       <button class="action" id="export-cloud-transport-preflight" type="button" disabled>Export Cloud Transport Preflight</button>
+      <button class="action cloud-action" id="run-cloud-receipt" type="button">Run Quarantined Cloud Receipt + Retry</button>
+      <button class="action" id="export-cloud-receipt" type="button" disabled>Export Cloud Receipt Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -843,6 +845,27 @@
       <p class="status-line" id="cloud-transport-preflight-status">Install the bundled read-only RPC SQL once, then run this gate while signed in. No Cloud row is created or changed by this preflight.</p>
     </section>
 
+    <section class="panel hidden" id="cloud-receipt-panel">
+      <div class="panel-head"><div><h2>Cloud mutation receipt · quarantined idempotency candidate</h2><p>First intentional Cloud write in the canonical sync path. The exact production-shaped UUID pair is stored only in the isolated <code>wlp_sync_mutation_receipts_v1</code> quarantine table, then the same pair is immediately retried to prove mutation-id idempotency. No Canonical Authority row, learning row, change feed, conflict row, local mirror, local outbox, or localStorage value is modified.</p></div><div class="compare-badge">Cloud Receipt <strong id="cloud-receipt-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="cloud-receipt-before">0</strong><span>Receipts before</span></div>
+        <div class="metric"><strong id="cloud-receipt-first-writes">0</strong><span>First-call writes</span></div>
+        <div class="metric"><strong id="cloud-receipt-retry-writes">0</strong><span>Retry writes</span></div>
+        <div class="metric"><strong id="cloud-receipt-after">0</strong><span>Receipts after</span></div>
+        <div class="metric"><strong id="cloud-receipt-idempotent">—</strong><span>Retry idempotent</span></div>
+        <div class="metric"><strong id="cloud-receipt-authority">—</strong><span>Authority</span></div>
+        <div class="metric"><strong id="cloud-receipt-outbox">0 → 0</strong><span>Local outbox</span></div>
+        <div class="metric"><strong id="cloud-receipt-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Action UUID</p><div class="hash-box" id="cloud-receipt-action"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning State mutation UUID</p><div class="hash-box" id="cloud-receipt-state-id"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning Event mutation UUID</p><div class="hash-box" id="cloud-receipt-event-id"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Receipt proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="cloud-receipt-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Receipt notes</h3><ul class="error-list" id="cloud-receipt-notes"></ul>
+      <p class="status-line" id="cloud-receipt-status">Install the bundled receipt SQL once, then run this candidate while signed in. Only the isolated quarantine receipt table may be written.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -910,5 +933,6 @@
   <script src="./cloud-shadow-write-outbox-roundtrip.js"></script>
   <script src="./cloud-shadow-outbox-facade-overlay-roundtrip.js"></script>
   <script src="./cloud-shadow-cloud-transport-preflight.js"></script>
+  <script src="./cloud-shadow-cloud-receipt-candidate.js"></script>
 </body>
 </html>
