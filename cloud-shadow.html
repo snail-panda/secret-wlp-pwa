@@ -866,6 +866,30 @@
       <p class="status-line" id="cloud-receipt-status">Install the bundled receipt SQL once, then run this candidate while signed in. Only the isolated quarantine receipt table may be written.</p>
     </section>
 
+    <section class="panel hidden" id="cloud-candidate-panel">
+      <div class="panel-head"><div><h2>Canonical sync · inactive apply candidate</h2><p>Materializes the exact quarantined WID2876 mutation pair into a full VERIFIED but INACTIVE Canonical Authority candidate in one server transaction. The ACTIVE v2 Head is not promoted in this step.</p></div><div class="compare-badge">Candidate materialization <strong id="cloud-candidate-result">—</strong></div></div>
+      <div class="actions">
+        <button type="button" id="run-cloud-candidate">Materialize Quarantined Pair as Inactive Candidate</button>
+        <button type="button" class="secondary" id="export-cloud-candidate" disabled>Export Candidate Audit</button>
+      </div>
+      <div class="metrics">
+        <div class="metric"><strong id="cloud-candidate-created">—</strong><span>First candidate created</span></div>
+        <div class="metric"><strong id="cloud-candidate-records">0</strong><span>Candidate rows</span></div>
+        <div class="metric"><strong id="cloud-candidate-state">—</strong><span>WID2876 state</span></div>
+        <div class="metric"><strong id="cloud-candidate-event">—</strong><span>Event appended</span></div>
+        <div class="metric"><strong id="cloud-candidate-retry">—</strong><span>Retry idempotency</span></div>
+        <div class="metric"><strong id="cloud-candidate-head">—</strong><span>ACTIVE Head</span></div>
+        <div class="metric"><strong id="cloud-candidate-outbox">0 → 0</strong><span>Local outbox</span></div>
+        <div class="metric"><strong id="cloud-candidate-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Inactive candidate key</p><div class="hash-box" id="cloud-candidate-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Candidate snapshot manifest SHA-256</p><div class="hash-box" id="cloud-candidate-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Candidate proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="cloud-candidate-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Candidate notes</h3><ul class="error-list" id="cloud-candidate-notes"></ul>
+      <p class="status-line" id="cloud-candidate-status">Install the bundled v233 SQL once, then materialize the exact v232 quarantined pair. ACTIVE Authority must remain v2.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -934,5 +958,6 @@
   <script src="./cloud-shadow-outbox-facade-overlay-roundtrip.js"></script>
   <script src="./cloud-shadow-cloud-transport-preflight.js"></script>
   <script src="./cloud-shadow-cloud-receipt-candidate.js"></script>
+  <script src="./cloud-shadow-cloud-candidate-materialize.js"></script>
 </body>
 </html>
