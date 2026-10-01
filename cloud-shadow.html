@@ -105,6 +105,9 @@
       <button class="action" id="export-first-seen-candidate" type="button" disabled>Export Authority v2 Candidate</button>
       <button class="action cloud-action" id="run-first-seen-promotion-preflight" type="button">Run Authority v2 Promotion Preflight</button>
       <button class="action" id="export-first-seen-promotion-preflight" type="button" disabled>Export v2 Promotion Preflight</button>
+      <button class="action cloud-action" id="promote-first-seen-authority-v2" type="button">Promote Authority v2 Head + Read-back</button>
+      <button class="action cloud-action" id="retry-first-seen-authority-v2-promotion" type="button" disabled>Retry Same v2 Promotion</button>
+      <button class="action" id="export-first-seen-authority-v2-promotion" type="button" disabled>Export Authority v2 Promotion</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -689,6 +692,32 @@
       <p class="status-line" id="first-seen-promotion-preflight-status">Read only. The ACTIVE Head remains v1. A PASS only authorizes the next explicit revision-promotion step; it does not promote anything.</p>
     </section>
 
+    <section class="panel hidden" id="first-seen-authority-v2-promotion-panel">
+      <div class="panel-head"><div><h2>Canonical Authority v2 · explicit Head promotion</h2><p>Calls the narrow server-side revision RPC to atomically advance the single Authority Head from the exact verified v1 parent to the exact verified v2 FirstSeen-repair candidate, then reads the Head and candidate back. This changes only the Cloud authority pointer; the local Canonical mirror and live WLP remain untouched.</p></div><div class="compare-badge">Authority v2 promotion <strong id="first-seen-authority-v2-promotion-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="first-seen-authority-v2-promotion-state">—</strong><span>Head state</span></div>
+        <div class="metric"><strong id="first-seen-authority-v2-promotion-version">0</strong><span>Head version</span></div>
+        <div class="metric"><strong id="first-seen-authority-v2-promotion-rows">0</strong><span>Canonical rows</span></div>
+        <div class="metric"><strong id="first-seen-authority-v2-promotion-changed">0</strong><span>Targeted state changes</span></div>
+        <div class="metric"><strong id="first-seen-authority-v2-promotion-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="first-seen-authority-v2-promotion-idempotent">—</strong><span>Retry idempotency</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Active Authority v2 candidate key</p>
+      <div class="hash-box" id="first-seen-authority-v2-promotion-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Active Authority v2 manifest SHA-256</p>
+      <div class="hash-box" id="first-seen-authority-v2-promotion-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+          <tbody id="first-seen-authority-v2-promotion-proof-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion notes</h3>
+      <ul class="error-list" id="first-seen-authority-v2-promotion-notes"></ul>
+      <p class="status-line" id="first-seen-authority-v2-promotion-status">Install the Authority Revision Promotion RPC v1 SQL once, then run the explicit v2 promotion. The local Canonical mirror remains on v1 until a separate mirror revision step.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -750,5 +779,6 @@
   <script src="./cloud-shadow-first-seen-preflight.js"></script>
   <script src="./cloud-shadow-first-seen-candidate.js"></script>
   <script src="./cloud-shadow-first-seen-promotion-preflight.js"></script>
+  <script src="./cloud-shadow-first-seen-promotion.js"></script>
 </body>
 </html>
