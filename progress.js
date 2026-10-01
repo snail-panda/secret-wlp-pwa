@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.147 — Standard Practice target-aware Progress history + Progress return. */
+/* WLP Stage 7 v1.8.6.221 — gated Canonical Progress read cutover candidate; legacy default remains rollback path. */
 (() => {
   'use strict';
 
@@ -20,6 +20,119 @@
   const WLP_ADMIN_PASSWORD_SHA256 = 'd199aa3ab28923618bab089d78e8faa5e5004d0bc37c22ae5589454d575d192c';
   const RECENT_MS = 14 * 24 * 60 * 60 * 1000;
   const $ = id => document.getElementById(id);
+  const CANONICAL_READ_PARAM = 'wlpCanonicalRead';
+  const canonicalReadRequested = new URLSearchParams(location.search).get(CANONICAL_READ_PARAM) === '1';
+  let canonicalReadBundle = null;
+  const canonicalReadState = {
+    version: 1,
+    requested: canonicalReadRequested,
+    active: false,
+    fallbackToLegacy: false,
+    failure: '',
+    source: 'legacy-localStorage',
+    canonicalSnapshotPrepared: false,
+    facadeMeta: null,
+    projectionHash: '',
+    explicitFirstSeenRows: 0,
+    canonicalReviewRows: 0,
+    writeMethodsExposed: [],
+    coreReadCounts: { progress:0, practice:0, activity:0, interaction:0, standardSessions:0, aiEvents:0, aiRoute:0, aiProfile:0 },
+    legacyCoreReadCalls: 0,
+    renderCount: 0,
+    rendered: false,
+    stats: null,
+    loadedCounts: null,
+    dataNote: '',
+    spotCheck2876: null
+  };
+
+  function cloneValue(value) {
+    if (typeof structuredClone === 'function') return structuredClone(value);
+    return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  }
+
+  function canonicalBundleRead(name, key) {
+    if (!canonicalReadBundle) return null;
+    canonicalReadState.coreReadCounts[name] = Number(canonicalReadState.coreReadCounts[name] || 0) + 1;
+    return cloneValue(canonicalReadBundle[key]);
+  }
+
+  async function canonicalProviderAfterDomReady() {
+    let provider = window.WLPCanonicalStorageCompatibilityFacade;
+    if (provider?.open) return provider;
+    if (document.readyState === 'loading') {
+      await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once:true }));
+    }
+    provider = window.WLPCanonicalStorageCompatibilityFacade;
+    return provider;
+  }
+
+  async function prepareCanonicalReadCandidate() {
+    if (!canonicalReadRequested) return false;
+    try {
+      const provider = await canonicalProviderAfterDomReady();
+      if (!provider?.open || provider.readOnly !== true) throw new Error('Read-only Storage Compatibility Facade is unavailable.');
+      const facade = await provider.open();
+      if (!facade?.readOnly) throw new Error('Storage Compatibility Facade is not read-only.');
+      const writeNames = Object.keys(facade).filter(name => typeof facade[name] === 'function' && /^(?:set|put|add|update|delete|remove|clear|write|save|commit|mutate|append)/i.test(name));
+      if (writeNames.length) throw new Error(`Storage Compatibility Facade exposes write method(s): ${writeNames.join(', ')}`);
+
+      const bundle = {
+        progressRecords: facade.readProgressRecords(),
+        reviewRecords: facade.readReviewRecords(),
+        practiceEvents: facade.readPracticeEvents(),
+        activityEvents: facade.readActivityEvents(),
+        interactionEvents: facade.readInteractionEvents(),
+        studyQSessions: facade.readStudyQSessions(),
+        aiStudyEvents: facade.readAIStudyEvents(),
+        aiRouteState: facade.readAIRouteState(),
+        aiLearnerProfile: facade.readAILearnerProfile()
+      };
+      if (!Array.isArray(bundle.progressRecords) || bundle.progressRecords.length !== 111) throw new Error(`Canonical Progress row count mismatch: ${Array.isArray(bundle.progressRecords) ? bundle.progressRecords.length : 'invalid'}.`);
+      const explicitFirstSeenRows = bundle.progressRecords.filter(row => Number(row?.firstSeen || 0) > 0).length;
+      if (explicitFirstSeenRows !== 111) throw new Error(`Canonical firstSeen coverage mismatch: ${explicitFirstSeenRows}/111.`);
+      const spot = bundle.progressRecords.find(row => String(row?.wordId || '') === '2876') || null;
+      if (!spot || Number(spot.firstSeen || 0) !== 1790459055400) throw new Error('WID 2876 firstSeen does not match the verified Authority v2 value.');
+
+      canonicalReadBundle = bundle;
+      canonicalReadState.active = true;
+      canonicalReadState.fallbackToLegacy = false;
+      canonicalReadState.failure = '';
+      canonicalReadState.source = 'canonical-facade-v2';
+      canonicalReadState.canonicalSnapshotPrepared = true;
+      canonicalReadState.facadeMeta = cloneValue(facade.meta || {});
+      canonicalReadState.projectionHash = String(facade.projectionHash || '');
+      canonicalReadState.explicitFirstSeenRows = explicitFirstSeenRows;
+      canonicalReadState.canonicalReviewRows = bundle.reviewRecords.length;
+      canonicalReadState.writeMethodsExposed = writeNames;
+      canonicalReadState.spotCheck2876 = { wordId:'2876', firstSeen:Number(spot.firstSeen || 0), match:Number(spot.firstSeen || 0) === 1790459055400 };
+      return true;
+    } catch (error) {
+      canonicalReadBundle = null;
+      canonicalReadState.active = false;
+      canonicalReadState.fallbackToLegacy = true;
+      canonicalReadState.failure = error?.message || String(error);
+      canonicalReadState.source = 'legacy-localStorage-fallback';
+      canonicalReadState.canonicalSnapshotPrepared = false;
+      console.warn('Canonical Progress read candidate fell back to legacy localStorage:', error);
+      return false;
+    }
+  }
+
+  function updateReadRenderState(currentStats, note) {
+    canonicalReadState.renderCount += 1;
+    canonicalReadState.rendered = true;
+    canonicalReadState.stats = cloneValue(currentStats);
+    canonicalReadState.loadedCounts = {
+      progressRecords: progressRecords.length,
+      practiceEvents: practiceEvents.length,
+      activityEvents: activityEvents.length,
+      interactionEvents: interactionEvents.length,
+      studyQSessions: studyQSessions.length,
+      aiStudyEvents: aiStudyEvents.length
+    };
+    canonicalReadState.dataNote = String(note || '');
+  }
 
   const VIEW_META = {
     overview: { title: 'Overview', description: 'See where you are, what needs attention, and what to do next.' },
@@ -175,6 +288,9 @@
   function fmt(value) { return Number(value || 0).toLocaleString(); }
 
   function readProgressRecords() {
+    const canonical = canonicalBundleRead('progress', 'progressRecords');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     const records = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -204,6 +320,9 @@
   }
 
   function readPracticeEvents() {
+    const canonical = canonicalBundleRead('practice', 'practiceEvents');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(PRACTICE_EVENTS_KEY) || '[]');
       return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
@@ -214,6 +333,9 @@
   }
 
   function readInteractionEvents() {
+    const canonical = canonicalBundleRead('interaction', 'interactionEvents');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(INTERACTION_EVENTS_KEY) || '[]');
       return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
@@ -224,6 +346,9 @@
   }
 
   function readActivityEvents() {
+    const canonical = canonicalBundleRead('activity', 'activityEvents');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(ACTIVITY_EVENTS_KEY) || '[]');
       return Array.isArray(data) ? data.filter(event => event && typeof event === 'object') : [];
@@ -234,6 +359,9 @@
   }
 
   function readStudyQSessions() {
+    const canonical = canonicalBundleRead('standardSessions', 'studyQSessions');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(STUDYQ_SESSION_KEY) || '[]');
       return Array.isArray(data) ? data.filter(session => session && typeof session === 'object' && session.sessionId) : [];
@@ -244,6 +372,9 @@
   }
 
   function readAIStudyEvents() {
+    const canonical = canonicalBundleRead('aiEvents', 'aiStudyEvents');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(AI_STUDY_EVENT_KEY) || '[]');
       let list = [];
@@ -259,6 +390,9 @@
   }
 
   function readAIRouteState() {
+    const canonical = canonicalBundleRead('aiRoute', 'aiRouteState');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(AI_ROUTE_STATE_KEY) || '{}');
       return data && typeof data === 'object' ? data : {};
@@ -269,6 +403,9 @@
   }
 
   function readAILearnerProfile() {
+    const canonical = canonicalBundleRead('aiProfile', 'aiLearnerProfile');
+    if (canonical) return canonical;
+    canonicalReadState.legacyCoreReadCalls += 1;
     try {
       const data = JSON.parse(localStorage.getItem(AI_LEARNER_PROFILE_KEY) || '{}');
       return data && typeof data === 'object' ? data : {};
@@ -1389,12 +1526,16 @@
     aiRouteState = readAIRouteState();
     aiLearnerProfile = readAILearnerProfile();
     const s = stats();
-    $('progress-data-note').textContent = `${fmt(s.total)} cards · local progress`;
+    const note = canonicalReadState.active
+      ? `${fmt(s.total)} cards · canonical progress candidate`
+      : (canonicalReadState.fallbackToLegacy ? `${fmt(s.total)} cards · local progress · canonical fallback` : `${fmt(s.total)} cards · local progress`);
+    $('progress-data-note').textContent = note;
     renderOverview();
     renderLandscape();
     renderPaths();
     renderActivity();
     applyPanelOptions();
+    updateReadRenderState(s, note);
   }
 
   function progressViewFromUrl() {
@@ -1767,7 +1908,7 @@
 
   function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.3.4', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.5', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest, getReadSourceState: () => cloneValue(canonicalReadState) });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
@@ -1786,29 +1927,37 @@
   } catch (_) {}
   refreshProgressReturnLinks();
 
-  fetch(TSV_URL, {cache:'no-cache'})
-    .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); })
-    .then(text => {
-      rows = parseTSV(text);
-      rowByWordId = new Map(rows.map(row => [wordIdOf(row), row]).filter(([id]) => id));
-      renderAll();
-      restoreProgressReturnScroll(requestedScrollY);
-    })
-    .catch(error => {
-      console.error(error);
-      progressRecords = readProgressRecords();
-      practiceEvents = readPracticeEvents();
-      activityEvents = readActivityEvents();
-      interactionEvents = readInteractionEvents();
-      studyQSessions = readStudyQSessions();
-      aiStudyEvents = readAIStudyEvents();
-      aiRouteState = readAIRouteState();
-      aiLearnerProfile = readAILearnerProfile();
-      $('progress-data-note').textContent = 'Deck data unavailable';
-      renderOverview();
-      renderLandscape();
-      renderPaths();
-      renderActivity();
-      showToast('Progress opened, but the Master deck data could not be loaded.');
-    });
+  async function bootProgressPage() {
+    await prepareCanonicalReadCandidate();
+    fetch(TSV_URL, {cache:'no-cache'})
+      .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); })
+      .then(text => {
+        rows = parseTSV(text);
+        rowByWordId = new Map(rows.map(row => [wordIdOf(row), row]).filter(([id]) => id));
+        renderAll();
+        restoreProgressReturnScroll(requestedScrollY);
+      })
+      .catch(error => {
+        console.error(error);
+        progressRecords = readProgressRecords();
+        practiceEvents = readPracticeEvents();
+        activityEvents = readActivityEvents();
+        interactionEvents = readInteractionEvents();
+        studyQSessions = readStudyQSessions();
+        aiStudyEvents = readAIStudyEvents();
+        aiRouteState = readAIRouteState();
+        aiLearnerProfile = readAILearnerProfile();
+        const s = stats();
+        const note = 'Deck data unavailable';
+        $('progress-data-note').textContent = note;
+        renderOverview();
+        renderLandscape();
+        renderPaths();
+        renderActivity();
+        updateReadRenderState(s, note);
+        showToast('Progress opened, but the Master deck data could not be loaded.');
+      });
+  }
+
+  bootProgressPage();
 })();
