@@ -321,10 +321,18 @@
     const reasons=Array.isArray(latest?.reviewReasons)?latest.reviewReasons:[];
     return {...latest,review:true,known:false,reviewLevel:toLevel,reviewReasons:reasons,lastAttentionUpdated:now};
   }
-  function applyAttentionSuggestion(button){
-    if(canonicalReviewCandidateRequested()){showReviewToast('Canonical write candidate is locked to the controlled test panel.');return;}
+  async function applyAttentionSuggestion(button){
     const wordId=String(button?.dataset?.suggestionApply||'').trim();const fromLevel=String(button?.dataset?.fromLevel||'').trim();const toLevel=String(button?.dataset?.toLevel||'').trim();const evidenceThrough=Number(button?.dataset?.evidenceThrough||0);
     if(!wordId||!['high','medium','light'].includes(toLevel))return;
+    if(canonicalReviewCandidateActive()&&typeof canonicalReviewCandidate()?.applySuggestion==='function'){
+      button.disabled=true;
+      try{
+        const result=await canonicalReviewCandidate().applySuggestion({wordId,fromLevel,toLevel,evidenceThrough,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION});
+        showReviewToast(result?.pass?`Canonical Apply ${attentionLabel(toLevel)} round-trip passed.`:'Canonical Apply candidate was blocked. See the candidate panel.');
+      }finally{if(button.isConnected)button.disabled=false;}
+      return;
+    }
+    if(canonicalReviewCandidateRequested()){showReviewToast('Canonical write candidate is not ready; legacy write is locked.');return;}
     const latest=readProgressRecord(wordId);const currentLevel=String(latest?.reviewLevel||'').toLowerCase();
     if(!(latest?.review===true||latest?.lastResult==='review')||currentLevel!==fromLevel){showReviewToast('Attention changed elsewhere. Review refreshed.');reviewRecords=readReviewRecords();render();return;}
     const reasons=Array.isArray(latest.reviewReasons)?latest.reviewReasons:[];const now=Date.now();
@@ -333,9 +341,17 @@
     const index=reviewRecords.findIndex(record=>record.wordId===wordId);if(index>=0)reviewRecords[index]={...reviewRecords[index],...next,wordId,review:true,reviewLevel:toLevel,lastAttentionUpdated:now};
     sortReviewRecords();render();showReviewToast(`${attentionLabel(toLevel)} attention applied.`);
   }
-  function keepAttentionSuggestion(button){
-    if(canonicalReviewCandidateRequested()){showReviewToast('Canonical write candidate is locked to the controlled test panel.');return;}
+  async function keepAttentionSuggestion(button){
     const wordId=String(button?.dataset?.suggestionKeep||'').trim();const fromLevel=String(button?.dataset?.fromLevel||'').trim();const toLevel=String(button?.dataset?.toLevel||'').trim();const evidenceThrough=Number(button?.dataset?.evidenceThrough||0);if(!wordId)return;
+    if(canonicalReviewCandidateActive()&&typeof canonicalReviewCandidate()?.keepSuggestion==='function'){
+      button.disabled=true;
+      try{
+        const result=await canonicalReviewCandidate().keepSuggestion({wordId,fromLevel,toLevel,evidenceThrough,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION});
+        showReviewToast(result?.pass?`Canonical Keep ${attentionLabel(fromLevel)} round-trip passed.`:'Canonical Keep candidate was blocked. See the candidate panel.');
+      }finally{if(button.isConnected)button.disabled=false;}
+      return;
+    }
+    if(canonicalReviewCandidateRequested()){showReviewToast('Canonical write candidate is not ready; legacy write is locked.');return;}
     appendInteractionEvent({timestamp:Date.now(),action:'attention_suggestion_kept',wordId,source:'review-hub',fromLevel,suggestedLevel:toLevel,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,evidenceThrough});
     renderList();showReviewToast(`${attentionLabel(fromLevel)} attention kept.`);
   }
