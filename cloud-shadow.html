@@ -94,6 +94,8 @@
       <button class="action" id="export-compat-adapter" type="button" disabled>Export Adapter Audit</button>
       <button class="action cloud-action" id="run-progress-review-shadow" type="button">Run Progress / Review Shadow Read Audit</button>
       <button class="action" id="export-progress-review-shadow" type="button" disabled>Export Read Shadow Audit</button>
+      <button class="action cloud-action" id="run-storage-compat-facade" type="button">Run Storage Compatibility Facade Audit</button>
+      <button class="action" id="export-storage-compat-facade" type="button" disabled>Export Storage Facade Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -568,6 +570,33 @@
       <p class="status-line" id="progress-review-shadow-status">Uses the existing read-only Canonical Adapter and current legacy localStorage side-by-side in memory. No Cloud call, IndexedDB write, localStorage write, or live Progress / Review cutover occurs.</p>
     </section>
 
+    <section class="panel hidden" id="storage-compat-facade-panel">
+      <div class="panel-head"><div><h2>Progress / Review · read-only Storage Compatibility Facade</h2><p>Exposes the verified Canonical Progress / Review page inputs through a reusable storage-like read surface plus typed page readers. It audits deterministic open, clone isolation, current-device history coverage, and storage/typed-reader parity without replacing <code>localStorage</code> or wiring any live page.</p></div><div class="compare-badge">Storage facade <strong id="storage-compat-facade-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="storage-compat-facade-progress">0</strong><span>Progress rows</span></div>
+        <div class="metric"><strong id="storage-compat-facade-review">0</strong><span>Review rows</span></div>
+        <div class="metric"><strong id="storage-compat-facade-events">0</strong><span>Event rows</span></div>
+        <div class="metric"><strong id="storage-compat-facade-sessions">0</strong><span>Session rows</span></div>
+        <div class="metric"><strong id="storage-compat-facade-keys">0</strong><span>Supported storage keys</span></div>
+        <div class="metric"><strong id="storage-compat-facade-parity">—</strong><span>Storage / typed parity</span></div>
+        <div class="metric"><strong id="storage-compat-facade-isolation">—</strong><span>Mutation isolation</span></div>
+        <div class="metric"><strong id="storage-compat-facade-repeat">—</strong><span>Open repeatability</span></div>
+        <div class="metric"><strong id="storage-compat-facade-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Page-facing Storage Compatibility Facade SHA-256</p>
+      <div class="hash-box" id="storage-compat-facade-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Current-device history coverage</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Kind</th><th>Stream</th><th>Legacy</th><th>Facade</th><th>Local missing</th></tr></thead>
+          <tbody id="storage-compat-facade-stream-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Storage facade notes</h3>
+      <ul class="error-list" id="storage-compat-facade-notes"></ul>
+      <p class="status-line" id="storage-compat-facade-status">Builds a read-only compatibility facade over the existing Canonical Adapter. No Cloud call, IndexedDB write, localStorage write, or live Progress / Review cutover occurs.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -625,5 +654,6 @@
   <script src="./cloud-shadow-compat-projection.js"></script>
   <script src="./cloud-shadow-compat-adapter.js"></script>
   <script src="./cloud-shadow-progress-review-shadow.js"></script>
+  <script src="./cloud-shadow-storage-compat-facade.js"></script>
 </body>
 </html>
