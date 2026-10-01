@@ -113,7 +113,11 @@
     const overrides=readOverrides();
     return masterRows.map(row=>{const wid=String(row.WordID||'').trim();const edit=overrides[wid];return edit&&typeof edit==='object'?{...row,...edit,WordID:row.WordID,'Batch #':row['Batch #']}:{...row};});
   }
+  function canonicalReviewCandidate(){return window.WLPCanonicalReviewWriteCandidate||null;}
+  function canonicalReviewCandidateActive(){return Boolean(canonicalReviewCandidate()?.isActive?.());}
+  function canonicalReviewCandidateRequested(){return Boolean(canonicalReviewCandidate()?.requested);}
   function readReviewRecords(){
+    if(canonicalReviewCandidateActive())return canonicalReviewCandidate().readReviewRecords();
     const out=[];
     for(let i=0;i<localStorage.length;i++){
       const key=localStorage.key(i); if(!key||!key.startsWith(PROGRESS_PREFIX))continue;
@@ -131,9 +135,11 @@
     return out;
   }
   function readJsonArray(key){
+    if(canonicalReviewCandidateActive()){const value=canonicalReviewCandidate().readArray(key);if(value!==null)return value;}
     try{const value=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(value)?value.filter(item=>item&&typeof item==='object'):[];}catch{return[];}
   }
   function readAIEvents(){
+    if(canonicalReviewCandidateActive())return canonicalReviewCandidate().readAIEvents();
     try{
       const value=JSON.parse(localStorage.getItem(AI_STUDY_EVENT_KEY)||'[]');
       let list=[];
@@ -144,7 +150,7 @@
       return list.filter(item=>item&&typeof item==='object');
     }catch{return[];}
   }
-  function readInteractionEvents(){return readJsonArray(INTERACTION_EVENTS_KEY);}
+  function readInteractionEvents(){return canonicalReviewCandidateActive()?canonicalReviewCandidate().readInteractionEvents():readJsonArray(INTERACTION_EVENTS_KEY);}
   function appendInteractionEvent(event){
     try{
       const list=readInteractionEvents();list.push(event);
@@ -153,6 +159,7 @@
     }catch(e){console.warn('Could not save Review suggestion event',e);return false;}
   }
   function readProgressRecord(wordId){
+    if(canonicalReviewCandidateActive())return canonicalReviewCandidate().readProgressRecord(wordId);
     try{const value=JSON.parse(localStorage.getItem(`${PROGRESS_PREFIX}${String(wordId||'').trim()}`)||'{}');return value&&typeof value==='object'?value:{};}catch{return{};}
   }
   function saveProgressRecord(wordId,value){localStorage.setItem(`${PROGRESS_PREFIX}${String(wordId||'').trim()}`,JSON.stringify(value));}
@@ -315,6 +322,7 @@
     return {...latest,review:true,known:false,reviewLevel:toLevel,reviewReasons:reasons,lastAttentionUpdated:now};
   }
   function applyAttentionSuggestion(button){
+    if(canonicalReviewCandidateRequested()){showReviewToast('Canonical write candidate is locked to the controlled test panel.');return;}
     const wordId=String(button?.dataset?.suggestionApply||'').trim();const fromLevel=String(button?.dataset?.fromLevel||'').trim();const toLevel=String(button?.dataset?.toLevel||'').trim();const evidenceThrough=Number(button?.dataset?.evidenceThrough||0);
     if(!wordId||!['high','medium','light'].includes(toLevel))return;
     const latest=readProgressRecord(wordId);const currentLevel=String(latest?.reviewLevel||'').toLowerCase();
@@ -326,6 +334,7 @@
     sortReviewRecords();render();showReviewToast(`${attentionLabel(toLevel)} attention applied.`);
   }
   function keepAttentionSuggestion(button){
+    if(canonicalReviewCandidateRequested()){showReviewToast('Canonical write candidate is locked to the controlled test panel.');return;}
     const wordId=String(button?.dataset?.suggestionKeep||'').trim();const fromLevel=String(button?.dataset?.fromLevel||'').trim();const toLevel=String(button?.dataset?.toLevel||'').trim();const evidenceThrough=Number(button?.dataset?.evidenceThrough||0);if(!wordId)return;
     appendInteractionEvent({timestamp:Date.now(),action:'attention_suggestion_kept',wordId,source:'review-hub',fromLevel,suggestedLevel:toLevel,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,evidenceThrough});
     renderList();showReviewToast(`${attentionLabel(fromLevel)} attention kept.`);
@@ -420,8 +429,13 @@
   $('review-clear-filter').addEventListener('click',()=>{levelFilter='';reasonFilter='';visibleLimit=PAGE_SIZE;render();});
   $('review-load-more').addEventListener('click',()=>{visibleLimit+=PAGE_SIZE;renderList();});
   new MutationObserver(()=>renderList()).observe($('role-label'),{childList:true,subtree:true});
+  window.addEventListener('wlp-canonical-review-candidate-refresh',()=>{
+    if(!canonicalReviewCandidateActive())return;
+    reviewRecords=readReviewRecords();latestStandardEvidence=buildLatestStandardEvidence();latestAIEvidence=buildLatestAIEvidence();aiEvidenceByWordId=buildAIEvidenceHistory();interactionEvents=readInteractionEvents();render();
+  });
   (async()=>{
     try{
+      if(canonicalReviewCandidate()?.requested)await canonicalReviewCandidate().prepare();
       const res=await fetch(MASTER_URL,{cache:'no-cache'});if(!res.ok)throw new Error(`Master TSV ${res.status}`);
       rows=applyOverrides(parseTSV(await res.text()));
       rowByWordId=new Map(rows.map(row=>[String(row.WordID||'').trim(),row]).filter(([wid])=>wid));
