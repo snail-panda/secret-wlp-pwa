@@ -100,6 +100,9 @@
       <a class="action" href="./review.html?wlpCanonicalShadow=1">Open Review Live Shadow</a>
       <button class="action cloud-action" id="run-first-seen-preflight" type="button">Run FirstSeen Preservation Preflight</button>
       <button class="action" id="export-first-seen-preflight" type="button" disabled>Export FirstSeen Preflight</button>
+      <button class="action cloud-action" id="commit-first-seen-candidate" type="button">Commit Authority v2 Candidate + Round-trip</button>
+      <button class="action cloud-action" id="retry-first-seen-candidate" type="button" disabled>Retry Same v2 Candidate</button>
+      <button class="action" id="export-first-seen-candidate" type="button" disabled>Export Authority v2 Candidate</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -628,6 +631,34 @@
       <p class="status-line" id="first-seen-preflight-status">Reads the current ACTIVE Authority and its verified source stages only. It does not modify the Authority Head, candidate rows, mirror, localStorage, or live WLP.</p>
     </section>
 
+    <section class="panel hidden" id="first-seen-candidate-panel">
+      <div class="panel-head"><div><h2>FirstSeen preservation · inactive Authority v2 Candidate</h2><p>Commits the complete projected migration-v3 Canonical snapshot into the existing isolated candidate tables, with explicit <code>first_seen_at</code> on all 111 <code>learning_state</code> rows. The snapshot is read back in full and re-hashed. The ACTIVE Authority Head remains on v1; the local Canonical mirror and live WLP remain unchanged.</p></div><div class="compare-badge">Authority v2 Candidate <strong id="first-seen-candidate-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="first-seen-candidate-rows">0</strong><span>Cloud rows read back</span></div>
+        <div class="metric"><strong id="first-seen-candidate-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="first-seen-candidate-mismatches">0</strong><span>Hash mismatches</span></div>
+        <div class="metric"><strong id="first-seen-candidate-changed">0</strong><span>State rows repaired</span></div>
+        <div class="metric"><strong id="first-seen-candidate-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="first-seen-candidate-retry">—</strong><span>Retry idempotency</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Content-addressed Authority v2 candidate key</p>
+      <div class="hash-box" id="first-seen-candidate-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Authority revision ticket SHA-256</p>
+      <div class="hash-box" id="first-seen-candidate-ticket"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Projected Authority v2 manifest SHA-256</p>
+      <div class="hash-box" id="first-seen-candidate-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Candidate table round-trip</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Rows</th><th>Semantic change</th><th>Manifest hash</th></tr></thead>
+          <tbody id="first-seen-candidate-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Authority v2 Candidate notes</h3>
+      <ul class="error-list" id="first-seen-candidate-notes"></ul>
+      <p class="status-line" id="first-seen-candidate-status">Builds the v2 projection again from the ACTIVE v1 mirror and verified source-stage evidence before any candidate write. Only inactive candidate tables may be written.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -687,5 +718,6 @@
   <script src="./cloud-shadow-progress-review-shadow.js"></script>
   <script src="./cloud-shadow-storage-compat-facade.js"></script>
   <script src="./cloud-shadow-first-seen-preflight.js"></script>
+  <script src="./cloud-shadow-first-seen-candidate.js"></script>
 </body>
 </html>
