@@ -1,22 +1,25 @@
-/* WLP Canonical Mirror Compatibility Projection Audit v1.
-   Reads only the installed wlp-cloud-v1 IndexedDB mirror, projects it into
-   legacy-scanner logical record shapes in memory, re-runs the canonical
-   migration transformer, and proves the projected compatibility layer can
-   reproduce the ACTIVE Authority payloads. No Cloud, IndexedDB, localStorage,
-   or live WLP write occurs. */
+/* WLP Canonical Mirror Compatibility Adapter v2 Authority revision.
+   Reads only the installed wlp-cloud-v1 IndexedDB mirror and projects it into
+   legacy-scanner logical record shapes in memory. Authority v2 adds explicit
+   first_seen_at to learning_state; the adapter carries that exact value into
+   the page-facing logical snapshot. No Cloud, IndexedDB, localStorage, or live
+   WLP write occurs. */
 (() => {
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.210-canonical-compat-adapter-v1';
+  const APP_VERSION = '1.8.6.220-canonical-compat-adapter-authority-v2-v1';
   const DB_NAME = 'wlp-cloud-v1';
   const DB_VERSION = 1;
   const META_STORE = 'sync_meta';
   const OUTBOX_STORE = 'sync_outbox';
   const META_KEY = 'authority_mirror';
-  const EXPECTED_MANIFEST = '2168a53454e664f98b3a986e978e557101a1be5256922143e2051b00317f705a';
+  const EXPECTED_CANDIDATE_KEY = 'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283';
+  const EXPECTED_HEAD_VERSION = 2;
+  const EXPECTED_MIGRATION_VERSION = '3';
+  const EXPECTED_MANIFEST = 'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3';
   const EXPECTED_ROWS = 21424;
-  const EXPECTED_PROJECTION_HASH = '26176cdcd4b42d1978c6cc15a4d7a380435f3f9eb3da2af73312809163c6e392';
+  const EXPECTED_FIRST_SEEN_ROWS = 111;
   const CANONICAL_TABLES = Object.freeze([
     'card_classification', 'card_content', 'card_learning_metadata', 'cards',
     'learner_profile', 'learner_route_state', 'learning_alternative_situations',
@@ -47,6 +50,16 @@
   function stableStringify(value) { return JSON.stringify(stableValue(value)); }
   function identity(tableName, rowKey) { return `${tableName}\u0000${rowKey}`; }
   function hasOwn(obj, key) { return Object.prototype.hasOwnProperty.call(obj || {}, key); }
+  function toMs(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    const number = Number(value);
+    if (Number.isFinite(number) && String(value).trim() !== '') {
+      if (number <= 0) return 0;
+      return number < 100000000000 ? Math.round(number * 1000) : Math.round(number);
+    }
+    const parsed = Date.parse(String(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
 
   async function sha256(text) {
     const bytes = new TextEncoder().encode(String(text));
@@ -223,6 +236,7 @@
       studyCount: Number(row.study_count || 0),
       reviewCount: Number(row.review_count || 0),
       attemptCount: Number(row.attempt_count || 0),
+      firstSeen: toMs(row.first_seen_at) || null,
       lastSeen: row.last_seen_at || null,
       lastStudiedAt: row.last_studied_at || null,
       lastReviewedAt: row.last_reviewed_at || null,
@@ -396,9 +410,13 @@
 
     let synthesizedStateRows = 0;
     let preservedSourceSnapshotRows = 0;
+    let explicitFirstSeenRows = 0;
     for (const row of asArray(tables.learning_state)) {
       const card = cardsById.get(row.card_id);
       if (!card) { blocking.push(`learning_state ${row.card_id} has no Card for compatibility projection.`); continue; }
+      const explicitFirstSeen = toMs(row.first_seen_at);
+      if (explicitFirstSeen) explicitFirstSeenRows += 1;
+      else blocking.push(`learning_state ${row.card_id} is missing Authority v2 first_seen_at.`);
       let payload;
       if (hasOwn(row, 'source_snapshot') && row.source_snapshot && typeof row.source_snapshot === 'object') {
         payload = clone(row.source_snapshot);
@@ -407,6 +425,7 @@
         payload = synthesizeLearningState(row);
         synthesizedStateRows += 1;
       }
+      if (explicitFirstSeen) payload.firstSeen = explicitFirstSeen;
       push(await makeLogicalRecord('learning_state', card.legacy_key, payload, { source: `fc:wordid:${card.word_id ?? ''}` }));
     }
 
@@ -443,8 +462,9 @@
     }))));
 
     warnings.push(`${preservedSourceSnapshotRows} learning_state row(s) reuse preserved migration source_snapshot evidence; ${synthesizedStateRows} merged row(s) are projected from authoritative Canonical fields because source_snapshot was intentionally removed during merge materialization.`);
+    warnings.push(`${explicitFirstSeenRows} learning_state row(s) carry explicit Authority v2 first_seen_at into the compatibility projection.`);
 
-    return { records, sourceMasterHash, blocking, warnings, stats, preferenceKeys, synthesizedStateRows, preservedSourceSnapshotRows, projectionHash };
+    return { records, sourceMasterHash, blocking, warnings, stats, preferenceKeys, synthesizedStateRows, preservedSourceSnapshotRows, explicitFirstSeenRows, projectionHash };
   }
 
 
@@ -504,6 +524,7 @@
         snapshotManifestHash: mirrorMeta?.snapshotManifestHash || null,
         canonicalRowCount: mirrorMeta?.canonicalRowCount ?? null,
         migrationVersion: mirrorMeta?.migrationVersion || null,
+        authorityRevision: mirrorMeta?.authorityRevision ?? null,
         namespaceUuid: mirrorMeta?.namespaceUuid || null,
         cardMappingHash: mirrorMeta?.cardMappingHash || null,
         coreLibraryHash: mirrorMeta?.coreLibraryHash || null
@@ -527,8 +548,11 @@
       if (!mirror.meta) blocking.push('authority_mirror metadata is missing.');
       if (mirror.meta && !mirror.meta.userId) blocking.push('authority_mirror metadata is not user-bound.');
       if (mirror.rowCount !== EXPECTED_ROWS) blocking.push(`Mirror row count mismatch: expected ${EXPECTED_ROWS}, got ${mirror.rowCount}.`);
-      if (mirror.manifestHash !== EXPECTED_MANIFEST) blocking.push('Mirror manifest does not match promoted Authority v1.');
-      if (mirror.meta && String(mirror.meta.snapshotManifestHash || '') !== EXPECTED_MANIFEST) blocking.push('Mirror metadata manifest does not match promoted Authority v1.');
+      if (mirror.manifestHash !== EXPECTED_MANIFEST) blocking.push('Mirror manifest does not match ACTIVE Authority v2.');
+      if (mirror.meta && String(mirror.meta.snapshotManifestHash || '') !== EXPECTED_MANIFEST) blocking.push('Mirror metadata manifest does not match ACTIVE Authority v2.');
+      if (mirror.meta && String(mirror.meta.candidateKey || '') !== EXPECTED_CANDIDATE_KEY) blocking.push('Mirror metadata candidate does not match ACTIVE Authority v2.');
+      if (mirror.meta && Number(mirror.meta.headVersion || 0) !== EXPECTED_HEAD_VERSION) blocking.push('Mirror metadata Head version is not 2.');
+      if (mirror.meta && String(mirror.meta.migrationVersion || '') !== EXPECTED_MIGRATION_VERSION) blocking.push('Mirror metadata migration version is not 3.');
       if (mirror.payloadHashMismatches.length) blocking.push(`${mirror.payloadHashMismatches.length} mirror payload hash mismatch(es).`);
       if (mirror.rowKeyMismatches.length) blocking.push(`${mirror.rowKeyMismatches.length} mirror row-key mismatch(es).`);
       if (mirror.outboxRows !== 0) blocking.push(`sync_outbox is not empty: ${mirror.outboxRows} row(s).`);
@@ -536,7 +560,7 @@
 
       const projection = await projectLogicalRecords(mirror.tables);
       if (projection.blocking.length) throw new Error(projection.blocking.join(' '));
-      if (projection.projectionHash !== EXPECTED_PROJECTION_HASH) throw new Error(`Compatibility projection hash mismatch: expected ${EXPECTED_PROJECTION_HASH}, got ${projection.projectionHash}.`);
+      if (projection.explicitFirstSeenRows !== EXPECTED_FIRST_SEEN_ROWS) throw new Error(`Compatibility projection firstSeen coverage mismatch: expected ${EXPECTED_FIRST_SEEN_ROWS}, got ${projection.explicitFirstSeenRows}.`);
       return { adapter: buildReadOnlyAdapter(projection, mirror.meta), mirror, projection };
     } finally {
       if (db) db.close();
@@ -614,6 +638,8 @@
           candidateKey: first.mirror.meta?.candidateKey || null,
           headVersion: first.mirror.meta?.headVersion ?? null,
           snapshotManifestHash: EXPECTED_MANIFEST,
+          migrationVersion: first.mirror.meta?.migrationVersion || null,
+          authorityRevision: first.mirror.meta?.authorityRevision ?? null,
           canonicalRows: EXPECTED_ROWS
         },
         summary: {
@@ -632,6 +658,7 @@
           unresolvedClassificationCards,
           outboxRows: first.mirror.outboxRows,
           projectionRepeatability: first.projection.projectionHash === second.projection.projectionHash,
+          explicitFirstSeenRows: first.projection.explicitFirstSeenRows,
           mutationIsolation,
           cardBundleResolved,
           blockingIssues: blocking.length,
@@ -641,7 +668,7 @@
           mirrorManifestHash: first.mirror.manifestHash,
           compatibilityProjectionHash: first.projection.projectionHash,
           repeatedCompatibilityProjectionHash: second.projection.projectionHash,
-          expectedCompatibilityProjectionHash: EXPECTED_PROJECTION_HASH
+          projectionContract: 'authority-v2-explicit-first-seen-at'
         },
         api: {
           version: adapter.version,
@@ -658,7 +685,7 @@
             ...first.projection.warnings,
             'The adapter reads only the installed wlp-cloud-v1 mirror and exposes cloned logical records through a read-only API. It does not replace localStorage or alter any live WLP page yet.',
             'No Cloud endpoint is contacted, no IndexedDB row is changed, and no localStorage value is written.',
-            'A PASS establishes a reusable read-only compatibility API over the promoted Canonical mirror; wiring individual WLP read paths remains a separate future step.'
+            'A PASS establishes the Authority v2 read-only compatibility API with exact firstSeen preservation; live page wiring remains shadow-only.'
           ],
           mirrorPayloadHashMismatches: first.mirror.payloadHashMismatches,
           mirrorRowKeyMismatches: first.mirror.rowKeyMismatches
@@ -673,7 +700,8 @@
           noLiveWlpWrites: true,
           syncOutboxEmpty: first.mirror.outboxRows === 0,
           existingMirrorManifestVerified: first.mirror.manifestHash === EXPECTED_MANIFEST,
-          compatibilityProjectionHashMatched: first.projection.projectionHash === EXPECTED_PROJECTION_HASH,
+          explicitFirstSeenComplete: first.projection.explicitFirstSeenRows === EXPECTED_FIRST_SEEN_ROWS,
+          compatibilityProjectionRepeatable: first.projection.projectionHash === second.projection.projectionHash,
           adapterReadOnly: adapter.readOnly === true,
           adapterMutationIsolationVerified: mutationIsolation,
           adapterOpenRepeatable: first.projection.projectionHash === second.projection.projectionHash
