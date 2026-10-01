@@ -76,6 +76,9 @@
       <button class="action" id="export-authority-candidate" type="button" disabled>Export Authority Candidate</button>
       <button class="action cloud-action" id="run-authority-promotion-preflight" type="button" disabled>Run Authority Promotion Preflight</button>
       <button class="action" id="export-authority-promotion-preflight" type="button" disabled>Export Promotion Preflight</button>
+      <button class="action cloud-action" id="promote-authority-head" type="button" disabled>Promote Authority Head + Read-back</button>
+      <button class="action cloud-action" id="retry-authority-promotion" type="button" disabled>Retry Same Promotion</button>
+      <button class="action" id="export-authority-promotion" type="button" disabled>Export Authority Promotion</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -335,6 +338,31 @@
       <p class="status-line" id="authority-promotion-preflight-status">Run Cutover Preflight first and install the Authority Head v1 SQL once. This step only verifies promotion eligibility; it cannot activate anything.</p>
     </section>
 
+    <section class="panel hidden" id="authority-promotion-panel">
+      <div class="panel-head"><div><h2>Canonical Authority Head · explicit promotion</h2><p>Calls the narrowly scoped server-side initial-promotion RPC for the exact verified candidate, then reads the single Authority Head back and verifies every identity field. Promotion changes only the Cloud authority pointer; it does not apply Cloud data to WLP.</p></div><div class="compare-badge">Authority promotion <strong id="authority-promotion-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="authority-promotion-head-state">—</strong><span>Head state</span></div>
+        <div class="metric"><strong id="authority-promotion-head-version">0</strong><span>Head version</span></div>
+        <div class="metric"><strong id="authority-promotion-rows">0</strong><span>Canonical rows</span></div>
+        <div class="metric"><strong id="authority-promotion-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="authority-promotion-idempotent">—</strong><span>Retry idempotency</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Active candidate key</p>
+      <div class="hash-box" id="authority-promotion-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Active snapshot manifest SHA-256</p>
+      <div class="hash-box" id="authority-promotion-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+          <tbody id="authority-promotion-proof-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Authority promotion notes</h3>
+      <ul class="error-list" id="authority-promotion-notes"></ul>
+      <p class="status-line" id="authority-promotion-status">Run Authority Promotion Preflight first and install the Initial Promotion RPC v1 SQL once. Promotion is explicit and still does not apply Cloud data to WLP.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -384,5 +412,6 @@
   <script src="./cloud-shadow-cutover-preflight.js"></script>
   <script src="./cloud-shadow-authority-candidate.js"></script>
   <script src="./cloud-shadow-authority-promotion-preflight.js"></script>
+  <script src="./cloud-shadow-authority-promotion.js"></script>
 </body>
 </html>
