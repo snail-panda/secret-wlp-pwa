@@ -133,6 +133,8 @@
       <button class="action" id="export-steady-sync" type="button" disabled>Export Steady Sync Audit</button>
       <button class="action cloud-action" id="run-conflict-guard" type="button">Run Same-Field Conflict Guard</button>
       <button class="action" id="export-conflict-guard" type="button" disabled>Export Conflict Guard Audit</button>
+      <button class="action cloud-action" id="run-tombstone-guard" type="button">Run Tombstone / Resurrection Guard</button>
+      <button class="action" id="export-tombstone-guard" type="button" disabled>Export Tombstone Guard Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -977,6 +979,25 @@
       <p class="status-line" id="conflict-guard-status">Run on PC after both v240 source and receiver reports PASS. This intentionally creates one open conflict audit row but must leave effective state High and emit zero new changes.</p>
     </section>
 
+    <section class="panel hidden" id="tombstone-guard-panel">
+      <div class="panel-head"><div><h2>Tombstone / stale-resurrection guard</h2><p>Uses an isolated synthetic entity to prove soft-delete retention, ordered tombstone semantics, stale-device resurrection blocking, and exact retry idempotency. No real WLP card or production sync feed row is modified.</p></div><div class="compare-badge">Tombstone guard <strong id="tombstone-guard-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="tombstone-guard-live">—</strong><span>Live upsert emitted</span></div>
+        <div class="metric"><strong id="tombstone-guard-delete">—</strong><span>Delete tombstone emitted</span></div>
+        <div class="metric"><strong id="tombstone-guard-tombstone">—</strong><span>Server row retained</span></div>
+        <div class="metric"><strong id="tombstone-guard-conflict">—</strong><span>Stale resurrection</span></div>
+        <div class="metric"><strong id="tombstone-guard-retry">—</strong><span>Exact retry</span></div>
+        <div class="metric"><strong id="tombstone-guard-prod">0</strong><span>Production feed rows</span></div>
+        <div class="metric"><strong id="tombstone-guard-local">—</strong><span>Local WLP</span></div>
+        <div class="metric"><strong id="tombstone-guard-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Synthetic probe identity</p><div class="hash-box" id="tombstone-guard-id"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Tombstone proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="tombstone-guard-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Safety notes</h3><ul class="error-list" id="tombstone-guard-notes"></ul>
+      <p class="status-line" id="tombstone-guard-status">Run after v241 PASS. This probe deletes only its own synthetic server row logically (soft delete); real WLP data remains untouched.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -1050,5 +1071,6 @@
   <script src="./cloud-shadow-v3-incremental-pull.js"></script>
   <script src="./cloud-shadow-steady-sync.js?v=20261001-v186240-steady-sync"></script>
   <script src="./cloud-shadow-conflict-guard.js?v=20261001-v186241-conflict-guard"></script>
+  <script src="./cloud-shadow-tombstone-guard.js?v=20261001-v186242-tombstone-guard"></script>
 </body>
 </html>
