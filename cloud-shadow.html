@@ -92,6 +92,8 @@
       <button class="action" id="export-compat-projection" type="button" disabled>Export Projection Audit</button>
       <button class="action cloud-action" id="run-compat-adapter" type="button">Run Read-Only Adapter Audit</button>
       <button class="action" id="export-compat-adapter" type="button" disabled>Export Adapter Audit</button>
+      <button class="action cloud-action" id="run-progress-review-shadow" type="button">Run Progress / Review Shadow Read Audit</button>
+      <button class="action" id="export-progress-review-shadow" type="button" disabled>Export Read Shadow Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -537,6 +539,35 @@
       <p class="status-line" id="compat-adapter-status">Reads only the installed Canonical mirror. No Cloud call, IndexedDB write, localStorage write, or live WLP integration occurs.</p>
     </section>
 
+
+    <section class="panel hidden" id="progress-review-shadow-panel">
+      <div class="panel-head"><div><h2>Progress / Review · Canonical read-path shadow compare</h2><p>Builds the exact page-facing Progress / Review state and history inputs from the read-only Canonical Adapter beside the current legacy localStorage inputs. It reports expected merged-Authority differences while blocking only real current-device data loss, unresolved Review cards, or page-visible timestamp regressions. No live page is switched yet.</p></div><div class="compare-badge">Read shadow <strong id="progress-review-shadow-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="progress-review-shadow-legacy-state">0</strong><span>Legacy state rows</span></div>
+        <div class="metric"><strong id="progress-review-shadow-facade-state">0</strong><span>Canonical facade states</span></div>
+        <div class="metric"><strong id="progress-review-shadow-state-different">0</strong><span>Merged state differences</span></div>
+        <div class="metric"><strong id="progress-review-shadow-local-only">0</strong><span>Local-only state blockers</span></div>
+        <div class="metric"><strong id="progress-review-shadow-legacy-review">0</strong><span>Legacy Review rows</span></div>
+        <div class="metric"><strong id="progress-review-shadow-facade-review">0</strong><span>Canonical Review rows</span></div>
+        <div class="metric"><strong id="progress-review-shadow-history-missing">0</strong><span>Local history missing</span></div>
+        <div class="metric"><strong id="progress-review-shadow-timestamp-regression">0</strong><span>Timestamp regressions</span></div>
+        <div class="metric"><strong id="progress-review-shadow-repeat">—</strong><span>Read-model repeatability</span></div>
+        <div class="metric"><strong id="progress-review-shadow-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Page-facing Progress / Review read-model SHA-256</p>
+      <div class="hash-box" id="progress-review-shadow-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">History stream subset proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Kind</th><th>Stream</th><th>Legacy</th><th>Authority</th><th>Local missing</th></tr></thead>
+          <tbody id="progress-review-shadow-stream-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Read-path shadow notes</h3>
+      <ul class="error-list" id="progress-review-shadow-notes"></ul>
+      <p class="status-line" id="progress-review-shadow-status">Uses the existing read-only Canonical Adapter and current legacy localStorage side-by-side in memory. No Cloud call, IndexedDB write, localStorage write, or live Progress / Review cutover occurs.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -593,5 +624,6 @@
   <script src="./cloud-shadow-canonical-mirror-cold-verify.js"></script>
   <script src="./cloud-shadow-compat-projection.js"></script>
   <script src="./cloud-shadow-compat-adapter.js"></script>
+  <script src="./cloud-shadow-progress-review-shadow.js"></script>
 </body>
 </html>
