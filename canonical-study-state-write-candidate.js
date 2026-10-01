@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.246-study-state-membership-default-cutover-canary-v1';
+  const APP_VERSION='1.8.6.247-study-state-active-card-selector-fix-v1';
   const DB_NAME='wlp-cloud-v1', DB_VERSION=1, META_STORE='sync_meta', OUTBOX_STORE='sync_outbox', STATE_STORE='learning_state';
   const META_KEY='authority_mirror', CURSOR_KEY='sync_cursor';
   const PROGRESS_PREFIX='fc:wordid:';
@@ -131,7 +131,8 @@
     return 'neutral';
   }
   function membershipButtons(){
-    const root=document.querySelector('.card:not([hidden])')||document;
+    const root=document.querySelector('.flashcard.active');
+    if(!root)return {studied:null,review:null,attention:null};
     return {studied:root.querySelector('.btn-studied'),review:root.querySelector('.btn-review'),attention:root.querySelector('.btn-review-attention')};
   }
   function membershipUiState(){
