@@ -131,10 +131,6 @@
       <button class="action" id="export-cloud-v3-pull" type="button" disabled>Export v3 Pull Audit</button>
       <button class="action cloud-action" id="run-steady-sync" type="button">Run Steady Sync · Auto Source / Pull</button>
       <button class="action" id="export-steady-sync" type="button" disabled>Export Steady Sync Audit</button>
-      <button class="action cloud-action" id="run-conflict-guard" type="button">Run Same-Field Conflict Guard</button>
-      <button class="action" id="export-conflict-guard" type="button" disabled>Export Conflict Guard Audit</button>
-      <button class="action cloud-action" id="run-tombstone-guard" type="button">Run Tombstone / Resurrection Guard</button>
-      <button class="action" id="export-tombstone-guard" type="button" disabled>Export Tombstone Guard Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -939,7 +935,7 @@
     </section>
 
     <section class="panel hidden" id="steady-sync-panel">
-      <div class="panel-head"><div><h2>Canonical sync · steady-state incremental roundtrip</h2><p>Uses the immutable ACTIVE Authority v3 snapshot as the bootstrap anchor, then syncs normal user actions through the idempotent mutation ledger and ordered payload-bearing change feed. On the iPhone source it pushes the retained outbox pair, atomically commits the acknowledged changes locally, and clears only those acknowledged outbox rows. On the PC receiver it pulls the same two changes after its cursor and converges without creating another 21k-row Authority snapshot.</p></div><div class="compare-badge">Steady sync <strong id="steady-sync-result">—</strong></div></div>
+      <div class="panel-head"><div><h2>Canonical sync · steady-state incremental roundtrip</h2><p>Uses the immutable ACTIVE Authority v3 snapshot as the bootstrap anchor, then syncs normal user actions through the idempotent mutation ledger and ordered payload-bearing change feed. On whichever device currently has a retained transport-eligible outbox pair, it pushes that pair, atomically commits the acknowledged changes locally, and clears only those acknowledged outbox rows. On the other device it pulls the same ordered changes after its cursor and converges without creating another 21k-row Authority snapshot.</p></div><div class="compare-badge">Steady sync <strong id="steady-sync-result">—</strong></div></div>
       <div class="metrics">
         <div class="metric"><strong id="steady-sync-role">—</strong><span>Detected role</span></div>
         <div class="metric"><strong id="steady-sync-push">—</strong><span>Server push</span></div>
@@ -955,47 +951,7 @@
       <h3 style="font-size:.9rem;margin:18px 0 8px">Steady-state proof</h3>
       <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="steady-sync-proof-body"></tbody></table></div>
       <h3 style="font-size:.9rem;margin:18px 0 8px">Sync notes</h3><ul class="error-list" id="steady-sync-notes"></ul>
-      <p class="status-line" id="steady-sync-status">Install the bundled v240 SQL once. Run this first on the iPhone with the retained 2-row outbox, then run the same button on PC to pull the reverse changes.</p>
-    </section>
-
-
-    <section class="panel hidden" id="conflict-guard-panel">
-      <div class="panel-head"><div><h2>Canonical sync · same-field stale-base conflict guard</h2><p>Submits one deliberately stale Attention mutation against WID2876 after the verified iPhone → Cloud → PC roundtrip. The server must preserve an explicit conflict and must not emit a change, acknowledgement, or overwrite. This is a Cloud-side safety proof only; no local mirror, outbox, localStorage, Study, or Review data is modified.</p></div><div class="compare-badge">Conflict guard <strong id="conflict-guard-result">—</strong></div></div>
-      <div class="metrics">
-        <div class="metric"><strong id="conflict-guard-base">—</strong><span>Stale base</span></div>
-        <div class="metric"><strong id="conflict-guard-current">—</strong><span>Server current</span></div>
-        <div class="metric"><strong id="conflict-guard-first">—</strong><span>First submit</span></div>
-        <div class="metric"><strong id="conflict-guard-retry">—</strong><span>Exact retry</span></div>
-        <div class="metric"><strong id="conflict-guard-ledger">0</strong><span>Mutation ledger rows</span></div>
-        <div class="metric"><strong id="conflict-guard-conflicts">0</strong><span>Open conflicts</span></div>
-        <div class="metric"><strong id="conflict-guard-changes">0</strong><span>Change rows emitted</span></div>
-        <div class="metric"><strong id="conflict-guard-local">—</strong><span>Local WID2876</span></div>
-        <div class="metric"><strong id="conflict-guard-blocking">0</strong><span>Blocking issues</span></div>
-      </div>
-      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Conflict identity</p><div class="hash-box" id="conflict-guard-id"></div>
-      <h3 style="font-size:.9rem;margin:18px 0 8px">Conflict proof</h3>
-      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="conflict-guard-proof-body"></tbody></table></div>
-      <h3 style="font-size:.9rem;margin:18px 0 8px">Safety notes</h3><ul class="error-list" id="conflict-guard-notes"></ul>
-      <p class="status-line" id="conflict-guard-status">Run on PC after both v240 source and receiver reports PASS. This intentionally creates one open conflict audit row but must leave effective state High and emit zero new changes.</p>
-    </section>
-
-    <section class="panel hidden" id="tombstone-guard-panel">
-      <div class="panel-head"><div><h2>Tombstone / stale-resurrection guard</h2><p>Uses an isolated synthetic entity to prove soft-delete retention, ordered tombstone semantics, stale-device resurrection blocking, and exact retry idempotency. No real WLP card or production sync feed row is modified.</p></div><div class="compare-badge">Tombstone guard <strong id="tombstone-guard-result">—</strong></div></div>
-      <div class="metrics">
-        <div class="metric"><strong id="tombstone-guard-live">—</strong><span>Live upsert emitted</span></div>
-        <div class="metric"><strong id="tombstone-guard-delete">—</strong><span>Delete tombstone emitted</span></div>
-        <div class="metric"><strong id="tombstone-guard-tombstone">—</strong><span>Server row retained</span></div>
-        <div class="metric"><strong id="tombstone-guard-conflict">—</strong><span>Stale resurrection</span></div>
-        <div class="metric"><strong id="tombstone-guard-retry">—</strong><span>Exact retry</span></div>
-        <div class="metric"><strong id="tombstone-guard-prod">0</strong><span>Production feed rows</span></div>
-        <div class="metric"><strong id="tombstone-guard-local">—</strong><span>Local WLP</span></div>
-        <div class="metric"><strong id="tombstone-guard-blocking">0</strong><span>Blocking issues</span></div>
-      </div>
-      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Synthetic probe identity</p><div class="hash-box" id="tombstone-guard-id"></div>
-      <h3 style="font-size:.9rem;margin:18px 0 8px">Tombstone proof</h3>
-      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="tombstone-guard-proof-body"></tbody></table></div>
-      <h3 style="font-size:.9rem;margin:18px 0 8px">Safety notes</h3><ul class="error-list" id="tombstone-guard-notes"></ul>
-      <p class="status-line" id="tombstone-guard-status">Run after v241 PASS. This probe deletes only its own synthetic server row logically (soft delete); real WLP data remains untouched.</p>
+      <p class="status-line" id="steady-sync-status">Uses the installed v240 server contract. Run on the device that currently has the 2-row outbox, then run the same button on the other device to pull the changes.</p>
     </section>
 
     <section class="panel hidden" id="compare-panel">
@@ -1069,8 +1025,6 @@
   <script src="./cloud-shadow-cloud-candidate-materialize.js"></script>
   <script src="./cloud-shadow-cloud-promotion-ack.js"></script>
   <script src="./cloud-shadow-v3-incremental-pull.js"></script>
-  <script src="./cloud-shadow-steady-sync.js?v=20261001-v186240-steady-sync"></script>
-  <script src="./cloud-shadow-conflict-guard.js?v=20261001-v186241-conflict-guard"></script>
-  <script src="./cloud-shadow-tombstone-guard.js?v=20261001-v186243-tombstone-retry-zero-fix"></script>
+  <script src="./cloud-shadow-steady-sync.js?v=20261001-v186245-target-agnostic-steady-sync"></script>
 </body>
 </html>
