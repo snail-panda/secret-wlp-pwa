@@ -323,7 +323,21 @@ function recordEncounter(row) {
   const canonicalStudyCandidate = window.WLPCanonicalStudyAttentionWriteCandidate;
   const canonicalOwnsProgress = Boolean(canonicalStudyCandidate?.isActive?.() && canonicalStudyCandidate?.readProgressKey?.(key));
 
-  if (!canonicalOwnsProgress) {
+  if (canonicalOwnsProgress) {
+    let legacyCur = {};
+    try {
+      legacyCur = JSON.parse(localStorage.getItem(key) || "{}");
+    } catch (_) {
+      legacyCur = {};
+    }
+    saveProgress(key, {
+      ...legacyCur,
+      wordId,
+      firstSeen: legacyCur.firstSeen || now,
+      lastSeen: now,
+      exposureCount: Number(legacyCur.exposureCount || 0) + 1
+    });
+  } else {
     saveProgress(key, {
       ...cur,
       wordId,
@@ -3649,8 +3663,8 @@ function openReviewAttentionSheet(row, stateKey, onSaved) {
           result?.reloading
             ? "Pending Canonical attention saved. Reloading once to verify local outbox persistence."
             : result?.pass
-              ? "Canonical Study attention candidate passed."
-              : "Canonical Study attention candidate was blocked. No legacy attention write occurred.",
+              ? selectedLevel ? `${selectedLevel[0].toUpperCase()}${selectedLevel.slice(1)} attention saved.` : "Review attention details saved."
+              : "Canonical Study attention was blocked. No legacy attention write occurred.",
           result?.pass ? 5200 : 6200
         );
       } finally {
@@ -3932,7 +3946,10 @@ function bindCardBehavior(
     void window.WLPCanonicalStudyAttentionWriteCandidate?.afterRender?.({
       stateKey,
       wordId: String(row?.WordID || "").trim(),
-      refresh: refreshProgressControls
+      root,
+      refresh: refreshProgressControls,
+      isReviewMode: IS_REVIEW_MODE,
+      removeFromReviewDeck: () => removeFromCurrentReviewDeck(root)
     });
     if (studiedButton) {
       studiedButton.disabled = true;
