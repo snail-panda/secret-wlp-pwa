@@ -1,10 +1,10 @@
-/* WLP v1.8.6.242 · isolated production-shaped tombstone / stale-resurrection guard.
+/* WLP v1.8.6.243 · isolated production-shaped tombstone / stale-resurrection guard.
    Creates only a synthetic server probe entity, tombstones it, proves an offline stale
    resurrection is rejected, and verifies exact retry idempotency. No real WLP row or
    local mirror/outbox/cursor is modified. */
 (() => {
   'use strict';
-  const APP_VERSION='1.8.6.242-tombstone-resurrection-guard-v1';
+  const APP_VERSION='1.8.6.243-tombstone-retry-zero-fix-v1';
   const RPC='wlp_sync_run_tombstone_probe_v1';
   const BASE={key:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',head:3,manifest:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63'};
   const TARGET_CARD='ea2f787b-41fe-5446-bbff-49c0c6ed73e2';
@@ -39,7 +39,7 @@
     const deleteChange=changes.length===2&&changes[1]?.operation==='delete'&&changes[1]?.tombstone===true;
     const entityTombstoned=Boolean(entity?.tombstone)&&Boolean(entity?.deleted_at)&&Number(entity?.row_version)===2;
     const staleResurrectionConflict=conflicts.length===1&&conflicts[0]?.reason==='entity_deleted'&&conflicts[0]?.status==='open'&&mutations.length===3&&mutations.filter(x=>x.status==='applied').length===2&&mutations.filter(x=>x.status==='conflict').length===1;
-    const retryIdempotent=first?.status==='tombstone-probe-ok'&&first?.idempotent===false&&retry?.status==='tombstone-probe-ok'&&retry?.idempotent===true&&Number(retry?.writesPerformed||-1)===0&&String(retry?.conflictId||'')===String(first?.conflictId||'');
+    const retryIdempotent=first?.status==='tombstone-probe-ok'&&first?.idempotent===false&&retry?.status==='tombstone-probe-ok'&&retry?.idempotent===true&&Number(retry?.writesPerformed ?? -1)===0&&String(retry?.conflictId||'')===String(first?.conflictId||'');
     let simulatedLive={entityId:probeId,visible:true,payload:changes[0]?.payload||null};for(const ch of changes){if(ch.operation==='upsert'&&!ch.tombstone)simulatedLive={entityId:probeId,visible:true,payload:ch.payload};if(ch.operation==='delete'||ch.tombstone)simulatedLive={entityId:probeId,visible:false,payload:ch.payload||simulatedLive.payload};}
     const staleClientHiddenAfter=simulatedLive.visible===false;
     const productionIsolated=productionChanges.length===0&&productionConflicts.length===0;
