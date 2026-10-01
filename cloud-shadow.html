@@ -71,6 +71,9 @@
       <button class="action" id="export-merge-materialize" type="button" disabled>Export Materialization</button>
       <button class="action cloud-action" id="run-cutover-preflight" type="button" disabled>Run Cutover Preflight</button>
       <button class="action" id="export-cutover-preflight" type="button" disabled>Export Cutover Preflight</button>
+      <button class="action cloud-action" id="commit-authority-candidate" type="button" disabled>Commit Authority Candidate + Round-trip</button>
+      <button class="action cloud-action" id="retry-authority-candidate" type="button" disabled>Retry Same Candidate</button>
+      <button class="action" id="export-authority-candidate" type="button" disabled>Export Authority Candidate</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -278,6 +281,33 @@
       <p class="status-line" id="cutover-preflight-status">Run Merged Canonical Snapshot Materialization first. This preflight remains disabled until v200 materialization passes in this page session.</p>
     </section>
 
+    <section class="panel hidden" id="authority-candidate-panel">
+      <div class="panel-head"><div><h2>Canonical Authority Candidate · inactive Cloud round-trip</h2><p>Commits the exact v201 preflight-verified merged Canonical snapshot to isolated candidate tables, then reads every payload back and verifies hashes and manifests. This is the first Canonical Cloud write, but the candidate remains inactive: no authority head/pointer is promoted and nothing is applied to WLP.</p></div><div class="compare-badge">Candidate <strong id="authority-candidate-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="authority-candidate-rows">0</strong><span>Cloud rows read back</span></div>
+        <div class="metric"><strong id="authority-candidate-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="authority-candidate-mismatches">0</strong><span>Hash mismatches</span></div>
+        <div class="metric"><strong id="authority-candidate-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="authority-candidate-retry">—</strong><span>Retry idempotency</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Inactive Candidate key · content-addressed by Cutover Ticket</p>
+      <div class="hash-box" id="authority-candidate-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Cutover Ticket SHA-256</p>
+      <div class="hash-box" id="authority-candidate-ticket"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Cloud read-back snapshot manifest SHA-256</p>
+      <div class="hash-box" id="authority-candidate-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Candidate table proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Cloud rows</th><th>Expected rows</th><th>Manifest proof</th></tr></thead>
+          <tbody id="authority-candidate-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Authority Candidate notes</h3>
+      <ul class="error-list" id="authority-candidate-notes"></ul>
+      <p class="status-line" id="authority-candidate-status">Run Cutover Preflight first. Candidate commit remains disabled until the preflight passes in this page session.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -325,5 +355,6 @@
   <script src="./cloud-shadow-merge-simulation.js"></script>
   <script src="./cloud-shadow-merge-materialization.js"></script>
   <script src="./cloud-shadow-cutover-preflight.js"></script>
+  <script src="./cloud-shadow-authority-candidate.js"></script>
 </body>
 </html>

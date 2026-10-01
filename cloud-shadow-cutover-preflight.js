@@ -8,9 +8,9 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.201-canonical-cutover-preflight-v1';
+  const APP_VERSION = '1.8.6.202-canonical-cutover-preflight-v1';
   const HASH_BATCH = 128;
-  const state = { busy: false, report: null };
+  const state = { busy: false, report: null, hydratedRows: null };
 
   const PK = Object.freeze({
     cards: row => row.card_id,
@@ -463,6 +463,7 @@
           materializationManifestMatched: first.proof.snapshotManifestHash === materialization.hashes?.snapshotManifestHash
         }
       };
+      state.hydratedRows = hydrated.rows;
       render(state.report);
       setStatus(
         `Canonical Cutover Preflight ${pass ? 'PASS' : 'CHECK'} · ${first.summary.hydratedRows.toLocaleString()} final payloads hydrated · ${first.summary.payloadHashesVerified.toLocaleString()} payload hashes verified · ${first.summary.blockingIssues} blocker(s) · ${first.summary.historicalWarnings} historical warning(s) · repeatability ${repeatability ? 'PASS' : 'FAIL'} · no Cloud/WLP data modified.`,
@@ -470,6 +471,7 @@
       );
       window.dispatchEvent(new CustomEvent('wlp-canonical-cutover-preflight-complete'));
     } catch (error) {
+      state.hydratedRows = null;
       console.error('WLP Canonical Cutover Preflight:', error);
       setStatus(error?.message || String(error), 'error');
     } finally {
@@ -540,7 +542,14 @@
     $('export-cutover-preflight').disabled = state.busy || !state.report;
   }
 
-  window.WLPCanonicalCutoverPreflight = Object.freeze({ getReport: () => state.report });
+  window.WLPCanonicalCutoverPreflight = Object.freeze({
+    getReport: () => state.report,
+    getVerifiedSnapshot: () => {
+      if (!state.report?.summary?.pass || !Array.isArray(state.hydratedRows)) return null;
+      if (state.hydratedRows.length !== Number(state.report.summary.hydratedRows || 0)) return null;
+      return { report: state.report, rows: state.hydratedRows };
+    }
+  });
 
   function init() {
     $('run-cutover-preflight').addEventListener('click', runPreflight);
