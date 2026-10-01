@@ -923,7 +923,7 @@
         <div class="metric"><strong id="cloud-v3-pull-written">0</strong><span>Canonical rows written</span></div>
         <div class="metric"><strong id="cloud-v3-pull-cursor">0 → 0</strong><span>Sync cursor</span></div>
         <div class="metric"><strong id="cloud-v3-pull-after">—</strong><span>Mirror after</span></div>
-        <div class="metric"><strong id="cloud-v3-pull-state">—</strong><span>WID2876 Attention</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-state">—</strong><span>WID2876 State</span></div>
         <div class="metric"><strong id="cloud-v3-pull-event">—</strong><span>attention_set event</span></div>
         <div class="metric"><strong id="cloud-v3-pull-blocking">0</strong><span>Blocking issues</span></div>
       </div>
@@ -942,7 +942,7 @@
         <div class="metric"><strong id="steady-sync-changes">0</strong><span>Change rows</span></div>
         <div class="metric"><strong id="steady-sync-cursor">0 → 0</strong><span>Sync cursor</span></div>
         <div class="metric"><strong id="steady-sync-outbox">0 → 0</strong><span>Local outbox</span></div>
-        <div class="metric"><strong id="steady-sync-state">—</strong><span>WID2876 Attention</span></div>
+        <div class="metric"><strong id="steady-sync-state">—</strong><span>WID2876 State</span></div>
         <div class="metric"><strong id="steady-sync-rows">0</strong><span>Materialized mirror rows</span></div>
         <div class="metric"><strong id="steady-sync-head">0</strong><span>Cloud Head version</span></div>
         <div class="metric"><strong id="steady-sync-blocking">0</strong><span>Blocking issues</span></div>
@@ -951,7 +951,7 @@
       <h3 style="font-size:.9rem;margin:18px 0 8px">Steady-state proof</h3>
       <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="steady-sync-proof-body"></tbody></table></div>
       <h3 style="font-size:.9rem;margin:18px 0 8px">Sync notes</h3><ul class="error-list" id="steady-sync-notes"></ul>
-      <p class="status-line" id="steady-sync-status">Uses the installed v240 server contract. Run on the device that currently has the 2-row outbox, then run the same button on the other device to pull the changes.</p>
+      <p class="status-line" id="steady-sync-status">Uses the installed incremental server contract for Attention and Study membership actions. Run on the device that currently has the 2-row outbox, then run the same button on the other device to pull the changes.</p>
     </section>
 
     <section class="panel hidden" id="compare-panel">
@@ -1025,6 +1025,6 @@
   <script src="./cloud-shadow-cloud-candidate-materialize.js"></script>
   <script src="./cloud-shadow-cloud-promotion-ack.js"></script>
   <script src="./cloud-shadow-v3-incremental-pull.js"></script>
-  <script src="./cloud-shadow-steady-sync.js?v=20261001-v186245-target-agnostic-steady-sync"></script>
+  <script src="./cloud-shadow-steady-sync.js?v=20261001-v186249-state-event-steady-sync"></script>
 </body>
 </html>
