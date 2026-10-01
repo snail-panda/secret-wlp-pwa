@@ -86,6 +86,8 @@
       <button class="action cloud-action" id="install-canonical-mirror" type="button" disabled>Install Canonical Mirror + Read-back</button>
       <button class="action cloud-action" id="retry-canonical-mirror" type="button" disabled>Retry Same Mirror</button>
       <button class="action" id="export-canonical-mirror" type="button" disabled>Export Mirror Report</button>
+      <button class="action cloud-action" id="verify-canonical-mirror-cold" type="button">Verify Mirror Cold Start</button>
+      <button class="action" id="export-canonical-mirror-cold" type="button" disabled>Export Cold Verify</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -454,6 +456,27 @@
       <p class="status-line" id="canonical-mirror-status">Run a fresh Local Scan, Pull Authority + Compare Local, and Authority Apply Dry Run first. This stage writes only to the new isolated wlp-cloud-v1 IndexedDB mirror; legacy WLP remains untouched.</p>
     </section>
 
+    <section class="panel hidden" id="canonical-mirror-cold-panel">
+      <div class="panel-head"><div><h2>Canonical Local Mirror · cold-start local-only verification</h2><p>Reads the already-installed <code>wlp-cloud-v1</code> IndexedDB mirror after a fresh page load, recomputes every payload hash and the full Canonical manifest, and verifies persistence without reading Cloud or touching legacy WLP.</p></div><div class="compare-badge">Cold verify <strong id="canonical-mirror-cold-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="canonical-mirror-cold-rows">0</strong><span>Mirror rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-hash-mismatch">0</strong><span>Hash mismatches</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-key-mismatch">0</strong><span>Row-key mismatches</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-outbox">0</strong><span>Sync outbox rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-repeat">—</strong><span>Proof repeatability</span></div>
+        <div class="metric"><strong id="canonical-mirror-cold-write">NO</strong><span>IndexedDB write this run</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Stored mirror manifest SHA-256</p>
+      <div class="hash-box" id="canonical-mirror-cold-stored-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Cold read-back manifest SHA-256 · must match stored mirror metadata</p>
+      <div class="hash-box" id="canonical-mirror-cold-read-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Cold-start verification notes</h3>
+      <ul class="error-list" id="canonical-mirror-cold-notes"></ul>
+      <p class="status-line" id="canonical-mirror-cold-status">Reload this page first, do not run Local Scan / Pull / Dry Run / Mirror Install, then run this local-only verification. No Cloud call is used.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -507,5 +530,6 @@
   <script src="./cloud-shadow-authority-pull-compare.js"></script>
   <script src="./cloud-shadow-authority-apply-dry-run.js"></script>
   <script src="./cloud-shadow-canonical-mirror.js"></script>
+  <script src="./cloud-shadow-canonical-mirror-cold-verify.js"></script>
 </body>
 </html>
