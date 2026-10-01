@@ -90,6 +90,8 @@
       <button class="action" id="export-canonical-mirror-cold" type="button" disabled>Export Cold Verify</button>
       <button class="action cloud-action" id="run-compat-projection" type="button">Run Compatibility Projection Audit</button>
       <button class="action" id="export-compat-projection" type="button" disabled>Export Projection Audit</button>
+      <button class="action cloud-action" id="run-compat-adapter" type="button">Run Read-Only Adapter Audit</button>
+      <button class="action" id="export-compat-adapter" type="button" disabled>Export Adapter Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -507,6 +509,34 @@
       <p class="status-line" id="compat-projection-status">Reads only the already-installed Canonical mirror and works in memory. No Cloud call, IndexedDB write, localStorage write, or live WLP apply occurs.</p>
     </section>
 
+    <section class="panel hidden" id="compat-adapter-panel">
+      <div class="panel-head"><div><h2>Canonical Mirror · read-only compatibility adapter API</h2><p>Opens the persisted <code>wlp-cloud-v1</code> mirror through a reusable read-only logical-record API. It verifies deterministic projection, card joins, learning/history access, preference access, and mutation isolation without replacing localStorage or wiring any live WLP feature to the mirror.</p></div><div class="compare-badge">Adapter <strong id="compat-adapter-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="compat-adapter-mirror">0</strong><span>Mirror rows</span></div>
+        <div class="metric"><strong id="compat-adapter-logical">0</strong><span>Adapter logical records</span></div>
+        <div class="metric"><strong id="compat-adapter-cards">0</strong><span>Cards</span></div>
+        <div class="metric"><strong id="compat-adapter-states">0</strong><span>Learning states</span></div>
+        <div class="metric"><strong id="compat-adapter-events">0</strong><span>Learning events</span></div>
+        <div class="metric"><strong id="compat-adapter-prefs">0</strong><span>Portable prefs</span></div>
+        <div class="metric"><strong id="compat-adapter-outbox">0</strong><span>Sync outbox rows</span></div>
+        <div class="metric"><strong id="compat-adapter-repeat">—</strong><span>Open repeatability</span></div>
+        <div class="metric"><strong id="compat-adapter-isolation">—</strong><span>Mutation isolation</span></div>
+        <div class="metric"><strong id="compat-adapter-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Compatibility projection SHA-256 · must equal the v209 proof on both devices</p>
+      <div class="hash-box" id="compat-adapter-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Read-only adapter logical entities</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Logical entity</th><th>Records</th></tr></thead>
+          <tbody id="compat-adapter-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Adapter audit notes</h3>
+      <ul class="error-list" id="compat-adapter-notes"></ul>
+      <p class="status-line" id="compat-adapter-status">Reads only the installed Canonical mirror. No Cloud call, IndexedDB write, localStorage write, or live WLP integration occurs.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -562,5 +592,6 @@
   <script src="./cloud-shadow-canonical-mirror.js"></script>
   <script src="./cloud-shadow-canonical-mirror-cold-verify.js"></script>
   <script src="./cloud-shadow-compat-projection.js"></script>
+  <script src="./cloud-shadow-compat-adapter.js"></script>
 </body>
 </html>
