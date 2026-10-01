@@ -8,7 +8,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.237-storage-compat-facade-v3-aware-v1';
+  const APP_VERSION = '1.8.6.250-storage-compat-initial-state-overlay-v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const AUTHORITY_SPECS = Object.freeze({
     'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283': Object.freeze({ label:'v2', headVersion:2, migrationVersion:'3', manifest:'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3', rows:21424 }),
@@ -320,6 +320,21 @@
       const table = String(mutation?.tableName || '');
       const rowKey = String(mutation?.rowKey || '');
       if (!rowKey) throw new Error(`Pending mutation ${mutation?.mutationId || '(unknown)'} has no rowKey.`);
+      if (kind === 'insert' && table === STATE_STORE) {
+        if (seenStateRows.has(rowKey)) throw new Error(`Multiple pending learning_state mutations for ${rowKey} are not supported yet; refusing ambiguous overlay.`);
+        seenStateRows.add(rowKey);
+        const wrapper = overlayContext.statesById.get(rowKey);
+        const cardWrapper = overlayContext.cardsById.get(rowKey);
+        if (wrapper || !cardWrapper) throw new Error(`Pending learning_state insert ${mutation?.mutationId || '(unknown)'} requires an absent Canonical state and existing Canonical card.`);
+        if (mutation?.precondition?.rowMustBeAbsent !== true) throw new Error(`Pending learning_state insert ${mutation?.mutationId || '(unknown)'} is missing rowMustBeAbsent guard.`);
+        const payload = mutation?.payload;
+        if (!payload || typeof payload !== 'object' || String(payload?.card_id || '') !== rowKey) throw new Error(`Pending learning_state insert ${mutation?.mutationId || '(unknown)'} payload identity mismatch.`);
+        const wordId = clean(cardWrapper?.payload?.word_id);
+        if (!wordId || progressByWordId.has(wordId)) throw new Error(`Pending learning_state insert ${mutation?.mutationId || '(unknown)'} cannot resolve a new page-facing WordID.`);
+        progressByWordId.set(wordId, applyCanonicalStatePatchToPageRecord({}, payload, wordId));
+        stateApplied += 1;
+        continue;
+      }
       if (kind === 'patch' && table === STATE_STORE) {
         if (seenStateRows.has(rowKey)) throw new Error(`Multiple pending learning_state patches for ${rowKey} are not supported yet; refusing ambiguous overlay.`);
         seenStateRows.add(rowKey);
@@ -374,7 +389,8 @@
     const overlay = applyPendingOverlay(adapter, overlayContext, progressByWordId, streams);
     const progressRecords = [...progressByWordId.values()].sort((a, b) => a.wordId.localeCompare(b.wordId, undefined, { numeric: true }));
     const explicitFirstSeenRows = progressRecords.filter(row => Number(row.firstSeen || 0) > 0).length;
-    if (progressRecords.length !== EXPECTED_PROGRESS_ROWS || explicitFirstSeenRows !== EXPECTED_PROGRESS_ROWS) throw new Error(`Storage facade firstSeen coverage mismatch: expected ${EXPECTED_PROGRESS_ROWS}/${EXPECTED_PROGRESS_ROWS}, got ${explicitFirstSeenRows}/${progressRecords.length}.`);
+    const expectedProgressRows = progressRecords.length;
+    if (progressRecords.length < EXPECTED_PROGRESS_ROWS || explicitFirstSeenRows !== expectedProgressRows) throw new Error(`Storage facade firstSeen coverage mismatch: expected at least ${EXPECTED_PROGRESS_ROWS} state row(s) and explicit firstSeen on all materialized/pending rows; got ${explicitFirstSeenRows}/${progressRecords.length}.`);
     const reviewRecords = buildReviewRecords(progressRecords);
     const profile = clone(adapter.get('learner_profile', 'account')?.payload || {});
     const route = clone(adapter.get('learner_route_state', 'account')?.payload || {});
@@ -406,6 +422,7 @@
       source: overlay.pendingRows ? 'wlp-cloud-v1+sync_outbox-overlay' : 'wlp-cloud-v1',
       projectionHash: adapter.projectionHash,
       explicitFirstSeenRows,
+      expectedProgressRows,
       pendingOutboxRows: overlay.pendingRows,
       overlayMutationsApplied: overlay.applied,
       overlayStateMutationsApplied: overlay.stateApplied,
@@ -574,7 +591,7 @@
       const exposedWriteMethods = writeMethodNames.filter(name => typeof first[name] === 'function');
       if (exposedWriteMethods.length) blocking.push(`Read-only facade unexpectedly exposes write method(s): ${exposedWriteMethods.join(', ')}.`);
       if (!first.readOnly) blocking.push('Storage Compatibility Facade is not marked read-only.');
-      if (first.explicitFirstSeenRows !== EXPECTED_PROGRESS_ROWS) blocking.push('Storage Compatibility Facade does not expose exact firstSeen for all 111 learning_state rows.');
+      if (first.explicitFirstSeenRows !== first.expectedProgressRows) blocking.push(`Storage Compatibility Facade does not expose exact firstSeen for all ${first.expectedProgressRows} materialized/pending learning_state rows.`);
 
       if (review.length !== 25) warnings.push(`Canonical Review membership currently resolves to ${review.length} row(s), not the previously observed 25.`);
       warnings.push('Progress uses the Canonical facade by default since v222; Review still uses legacy localStorage. Pending sync_outbox mutations are now overlaid read-only when their Authority and conflict guards match.');
@@ -650,7 +667,7 @@
           progressDefaultReadCutoverCompatible: true,
           noReviewReadCutover: true,
           supportedActiveAuthorityMirrorRequired: Boolean(authoritySpec(first.meta)) && String(first.meta?.snapshotManifestHash || '') === authoritySpec(first.meta).manifest,
-          explicitFirstSeenComplete: first.explicitFirstSeenRows === EXPECTED_PROGRESS_ROWS,
+          explicitFirstSeenComplete: first.explicitFirstSeenRows === first.expectedProgressRows,
           storageTypedReaderParity: storageParityMismatches === 0,
           currentDeviceHistoryCovered: coverage.missingEventPayloads === 0 && coverage.missingSessionPayloads === 0,
           reviewCardsResolve: unresolvedReviewCards.length === 0,

@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.237 — default Canonical Progress reads across supported Authority v2/v3 mirrors; forced-legacy rollback retained. */
+/* WLP Stage 7 v1.8.6.250 — default Canonical Progress reads support growing post-bootstrap learning_state rows; forced-legacy rollback retained. */
 (() => {
   'use strict';
 
@@ -91,9 +91,9 @@
         aiRouteState: facade.readAIRouteState(),
         aiLearnerProfile: facade.readAILearnerProfile()
       };
-      if (!Array.isArray(bundle.progressRecords) || bundle.progressRecords.length !== 111) throw new Error(`Canonical Progress row count mismatch: ${Array.isArray(bundle.progressRecords) ? bundle.progressRecords.length : 'invalid'}.`);
+      if (!Array.isArray(bundle.progressRecords) || bundle.progressRecords.length < 111) throw new Error(`Canonical Progress row count regressed below bootstrap: ${Array.isArray(bundle.progressRecords) ? bundle.progressRecords.length : 'invalid'}.`);
       const explicitFirstSeenRows = bundle.progressRecords.filter(row => Number(row?.firstSeen || 0) > 0).length;
-      if (explicitFirstSeenRows !== 111) throw new Error(`Canonical firstSeen coverage mismatch: ${explicitFirstSeenRows}/111.`);
+      if (explicitFirstSeenRows !== bundle.progressRecords.length) throw new Error(`Canonical firstSeen coverage mismatch: ${explicitFirstSeenRows}/${bundle.progressRecords.length}.`);
       const spot = bundle.progressRecords.find(row => String(row?.wordId || '') === '2876') || null;
       if (!spot || Number(spot.firstSeen || 0) !== 1790459055400) throw new Error('WID 2876 firstSeen does not match the verified Canonical Authority value.');
 

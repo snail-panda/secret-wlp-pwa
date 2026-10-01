@@ -942,7 +942,7 @@
         <div class="metric"><strong id="steady-sync-changes">0</strong><span>Change rows</span></div>
         <div class="metric"><strong id="steady-sync-cursor">0 → 0</strong><span>Sync cursor</span></div>
         <div class="metric"><strong id="steady-sync-outbox">0 → 0</strong><span>Local outbox</span></div>
-        <div class="metric"><strong id="steady-sync-state">—</strong><span>WID2876 State</span></div>
+        <div class="metric"><strong id="steady-sync-state">—</strong><span>Target State</span></div>
         <div class="metric"><strong id="steady-sync-rows">0</strong><span>Materialized mirror rows</span></div>
         <div class="metric"><strong id="steady-sync-head">0</strong><span>Cloud Head version</span></div>
         <div class="metric"><strong id="steady-sync-blocking">0</strong><span>Blocking issues</span></div>
@@ -951,7 +951,7 @@
       <h3 style="font-size:.9rem;margin:18px 0 8px">Steady-state proof</h3>
       <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="steady-sync-proof-body"></tbody></table></div>
       <h3 style="font-size:.9rem;margin:18px 0 8px">Sync notes</h3><ul class="error-list" id="steady-sync-notes"></ul>
-      <p class="status-line" id="steady-sync-status">Uses the installed incremental server contract for Attention and Study membership actions. Run on the device that currently has the 2-row outbox, then run the same button on the other device to pull the changes.</p>
+      <p class="status-line" id="steady-sync-status">Uses the installed incremental server contract for existing-state updates and guarded initial learning_state creation. Run on the device that currently has the 2-row outbox, then run the same button on the other device to pull the changes.</p>
     </section>
 
     <section class="panel hidden" id="compare-panel">
@@ -1009,9 +1009,9 @@
   <script src="./cloud-shadow-canonical-mirror.js"></script>
   <script src="./cloud-shadow-canonical-mirror-cold-verify.js"></script>
   <script src="./cloud-shadow-compat-projection.js"></script>
-  <script src="./cloud-shadow-compat-adapter.js?v=20261001-v186240-materialized-sync"></script>
+  <script src="./cloud-shadow-compat-adapter.js?v=20261001-v186250-growing-state"></script>
   <script src="./cloud-shadow-progress-review-shadow.js"></script>
-  <script src="./cloud-shadow-storage-compat-facade.js"></script>
+  <script src="./cloud-shadow-storage-compat-facade.js?v=20261001-v186250-initial-state-overlay"></script>
   <script src="./cloud-shadow-first-seen-preflight.js"></script>
   <script src="./cloud-shadow-first-seen-candidate.js"></script>
   <script src="./cloud-shadow-first-seen-promotion-preflight.js"></script>
@@ -1025,6 +1025,6 @@
   <script src="./cloud-shadow-cloud-candidate-materialize.js"></script>
   <script src="./cloud-shadow-cloud-promotion-ack.js"></script>
   <script src="./cloud-shadow-v3-incremental-pull.js"></script>
-  <script src="./cloud-shadow-steady-sync.js?v=20261001-v186249-state-event-steady-sync"></script>
+  <script src="./cloud-shadow-steady-sync.js?v=20261001-v186250-initial-state-create"></script>
 </body>
 </html>

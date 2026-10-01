@@ -8,7 +8,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.240-canonical-compat-adapter-materialized-sync-v1';
+  const APP_VERSION = '1.8.6.250-canonical-compat-adapter-growing-state-v1';
   const DB_NAME = 'wlp-cloud-v1';
   const DB_VERSION = 1;
   const META_STORE = 'sync_meta';
@@ -574,7 +574,8 @@
 
       const projection = await projectLogicalRecords(mirror.tables);
       if (projection.blocking.length) throw new Error(projection.blocking.join(' '));
-      if (projection.explicitFirstSeenRows !== EXPECTED_FIRST_SEEN_ROWS) throw new Error(`Compatibility projection firstSeen coverage mismatch: expected ${EXPECTED_FIRST_SEEN_ROWS}, got ${projection.explicitFirstSeenRows}.`);
+      const materializedStateRows = asArray(mirror.tables.learning_state).length;
+      if (materializedStateRows < EXPECTED_FIRST_SEEN_ROWS || projection.explicitFirstSeenRows !== materializedStateRows) throw new Error(`Compatibility projection firstSeen coverage mismatch: expected at least ${EXPECTED_FIRST_SEEN_ROWS} learning_state row(s) and explicit firstSeen on all materialized rows; got ${projection.explicitFirstSeenRows}/${materializedStateRows}.`);
       return { adapter: buildReadOnlyAdapter(projection, mirror.meta, mirror.outboxRows), mirror, projection };
     } finally {
       if (db) db.close();
@@ -611,10 +612,11 @@
 
       if (cards.length !== 6546) blocking.push(`Adapter card count mismatch: expected 6546, got ${cards.length}.`);
       if (contents.length !== 6546) blocking.push(`Adapter card_content count mismatch: expected 6546, got ${contents.length}.`);
-      if (learningStates.length !== 111) blocking.push(`Adapter learning_state count mismatch: expected 111, got ${learningStates.length}.`);
-      if (preferences.length !== 9) blocking.push(`Adapter portable preference count mismatch: expected 9, got ${preferences.length}.`);
       const baseAuthority = authoritySpec(first.mirror.meta);
       const currentMirrorSpec = mirrorSpec(first.mirror.meta);
+      if (!currentMirrorSpec?.materialized && learningStates.length !== EXPECTED_FIRST_SEEN_ROWS) blocking.push(`Adapter learning_state count mismatch: expected ${EXPECTED_FIRST_SEEN_ROWS}, got ${learningStates.length}.`);
+      if (currentMirrorSpec?.materialized && learningStates.length < EXPECTED_FIRST_SEEN_ROWS) blocking.push(`Adapter learning_state count regressed below bootstrap: expected at least ${EXPECTED_FIRST_SEEN_ROWS}, got ${learningStates.length}.`);
+      if (preferences.length !== 9) blocking.push(`Adapter portable preference count mismatch: expected 9, got ${preferences.length}.`);
       const expectedBaseEventRows = baseAuthority?.label === 'v3' ? 1151 : 1150;
       if (!currentMirrorSpec?.materialized && events.length !== expectedBaseEventRows) blocking.push(`Adapter learning_event count mismatch: expected ${expectedBaseEventRows}, got ${events.length}.`);
       if (currentMirrorSpec?.materialized && events.length < expectedBaseEventRows) blocking.push(`Adapter learning_event count regressed below bootstrap: expected at least ${expectedBaseEventRows}, got ${events.length}.`);
@@ -718,7 +720,7 @@
           noLiveWlpWrites: true,
           syncOutboxReadable: Number.isFinite(first.mirror.outboxRows) && first.mirror.outboxRows >= 0,
           existingMirrorManifestVerified: Boolean(mirrorSpec(first.mirror.meta)) && first.mirror.manifestHash === mirrorSpec(first.mirror.meta).manifest,
-          explicitFirstSeenComplete: first.projection.explicitFirstSeenRows === EXPECTED_FIRST_SEEN_ROWS,
+          explicitFirstSeenComplete: first.projection.explicitFirstSeenRows === learningStates.length && learningStates.length >= EXPECTED_FIRST_SEEN_ROWS,
           compatibilityProjectionRepeatable: first.projection.projectionHash === second.projection.projectionHash,
           adapterReadOnly: adapter.readOnly === true,
           adapterMutationIsolationVerified: mutationIsolation,

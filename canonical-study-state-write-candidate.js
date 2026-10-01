@@ -1,15 +1,15 @@
-/* WLP v1.8.6.246 — default Canonical Study state membership canary.
-   Normal Study for WID2876 continues to read the materialized Canonical mirror.
-   In addition to Attention, the existing Studied / Review membership controls are
-   unlocked for this canary and rerouted into a production-shaped learning_state +
-   learning_events sync_outbox pair. Other cards remain on the prior path.
-   Rollback for WID2876: ?wlpLegacyStudyAttentionWrite=1
-   No Cloud write is performed here; a later steady-sync step transports the outbox. */
+/* WLP v1.8.6.250 — initial Canonical learning_state creation canary.
+   Normal Study for WID6538 is used only when that card has no learning_state row yet.
+   The existing Studied control creates one production-shaped learning_state insert +
+   learning_events append in sync_outbox; all other cards remain on the prior path.
+   The canary refuses to run if WID6538 already has Canonical state or legacy progress.
+   Rollback for WID6538: ?wlpLegacyStudyAttentionWrite=1
+   No Cloud write is performed here; steady-sync transports the retained outbox pair. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.248-study-state-post-render-bind-fix-v1';
-  const DB_NAME='wlp-cloud-v1', DB_VERSION=1, META_STORE='sync_meta', OUTBOX_STORE='sync_outbox', STATE_STORE='learning_state';
+  const APP_VERSION='1.8.6.250-initial-learning-state-create-canary-v1';
+  const DB_NAME='wlp-cloud-v1', DB_VERSION=1, META_STORE='sync_meta', OUTBOX_STORE='sync_outbox', STATE_STORE='learning_state', CARD_STORE='cards', EVENT_STORE='learning_events';
   const META_KEY='authority_mirror', CURSOR_KEY='sync_cursor';
   const PROGRESS_PREFIX='fc:wordid:';
   const CARD_NAMESPACE_UUID='87dc20ed-dd35-5ba3-8bde-04bf389874ce';
@@ -17,8 +17,8 @@
   const params=new URLSearchParams(location.search);
   const targetWordId=String(params.get('wordid')||'').trim();
   const rollbackRequested=params.get('wlpLegacyStudyAttentionWrite')==='1';
-  const requested=targetWordId==='2876' && !rollbackRequested;
-  const state={active:false,busy:false,pending:false,db:null,meta:null,cursorMeta:null,cardId:'',baseWrapper:null,baseRecord:null,overlayRecord:null,report:null,prepareError:'',renderCtx:null};
+  const requested=targetWordId==='6538' && !rollbackRequested;
+  const state={active:false,busy:false,pending:false,postCreateReadOnly:false,db:null,meta:null,cursorMeta:null,cardId:'',cardWrapper:null,baseWrapper:null,baseRecord:null,overlayRecord:null,report:null,prepareError:'',renderCtx:null};
 
   function clone(v){return v==null?v:JSON.parse(JSON.stringify(v));}
   function stableValue(v){if(Array.isArray(v))return v.map(stableValue);if(v&&typeof v==='object'){const o={};Object.keys(v).sort().forEach(k=>{if(v[k]!==undefined)o[k]=stableValue(v[k]);});return o;}return v;}
@@ -31,9 +31,11 @@
   function isUuid(v){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||''));}
   function requestPromise(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('IndexedDB request failed.'));});}
   function transactionDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||new Error('IndexedDB transaction aborted.'));tx.onerror=()=>reject(tx.error||new Error('IndexedDB transaction failed.'));});}
-  function openDb(){return new Promise((resolve,reject)=>{let upgrading=false;const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{upgrading=true;};req.onsuccess=()=>{const db=req.result;if(upgrading){db.close();reject(new Error('Canonical cutover blocked: wlp-cloud-v1 did not already exist at schema version 1.'));return;}const required=[META_STORE,OUTBOX_STORE,STATE_STORE];const missing=required.filter(x=>!db.objectStoreNames.contains(x));if(missing.length){db.close();reject(new Error(`Canonical cutover blocked: missing store(s): ${missing.join(', ')}.`));return;}resolve(db);};req.onerror=()=>reject(req.error||new Error('Could not open wlp-cloud-v1.'));req.onblocked=()=>reject(new Error('Canonical cutover IndexedDB open is blocked by another page.'));});}
+  function openDb(){return new Promise((resolve,reject)=>{let upgrading=false;const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{upgrading=true;};req.onsuccess=()=>{const db=req.result;if(upgrading){db.close();reject(new Error('Canonical cutover blocked: wlp-cloud-v1 did not already exist at schema version 1.'));return;}const required=[META_STORE,OUTBOX_STORE,STATE_STORE,CARD_STORE,EVENT_STORE];const missing=required.filter(x=>!db.objectStoreNames.contains(x));if(missing.length){db.close();reject(new Error(`Canonical cutover blocked: missing store(s): ${missing.join(', ')}.`));return;}resolve(db);};req.onerror=()=>reject(req.error||new Error('Could not open wlp-cloud-v1.'));req.onblocked=()=>reject(new Error('Canonical cutover IndexedDB open is blocked by another page.'));});}
   async function getMeta(db,key){const tx=db.transaction(META_STORE,'readonly'),row=await requestPromise(tx.objectStore(META_STORE).get(key));await transactionDone(tx);return row||null;}
   async function getStateRow(db,cardId){const tx=db.transaction(STATE_STORE,'readonly'),row=await requestPromise(tx.objectStore(STATE_STORE).get(cardId));await transactionDone(tx);return row||null;}
+  async function getCardRow(db,cardId){const tx=db.transaction(CARD_STORE,'readonly'),row=await requestPromise(tx.objectStore(CARD_STORE).get(cardId));await transactionDone(tx);return row||null;}
+  async function findCreationEvent(db,cardId){const tx=db.transaction(EVENT_STORE,'readonly'),rows=await requestPromise(tx.objectStore(EVENT_STORE).getAll());await transactionDone(tx);return (Array.isArray(rows)?rows:[]).find(row=>String(row?.payload?.card_id||'')===cardId&&Number(row?.payload?.legacy_word_id||0)===Number(targetWordId)&&row?.payload?.payload?.canonicalStateCreationCanary===true)||null;}
   async function countOutbox(db){const tx=db.transaction(OUTBOX_STORE,'readonly'),n=await requestPromise(tx.objectStore(OUTBOX_STORE).count());await transactionDone(tx);return Number(n||0);}
   async function getAllOutbox(db){const tx=db.transaction(OUTBOX_STORE,'readonly'),rows=await requestPromise(tx.objectStore(OUTBOX_STORE).getAll());await transactionDone(tx);return Array.isArray(rows)?rows:[];}
   async function cardIdForWordId(wordId){return uuidV5(CARD_NAMESPACE_UUID,`card|wid:${String(wordId||'').trim()}`);}
@@ -47,7 +49,7 @@
     if(!requested||document.getElementById('wlp-study-attention-candidate-box'))return;
     const box=document.createElement('section');box.id='wlp-study-attention-candidate-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100000;right:8px;top:max(8px,env(safe-area-inset-top));width:min(360px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Study State · membership canary</strong><div id="wlp-study-attention-candidate-status" style="margin-top:4px">Preparing materialized Canonical state…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-study-attention-candidate-export" type="button" disabled>Export JSON</button></div><div id="wlp-study-attention-candidate-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Study State · initial creation canary</strong><div id="wlp-study-attention-candidate-status" style="margin-top:4px">Preparing materialized Canonical state…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-study-attention-candidate-export" type="button" disabled>Export JSON</button></div><div id="wlp-study-attention-candidate-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);
     box.querySelectorAll('button').forEach(b=>b.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;');
     document.getElementById('wlp-study-attention-candidate-export')?.addEventListener('click',exportReport);
@@ -57,22 +59,29 @@
   async function prepare(){
     if(!requested)return false;if(state.active)return true;makePanel();
     try{
-      const db=await openDb(),meta=await getMeta(db,META_KEY),cursorMeta=await getMeta(db,CURSOR_KEY),outbox=await countOutbox(db),cardId=await cardIdForWordId(targetWordId),stateRow=await getStateRow(db,cardId);
-      if(String(meta?.candidateKey||'')!==BOOTSTRAP.candidateKey||Number(meta?.headVersion||0)!==BOOTSTRAP.headVersion||String(meta?.migrationVersion||'')!==BOOTSTRAP.migrationVersion||String(meta?.snapshotManifestHash||'')!==BOOTSTRAP.manifestHash||Number(meta?.canonicalRowCount||0)!==BOOTSTRAP.canonicalRows){db.close();throw new Error('Default cutover requires the exact ACTIVE Authority-v3 bootstrap mirror.');}
+      const db=await openDb(),meta=await getMeta(db,META_KEY),cursorMeta=await getMeta(db,CURSOR_KEY),outbox=await countOutbox(db),cardId=await cardIdForWordId(targetWordId),stateRow=await getStateRow(db,cardId),cardRow=await getCardRow(db,cardId);
+      if(String(meta?.candidateKey||'')!==BOOTSTRAP.candidateKey||Number(meta?.headVersion||0)!==BOOTSTRAP.headVersion||String(meta?.migrationVersion||'')!==BOOTSTRAP.migrationVersion||String(meta?.snapshotManifestHash||'')!==BOOTSTRAP.manifestHash||Number(meta?.canonicalRowCount||0)!==BOOTSTRAP.canonicalRows){db.close();throw new Error('Initial-state canary requires the exact ACTIVE Authority-v3 bootstrap mirror.');}
       const cursor=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
-      if(cursor<4){db.close();throw new Error(`Default cutover requires the converged steady-state mirror at cursor 4 or later; found ${cursor}.`);}
-      if(!stateRow){db.close();throw new Error(`WID ${targetWordId} learning_state row is missing from the Canonical mirror.`);}
-      const base=clone(stateRow.payload||{}),hash=await sha256(stableStringify(base));if(hash!==String(stateRow.payloadHash||'')){db.close();throw new Error(`WID ${targetWordId} Canonical payload hash mismatch.`);}
-      if(String(base.card_id||'')!==cardId){db.close();throw new Error(`WID ${targetWordId} Canonical card identity mismatch.`);}
-      if(!['light','medium','high'].includes(String(base.review_level||'').toLowerCase()))throw new Error(`WID ${targetWordId} has no supported Canonical Attention level.`);
-      if(!Boolean(base.review))throw new Error(`WID ${targetWordId} is not currently in Canonical Review.`);
-      if(outbox!==0)throw new Error(`Default cutover requires an empty sync_outbox; found ${outbox} pending row(s).`);
-      state.db=db;state.meta=meta;state.cursorMeta=cursorMeta;state.cardId=cardId;state.baseWrapper=clone(stateRow);state.baseRecord=legacyRecord(targetWordId,base);state.overlayRecord=null;state.active=true;state.prepareError='';
-      const legacy=localLegacyRecord(targetWordId),legacyLevel=String(legacy.reviewLevel||'').toLowerCase(),canonicalLevel=String(base.review_level||'').toLowerCase();
-      const divergence=legacyLevel&&legacyLevel!==canonicalLevel?` Legacy localStorage says ${cap(legacyLevel)}, but this normal Study route is now reading Canonical ${cap(canonicalLevel)}.`:'';
-      setStatus('READY · Normal Study is using Canonical state by default.',null,`WID2876 · Canonical Review / ${cap(canonicalLevel)} · cursor ${cursor}.${divergence} Tap Studied for this membership canary. Rollback flag: ?wlpLegacyStudyAttentionWrite=1`);
+      if(cursor<8){db.close();throw new Error(`Initial-state canary requires the completed membership roundtrip at cursor 8 or later; found ${cursor}.`);}
+      if(!cardRow){db.close();throw new Error(`WID ${targetWordId} Canonical card row is missing.`);}
+      const cardPayload=clone(cardRow.payload||{}),cardHash=await sha256(stableStringify(cardPayload));
+      if(cardHash!==String(cardRow.payloadHash||'')){db.close();throw new Error(`WID ${targetWordId} Canonical card payload hash mismatch.`);}
+      if(String(cardPayload.word_id||'')!==targetWordId){db.close();throw new Error(`WID ${targetWordId} Canonical card identity mismatch.`);}
+      if(stateRow){
+        const base=clone(stateRow.payload||{}),hash=await sha256(stableStringify(base)),creationEvent=await findCreationEvent(db,cardId);
+        if(hash!==String(stateRow.payloadHash||'')||String(base.card_id||'')!==cardId){db.close();throw new Error(`WID ${targetWordId} Canonical learning_state identity/hash mismatch.`);}
+        if(!creationEvent){db.close();throw new Error(`WID ${targetWordId} already has Canonical learning_state that was not created by this canary.`);}
+        state.db=db;state.meta=meta;state.cursorMeta=cursorMeta;state.cardId=cardId;state.cardWrapper=clone(cardRow);state.baseWrapper=clone(stateRow);state.baseRecord=legacyRecord(targetWordId,base);state.overlayRecord=null;state.postCreateReadOnly=true;state.active=true;state.prepareError='';
+        setStatus('READY · Initial Canonical state is present after sync.',true,`WID6538 · ${pageStateLabel(state.baseRecord)} · firstSeen ${state.baseRecord.firstSeen||0} · cursor ${cursor}. This is read-only verification mode; no second membership write is enabled.`);
+        return true;
+      }
+      if(localStorage.getItem(`${PROGRESS_PREFIX}${targetWordId}`)!==null){db.close();throw new Error(`WID ${targetWordId} already has legacy localStorage progress; creation canary requires a genuinely untouched card.`);}
+      if(outbox!==0){db.close();throw new Error(`Initial-state canary requires an empty sync_outbox; found ${outbox} pending row(s).`);}
+      const neutral={card_id:cardId,studied:false,known:false,review:false,review_level:null,review_reasons:[],exposure_count:0,study_count:0,review_count:0,attempt_count:0,last_seen_at:null,first_seen_at:null,last_studied_at:null,last_reviewed_at:null,last_practiced_at:null,last_result:null,last_attention_updated_at:null,state_source:'interaction',field_meta:{},revision:0,derived_through_change_seq:null,updated_at:null};
+      state.db=db;state.meta=meta;state.cursorMeta=cursorMeta;state.cardId=cardId;state.cardWrapper=clone(cardRow);state.baseWrapper=null;state.baseRecord=legacyRecord(targetWordId,neutral);state.overlayRecord=null;state.postCreateReadOnly=false;state.active=true;state.prepareError='';
+      setStatus('READY · This card has no Canonical learning_state yet.',null,`WID6538 · cursor ${cursor} · base state absent · legacy progress absent. Tap Studied once to create the initial Canonical state/event pair. Rollback flag: ?wlpLegacyStudyAttentionWrite=1`);
       return true;
-    }catch(error){state.prepareError=error?.message||String(error);state.active=false;setStatus(`BLOCKED · ${state.prepareError}`,false,'No Attention write is allowed through the Canonical canary.');return false;}
+    }catch(error){state.prepareError=error?.message||String(error);state.active=false;setStatus(`BLOCKED · ${state.prepareError}`,false,'No Canonical or legacy Study state write was performed.');return false;}
   }
 
   function readProgressKey(key){if(!state.active||!String(key||'').startsWith(PROGRESS_PREFIX))return null;const wid=String(key).slice(PROGRESS_PREFIX.length);if(wid!==targetWordId)return null;return clone(state.overlayRecord||state.baseRecord);}
@@ -82,6 +91,7 @@
   function attentionButtonText(){return (document.querySelector('.btn-review-attention:not([hidden]), .btn-review-attention-front:not([hidden])')?.textContent||'').trim();}
 
   async function buildPlan(level,reasons){
+    if(!state.baseWrapper)throw new Error('Initial learning_state creation canary does not support Attention before the first state exists.');
     const base=clone(state.baseWrapper.payload||{}),fromLevel=String(base.review_level||'').toLowerCase(),toLevel=String(level||'').toLowerCase();
     if(!['light','medium','high'].includes(toLevel))throw new Error('Canonical Attention cutover currently requires Light, Medium, or High.');
     if(toLevel===fromLevel)throw new Error(`Choose a different Attention level from the current ${cap(fromLevel)} for this canary.`);
@@ -98,30 +108,10 @@
     return{actionId,fromLevel,toLevel,at,mutations:[stateMutation,eventMutation],patchedPayload:{...base,...patch}};
   }
 
-  async function runAttentionRoundtrip(args){
-    if(!state.active)throw new Error('Canonical Study Attention default canary is not active.');if(state.busy)throw new Error('Another Canonical Attention action is running.');
-    state.busy=true;setStatus('Saving normal Study Attention → persistent Canonical outbox…');let plan=null,cleanupNeeded=false;
-    try{
-      const before=await countOutbox(state.db);if(before!==0)throw new Error(`sync_outbox must start empty; found ${before}.`);
-      plan=await buildPlan(args?.level,args?.reasons);const wrote=await enqueueMutations(plan);cleanupNeeded=true;const during=await countOutbox(state.db);
-      state.overlayRecord=legacyRecord(targetWordId,plan.patchedPayload);if(typeof args?.refresh==='function')args.refresh();await nextFrames(3);
-      const uiDuring=attentionButtonText(),provider=await waitForFacade();if(!provider?.open)throw new Error('Storage Compatibility Facade did not become available for Canonical overlay verification.');
-      const overlayFacade=await provider.open(),overlayRecord=overlayFacade.readProgressRecord(targetWordId),overlayInteractions=overlayFacade.readInteractionEvents();
-      const eventFound=overlayInteractions.some(e=>String(e?.action||'')==='attention_set'&&String(e?.wordId||'')===targetWordId&&String(e?.source||'')==='study-card'&&e?.canonicalCutoverCanary===true);
-      const baseWrapperDuring=await getStateRow(state.db,state.cardId),baseUntouched=stableStringify(baseWrapperDuring)===stableStringify(state.baseWrapper);
-      const rows=await getAllOutbox(state.db),ours=rows.filter(r=>r?.canonicalCutoverCanary===true&&r?.transportEligible===true&&String(r?.actionId||'')===plan.actionId);
-      const identitiesOk=ours.length===2&&ours.every(r=>isUuid(r.mutationId))&&isUuid(plan.actionId)&&isUuid(ours.find(r=>r.tableName==='learning_events')?.rowKey);
-      const overlayOk=Boolean(wrote===2&&during===2&&ours.length===2&&identitiesOk&&Number(overlayFacade.pendingOutboxRows||0)>=2&&Number(overlayFacade.overlayMutationsApplied||0)>=2&&String(overlayRecord.reviewLevel||'').toLowerCase()===plan.toLevel&&Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0)&&eventFound&&uiDuring===`${cap(plan.toLevel)} attention`);
-      if(!overlayOk||!baseUntouched)throw new Error(!overlayOk?'Normal Study Save did not render the exact pending Canonical overlay.':'Canonical learning_state base changed during local outbox creation.');
-      cleanupNeeded=false;
-      const legacy=localLegacyRecord(targetWordId),cursor=Math.max(Number(state.meta?.materializedSyncCursor??state.meta?.lastSyncCursor??0),Number(state.cursorMeta?.lastSyncCursor||0));
-      const blocking=[];
-      state.report={format:'WLP_CANONICAL_STUDY_ATTENTION_DEFAULT_CUTOVER_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-study-default-canonical-read-plus-persistent-outbox-write-canary',device:{deviceKey:state.meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:state.meta?.candidateKey||null,headVersion:state.meta?.headVersion||null,snapshotManifestHash:state.meta?.snapshotManifestHash||null,materializedSyncCursor:cursor,materializedManifestHash:state.meta?.materializedManifestHash||null,materializedRows:state.meta?.materializedCanonicalRowCount||null},summary:{defaultCutoverActive:true,rollbackRequested:false,wordId:targetWordId,fromLevel:plan.fromLevel,toLevel:plan.toLevel,outboxRowsBefore:before,outboxRowsAfter:during,overlayMutationsApplied:Number(overlayFacade.overlayMutationsApplied||0),studyUiAttention:uiDuring,transportEligible:true,productionUuidIds:identitiesOk,baseMirrorUntouched:baseUntouched,firstSeenPreserved:Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0),legacyLocalStorageAttention:String(legacy.reviewLevel||''),cloudWrites:0,blockingIssues:0,nextPhaseEligible:true,pass:true},plan:{actionId:plan.actionId,wordId:targetWordId,cardId:state.cardId,fromLevel:plan.fromLevel,toLevel:plan.toLevel,mutationIds:ours.map(x=>x.mutationId).sort(),eventId:ours.find(x=>x.tableName==='learning_events')?.rowKey||null,createdAt:plan.at},checks:[['Normal Study route activated Canonical read/write canary',true,`WID ${targetWordId} · no query opt-in`],['Exactly two transport-eligible outbox rows retained',during===2&&ours.length===2,`outbox ${before} → ${during}`],['Production action/mutation/event identities are UUIDs',identitiesOk,`${plan.actionId} · ${ours.length} mutations`],['Storage Facade overlays the pending state/event',Number(overlayFacade.overlayMutationsApplied||0)>=2,`${Number(overlayFacade.overlayMutationsApplied||0)} applied`],['Study UI immediately reflects pending Canonical Attention',uiDuring===`${cap(plan.toLevel)} attention`,uiDuring||'missing'],['Explicit firstSeen survives pending overlay',Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0),String(overlayRecord.firstSeen||0)],['Canonical materialized base remains immutable',baseUntouched,'learning_state wrapper unchanged'],['Legacy localStorage remains untouched by Canonical Save',true,String(legacy.reviewLevel||'')||'none']].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)})),issues:{blocking,warnings:['This is a one-card default cutover canary: only WID2876 is switched by default in v244; all other Study cards remain on the prior path.','The two outbox rows intentionally remain pending. Use v240 Cloud Shadow steady sync to transport them after this report passes.','Rollback for WID2876 is available with ?wlpLegacyStudyAttentionWrite=1.']},invariants:{normalRouteNoQueryOptIn:true,otherCardsUnaffected:true,noLegacyAttentionWriteByCanary:true,indexedDbWritesRestrictedToSyncOutbox:true,pendingRowsTransportEligible:true,noCloudWrites:true,authorityBaseImmutable:baseUntouched,noConflictAutoOverwrite:true,explicitFirstSeenPreserved:Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0)}};
-      setStatus(`PASS · Normal Study ${cap(plan.fromLevel)} → ${cap(plan.toLevel)} is pending for Cloud push.`,true,`WID2876 · outbox 0 → 2 · cursor ${cursor} · Cloud writes 0. Export JSON, then use v240 steady sync.`);
-      return{pass:true,reloading:false,report:clone(state.report)};
-    }catch(error){const message=error?.message||String(error);try{if(plan&&cleanupNeeded)await cleanupMutations(plan);}catch(cleanupError){console.error('Canonical cutover cleanup failed',cleanupError);}state.overlayRecord=null;try{if(typeof args?.refresh==='function')args.refresh();}catch(_){ }state.report={format:'WLP_CANONICAL_STUDY_ATTENTION_DEFAULT_CUTOVER_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-study-default-canonical-read-plus-persistent-outbox-write-canary',device:{platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},summary:{defaultCutoverActive:true,wordId:targetWordId,blockingIssues:1,nextPhaseEligible:false,pass:false},issues:{blocking:[message],warnings:['Best-effort cleanup was attempted. No Cloud or legacy localStorage Attention write occurred.']},invariants:{noCloudWrites:true,noLegacyAttentionWriteByCanary:true}};setStatus(`BLOCKED · ${message}`,false,'Best-effort local outbox cleanup was attempted.');return{pass:false,error:message,report:clone(state.report)};
-    }finally{state.busy=false;const b=document.getElementById('wlp-study-attention-candidate-export');if(b)b.disabled=!state.report;}
+  async function runAttentionRoundtrip(){
+    throw new Error('Initial learning_state creation canary supports Studied only; Attention remains on the prior path for this step.');
   }
+
 
 
   function pageStateLabel(record){
@@ -144,15 +134,29 @@
     };
   }
   function mutationShared(actionId,at){
-    return {schemaVersion:1,baseAuthority:{candidateKey:state.meta.candidateKey,headVersion:state.meta.headVersion,snapshotManifestHash:state.meta.snapshotManifestHash},deviceKey:state.meta.deviceKey||null,actionId,createdAt:at,diagnosticOnly:false,candidateOnly:false,canonicalStateCutoverCanary:true,transportEligible:true,status:'pending'};
+    return {schemaVersion:1,baseAuthority:{candidateKey:state.meta.candidateKey,headVersion:state.meta.headVersion,snapshotManifestHash:state.meta.snapshotManifestHash},deviceKey:state.meta.deviceKey||null,actionId,createdAt:at,diagnosticOnly:false,candidateOnly:false,canonicalStateCreationCanary:true,transportEligible:true,status:'pending'};
   }
   async function buildMembershipPlan(action){
-    const base=clone(state.baseWrapper?.payload||{}),before=legacyRecord(targetWordId,base),fromState=pageStateLabel(before);
+    const creating=!state.baseWrapper,base=clone(state.baseWrapper?.payload||{}),before=creating?clone(state.baseRecord):legacyRecord(targetWordId,base),fromState=pageStateLabel(before);
     let eventType=String(action||'');
     if(eventType==='studied-toggle') eventType=(Boolean(before.known)&&!Boolean(before.review))?'studied_removed':'studied';
     if(eventType==='review-toggle') eventType=Boolean(before.review)?'review_removed':'review';
     if(!['studied','studied_removed','review','review_removed'].includes(eventType)) throw new Error(`Unsupported Canonical Study membership action: ${eventType||'(empty)'}.`);
-    const at=new Date().toISOString(),atMs=Date.parse(at),basePayloadHash=await sha256(stableStringify(base));
+    const at=new Date().toISOString(),atMs=Date.parse(at);
+    if(creating){
+      if(eventType!=='studied') throw new Error('Initial learning_state creation canary currently allows Studied only.');
+      const payload={card_id:state.cardId,studied:false,known:true,review:false,review_level:null,review_reasons:[],exposure_count:0,study_count:1,review_count:0,attempt_count:1,last_seen_at:at,first_seen_at:at,last_studied_at:at,last_reviewed_at:null,last_practiced_at:null,last_result:'studied',last_attention_updated_at:null,state_source:'interaction',field_meta:{},revision:1,derived_through_change_seq:null,updated_at:at};
+      const toState=pageStateLabel(legacyRecord(targetWordId,payload));
+      const intent={kind:'study-card-initial-learning-state',action:eventType,cardId:state.cardId,wordId:targetWordId,fromState,toState,at,baseAbsent:true,baseHeadVersion:Number(state.meta.headVersion||0),baseCandidateKey:String(state.meta.candidateKey||''),contract:'study-state-initial-create-canary-v1'};
+      const actionId=await uuidV5(CARD_NAMESPACE_UUID,`sync-action|${await sha256(stableStringify(intent))}`),stateMutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_state|${actionId}`),eventMutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_events|${actionId}`),eventId=await uuidV5(CARD_NAMESPACE_UUID,`sync-event|${eventType}|${actionId}`),shared=mutationShared(actionId,at);
+      const changedFields=Object.keys(payload);
+      const stateMutation={...shared,mutationId:stateMutationId,mutationKind:'insert',tableName:'learning_state',rowKey:state.cardId,precondition:{rowMustBeAbsent:true},changedFields,payload,payloadHash:await sha256(stableStringify(payload))};stateMutation.mutationHash=await sha256(stableStringify(stateMutation));
+      const eventLegacy={timestamp:atMs,action:'studied',wordId:targetWordId,source:'study-card',previousReviewLevel:'',previousReviewReasons:[],canonicalStateCreationCanary:true};
+      const eventPayload={event_id:eventId,source_event_id:actionId,card_id:state.cardId,session_id:null,event_type:'studied',source_stream:'interaction',occurred_at:at,completed_at:null,device_id:state.meta.deviceKey||null,legacy_word_id:Number(targetWordId),schema_version:1,payload:eventLegacy,imported_at:null,supersedes_event_id:null};
+      const eventMutation={...shared,mutationId:eventMutationId,mutationKind:'append',tableName:'learning_events',rowKey:eventId,precondition:{rowMustBeAbsent:true},payload:eventPayload,payloadHash:await sha256(stableStringify(eventPayload))};eventMutation.mutationHash=await sha256(stableStringify(eventMutation));
+      return {actionId,eventType,fromState,toState,at,mutations:[stateMutation,eventMutation],patchedPayload:payload,eventId,creating:true};
+    }
+    const basePayloadHash=await sha256(stableStringify(base));
     if(basePayloadHash!==String(state.baseWrapper?.payloadHash||'')) throw new Error('Canonical base payload changed before membership Save.');
     const patch={revision:Number(base.revision||0)+1,updated_at:at,last_seen_at:at};
     if(eventType==='studied'){
@@ -195,9 +199,9 @@
       state.overlayRecord=legacyRecord(targetWordId,plan.patchedPayload); if(typeof state.renderCtx?.refresh==='function') state.renderCtx.refresh(); await nextFrames(3);
       const provider=await waitForFacade(); if(!provider?.open) throw new Error('Storage Compatibility Facade did not become available for membership overlay verification.');
       const facade=await provider.open(),overlayRecord=facade.readProgressRecord(targetWordId),overlayEvents=facade.readInteractionEvents();
-      const eventFound=overlayEvents.some(e=>String(e?.wordId||'')===targetWordId&&e?.canonicalStateCutoverCanary===true&&(String(e?.action||'')===plan.eventType||String(e?.eventName||'')==='review'));
-      const baseWrapperDuring=await getStateRow(state.db,state.cardId),baseUntouched=stableStringify(baseWrapperDuring)===stableStringify(state.baseWrapper);
-      const rows=await getAllOutbox(state.db),ours=rows.filter(r=>r?.canonicalStateCutoverCanary===true&&r?.transportEligible===true&&String(r?.actionId||'')===plan.actionId);
+      const eventFound=overlayEvents.some(e=>String(e?.wordId||'')===targetWordId&&e?.canonicalStateCreationCanary===true&&(String(e?.action||'')===plan.eventType||String(e?.eventName||'')==='review'));
+      const baseWrapperDuring=await getStateRow(state.db,state.cardId),baseUntouched=plan.creating?baseWrapperDuring===null:stableStringify(baseWrapperDuring)===stableStringify(state.baseWrapper);
+      const rows=await getAllOutbox(state.db),ours=rows.filter(r=>r?.canonicalStateCreationCanary===true&&r?.transportEligible===true&&String(r?.actionId||'')===plan.actionId);
       const identitiesOk=ours.length===2&&ours.every(r=>isUuid(r.mutationId))&&isUuid(plan.actionId)&&isUuid(plan.eventId);
       const actualState=pageStateLabel(overlayRecord),ui=membershipUiState();
       const uiOk=plan.eventType==='studied' ? (ui.studiedPressed==='true'&&ui.reviewPressed==='false'&&ui.attentionHidden) : plan.eventType==='studied_removed' ? (ui.studiedPressed==='false'&&ui.reviewPressed==='false') : plan.eventType==='review' ? (ui.reviewPressed==='true') : (ui.reviewPressed==='false'&&ui.attentionHidden);
@@ -205,12 +209,12 @@
       cleanupNeeded=false; state.pending=true;
       const b=membershipButtons(); if(b.studied)b.studied.disabled=true; if(b.review)b.review.disabled=true;
       const legacy=localLegacyRecord(targetWordId),cursor=Math.max(Number(state.meta?.materializedSyncCursor??state.meta?.lastSyncCursor??0),Number(state.cursorMeta?.lastSyncCursor||0));
-      state.report={format:'WLP_CANONICAL_STUDY_STATE_MEMBERSHIP_DEFAULT_CUTOVER_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-study-default-canonical-membership-to-persistent-outbox-canary',device:{deviceKey:state.meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:state.meta?.candidateKey||null,headVersion:state.meta?.headVersion||null,snapshotManifestHash:state.meta?.snapshotManifestHash||null,materializedSyncCursor:cursor,materializedManifestHash:state.meta?.materializedManifestHash||null,materializedRows:state.meta?.materializedCanonicalRowCount||null},summary:{defaultCutoverActive:true,wordId:targetWordId,action:plan.eventType,fromState:plan.fromState,toState:plan.toState,outboxRowsBefore:beforeOutbox,outboxRowsAfter:afterOutbox,overlayMutationsApplied:Number(facade.overlayMutationsApplied||0),studyUiStudied:ui.studiedText,studyUiReview:ui.reviewText,attentionHidden:ui.attentionHidden,transportEligible:true,productionUuidIds:identitiesOk,baseMirrorUntouched:baseUntouched,firstSeenPreserved:Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0),legacyLocalStorageState:pageStateLabel(legacy),cloudWrites:0,blockingIssues:0,nextPhaseEligible:true,pass:true},plan:{actionId:plan.actionId,eventType:plan.eventType,wordId:targetWordId,cardId:state.cardId,fromState:plan.fromState,toState:plan.toState,mutationIds:ours.map(x=>x.mutationId).sort(),eventId:plan.eventId,createdAt:plan.at},checks:[['Normal Study route activated Canonical membership canary',true,`WID ${targetWordId} · no query opt-in`],['Existing Studied / Review control was rerouted to Canonical outbox',true,plan.eventType],['Exactly two transport-eligible outbox rows retained',afterOutbox===2&&ours.length===2,`outbox ${beforeOutbox} → ${afterOutbox}`],['Storage Facade overlays pending membership state/event',Number(facade.overlayMutationsApplied||0)>=2,`${Number(facade.overlayMutationsApplied||0)} applied`],['Study controls immediately reflect pending Canonical membership',uiOk,`${ui.studiedText} / ${ui.reviewText}`],['Explicit firstSeen survives membership transition',Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0),String(overlayRecord.firstSeen||0)],['Canonical materialized base remains immutable',baseUntouched,'learning_state wrapper unchanged'],['Legacy localStorage remains untouched by Canonical membership Save',pageStateLabel(legacy)!==plan.toState,`${pageStateLabel(legacy)} (unchanged)`]].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)})),issues:{blocking:[],warnings:['This v246 canary verifies an existing learning_state membership transition only. Initial learning_state creation is intentionally deferred to the next canary after this write shape is proven.','The two outbox rows intentionally remain pending. Do not change this card again before the next server-contract/push step.','Rollback for WID2876 remains available with ?wlpLegacyStudyAttentionWrite=1.']},invariants:{normalRouteNoQueryOptIn:true,otherCardsUnaffected:true,noLegacyMembershipWriteByCanary:true,indexedDbWritesRestrictedToSyncOutbox:true,pendingRowsTransportEligible:true,noCloudWrites:true,authorityBaseImmutable:baseUntouched,noConflictAutoOverwrite:true,explicitFirstSeenPreserved:Number(overlayRecord.firstSeen||0)===Number(state.baseRecord.firstSeen||0)}};
-      setStatus(`PASS · Normal Study ${plan.fromState} → ${plan.toState} is pending for Cloud push.`,true,`WID2876 · outbox 0 → 2 · cursor ${cursor} · Cloud writes 0. Export JSON and stop here.`);
+      state.report={format:'WLP_CANONICAL_STUDY_STATE_INITIAL_CREATE_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-study-initial-learning-state-create-to-persistent-outbox-canary',device:{deviceKey:state.meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:state.meta?.candidateKey||null,headVersion:state.meta?.headVersion||null,snapshotManifestHash:state.meta?.snapshotManifestHash||null,materializedSyncCursor:cursor,materializedManifestHash:state.meta?.materializedManifestHash||null,materializedRows:state.meta?.materializedCanonicalRowCount||null},summary:{initialCreateCanaryActive:true,wordId:targetWordId,action:plan.eventType,fromState:plan.fromState,toState:plan.toState,outboxRowsBefore:beforeOutbox,outboxRowsAfter:afterOutbox,overlayMutationsApplied:Number(facade.overlayMutationsApplied||0),studyUiStudied:ui.studiedText,studyUiReview:ui.reviewText,attentionHidden:ui.attentionHidden,transportEligible:true,productionUuidIds:identitiesOk,baseMirrorUntouched:baseUntouched,firstSeenCreated:Number(overlayRecord.firstSeen||0)===Date.parse(plan.at),legacyLocalStorageState:pageStateLabel(legacy),cloudWrites:0,blockingIssues:0,nextPhaseEligible:true,pass:true},plan:{actionId:plan.actionId,eventType:plan.eventType,wordId:targetWordId,cardId:state.cardId,fromState:plan.fromState,toState:plan.toState,mutationIds:ours.map(x=>x.mutationId).sort(),eventId:plan.eventId,createdAt:plan.at},checks:[['Normal Study route activated initial learning_state creation canary',true,`WID ${targetWordId} · no query opt-in`],['Existing Studied control was rerouted to initial Canonical state/event outbox',plan.creating&&plan.eventType==='studied',plan.eventType],['Exactly two transport-eligible outbox rows retained',afterOutbox===2&&ours.length===2,`outbox ${beforeOutbox} → ${afterOutbox}`],['Storage Facade overlays pending membership state/event',Number(facade.overlayMutationsApplied||0)>=2,`${Number(facade.overlayMutationsApplied||0)} applied`],['Study controls immediately reflect pending Canonical membership',uiOk,`${ui.studiedText} / ${ui.reviewText}`],['Initial firstSeen is created from the first Canonical interaction timestamp',Number(overlayRecord.firstSeen||0)===Date.parse(plan.at),String(overlayRecord.firstSeen||0)],['Canonical materialized base remains absent until steady sync applies the change feed',baseUntouched,'learning_state row still absent in base mirror'],['Legacy localStorage remains absent after Canonical initial-state Save',localStorage.getItem(`${PROGRESS_PREFIX}${targetWordId}`)===null,'no legacy progress row']].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)})),issues:{blocking:[],warnings:['This v250 canary proves one missing learning_state → Studied creation path only; Review/Attention first-touch creation remains for later generalization.','The two outbox rows intentionally remain pending. Do not change this card again before steady sync transports them.','Rollback for WID6538 remains available with ?wlpLegacyStudyAttentionWrite=1.']},invariants:{normalRouteNoQueryOptIn:true,otherCardsUnaffected:true,noLegacyMembershipWriteByCanary:true,indexedDbWritesRestrictedToSyncOutbox:true,pendingRowsTransportEligible:true,noCloudWrites:true,authorityBaseImmutable:baseUntouched,noConflictAutoOverwrite:true,explicitFirstSeenCreated:Number(overlayRecord.firstSeen||0)===Date.parse(plan.at)}};
+      setStatus(`PASS · Normal Study ${plan.fromState} → ${plan.toState} is pending for Cloud push.`,true,`WID6538 · initial state absent → Studied pending · outbox 0 → 2 · cursor ${cursor} · Cloud writes 0. Export JSON and stop here.`);
       return {pass:true,report:clone(state.report)};
     }catch(error){
       const message=error?.message||String(error); try{if(plan&&cleanupNeeded)await cleanupMutations(plan);}catch(cleanupError){console.error('Canonical membership cleanup failed',cleanupError);} state.overlayRecord=null; try{if(typeof state.renderCtx?.refresh==='function')state.renderCtx.refresh();}catch(_){ }
-      state.report={format:'WLP_CANONICAL_STUDY_STATE_MEMBERSHIP_DEFAULT_CUTOVER_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-study-default-canonical-membership-to-persistent-outbox-canary',summary:{defaultCutoverActive:true,wordId:targetWordId,blockingIssues:1,nextPhaseEligible:false,pass:false},issues:{blocking:[message],warnings:['Best-effort cleanup was attempted. No Cloud or legacy localStorage membership write occurred.']},invariants:{noCloudWrites:true,noLegacyMembershipWriteByCanary:true}};
+      state.report={format:'WLP_CANONICAL_STUDY_STATE_INITIAL_CREATE_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-study-initial-learning-state-create-to-persistent-outbox-canary',summary:{initialCreateCanaryActive:true,wordId:targetWordId,blockingIssues:1,nextPhaseEligible:false,pass:false},issues:{blocking:[message],warnings:['Best-effort cleanup was attempted. No Cloud or legacy localStorage initial-state write occurred.']},invariants:{noCloudWrites:true,noLegacyMembershipWriteByCanary:true}};
       setStatus(`BLOCKED · ${message}`,false,'Best-effort local outbox cleanup was attempted.'); return {pass:false,error:message,report:clone(state.report)};
     }finally{state.busy=false;const ex=document.getElementById('wlp-study-attention-candidate-export');if(ex)ex.disabled=!state.report;}
   }
@@ -226,18 +230,22 @@
     requestAnimationFrame(()=>{
       if(state.pending)return;
       const b=membershipButtons();
+      if(state.postCreateReadOnly){
+        if(b.studied){b.studied.disabled=true;b.studied.title='Canonical initial-state canary: synced state is shown read-only for verification.';}
+        if(b.review){b.review.disabled=true;b.review.title='Canonical initial-state canary: synced state is shown read-only for verification.';}
+        return;
+      }
       bind(b.studied,'studied-toggle');
-      bind(b.review,'review-toggle');
-      if(b.studied){b.studied.disabled=false;b.studied.title='Canonical Study state canary: this Studied action writes only to sync_outbox.';}
-      if(b.review){b.review.disabled=false;b.review.title='Canonical Study state canary: this Review action writes only to sync_outbox.';}
+      if(b.studied){b.studied.disabled=false;b.studied.title='Canonical initial-state canary: this Studied action creates state/event only in sync_outbox.';}
+      if(b.review){b.review.disabled=true;b.review.title='Canonical initial-state canary: Review is not part of this creation test.';}
     });
   }
 
-  function exportReport(){if(!state.report)return;const blob=new Blob([JSON.stringify(state.report,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-study-state-membership-cutover-${state.report.generatedAt.replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
+  function exportReport(){if(!state.report)return;const blob=new Blob([JSON.stringify(state.report,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-study-state-initial-create-${state.report.generatedAt.replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
   function close(){try{state.db?.close();}catch(_){ }}
   addEventListener('pagehide',close,{once:true});
 
-  const api={version:3,requested,rollbackRequested,prepare,isActive:()=>state.active,readProgressKey,runAttentionRoundtrip,runMembershipRoundtrip,afterRender,getReport:()=>clone(state.report)};
+  const api={version:4,requested,rollbackRequested,prepare,isActive:()=>state.active,readProgressKey,runAttentionRoundtrip,runMembershipRoundtrip,afterRender,getReport:()=>clone(state.report)};
   window.WLPCanonicalStudyAttentionWriteCandidate=Object.freeze(api);
   if(requested)makePanel();
 })();
