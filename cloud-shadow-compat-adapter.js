@@ -8,7 +8,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.220-canonical-compat-adapter-authority-v2-v1';
+  const APP_VERSION = '1.8.6.225-canonical-compat-adapter-outbox-aware-v1';
   const DB_NAME = 'wlp-cloud-v1';
   const DB_VERSION = 1;
   const META_STORE = 'sync_meta';
@@ -475,7 +475,7 @@
     return value;
   }
 
-  function buildReadOnlyAdapter(projection, mirrorMeta) {
+  function buildReadOnlyAdapter(projection, mirrorMeta, outboxRows = 0) {
     const internal = new Map();
     const byType = new Map();
     for (const sourceRecord of projection.records) {
@@ -518,6 +518,7 @@
       source: 'wlp-cloud-v1',
       projectionHash: projection.projectionHash,
       logicalRecordCount: projection.records.length,
+      pendingOutboxRows: Number(outboxRows || 0),
       meta: deepFreeze(clone({
         candidateKey: mirrorMeta?.candidateKey || null,
         headVersion: mirrorMeta?.headVersion ?? null,
@@ -555,13 +556,12 @@
       if (mirror.meta && String(mirror.meta.migrationVersion || '') !== EXPECTED_MIGRATION_VERSION) blocking.push('Mirror metadata migration version is not 3.');
       if (mirror.payloadHashMismatches.length) blocking.push(`${mirror.payloadHashMismatches.length} mirror payload hash mismatch(es).`);
       if (mirror.rowKeyMismatches.length) blocking.push(`${mirror.rowKeyMismatches.length} mirror row-key mismatch(es).`);
-      if (mirror.outboxRows !== 0) blocking.push(`sync_outbox is not empty: ${mirror.outboxRows} row(s).`);
       if (blocking.length) throw new Error(blocking.join(' '));
 
       const projection = await projectLogicalRecords(mirror.tables);
       if (projection.blocking.length) throw new Error(projection.blocking.join(' '));
       if (projection.explicitFirstSeenRows !== EXPECTED_FIRST_SEEN_ROWS) throw new Error(`Compatibility projection firstSeen coverage mismatch: expected ${EXPECTED_FIRST_SEEN_ROWS}, got ${projection.explicitFirstSeenRows}.`);
-      return { adapter: buildReadOnlyAdapter(projection, mirror.meta), mirror, projection };
+      return { adapter: buildReadOnlyAdapter(projection, mirror.meta, mirror.outboxRows), mirror, projection };
     } finally {
       if (db) db.close();
     }
@@ -683,9 +683,9 @@
           blocking,
           warnings: [
             ...first.projection.warnings,
-            'The adapter reads only the installed wlp-cloud-v1 mirror and exposes cloned logical records through a read-only API. It does not replace localStorage or alter any live WLP page yet.',
+            'The adapter reads the installed Authority-v2 Canonical base from wlp-cloud-v1 and exposes cloned logical records through a read-only API. Pending sync_outbox rows are counted but never applied by the adapter itself.',
             'No Cloud endpoint is contacted, no IndexedDB row is changed, and no localStorage value is written.',
-            'A PASS establishes the Authority v2 read-only compatibility API with exact firstSeen preservation; live page wiring remains shadow-only.'
+            'A PASS establishes the Authority v2 read-only base adapter with exact firstSeen preservation. Pending overlay application is owned by the Storage Compatibility Facade, not this adapter.'
           ],
           mirrorPayloadHashMismatches: first.mirror.payloadHashMismatches,
           mirrorRowKeyMismatches: first.mirror.rowKeyMismatches
@@ -698,7 +698,7 @@
           noCloudWrites: true,
           noCloudToLegacyWlpApply: true,
           noLiveWlpWrites: true,
-          syncOutboxEmpty: first.mirror.outboxRows === 0,
+          syncOutboxReadable: Number.isFinite(first.mirror.outboxRows) && first.mirror.outboxRows >= 0,
           existingMirrorManifestVerified: first.mirror.manifestHash === EXPECTED_MANIFEST,
           explicitFirstSeenComplete: first.projection.explicitFirstSeenRows === EXPECTED_FIRST_SEEN_ROWS,
           compatibilityProjectionRepeatable: first.projection.projectionHash === second.projection.projectionHash,

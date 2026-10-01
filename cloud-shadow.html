@@ -116,6 +116,8 @@
       <button class="action" id="export-write-outbox-preflight" type="button" disabled>Export Write / Outbox Preflight</button>
       <button class="action cloud-action" id="run-write-outbox-roundtrip" type="button">Run Local Outbox Atomic Round-trip</button>
       <button class="action" id="export-write-outbox-roundtrip" type="button" disabled>Export Local Outbox Round-trip</button>
+      <button class="action cloud-action" id="run-outbox-facade-overlay" type="button">Run Outbox → Facade Overlay Round-trip</button>
+      <button class="action" id="export-outbox-facade-overlay" type="button" disabled>Export Outbox Facade Overlay</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -796,6 +798,26 @@
       <p class="status-line" id="write-outbox-roundtrip-status">This diagnostic writes only to isolated <code>wlp-cloud-v1 / sync_outbox</code> and self-cleans before PASS. It does not change Review, Canonical base rows, localStorage, or Cloud.</p>
     </section>
 
+    <section class="panel hidden" id="outbox-facade-overlay-panel">
+      <div class="panel-head"><div><h2>Pending outbox → Storage Facade overlay · round-trip</h2><p>Writes one quarantined diagnostic Review-attention pair to <code>sync_outbox</code>, then opens the real Storage Compatibility Facade to prove the pending state patch and interaction-event append are visible through normal Canonical reads. The diagnostic rows are removed before PASS; Canonical base, localStorage, Cloud, and live Review remain unchanged.</p></div><div class="compare-badge">Facade Overlay <strong id="outbox-facade-overlay-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="outbox-facade-overlay-before">0</strong><span>Outbox before</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-written">0</strong><span>Rows written</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-applied">0</strong><span>Overlay mutations</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-level">—</strong><span>Overlay attention</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-event">0</strong><span>Interaction Δ</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-base">—</strong><span>Base immutable</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-cleanup">—</strong><span>Cleanup</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-after">0</strong><span>Outbox after</span></div>
+        <div class="metric"><strong id="outbox-facade-overlay-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Diagnostic action ID</p><div class="hash-box" id="outbox-facade-overlay-action"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Overlay proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="outbox-facade-overlay-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Overlay notes</h3><ul class="error-list" id="outbox-facade-overlay-notes"></ul>
+      <p class="status-line" id="outbox-facade-overlay-status">This diagnostic validates the real read overlay path. It does not enable Review writes or Cloud transport and self-cleans before PASS.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -861,5 +883,6 @@
   <script src="./cloud-shadow-canonical-mirror-revision.js"></script>
   <script src="./cloud-shadow-write-outbox-preflight.js"></script>
   <script src="./cloud-shadow-write-outbox-roundtrip.js"></script>
+  <script src="./cloud-shadow-outbox-facade-overlay-roundtrip.js"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.220-storage-compat-facade-authority-v2-v1';
+  const APP_VERSION = '1.8.6.225-storage-compat-facade-outbox-overlay-v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const EXPECTED_CANDIDATE_KEY = 'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283';
   const EXPECTED_HEAD_VERSION = 2;
@@ -29,6 +29,12 @@
   });
   const PROFILE_KEY = 'wlp:ai-learner-profile:v1';
   const ROUTE_KEY = 'wlp:ai-route-state:v1';
+  const DB_NAME = 'wlp-cloud-v1';
+  const DB_VERSION = 1;
+  const OUTBOX_STORE = 'sync_outbox';
+  const CARD_STORE = 'cards';
+  const STATE_STORE = 'learning_state';
+  const EVENT_STORE = 'learning_events';
   const state = { busy: false, report: null };
 
   function clone(value) {
@@ -57,6 +63,62 @@
     const bytes = new TextEncoder().encode(String(value));
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+  function requestPromise(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error('IndexedDB request failed.'));
+    });
+  }
+  function transactionDone(tx) {
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted.'));
+      tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed.'));
+    });
+  }
+  async function readPendingOverlayContext(adapter) {
+    if (!('indexedDB' in window)) throw new Error('Storage facade overlay blocked: IndexedDB is unavailable.');
+    let db = null;
+    try {
+      db = await new Promise((resolve, reject) => {
+        let rejectedForUpgrade = false;
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => { rejectedForUpgrade = true; try { request.transaction.abort(); } catch (_) {} };
+        request.onsuccess = () => {
+          if (rejectedForUpgrade) { request.result.close(); reject(new Error('Storage facade overlay blocked: wlp-cloud-v1 does not already exist at schema version 1.')); return; }
+          const candidate = request.result;
+          const required = [OUTBOX_STORE, CARD_STORE, STATE_STORE, EVENT_STORE];
+          const missing = required.filter(name => !candidate.objectStoreNames.contains(name));
+          if (missing.length) { candidate.close(); reject(new Error(`Storage facade overlay blocked: missing store(s): ${missing.join(', ')}.`)); return; }
+          resolve(candidate);
+        };
+        request.onerror = () => reject(request.error || new Error('Storage facade overlay could not open wlp-cloud-v1.'));
+        request.onblocked = () => reject(new Error('Storage facade overlay open is blocked by another WLP page.'));
+      });
+      const tx = db.transaction([OUTBOX_STORE, CARD_STORE, STATE_STORE, EVENT_STORE], 'readonly');
+      const [outboxRows, cardWrappers, stateWrappers, eventWrappers] = await Promise.all([
+        requestPromise(tx.objectStore(OUTBOX_STORE).getAll()),
+        requestPromise(tx.objectStore(CARD_STORE).getAll()),
+        requestPromise(tx.objectStore(STATE_STORE).getAll()),
+        requestPromise(tx.objectStore(EVENT_STORE).getAll())
+      ]);
+      await transactionDone(tx);
+      const pending = (outboxRows || []).filter(row => /pending$/i.test(String(row?.status || ''))).sort((a, b) => {
+        const at = toMs(a?.createdAt), bt = toMs(b?.createdAt);
+        if (at !== bt) return at - bt;
+        return String(a?.mutationId || '').localeCompare(String(b?.mutationId || ''));
+      });
+      return {
+        pending,
+        cardsById: new Map((cardWrappers || []).map(wrapper => [String(wrapper?.rowKey || ''), wrapper])),
+        statesById: new Map((stateWrappers || []).map(wrapper => [String(wrapper?.rowKey || ''), wrapper])),
+        eventIds: new Set((eventWrappers || []).map(wrapper => String(wrapper?.rowKey || ''))),
+        adapterMeta: clone(adapter?.meta || {})
+      };
+    } finally {
+      if (db) db.close();
+    }
   }
   function numeric(value) {
     const number = Number(value);
@@ -219,27 +281,103 @@
     return { events, sessions };
   }
 
-  function buildStorageFacade(adapter) {
+  function applyCanonicalStatePatchToPageRecord(baseRecord, patch, wordId) {
+    const next = { ...clone(baseRecord || {}), wordId };
+    const mapping = {
+      known: 'known', review: 'review', review_level: 'reviewLevel', review_reasons: 'reviewReasons',
+      exposure_count: 'exposureCount', study_count: 'studyCount', review_count: 'reviewCount', attempt_count: 'attempts',
+      first_seen_at: 'firstSeen', last_seen_at: 'lastSeen', last_studied_at: 'lastStudied', last_reviewed_at: 'lastReviewed',
+      last_practiced_at: 'lastPracticed', last_result: 'lastResult', last_attention_updated_at: 'lastAttentionUpdated',
+      revision: 'revision', updated_at: 'updatedAt', studied: 'studied'
+    };
+    for (const [source, target] of Object.entries(mapping)) {
+      if (!Object.prototype.hasOwnProperty.call(patch || {}, source)) continue;
+      const value = patch[source];
+      if (['first_seen_at','last_seen_at','last_studied_at','last_reviewed_at','last_practiced_at','last_attention_updated_at'].includes(source)) next[target] = toMs(value);
+      else next[target] = clone(value);
+    }
+    return pageStateFromPayload(next, wordId, null);
+  }
+
+  function verifyMutationAuthority(mutation, adapter) {
+    const base = mutation?.baseAuthority || {};
+    if (String(base.candidateKey || '') !== String(adapter.meta?.candidateKey || '')) throw new Error(`Pending mutation ${mutation?.mutationId || '(unknown)'} targets a different Authority candidate.`);
+    if (Number(base.headVersion || 0) !== Number(adapter.meta?.headVersion || 0)) throw new Error(`Pending mutation ${mutation?.mutationId || '(unknown)'} targets a different Authority Head version.`);
+    if (String(base.snapshotManifestHash || '') !== String(adapter.meta?.snapshotManifestHash || '')) throw new Error(`Pending mutation ${mutation?.mutationId || '(unknown)'} targets a different Authority manifest.`);
+  }
+
+  function applyPendingOverlay(adapter, overlayContext, progressByWordId, streams) {
+    const pending = overlayContext?.pending || [];
+    const seenStateRows = new Set();
+    const seenEventRows = new Set();
+    const actionIds = new Set();
+    let stateApplied = 0, eventApplied = 0;
+    for (const mutation of pending) {
+      verifyMutationAuthority(mutation, adapter);
+      if (mutation?.actionId) actionIds.add(String(mutation.actionId));
+      const kind = String(mutation?.mutationKind || '');
+      const table = String(mutation?.tableName || '');
+      const rowKey = String(mutation?.rowKey || '');
+      if (!rowKey) throw new Error(`Pending mutation ${mutation?.mutationId || '(unknown)'} has no rowKey.`);
+      if (kind === 'patch' && table === STATE_STORE) {
+        if (seenStateRows.has(rowKey)) throw new Error(`Multiple pending learning_state patches for ${rowKey} are not supported yet; refusing ambiguous overlay.`);
+        seenStateRows.add(rowKey);
+        const wrapper = overlayContext.statesById.get(rowKey);
+        const cardWrapper = overlayContext.cardsById.get(rowKey);
+        if (!wrapper || !cardWrapper) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} cannot resolve its Canonical base/card.`);
+        if (String(mutation?.precondition?.payloadHash || '') !== String(wrapper?.payloadHash || '')) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} base payload hash no longer matches Authority v2.`);
+        for (const [field, expected] of Object.entries(mutation?.precondition?.fields || {})) {
+          const actual = Object.prototype.hasOwnProperty.call(wrapper?.payload || {}, field) ? wrapper.payload[field] : null;
+          if (stableStringify(actual) !== stableStringify(expected)) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} conflict guard failed for ${field}.`);
+        }
+        const wordId = clean(cardWrapper?.payload?.word_id);
+        const current = progressByWordId.get(wordId);
+        if (!wordId || !current) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} cannot resolve page-facing WordID.`);
+        progressByWordId.set(wordId, applyCanonicalStatePatchToPageRecord(current, mutation?.patch || {}, wordId));
+        stateApplied += 1;
+        continue;
+      }
+      if (kind === 'append' && table === EVENT_STORE) {
+        if (seenEventRows.has(rowKey)) throw new Error(`Duplicate pending learning_event append ${rowKey}.`);
+        seenEventRows.add(rowKey);
+        if (mutation?.precondition?.rowMustBeAbsent !== true) throw new Error(`Pending learning_event append ${mutation?.mutationId || '(unknown)'} is missing rowMustBeAbsent guard.`);
+        if (overlayContext.eventIds.has(rowKey)) throw new Error(`Pending learning_event append ${mutation?.mutationId || '(unknown)'} conflicts with an existing Canonical event.`);
+        const canonicalEvent = mutation?.payload || {};
+        if (String(canonicalEvent?.event_id || '') !== rowKey) throw new Error(`Pending learning_event append ${mutation?.mutationId || '(unknown)'} row identity mismatch.`);
+        const stream = String(canonicalEvent?.source_stream || '');
+        if (!streams.events.has(stream)) throw new Error(`Pending learning_event append ${mutation?.mutationId || '(unknown)'} uses unsupported stream ${stream || '(empty)'}.`);
+        const legacyEvent = canonicalEvent?.payload;
+        if (!legacyEvent || typeof legacyEvent !== 'object') throw new Error(`Pending learning_event append ${mutation?.mutationId || '(unknown)'} has no page-facing payload.`);
+        streams.events.get(stream).push(clone(legacyEvent));
+        streams.events.get(stream).sort((a, b) => eventTimeMs(a) - eventTimeMs(b) || stableStringify(a).localeCompare(stableStringify(b)));
+        eventApplied += 1;
+        continue;
+      }
+      throw new Error(`Pending mutation ${mutation?.mutationId || '(unknown)'} uses unsupported overlay operation ${table || '(table)'}/${kind || '(kind)'}.`);
+    }
+    return { pendingRows: pending.length, applied: stateApplied + eventApplied, stateApplied, eventApplied, actionIds: [...actionIds].sort() };
+  }
+
+  function buildStorageFacade(adapter, overlayContext) {
     if (!adapter?.readOnly) throw new Error('Storage facade safety stop: underlying Canonical Adapter is not read-only.');
     if (String(adapter.meta?.candidateKey || '') !== EXPECTED_CANDIDATE_KEY) throw new Error('Storage facade safety stop: mirror candidate is not ACTIVE Authority v2.');
     if (Number(adapter.meta?.headVersion || 0) !== EXPECTED_HEAD_VERSION) throw new Error('Storage facade safety stop: mirror Head version is not 2.');
     if (String(adapter.meta?.migrationVersion || '') !== EXPECTED_MIGRATION_VERSION) throw new Error('Storage facade safety stop: mirror migration version is not 3.');
     if (String(adapter.meta?.snapshotManifestHash || '') !== EXPECTED_MANIFEST) throw new Error('Storage facade safety stop: mirror manifest is not ACTIVE Authority v2.');
 
-    const progressRecords = buildProgressRecords(adapter);
+    const baseProgressRecords = buildProgressRecords(adapter);
+    const progressByWordId = new Map(baseProgressRecords.map(row => [row.wordId, clone(row)]));
+    const streams = buildStreamMaps(adapter);
+    const overlay = applyPendingOverlay(adapter, overlayContext, progressByWordId, streams);
+    const progressRecords = [...progressByWordId.values()].sort((a, b) => a.wordId.localeCompare(b.wordId, undefined, { numeric: true }));
     const explicitFirstSeenRows = progressRecords.filter(row => Number(row.firstSeen || 0) > 0).length;
     if (progressRecords.length !== EXPECTED_PROGRESS_ROWS || explicitFirstSeenRows !== EXPECTED_PROGRESS_ROWS) throw new Error(`Storage facade firstSeen coverage mismatch: expected ${EXPECTED_PROGRESS_ROWS}/${EXPECTED_PROGRESS_ROWS}, got ${explicitFirstSeenRows}/${progressRecords.length}.`);
-    const progressByWordId = new Map(progressRecords.map(row => [row.wordId, clone(row)]));
     const reviewRecords = buildReviewRecords(progressRecords);
-    const streams = buildStreamMaps(adapter);
     const profile = clone(adapter.get('learner_profile', 'account')?.payload || {});
     const route = clone(adapter.get('learner_route_state', 'account')?.payload || {});
     const keys = [
       ...progressRecords.map(row => `${PROGRESS_PREFIX}${row.wordId}`),
-      ...Object.values(EVENT_KEYS),
-      ...Object.values(SESSION_KEYS),
-      PROFILE_KEY,
-      ROUTE_KEY
+      ...Object.values(EVENT_KEYS), ...Object.values(SESSION_KEYS), PROFILE_KEY, ROUTE_KEY
     ];
     const uniqueKeys = [...new Set(keys)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
@@ -262,9 +400,14 @@
     const api = {
       version: 1,
       readOnly: true,
-      source: 'wlp-cloud-v1',
+      source: overlay.pendingRows ? 'wlp-cloud-v1+sync_outbox-overlay' : 'wlp-cloud-v1',
       projectionHash: adapter.projectionHash,
       explicitFirstSeenRows,
+      pendingOutboxRows: overlay.pendingRows,
+      overlayMutationsApplied: overlay.applied,
+      overlayStateMutationsApplied: overlay.stateApplied,
+      overlayEventMutationsApplied: overlay.eventApplied,
+      overlayActionIds: clone(overlay.actionIds),
       meta: clone(adapter.meta),
       length: uniqueKeys.length,
       key: index => uniqueKeys[Number(index)] ?? null,
@@ -365,7 +508,8 @@
     const provider = window.WLPCanonicalCompatibilityAdapter;
     if (!provider?.open) throw new Error('Storage facade blocked: Canonical Compatibility Adapter is unavailable.');
     const adapter = await provider.open();
-    return buildStorageFacade(adapter);
+    const overlayContext = await readPendingOverlayContext(adapter);
+    return buildStorageFacade(adapter, overlayContext);
   }
 
   async function runAudit() {
@@ -430,8 +574,8 @@
       if (first.explicitFirstSeenRows !== EXPECTED_PROGRESS_ROWS) blocking.push('Storage Compatibility Facade does not expose exact firstSeen for all 111 learning_state rows.');
 
       if (review.length !== 25) warnings.push(`Canonical Review membership currently resolves to ${review.length} row(s), not the previously observed 25.`);
-      warnings.push('Progress and Review still use legacy localStorage for their live UI; Canonical Authority v2 remains a read-only shadow source and no read cutover has occurred.');
-      warnings.push('The storage-like surface exposes only the read keys required by the current Progress / Review compatibility scope. UI preferences, Local Overrides, Editor data, and write paths remain legacy and untouched.');
+      warnings.push('Progress uses the Canonical facade by default since v222; Review still uses legacy localStorage. Pending sync_outbox mutations are now overlaid read-only when their Authority and conflict guards match.');
+      warnings.push('UI preferences, Local Overrides, Editor data, Review writes, Cloud transport, acknowledgement, and conflict resolution remain outside this facade.');
 
       const pass = blocking.length === 0;
       const report = {
@@ -460,6 +604,8 @@
           practiceEvents: first.readPracticeEvents().length,
           quickReviewEvents: first.readQuickReviewEvents().length,
           explicitFirstSeenRows: first.explicitFirstSeenRows,
+          pendingOutboxRows: first.pendingOutboxRows,
+          overlayMutationsApplied: first.overlayMutationsApplied,
           supportedStorageKeys: first.length,
           storageParityMismatches,
           unresolvedReviewCards: unresolvedReviewCards.length,
@@ -498,7 +644,8 @@
           noIndexedDbWrites: true,
           noLocalStorageWrites: true,
           noLiveWlpWrites: true,
-          noPageReadCutover: true,
+          progressDefaultReadCutoverCompatible: true,
+          noReviewReadCutover: true,
           activeAuthorityV2MirrorRequired: String(first.meta?.snapshotManifestHash || '') === EXPECTED_MANIFEST,
           explicitFirstSeenComplete: first.explicitFirstSeenRows === EXPECTED_PROGRESS_ROWS,
           storageTypedReaderParity: storageParityMismatches === 0,
@@ -512,7 +659,7 @@
       state.report = report;
       render(report);
       setStatus(pass
-        ? `Storage Compatibility Facade PASS. ${progress.length.toLocaleString()} Progress row(s), ${review.length.toLocaleString()} Review row(s), and current history are available through a deterministic read-only page contract; live pages remain unchanged.`
+        ? `Storage Compatibility Facade PASS. ${progress.length.toLocaleString()} Progress row(s), ${review.length.toLocaleString()} Review row(s), and ${first.overlayMutationsApplied} pending overlay mutation(s) are available through the deterministic read-only page contract.`
         : `Storage Compatibility Facade BLOCKED with ${blocking.length} issue(s). No live page or storage write occurred.`, pass ? 'ok' : 'bad');
     } catch (error) {
       state.report = null;
