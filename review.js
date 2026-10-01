@@ -417,7 +417,9 @@
     const tags=record.reviewReasons.map(r=>`<span class="review-reason-tag">${esc(reasonLabel.get(r)||r)}</span>`).join('');
     const needs=tags?`<div class="review-card-needs"><span class="review-card-mini-label">Learning Needs</span><div class="review-card-tags">${tags}</div></div>`:'';
     const evidence=evidenceBlockHtml(record.wordId);const suggestion=suggestionHtml(record);
-    const studyHref=batch?`./flashcards/wlp/batch.html?batch=${encodeURIComponent(batch)}&wordid=${encodeURIComponent(record.wordId)}&solo=1&from=review`:'./deck-browser.html';
+    const reviewCandidateActive=new URLSearchParams(location.search).get('wlpCanonicalReviewWrite')==='1';
+    const studyCandidateSuffix=reviewCandidateActive?'&wlpCanonicalStudyAttentionWrite=1':'';
+    const studyHref=batch?`./flashcards/wlp/batch.html?batch=${encodeURIComponent(batch)}&wordid=${encodeURIComponent(record.wordId)}&solo=1&from=review${studyCandidateSuffix}`:'./deck-browser.html';
     const edit=isAdmin()?`<a class="review-card-edit" href="./editor-local-edit.html?wid=${encodeURIComponent(record.wordId)}&return=${encodeURIComponent('review.html')}">Edit</a>`:'';
     return `<article class="review-card"><div class="review-card-main"><div class="review-card-head"><strong class="review-card-word">${esc(word)}</strong><span class="review-card-meta">${esc([`WID${record.wordId}`,pos,batch?`WLP${batch}`:''].filter(Boolean).join(' · '))}</span></div>${definition?`<p class="review-card-definition">${esc(definition)}</p>`:''}<div class="review-card-state"><div class="review-card-attention"><span class="review-card-mini-label">Current Attention</span><span class="review-level-tag ${esc(level)}">${esc(levelLabel)}</span></div>${needs}</div>${evidence}${suggestion}</div><div class="review-card-actions"><a class="review-card-study" href="${studyHref}">Study</a>${edit}</div></article>`;
   }

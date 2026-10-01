@@ -357,16 +357,6 @@
     #deck-nav-links .deck-home-link:hover {
       color: #274d34; background: rgba(84,112,70,.08); border-color: rgba(63,94,58,.42);
     }
-    /* v1.8.6.164 / v1.8.6.183 — slightly stronger set position, with only the numerals emphasized. */
-    .card-tag .review-card-position,
-    .card-tag .study-set-card-position {
-      color: #45584e;
-      font-weight: 700;
-      font-size: 1.08em;
-      opacity: 1;
-      letter-spacing: .015em;
-    }
-
     @media (max-width: 560px) {
       .voice-control { gap: 4px; }
       .voice-detail { max-width: 110px; font-size: .76rem; }
@@ -374,34 +364,8 @@
       #deck-nav-links a { font-size: .98rem; }
       #deck-nav-links .deck-home-link { padding: 7px 11px; }
     }
-
-
-    /* WLP v1.8.6.167 — Quick Review one-tap judgments. */
-    .quick-review-panel{
-      width:min(100%,560px);
-      margin:12px auto 0;
-      padding:10px 11px 11px;
-      border:1px solid rgba(85,114,100,.20);
-      border-radius:14px;
-      background:rgba(248,251,248,.88);
-      box-sizing:border-box;
-    }
-    .quick-review-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
-    .quick-review-head strong{color:#526b5e;font:600 .68rem/1.1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.06em;text-transform:uppercase}
-    .quick-review-auto-next{min-height:20px!important;padding:2px 6px!important;border-radius:999px!important;font:600 .58rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;color:#7a877f!important;background:transparent!important;border-color:transparent!important;box-shadow:none!important;letter-spacing:.01em!important}
-    .quick-review-auto-next.is-on{color:#466454!important;background:#edf4ee!important;border-color:rgba(85,114,100,.10)!important}
-    .quick-review-ratings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-    .quick-review-ratings button{min-width:0!important;min-height:38px!important;padding:7px 5px!important;border-radius:10px!important;font:600 .76rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;color:#52675c!important;background:#fff!important;border:1px solid rgba(85,114,100,.22)!important}
-    .quick-review-ratings button.is-selected{background:#e5efe7!important;border-color:#bcd2c2!important;color:#285740!important;box-shadow:inset 0 0 0 1px rgba(72,104,82,.05)}
-    @media(max-width:390px){
-      .quick-review-panel{padding:9px 9px 10px}
-      .quick-review-ratings{gap:4px}
-      .quick-review-ratings button{font-size:.71rem!important;padding-inline:3px!important}
-      .quick-review-auto-next{font-size:.55rem!important;padding-inline:5px!important}
-    }
-
   </style>
-  <link rel="stylesheet" href="./study-stage7.css?v=20260929-s7-study-set-marker-v186183" />
+  <link rel="stylesheet" href="./study-stage7.css?v=20260918-s7-learning-layer-alignment-v18644" />
   <link rel="stylesheet" href="../../study-options.css?v=20260918-s7-options-v18624" />
   <link rel="stylesheet" href="../../classification-viewer.css?v=20260924-s7-classification-viewer-v186122" />
 </head>
@@ -550,7 +514,6 @@
           <pre class="ex"></pre>
           <pre class="syn"></pre>
           <pre class="note"></pre>
-          <button class="btn-flip-back study-corner-front" type="button" aria-label="Return to the front of this card"><span>Front</span></button>
           <div class="back-utility-row" aria-label="Answer navigation and reference">
             <button class="btn-prev back-nav-chevron" aria-label="Previous card" title="Previous card">‹</button>
             <div class="back-reference-tools" aria-label="Reference tools">
@@ -902,10 +865,12 @@
     })();
   </script>
   <script src="../../learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="../../classification-metadata.js?v=20260928-s7-storage-stabilization-v186169"></script>
-  <script src="../../study-context-data.js?v=20260929-s7-study-set-marker-v186183"></script>
-  <script type="module" src="./app.js?v=20260929-s7-round-completion-v186183"></script>
-  <script src="./study-stage7.js?v=20260929-s7-round-completion-v186183"></script>
+  <script src="../../classification-metadata.js?v=20260924-s7-classification-transfer-v186121"></script>
+  <script src="../../cloud-shadow-compat-adapter.js?v=20261001-v186225-outbox-overlay"></script>
+  <script src="../../cloud-shadow-storage-compat-facade.js?v=20261001-v186225-outbox-overlay"></script>
+  <script src="../../canonical-study-attention-write-candidate.js?v=20261001-v186229-study-attention-outbox-candidate"></script>
+  <script type="module" src="./app.js?v=20261001-v186229-study-attention-outbox-candidate"></script>
+  <script src="./study-stage7.js?v=20260917-s7-review-v180"></script>
   <script src="../../study-options.js?v=20260918-s7-options-v18624"></script>
 </body>
 </html>

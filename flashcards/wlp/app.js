@@ -1,6 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
-// Stage 7 v1.8.6.170 — Review UI polish on v1.8.6.169 storage base.
+// Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
 const TSV_URL =
@@ -50,31 +50,6 @@ const FROM_PARAM =
 const RETURN_PARAM =
   PARAMS.get("return");
 
-const CONTEXT_PARAM =
-  String(PARAMS.get("context") || "").trim();
-
-
-const REVIEW_STYLE_PARAM =
-  String(PARAMS.get("reviewstyle") || "").trim().toLowerCase();
-
-const QUICK_REVIEW_AUTO_PARAM =
-  String(PARAMS.get("autonext") || "").trim();
-
-const REVIEW_QUICK_EVENT_KEY =
-  "wlp:review-quick-events:v1";
-
-const QUICK_REVIEW_SESSION_KEY =
-  "wlp:quick-review-auto-next-session:v1";
-
-const REVIEW_QUICK_ROUND_SESSION_KEY =
-  "wlp:review-quick-round-session:v1";
-
-const IS_QUICK_REVIEW =
-  Boolean(REVIEW_PARAM) && REVIEW_STYLE_PARAM === "quick";
-
-const STUDY_CONTEXT_KEY =
-  "wlp:study-contexts:v1";
-
 const STUDY_SET_PARAM =
   PARAMS.get("studyset");
 
@@ -96,23 +71,6 @@ const IS_FROM_STUDY_SET =
 const IS_STUDY_SET_MODE =
   STUDY_SET_PARAM === "1" &&
   Boolean(WORDID_PARAM);
-
-function reviewContextWordIds() {
-  if (!REVIEW_PARAM || !CONTEXT_PARAM) return [];
-  try {
-    const contexts = JSON.parse(localStorage.getItem(STUDY_CONTEXT_KEY) || "[]");
-    if (!Array.isArray(contexts)) return [];
-    const context = contexts.find(item =>
-      item &&
-      String(item.contextId || "").trim() === CONTEXT_PARAM &&
-      String(item.sourceType || "").trim() === "review-set"
-    );
-    if (!context || !Array.isArray(context.source?.wordIds)) return [];
-    return Array.from(new Set(context.source.wordIds.map(value => String(value || "").trim()).filter(Boolean)));
-  } catch (_) {
-    return [];
-  }
-}
 
 function readTemporaryStudySet() {
   try {
@@ -147,9 +105,7 @@ function temporaryStudySetHref(item) {
   params.set("solo", "1");
   params.set("studyset", "1");
   params.set("from", "study-set");
-  params.set("return", RETURN_PARAM || "../../study-set-builder.html");
-  const contextId = String(PARAMS.get("context") || "").trim();
-  if (contextId) params.set("context", contextId);
+  params.set("return", "../../study-set-builder.html");
   return `./batch.html?${params.toString()}`;
 }
 
@@ -183,13 +139,6 @@ function cardContextReturnTarget() {
         if (url.pathname.endsWith("/study-set-builder.html")) {
           return { href: `${url.pathname}${url.search}${url.hash}`, label: "Study Set", footerLabel: "Back to Study Set", kind: "study-set" };
         }
-        if (url.pathname.endsWith("/deck-browser.html")) {
-          const studyMode = String(url.searchParams.get("mode") || "").trim();
-          if (studyMode === "review") {
-            return { href: `${url.pathname}${url.search}${url.hash}`, label: "Study Review", footerLabel: "Back to Study Review", kind: "deck-browser" };
-          }
-          return { href: `${url.pathname}${url.search}${url.hash}`, label: "Continue", footerLabel: "Back to Continue", kind: "deck-browser" };
-        }
       }
     } catch (_) {}
   }
@@ -209,39 +158,19 @@ function updateCardContextNavLabel(link, text) {
   if (textNode) textNode.textContent = ` ${text}`;
 }
 
-function installBottomContextBack(target) {
-  const back = document.getElementById("prev-deck-link");
-  if (!back || !target?.href) return;
-  back.href = target.href;
-  back.hidden = false;
-  back.style.display = "inline-flex";
-  back.setAttribute("aria-label", target.footerLabel || "Back");
-  back.setAttribute("title", target.footerLabel || "Back");
-  back.closest("#deck-nav-links")?.classList.add("has-context-back");
-  updateCardContextNavLabel(back, "Back");
-}
-
 function installCardContextReturnNavigation() {
   const target = cardContextReturnTarget();
   if (!target) return;
 
-  if (target.kind === "classification" || target.kind === "study-set" || target.kind === "deck-browser") {
+  if (target.kind === "classification" || target.kind === "study-set") {
     const back = document.querySelector(".study-back-decks");
     if (back) {
       back.href = target.href;
       back.setAttribute("aria-label", target.footerLabel);
       back.setAttribute("title", target.footerLabel);
       updateCardContextNavLabel(back, target.footerLabel);
-      const returnPath = target.kind === "classification"
-        ? "/editor-classification.html"
-        : target.kind === "deck-browser"
-          ? "/deck-browser.html"
-          : "/study-set-builder.html";
-      const bindKey = target.kind === "classification"
-        ? "classificationReturnBound"
-        : target.kind === "deck-browser"
-          ? "continueReturnBound"
-          : "studySetReturnBound";
+      const returnPath = target.kind === "classification" ? "/editor-classification.html" : "/study-set-builder.html";
+      const bindKey = target.kind === "classification" ? "classificationReturnBound" : "studySetReturnBound";
       if (back.dataset[bindKey] !== "1") {
         back.dataset[bindKey] = "1";
         back.addEventListener("click", event => {
@@ -256,11 +185,6 @@ function installCardContextReturnNavigation() {
         });
       }
     }
-    if (target.kind === "deck-browser" && target.label === "Study Review") {
-      const legacyReviewBack = document.getElementById("review-back-link");
-      if (legacyReviewBack) legacyReviewBack.style.display = "none";
-      installBottomContextBack(target);
-    }
     return;
   }
 
@@ -273,14 +197,10 @@ function installCardContextReturnNavigation() {
     progressLink.href = target.href;
     progressLink.textContent = target.footerLabel;
   }
-  if (target.label === "Review") {
-    if (reviewWrap) reviewWrap.style.display = "none";
-    if (reviewLink) {
-      reviewLink.href = target.href;
-      reviewLink.textContent = target.footerLabel;
-    }
-    installBottomContextBack(target);
-    return;
+  if (target.label === "Review" && reviewWrap && reviewLink) {
+    reviewWrap.style.display = "block";
+    reviewLink.href = target.href;
+    reviewLink.textContent = target.footerLabel;
   }
   const home = document.querySelector("#deck-nav-links .deck-home-link");
   if (home) {
@@ -521,9 +441,8 @@ if (IS_REVIEW_MODE || IS_FROM_REVIEW_HUB) {
 
   if (reviewBackLink) {
 
-    // Review navigation now lives in the header and fixed bottom nav.
     reviewBackLink.style.display =
-      "none";
+      "block";
 
   }
 
@@ -1522,6 +1441,26 @@ function pickReviewRows(
   reviewDeckStr
 ) {
 
+  const deckNo =
+    Math.max(
+      1,
+      Number(
+        reviewDeckStr
+      ) || 1
+    );
+
+  const reviewRecords =
+    readAllReviewProgress();
+
+  const start =
+    (deckNo - 1) * 10;
+
+  const selected =
+    reviewRecords.slice(
+      start,
+      start + 10
+    );
+
   const rowMap =
     new Map();
 
@@ -1543,40 +1482,6 @@ function pickReviewRows(
 
   });
 
-  // v1.8.6.160 — a generated Review Set is a frozen Study Context snapshot.
-  // Resume / Start Again must use that exact WID order rather than re-running
-  // the live Review filters underneath the learner.
-  const contextWordIds =
-    reviewContextWordIds();
-
-  if (contextWordIds.length) {
-
-    return contextWordIds
-      .map(wordId => rowMap.get(wordId))
-      .filter(Boolean);
-
-  }
-
-  const deckNo =
-    Math.max(
-      1,
-      Number(
-        reviewDeckStr
-      ) || 1
-    );
-
-  const reviewRecords =
-    readAllReviewProgress();
-
-  const start =
-    (deckNo - 1) * 10;
-
-  const selected =
-    reviewRecords.slice(
-      start,
-      start + 10
-    );
-
   return selected
     .map(
       record =>
@@ -1587,7 +1492,6 @@ function pickReviewRows(
     .filter(Boolean);
 
 }
-
 
   function wordIdOf(row) {
 
@@ -2218,9 +2122,11 @@ function renderCards(
       const cardTagText =
   IS_DRAFT_MODE
     ? `#Draft${label}      ${index + 1}/${batchRows.length}`
-    : studySetPosition
-      ? `#Study Set${cardWidText}      ${studySetPosition.index + 1}/${studySetPosition.total}`
-      : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
+    : IS_REVIEW_MODE
+      ? `#Review${label}${cardWidText}      ${index + 1}/${batchRows.length}`
+      : studySetPosition
+        ? `#Study Set${cardWidText}      ${studySetPosition.index + 1}/${studySetPosition.total}`
+        : `#WLP${label}${cardWidText}      ${index + 1}/${batchRows.length}`;
 
 root
   .querySelectorAll(
@@ -2228,21 +2134,8 @@ root
   )
   .forEach(
     tag => {
-      if (IS_REVIEW_MODE) {
-        tag.textContent = `#Review${label}${cardWidText}      `;
-        const position = document.createElement('span');
-        position.className = 'review-card-position';
-        position.textContent = `${index + 1}/${batchRows.length}`;
-        tag.append(position);
-      } else if (studySetPosition) {
-        tag.textContent = `#Study Set${cardWidText}      `;
-        const position = document.createElement('span');
-        position.className = 'study-set-card-position';
-        position.textContent = `${studySetPosition.index + 1}/${studySetPosition.total}`;
-        tag.append(position);
-      } else {
-        tag.textContent = cardTagText;
-      }
+      tag.textContent =
+        cardTagText;
     }
   );
 
@@ -2321,7 +2214,7 @@ root
         }
         if (row.__hasLocalOverride) {
           root.querySelectorAll(".card-tag").forEach(tag => {
-            tag.append(document.createTextNode(" · Local edit"));
+            tag.textContent += " · Local edit";
           });
         }
       }
@@ -3617,7 +3510,7 @@ const REVIEW_REASON_OPTIONS = [
 ];
 
 let studyToastTimer = null;
-function showStudyToast(message, duration = 2200, variant = "") {
+function showStudyToast(message, duration = 2200) {
   let toast = document.getElementById("study-progress-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -3628,13 +3521,9 @@ function showStudyToast(message, duration = 2200, variant = "") {
     document.body.appendChild(toast);
   }
   toast.textContent = message;
-  toast.classList.toggle("review-complete", variant === "review-complete");
   toast.classList.add("show");
   clearTimeout(studyToastTimer);
-  studyToastTimer = setTimeout(() => {
-    toast.classList.remove("show");
-    toast.classList.remove("review-complete");
-  }, duration);
+  studyToastTimer = setTimeout(() => toast.classList.remove("show"), duration);
 }
 
 function ensureReviewAttentionSheet() {
@@ -3737,7 +3626,32 @@ function openReviewAttentionSheet(row, stateKey, onSaved) {
     renderSelection();
   };
 
-  sheet.querySelector(".review-attention-done").onclick = () => {
+  sheet.querySelector(".review-attention-done").onclick = async () => {
+    const canonicalStudyCandidate = window.WLPCanonicalStudyAttentionWriteCandidate;
+    if (canonicalStudyCandidate?.isActive?.()) {
+      const saveButton = sheet.querySelector(".review-attention-done");
+      saveButton.disabled = true;
+      try {
+        const result = await canonicalStudyCandidate.runAttentionRoundtrip({
+          stateKey,
+          wordId: String(row?.WordID || "").trim(),
+          level: selectedLevel,
+          reasons: Array.from(selectedReasons),
+          refresh: () => { if (typeof onSaved === "function") onSaved(); }
+        });
+        closeReviewAttentionSheet();
+        showStudyToast(
+          result?.pass
+            ? "Canonical Study attention candidate passed and rolled back cleanly."
+            : "Canonical Study attention candidate was blocked. No legacy attention write occurred.",
+          result?.pass ? 5200 : 6200
+        );
+      } finally {
+        saveButton.disabled = false;
+      }
+      return;
+    }
+
     const latest = readProgress(stateKey);
     saveProgress(stateKey, {
       ...latest,
@@ -3765,195 +3679,6 @@ function openReviewAttentionSheet(row, stateKey, onSaved) {
 // =============================================================
 // CARD EVENTS
 // =============================================================
-
-
-function readQuickReviewEvents() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(REVIEW_QUICK_EVENT_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === "object") : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-function quickReviewAutoNextEnabled() {
-  if (!IS_QUICK_REVIEW) return false;
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(QUICK_REVIEW_SESSION_KEY) || "null");
-    if (saved && saved.contextId === CONTEXT_PARAM && typeof saved.enabled === "boolean") return saved.enabled;
-  } catch (_) {}
-  const enabled = QUICK_REVIEW_AUTO_PARAM !== "0";
-  try { sessionStorage.setItem(QUICK_REVIEW_SESSION_KEY, JSON.stringify({ contextId: CONTEXT_PARAM, enabled })); } catch (_) {}
-  return enabled;
-}
-
-function setQuickReviewAutoNext(enabled) {
-  const value = Boolean(enabled);
-  try { sessionStorage.setItem(QUICK_REVIEW_SESSION_KEY, JSON.stringify({ contextId: CONTEXT_PARAM, enabled: value })); } catch (_) {}
-  document.querySelectorAll(".quick-review-auto-next").forEach(button => {
-    button.classList.toggle("is-on", value);
-    button.setAttribute("aria-pressed", String(value));
-    button.textContent = `Auto Next · ${value ? "On" : "Off"}`;
-  });
-  return value;
-}
-
-function latestQuickReviewRating(wordId) {
-  const id = String(wordId || "").trim();
-  if (!id) return "";
-  const matches = readQuickReviewEvents().filter(event =>
-    String(event.wordId || "").trim() === id &&
-    (!CONTEXT_PARAM || String(event.contextId || "").trim() === CONTEXT_PARAM)
-  );
-  const latest = matches.sort((a, b) => Date.parse(b.occurredAt || 0) - Date.parse(a.occurredAt || 0))[0];
-  return String(latest?.rating || "").trim().toLowerCase();
-}
-
-let quickReviewSaveError = "";
-
-function saveQuickReviewRating(row, rating) {
-  quickReviewSaveError = "";
-  const wordId = String(row?.WordID || "").trim();
-  const value = String(rating || "").trim().toLowerCase();
-  if (!wordId || !["again","hard","good","easy"].includes(value)) return false;
-  const events = readQuickReviewEvents();
-  events.push({
-    schemaVersion: 1,
-    eventId: `review-quick-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    occurredAt: new Date().toISOString(),
-    contextId: CONTEXT_PARAM,
-    wordId,
-    rating: value,
-    reviewStyle: "quick",
-    autoAdvance: quickReviewAutoNextEnabled()
-  });
-  try { localStorage.setItem(REVIEW_QUICK_EVENT_KEY, JSON.stringify(events.slice(-800))); }
-  catch (error) {
-    console.warn("WLP Quick Review storage write failed:", error);
-    quickReviewSaveError = "Quick Review rating could not be saved. Local storage may be full.";
-    return false;
-  }
-  interactionEvent("review_quick_judgment", row, { rating: value, contextId: CONTEXT_PARAM });
-  return true;
-}
-
-function refreshQuickReviewControls(root, row) {
-  if (!IS_QUICK_REVIEW || !root) return;
-  const current = latestQuickReviewRating(row?.WordID);
-  root.querySelectorAll("[data-quick-review-rating]").forEach(button => {
-    const active = button.dataset.quickReviewRating === current;
-    button.classList.toggle("is-selected", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-  const auto = quickReviewAutoNextEnabled();
-  root.querySelectorAll(".quick-review-auto-next").forEach(button => {
-    button.classList.toggle("is-on", auto);
-    button.setAttribute("aria-pressed", String(auto));
-    button.textContent = `Auto Next · ${auto ? "On" : "Off"}`;
-  });
-}
-
-function readQuickReviewRoundState() {
-  if (!CONTEXT_PARAM) return null;
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(REVIEW_QUICK_ROUND_SESSION_KEY) || "null");
-    if (saved && saved.contextId === CONTEXT_PARAM) return saved;
-  } catch (_) {}
-  return { contextId: CONTEXT_PARAM, round: 1, shownRound: 0, lastRatedIndex: -1 };
-}
-
-function writeQuickReviewRoundState(state) {
-  if (!state || !CONTEXT_PARAM) return;
-  try { sessionStorage.setItem(REVIEW_QUICK_ROUND_SESSION_KEY, JSON.stringify(state)); } catch (_) {}
-}
-
-function maybeShowQuickReviewCompletionToast(row) {
-  if (!IS_QUICK_REVIEW || !CONTEXT_PARAM) return false;
-  try {
-    const contexts = JSON.parse(localStorage.getItem(STUDY_CONTEXT_KEY) || "[]");
-    if (!Array.isArray(contexts)) return false;
-    const context = contexts.find(item => item && String(item.contextId || "").trim() === CONTEXT_PARAM);
-    const wordIds = Array.isArray(context?.source?.wordIds)
-      ? context.source.wordIds.map(value => String(value || "").trim()).filter(Boolean)
-      : [];
-    const wordId = String(row?.WordID || "").trim();
-    const index = wordIds.indexOf(wordId);
-    const total = wordIds.length;
-    if (!total || index < 0) return false;
-
-    const state = readQuickReviewRoundState();
-    if (!state) return false;
-    const lastIndex = total - 1;
-    if (Number(state.lastRatedIndex) === lastIndex && index === 0) {
-      state.round = Math.max(1, Number(state.round) || 1) + 1;
-    }
-    state.lastRatedIndex = index;
-
-    if (index === lastIndex && Number(state.shownRound) < Number(state.round || 1)) {
-      state.shownRound = Number(state.round) || 1;
-      writeQuickReviewRoundState(state);
-      showStudyToast(`Review set complete · ${total} / ${total}`, 3000, "review-complete");
-      return true;
-    }
-    writeQuickReviewRoundState(state);
-    return false;
-  } catch (_) {
-    return false;
-  }
-}
-
-function advanceQuickReview(root) {
-  // Reuse the already-proven Next control rather than maintaining a second
-  // navigation path. This also keeps all Stage 7 observers/progress hooks.
-  const next = root?.querySelector?.(".btn-next");
-  if (next instanceof HTMLButtonElement) {
-    next.click();
-    return true;
-  }
-  go(1);
-  return true;
-}
-
-function installQuickReviewControls(root, row) {
-  if (!IS_QUICK_REVIEW || !root || !row) return;
-  root.querySelectorAll(".study-practice-zone").forEach(zone => {
-    if (zone.querySelector(".quick-review-panel")) return;
-    const panel = document.createElement("section");
-    panel.className = "quick-review-panel";
-    panel.setAttribute("aria-label", "Quick Review judgment");
-    panel.innerHTML = `
-      <div class="quick-review-head"><strong>Quick Review</strong><button type="button" class="quick-review-auto-next" aria-pressed="true">Auto Next · On</button></div>
-      <div class="quick-review-ratings" role="group" aria-label="Quick Review rating">
-        <button type="button" data-quick-review-rating="again" aria-pressed="false">Again</button>
-        <button type="button" data-quick-review-rating="hard" aria-pressed="false">Hard</button>
-        <button type="button" data-quick-review-rating="good" aria-pressed="false">Good</button>
-        <button type="button" data-quick-review-rating="easy" aria-pressed="false">Easy</button>
-      </div>`;
-    zone.append(panel);
-    panel.querySelector(".quick-review-auto-next")?.addEventListener("click", () => {
-      setQuickReviewAutoNext(!quickReviewAutoNextEnabled());
-    });
-    panel.querySelectorAll("[data-quick-review-rating]").forEach(button => {
-      button.addEventListener("click", () => {
-        const rating = button.dataset.quickReviewRating;
-        if (!saveQuickReviewRating(row, rating)) {
-          showStudyToast(quickReviewSaveError || "Quick Review rating could not be saved.", 3200);
-          return;
-        }
-        refreshQuickReviewControls(root, row);
-        // Ask Stage 7 to flush progress first. Then show a completion fallback
-        // if needed and use the existing Next button for Auto Next.
-        try { window.dispatchEvent(new CustomEvent("wlp:review-quick-rated")); } catch (_) {}
-        const autoNext = quickReviewAutoNextEnabled();
-        setTimeout(() => {
-          maybeShowQuickReviewCompletionToast(row);
-          if (autoNext) advanceQuickReview(root);
-        }, 180);
-      });
-    });
-  });
-  refreshQuickReviewControls(root, row);
-}
 
 function bindCardBehavior(
   root,
@@ -4130,8 +3855,6 @@ function bindCardBehavior(
     else if (event.target.closest("[data-youglish]")) interactionEvent("youglish", row);
   });
 
-  installQuickReviewControls(root, row);
-
   if (IS_DRAFT_MODE) {
 
     const studiedButton =
@@ -4197,7 +3920,20 @@ function bindCardBehavior(
 
   refreshProgressControls();
 
+  const canonicalStudyCandidateActive = Boolean(window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.());
+  if (canonicalStudyCandidateActive) {
+    if (studiedButton) {
+      studiedButton.disabled = true;
+      studiedButton.title = "Canonical Study attention candidate: Studied writes are locked for this test.";
+    }
+    if (reviewButton) {
+      reviewButton.disabled = true;
+      reviewButton.title = "Canonical Study attention candidate: Review membership writes are locked for this test.";
+    }
+  }
+
   studiedButton?.addEventListener("click", () => {
+    if (window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.()) return;
     const before = readProgress(stateKey);
     const wasStudied = Boolean(before.known) && !Boolean(before.review);
 
@@ -4233,6 +3969,7 @@ function bindCardBehavior(
   });
 
   reviewButton?.addEventListener("click", () => {
+    if (window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.()) return;
     const cur = readProgress(stateKey);
 
     if (cur.review) {
@@ -4307,6 +4044,12 @@ function readProgress(key) {
 
   if (!key) {
     return {};
+  }
+
+  const canonicalStudyCandidate = window.WLPCanonicalStudyAttentionWriteCandidate;
+  if (canonicalStudyCandidate?.isActive?.()) {
+    const canonicalRecord = canonicalStudyCandidate.readProgressKey?.(key);
+    if (canonicalRecord) return canonicalRecord;
   }
 
   try {
@@ -4855,6 +4598,11 @@ function escapeHtml(s) {
 // =============================================================
 
 (async function main() {
+
+  const canonicalStudyCandidate = window.WLPCanonicalStudyAttentionWriteCandidate;
+  if (canonicalStudyCandidate?.requested) {
+    await canonicalStudyCandidate.prepare();
+  }
 
   const { rows } =
   await loadTSV(
