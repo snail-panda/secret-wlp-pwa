@@ -320,13 +320,18 @@ function recordEncounter(row) {
 
   const key = `fc:wordid:${wordId}`;
   const cur = readProgress(key);
-  saveProgress(key, {
-    ...cur,
-    wordId,
-    firstSeen: cur.firstSeen || now,
-    lastSeen: now,
-    exposureCount: Number(cur.exposureCount || 0) + 1
-  });
+  const canonicalStudyCandidate = window.WLPCanonicalStudyAttentionWriteCandidate;
+  const canonicalOwnsProgress = Boolean(canonicalStudyCandidate?.isActive?.() && canonicalStudyCandidate?.readProgressKey?.(key));
+
+  if (!canonicalOwnsProgress) {
+    saveProgress(key, {
+      ...cur,
+      wordId,
+      firstSeen: cur.firstSeen || now,
+      lastSeen: now,
+      exposureCount: Number(cur.exposureCount || 0) + 1
+    });
+  }
 
   activityEvent("study", row, { action: "encounter" });
 }
