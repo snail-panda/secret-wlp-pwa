@@ -98,6 +98,8 @@
       <button class="action" id="export-storage-compat-facade" type="button" disabled>Export Storage Facade Audit</button>
       <a class="action" href="./progress.html?wlpCanonicalShadow=1">Open Progress Live Shadow</a>
       <a class="action" href="./review.html?wlpCanonicalShadow=1">Open Review Live Shadow</a>
+      <button class="action cloud-action" id="run-first-seen-preflight" type="button">Run FirstSeen Preservation Preflight</button>
+      <button class="action" id="export-first-seen-preflight" type="button" disabled>Export FirstSeen Preflight</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -599,6 +601,33 @@
       <p class="status-line" id="storage-compat-facade-status">Builds a read-only compatibility facade over the existing Canonical Adapter. No Cloud call, IndexedDB write, localStorage write, or live Progress / Review cutover occurs.</p>
     </section>
 
+
+    <section class="panel hidden" id="first-seen-preflight-panel">
+      <div class="panel-head"><div><h2>FirstSeen preservation · Authority v2 preflight</h2><p>Read-only targeted repair planning for the live-shadow regression found on WID 2876. Re-reads the ACTIVE Authority plus the two verified source stages, derives an explicit <code>first_seen_at</code> for Canonical <code>learning_state</code>, and computes the projected Authority manifest without writing Cloud, IndexedDB, localStorage, or live WLP.</p></div><div class="compare-badge">FirstSeen preflight <strong id="first-seen-preflight-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="first-seen-active-states">0</strong><span>Active state rows</span></div>
+        <div class="metric"><strong id="first-seen-evidence">0</strong><span>Rows with source evidence</span></div>
+        <div class="metric"><strong id="first-seen-merged-gap">0</strong><span>Merged rows lacking snapshot</span></div>
+        <div class="metric"><strong id="first-seen-disagreement">0</strong><span>Source disagreements</span></div>
+        <div class="metric"><strong id="first-seen-before-regressions">0</strong><span>Current-device regressions</span></div>
+        <div class="metric"><strong id="first-seen-after-regressions">0</strong><span>Projected regressions</span></div>
+        <div class="metric"><strong id="first-seen-changed-rows">0</strong><span>Authority rows changed</span></div>
+        <div class="metric"><strong id="first-seen-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Projected Authority manifest SHA-256</p>
+      <div class="hash-box" id="first-seen-projected-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">WID 2876 spot check</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Legacy local</th><th>Current facade</th><th>Source-stage evidence</th><th>Projected first_seen_at</th></tr></thead>
+          <tbody id="first-seen-2876-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Preflight notes</h3>
+      <ul class="error-list" id="first-seen-preflight-notes"></ul>
+      <p class="status-line" id="first-seen-preflight-status">Reads the current ACTIVE Authority and its verified source stages only. It does not modify the Authority Head, candidate rows, mirror, localStorage, or live WLP.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -657,5 +686,6 @@
   <script src="./cloud-shadow-compat-adapter.js"></script>
   <script src="./cloud-shadow-progress-review-shadow.js"></script>
   <script src="./cloud-shadow-storage-compat-facade.js"></script>
+  <script src="./cloud-shadow-first-seen-preflight.js"></script>
 </body>
 </html>
