@@ -81,6 +81,8 @@
       <button class="action" id="export-authority-promotion" type="button" disabled>Export Authority Promotion</button>
       <button class="action cloud-action" id="run-authority-pull-compare" type="button" disabled>Pull Authority + Compare Local</button>
       <button class="action" id="export-authority-pull-compare" type="button" disabled>Export Pull Compare</button>
+      <button class="action cloud-action" id="run-authority-apply-dry-run" type="button" disabled>Run Authority Apply Dry Run</button>
+      <button class="action" id="export-authority-apply-dry-run" type="button" disabled>Export Apply Dry Run</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -393,6 +395,34 @@
       <p class="status-line" id="authority-pull-status">Run a fresh Local Scan on this device, then pull the ACTIVE Authority read-only. No Cloud data will be applied to WLP.</p>
     </section>
 
+    <section class="panel hidden" id="authority-apply-dry-run-panel">
+      <div class="panel-head"><div><h2>Canonical Authority Apply Dry Run · projected local mirror</h2><p>Builds the exact Authority → Local Canonical convergence plan in memory. It projects a future Canonical local mirror, verifies that the projected manifest equals the ACTIVE Authority, and performs no IndexedDB, localStorage, WLP, or Cloud writes.</p></div><div class="compare-badge">Apply dry run <strong id="authority-apply-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="authority-apply-local">0</strong><span>Local rows</span></div>
+        <div class="metric"><strong id="authority-apply-authority">0</strong><span>Authority rows</span></div>
+        <div class="metric"><strong id="authority-apply-noop">0</strong><span>Already same</span></div>
+        <div class="metric"><strong id="authority-apply-insert">0</strong><span>Planned inserts</span></div>
+        <div class="metric"><strong id="authority-apply-replace">0</strong><span>Planned replaces</span></div>
+        <div class="metric"><strong id="authority-apply-tombstone">0</strong><span>Planned tombstones</span></div>
+        <div class="metric"><strong id="authority-apply-blocked">0</strong><span>Local-only blockers</span></div>
+        <div class="metric"><strong id="authority-apply-projected">0</strong><span>Projected rows</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Deterministic Apply Plan SHA-256</p>
+      <div class="hash-box" id="authority-apply-plan-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Projected local Canonical manifest SHA-256 · must equal ACTIVE Authority</p>
+      <div class="hash-box" id="authority-apply-projected-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Per-table projected operations</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Local</th><th>Authority</th><th>No-op</th><th>Insert</th><th>Replace</th><th>Tombstone</th><th>Local-only block</th></tr></thead>
+          <tbody id="authority-apply-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Apply dry-run notes</h3>
+      <ul class="error-list" id="authority-apply-notes"></ul>
+      <p class="status-line" id="authority-apply-status">Run a fresh Local Scan and Pull Authority + Compare Local first. This stage only projects a future Canonical local mirror in memory; it cannot modify WLP.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -444,5 +474,6 @@
   <script src="./cloud-shadow-authority-promotion-preflight.js"></script>
   <script src="./cloud-shadow-authority-promotion.js"></script>
   <script src="./cloud-shadow-authority-pull-compare.js"></script>
+  <script src="./cloud-shadow-authority-apply-dry-run.js"></script>
 </body>
 </html>
