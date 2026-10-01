@@ -108,6 +108,9 @@
       <button class="action cloud-action" id="promote-first-seen-authority-v2" type="button">Promote Authority v2 Head + Read-back</button>
       <button class="action cloud-action" id="retry-first-seen-authority-v2-promotion" type="button" disabled>Retry Same v2 Promotion</button>
       <button class="action" id="export-first-seen-authority-v2-promotion" type="button" disabled>Export Authority v2 Promotion</button>
+      <button class="action cloud-action" id="apply-canonical-mirror-v2" type="button" disabled>Apply Authority v2 to Canonical Mirror</button>
+      <button class="action cloud-action" id="retry-canonical-mirror-v2" type="button" disabled>Retry Same Mirror Revision</button>
+      <button class="action" id="export-canonical-mirror-v2" type="button" disabled>Export Mirror v2 Revision</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -718,6 +721,31 @@
       <p class="status-line" id="first-seen-authority-v2-promotion-status">Install the Authority Revision Promotion RPC v1 SQL once, then run the explicit v2 promotion. The local Canonical mirror remains on v1 until a separate mirror revision step.</p>
     </section>
 
+    <section class="panel hidden" id="canonical-mirror-v2-panel">
+      <div class="panel-head"><div><h2>Canonical Local Mirror · Authority v2 revision</h2><p>Updates only the already-verified isolated <code>wlp-cloud-v1</code> mirror from the exact Authority v1 parent to the exact ACTIVE Authority v2 FirstSeen repair. The permitted delta is exactly 111 <code>learning_state</code> rows; all row identities, other tables, tombstone semantics, live WLP, and legacy localStorage remain unchanged.</p></div><div class="compare-badge">Mirror v2 <strong id="canonical-mirror-v2-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="canonical-mirror-v2-before">—</strong><span>Before mirror</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-after">—</strong><span>After mirror</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-planned">0</strong><span>Planned changed rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-written">0</strong><span>Rows written</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-rows">0</strong><span>Mirror rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-firstseen">0</strong><span>States with first_seen_at</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-outbox">0</strong><span>Sync outbox rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="canonical-mirror-v2-repeat">—</strong><span>Retry idempotency</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">ACTIVE Authority v2 manifest SHA-256</p>
+      <div class="hash-box" id="canonical-mirror-v2-authority-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Revised local mirror manifest SHA-256</p>
+      <div class="hash-box" id="canonical-mirror-v2-mirror-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">WID 2876 explicit FirstSeen spot-check</p>
+      <div class="hash-box" id="canonical-mirror-v2-spot"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Mirror revision notes</h3>
+      <ul class="error-list" id="canonical-mirror-v2-notes"></ul>
+      <p class="status-line" id="canonical-mirror-v2-status">Requires the ACTIVE Authority Head to be verified v2 and the existing local Canonical mirror to be the exact verified v1 parent (or already-exact v2 on retry). This step writes only to isolated IndexedDB wlp-cloud-v1; live WLP remains untouched.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -780,5 +808,6 @@
   <script src="./cloud-shadow-first-seen-candidate.js"></script>
   <script src="./cloud-shadow-first-seen-promotion-preflight.js"></script>
   <script src="./cloud-shadow-first-seen-promotion.js"></script>
+  <script src="./cloud-shadow-canonical-mirror-revision.js"></script>
 </body>
 </html>
