@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.247-study-state-active-card-selector-fix-v1';
+  const APP_VERSION='1.8.6.248-study-state-post-render-bind-fix-v1';
   const DB_NAME='wlp-cloud-v1', DB_VERSION=1, META_STORE='sync_meta', OUTBOX_STORE='sync_outbox', STATE_STORE='learning_state';
   const META_KEY='authority_mirror', CURSOR_KEY='sync_cursor';
   const PROGRESS_PREFIX='fc:wordid:';
@@ -216,16 +216,21 @@
   }
 
   async function afterRender(ctx={}){
-    if(!state.active)return;
+    if(!state.active||String(ctx?.wordId||'')!==targetWordId)return;
     state.renderCtx=ctx;
-    const b=membershipButtons();
     const bind=(button,action)=>{
       if(!button||button.dataset.wlpCanonicalMembershipBound==='1')return;
       button.dataset.wlpCanonicalMembershipBound='1';
       button.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();void runMembershipRoundtrip(action);});
     };
-    bind(b.studied,'studied-toggle'); bind(b.review,'review-toggle');
-    requestAnimationFrame(()=>{if(state.pending)return;if(b.studied){b.studied.disabled=false;b.studied.title='Canonical Study state canary: this Studied action writes only to sync_outbox.';}if(b.review){b.review.disabled=false;b.review.title='Canonical Study state canary: this Review action writes only to sync_outbox.';}});
+    requestAnimationFrame(()=>{
+      if(state.pending)return;
+      const b=membershipButtons();
+      bind(b.studied,'studied-toggle');
+      bind(b.review,'review-toggle');
+      if(b.studied){b.studied.disabled=false;b.studied.title='Canonical Study state canary: this Studied action writes only to sync_outbox.';}
+      if(b.review){b.review.disabled=false;b.review.title='Canonical Study state canary: this Review action writes only to sync_outbox.';}
+    });
   }
 
   function exportReport(){if(!state.report)return;const blob=new Blob([JSON.stringify(state.report,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-study-state-membership-cutover-${state.report.generatedAt.replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
