@@ -119,6 +119,8 @@
       <button class="action" id="export-write-outbox-roundtrip" type="button" disabled>Export Local Outbox Round-trip</button>
       <button class="action cloud-action" id="run-outbox-facade-overlay" type="button">Run Outbox → Facade Overlay Round-trip</button>
       <button class="action" id="export-outbox-facade-overlay" type="button" disabled>Export Outbox Facade Overlay</button>
+      <button class="action cloud-action" id="run-cloud-transport-preflight" type="button">Run Cloud Mutation Transport Preflight</button>
+      <button class="action" id="export-cloud-transport-preflight" type="button" disabled>Export Cloud Transport Preflight</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -819,6 +821,28 @@
       <p class="status-line" id="outbox-facade-overlay-status">This diagnostic validates the real read overlay path. It does not enable Review writes or Cloud transport and self-cleans before PASS.</p>
     </section>
 
+    <section class="panel hidden" id="cloud-transport-preflight-panel">
+      <div class="panel-head"><div><h2>Cloud mutation transport · read-only preflight</h2><p>First network-crossing gate for the local-first write path. Builds a production-shaped UUID mutation pair in memory and asks a narrowly scoped authenticated Supabase RPC to validate device ownership, ACTIVE Authority v2, the <code>learning_state</code> base hash, append identity, and conflict status. The RPC performs zero Cloud writes; local <code>sync_outbox</code>, Canonical mirror, localStorage, and live WLP remain unchanged.</p></div><div class="compare-badge">Cloud Transport <strong id="cloud-transport-preflight-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="cloud-transport-preflight-auth">—</strong><span>Authenticated</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-device">—</strong><span>Device registered</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-authority">—</strong><span>Authority</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-ids">—</strong><span>UUID envelope</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-base">—</strong><span>Base hash</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-conflict">—</strong><span>Would conflict</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-writes">0</strong><span>Cloud writes</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-outbox">0 → 0</strong><span>Local outbox</span></div>
+        <div class="metric"><strong id="cloud-transport-preflight-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Production-shaped action UUID</p><div class="hash-box" id="cloud-transport-preflight-action"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning State mutation UUID</p><div class="hash-box" id="cloud-transport-preflight-state-id"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning Event mutation UUID</p><div class="hash-box" id="cloud-transport-preflight-event-id"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Transport proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="cloud-transport-preflight-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Preflight notes</h3><ul class="error-list" id="cloud-transport-preflight-notes"></ul>
+      <p class="status-line" id="cloud-transport-preflight-status">Install the bundled read-only RPC SQL once, then run this gate while signed in. No Cloud row is created or changed by this preflight.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -885,5 +909,6 @@
   <script src="./cloud-shadow-write-outbox-preflight.js"></script>
   <script src="./cloud-shadow-write-outbox-roundtrip.js"></script>
   <script src="./cloud-shadow-outbox-facade-overlay-roundtrip.js"></script>
+  <script src="./cloud-shadow-cloud-transport-preflight.js"></script>
 </body>
 </html>
