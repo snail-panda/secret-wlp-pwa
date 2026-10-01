@@ -328,7 +328,7 @@
       button.disabled=true;
       try{
         const result=await canonicalReviewCandidate().applySuggestion({wordId,fromLevel,toLevel,evidenceThrough,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION});
-        showReviewToast(result?.pass?`Canonical Apply ${attentionLabel(toLevel)} round-trip passed.`:'Canonical Apply candidate was blocked. See the candidate panel.');
+        showReviewToast(result?.pass?`Canonical Apply ${attentionLabel(toLevel)} is pending Cloud sync.`:'Canonical Apply candidate was blocked. See the candidate panel.');
       }finally{if(button.isConnected)button.disabled=false;}
       return;
     }
