@@ -5,7 +5,7 @@
    and exposes an exportable in-memory report. No storage or Cloud write occurs. */
 (() => {
   'use strict';
-  const APP_VERSION = '1.8.6.213-live-page-read-shadow-v1';
+  const APP_VERSION = '1.8.6.214-live-page-read-shadow-pretty-url-fix-v1';
   const FLAG = 'wlpCanonicalShadow';
   const PROGRESS_PREFIX = 'fc:wordid:';
   const EVENT_KEYS = Object.freeze({
@@ -15,7 +15,9 @@
   const SESSION_KEYS = Object.freeze({ standard:'wlp:studyq-sessions:v1', ai:'wlp:ai-study-session-history:v1' });
   if (new URLSearchParams(location.search).get(FLAG) !== '1') return;
 
-  const page = /review\.html$/i.test(location.pathname) ? 'review' : /progress\.html$/i.test(location.pathname) ? 'progress' : '';
+  const path = location.pathname.replace(/\/+$/, '');
+  const leaf = (path.split('/').pop() || '').toLowerCase();
+  const page = (leaf === 'review' || leaf === 'review.html') ? 'review' : (leaf === 'progress' || leaf === 'progress.html') ? 'progress' : '';
   if (!page) return;
   let report = null;
   const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
