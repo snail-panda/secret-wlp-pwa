@@ -764,8 +764,10 @@
       version: 1,
       open: async () => (await openAdapterInternal()).adapter
     });
-    $('run-compat-adapter').addEventListener('click', auditAdapter);
-    $('export-compat-adapter').addEventListener('click', exportReport);
+    const run = $('run-compat-adapter');
+    const exportButton = $('export-compat-adapter');
+    if (run) run.addEventListener('click', auditAdapter);
+    if (exportButton) exportButton.addEventListener('click', exportReport);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });

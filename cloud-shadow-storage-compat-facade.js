@@ -589,8 +589,10 @@
       readOnly: true,
       open: openFacadeInternal
     });
-    $('run-storage-compat-facade').addEventListener('click', runAudit);
-    $('export-storage-compat-facade').addEventListener('click', exportReport);
+    const run = $('run-storage-compat-facade');
+    const exportButton = $('export-storage-compat-facade');
+    if (run) run.addEventListener('click', runAudit);
+    if (exportButton) exportButton.addEventListener('click', exportReport);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
