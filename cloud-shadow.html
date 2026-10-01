@@ -74,6 +74,8 @@
       <button class="action cloud-action" id="commit-authority-candidate" type="button" disabled>Commit Authority Candidate + Round-trip</button>
       <button class="action cloud-action" id="retry-authority-candidate" type="button" disabled>Retry Same Candidate</button>
       <button class="action" id="export-authority-candidate" type="button" disabled>Export Authority Candidate</button>
+      <button class="action cloud-action" id="run-authority-promotion-preflight" type="button" disabled>Run Authority Promotion Preflight</button>
+      <button class="action" id="export-authority-promotion-preflight" type="button" disabled>Export Promotion Preflight</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -308,6 +310,31 @@
       <p class="status-line" id="authority-candidate-status">Run Cutover Preflight first. Candidate commit remains disabled until the preflight passes in this page session.</p>
     </section>
 
+    <section class="panel hidden" id="authority-promotion-preflight-panel">
+      <div class="panel-head"><div><h2>Canonical Authority Promotion Preflight · read only</h2><p>Re-reads the verified inactive Authority Candidate from Cloud, recomputes its content-addressed manifest from all 21,424 row fingerprints, compares every proof field against the current Cutover Ticket, and inspects the locked authority-head table. It performs no promotion and no Cloud → WLP apply.</p></div><div class="compare-badge">Promotion preflight <strong id="authority-promotion-preflight-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="authority-promotion-preflight-rows">0</strong><span>Candidate fingerprints</span></div>
+        <div class="metric"><strong id="authority-promotion-preflight-hashes">0</strong><span>Table manifests matched</span></div>
+        <div class="metric"><strong id="authority-promotion-preflight-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="authority-promotion-preflight-head">—</strong><span>Current authority head</span></div>
+        <div class="metric"><strong id="authority-promotion-preflight-repeat">—</strong><span>Proof repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Candidate key</p>
+      <div class="hash-box" id="authority-promotion-preflight-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Candidate snapshot manifest SHA-256</p>
+      <div class="hash-box" id="authority-promotion-preflight-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+          <tbody id="authority-promotion-preflight-proof-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion preflight notes</h3>
+      <ul class="error-list" id="authority-promotion-preflight-notes"></ul>
+      <p class="status-line" id="authority-promotion-preflight-status">Run Cutover Preflight first and install the Authority Head v1 SQL once. This step only verifies promotion eligibility; it cannot activate anything.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -356,5 +383,6 @@
   <script src="./cloud-shadow-merge-materialization.js"></script>
   <script src="./cloud-shadow-cutover-preflight.js"></script>
   <script src="./cloud-shadow-authority-candidate.js"></script>
+  <script src="./cloud-shadow-authority-promotion-preflight.js"></script>
 </body>
 </html>
