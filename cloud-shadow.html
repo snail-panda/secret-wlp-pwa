@@ -112,6 +112,8 @@
       <button class="action cloud-action" id="apply-canonical-mirror-v2" type="button" disabled>Apply Authority v2 to Canonical Mirror</button>
       <button class="action cloud-action" id="retry-canonical-mirror-v2" type="button" disabled>Retry Same Mirror Revision</button>
       <button class="action" id="export-canonical-mirror-v2" type="button" disabled>Export Mirror v2 Revision</button>
+      <button class="action cloud-action" id="run-write-outbox-preflight" type="button">Run Write / Outbox Contract Preflight</button>
+      <button class="action" id="export-write-outbox-preflight" type="button" disabled>Export Write / Outbox Preflight</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -747,6 +749,28 @@
       <p class="status-line" id="canonical-mirror-v2-status">Requires the ACTIVE Authority Head to be verified v2 and the existing local Canonical mirror to be the exact verified v1 parent (or already-exact v2 on retry). This step writes only to isolated IndexedDB wlp-cloud-v1; live WLP remains untouched.</p>
     </section>
 
+
+    <section class="panel hidden" id="write-outbox-preflight-panel">
+      <div class="panel-head"><div><h2>Learning write / outbox contract · preflight</h2><p>Read-only design gate for the next local-first write phase. Models one real Review attention action as an immutable Authority-v2 base plus two pending overlay mutations: a guarded <code>learning_state</code> patch and an appended interaction <code>learning_event</code>. No IndexedDB, localStorage, Cloud, or live WLP value is changed.</p></div><div class="compare-badge">Write / Outbox <strong id="write-outbox-preflight-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="write-outbox-preflight-base">—</strong><span>Authority-v2 base</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-outbox">0</strong><span>Existing outbox rows</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-mutations">0</strong><span>Proposed mutations</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-overlay-state">0</strong><span>Overlay state rows</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-overlay-events">0</strong><span>Overlay event rows</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-conflicts">—</strong><span>Conflict guards</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-repeat">—</strong><span>Plan repeatability</span></div>
+        <div class="metric"><strong id="write-outbox-preflight-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Simulated action ID</p><div class="hash-box" id="write-outbox-preflight-action"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning State mutation ID</p><div class="hash-box" id="write-outbox-preflight-state-id"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Interaction Event mutation ID</p><div class="hash-box" id="write-outbox-preflight-event-id"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Contract proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="write-outbox-preflight-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Preflight notes</h3><ul class="error-list" id="write-outbox-preflight-notes"></ul>
+      <p class="status-line" id="write-outbox-preflight-status">Read only. This does not enable Review write cutover or Cloud sync. It proves the local mutation envelope and overlay rules before any real outbox write is allowed.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -810,5 +834,6 @@
   <script src="./cloud-shadow-first-seen-promotion-preflight.js"></script>
   <script src="./cloud-shadow-first-seen-promotion.js"></script>
   <script src="./cloud-shadow-canonical-mirror-revision.js"></script>
+  <script src="./cloud-shadow-write-outbox-preflight.js"></script>
 </body>
 </html>
