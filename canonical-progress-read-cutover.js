@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.222 — default Canonical Progress read cutover audit; forced-legacy rollback remains available. */
+/* WLP Stage 7 v1.8.6.237 — default Canonical Progress read audit across supported Authority v2/v3 mirrors; forced-legacy rollback remains available. */
 (() => {
   'use strict';
 
@@ -7,17 +7,12 @@
   const params = new URLSearchParams(location.search);
   if (params.get(AUDIT_PARAM) !== '1') return;
 
-  const EXPECTED = Object.freeze({
-    candidateKey: 'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283',
-    headVersion: 2,
-    migrationVersion: '3',
-    manifestHash: 'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3',
-    projectionHash: '94e6eaf163fa0c5b74e6575e16b92e961f00db3a7d2fc36cc42ab910a9fee491',
-    progressRows: 111,
-    reviewRows: 25,
-    explicitFirstSeenRows: 111,
-    wid2876FirstSeen: 1790459055400
+  const AUTHORITY_SPECS = Object.freeze({
+    'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283': Object.freeze({ label:'v2', headVersion:2, migrationVersion:'3', manifestHash:'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3', canonicalRows:21424, projectionHash:'94e6eaf163fa0c5b74e6575e16b92e961f00db3a7d2fc36cc42ab910a9fee491' }),
+    'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc': Object.freeze({ label:'v3', headVersion:3, migrationVersion:'3', manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63', canonicalRows:21425, projectionHash:null })
   });
+  const EXPECTED = Object.freeze({ progressRows:111, reviewRows:25, explicitFirstSeenRows:111, wid2876FirstSeen:1790459055400, v3InteractionEvents:333 });
+  const authoritySpec = meta => AUTHORITY_SPECS[String(meta?.candidateKey || '')] || null;
 
   let report = null;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -91,15 +86,19 @@
     if (!active) blocking.push(`Canonical default read is not active${state?.failure ? `: ${state.failure}` : '.'}`);
     if (fallback) blocking.push('Progress fell back to legacy localStorage core reads.');
     if (!state?.canonicalSnapshotPrepared) blocking.push('Canonical page snapshot was not prepared atomically before render.');
-    if (String(meta.candidateKey || '') !== EXPECTED.candidateKey) blocking.push('Mirror candidate is not the verified Authority v2 candidate.');
-    if (Number(meta.headVersion || 0) !== EXPECTED.headVersion) blocking.push('Mirror Head version is not 2.');
-    if (String(meta.migrationVersion || '') !== EXPECTED.migrationVersion) blocking.push('Mirror migration version is not 3.');
-    if (String(meta.snapshotManifestHash || '') !== EXPECTED.manifestHash) blocking.push('Mirror manifest does not match Authority v2.');
-    if (String(state?.projectionHash || '') !== EXPECTED.projectionHash) blocking.push('Compatibility projection hash mismatch.');
+    const expectedAuthority = authoritySpec(meta);
+    if (!expectedAuthority) blocking.push('Mirror candidate is not a supported verified Authority v2/v3 candidate.');
+    if (expectedAuthority && Number(meta.headVersion || 0) !== expectedAuthority.headVersion) blocking.push(`Mirror Head version is not ${expectedAuthority.headVersion}.`);
+    if (expectedAuthority && String(meta.migrationVersion || '') !== expectedAuthority.migrationVersion) blocking.push(`Mirror migration version is not ${expectedAuthority.migrationVersion}.`);
+    if (expectedAuthority && String(meta.snapshotManifestHash || '') !== expectedAuthority.manifestHash) blocking.push(`Mirror manifest does not match Authority ${expectedAuthority.label}.`);
+    if (!/^[0-9a-f]{64}$/i.test(String(state?.projectionHash || ''))) blocking.push('Compatibility projection hash is missing or malformed.');
+    if (expectedAuthority?.projectionHash && String(state?.projectionHash || '') !== expectedAuthority.projectionHash) blocking.push('Compatibility projection hash mismatch for the verified v2 baseline.');
     if (Number(state?.loadedCounts?.progressRecords || 0) !== EXPECTED.progressRows) blocking.push(`Rendered Progress rows are ${state?.loadedCounts?.progressRecords ?? 'unknown'}, expected ${EXPECTED.progressRows}.`);
     if (Number(state?.canonicalReviewRows || 0) !== EXPECTED.reviewRows) blocking.push(`Canonical Review row count is ${state?.canonicalReviewRows ?? 'unknown'}, expected ${EXPECTED.reviewRows}.`);
     if (Number(state?.explicitFirstSeenRows || 0) !== EXPECTED.explicitFirstSeenRows) blocking.push('Explicit firstSeen coverage is incomplete.');
     if (state?.spotCheck2876?.match !== true || Number(state?.spotCheck2876?.firstSeen || 0) !== EXPECTED.wid2876FirstSeen) blocking.push('WID 2876 firstSeen repair is not present in the default cutover.');
+    if (expectedAuthority?.label === 'v3' && String(state?.spotCheck2876?.reviewLevel || '') !== 'medium') blocking.push('WID 2876 Review Attention is not Medium in the v3 Progress read.');
+    if (expectedAuthority?.label === 'v3' && Number(state?.loadedCounts?.interactionEvents || 0) !== EXPECTED.v3InteractionEvents) blocking.push(`v3 interaction-event count is ${state?.loadedCounts?.interactionEvents ?? 'unknown'}, expected ${EXPECTED.v3InteractionEvents}.`);
     if (Number(state?.legacyCoreReadCalls || 0) !== 0) blocking.push(`${state?.legacyCoreReadCalls} legacy core read call(s) occurred during the default render.`);
     if (!allCanonicalReadersUsed) blocking.push('Not all eight Progress core readers consumed the prepared Canonical snapshot.');
     if (Array.isArray(state?.writeMethodsExposed) && state.writeMethodsExposed.length) blocking.push(`Facade write method(s) exposed: ${state.writeMethodsExposed.join(', ')}.`);
@@ -110,7 +109,7 @@
     return {
       format: 'WLP_CANONICAL_PROGRESS_DEFAULT_READ_CUTOVER',
       version: 1,
-      appVersion: '1.8.6.222-progress-default-read-cutover-v1',
+      appVersion: '1.8.6.237-progress-default-read-authority-v3-v1',
       generatedAt: new Date().toISOString(),
       mode: 'default-canonical-progress-read-with-forced-legacy-rollback',
       device: { platform: platformLabel() },
@@ -154,7 +153,7 @@
         noLearningWriteCutover: true,
         localUiPreferencesRemainLegacyLocalStorage: true,
         rollbackRequiresNoDataMigration: true,
-        activeAuthorityV2MirrorRequired: true
+        supportedActiveAuthorityMirrorRequired: true
       }
     };
   }
@@ -170,7 +169,7 @@
     result.textContent = value.summary.pass ? 'PASS' : (value.summary.fallbackToLegacy ? 'FALLBACK' : 'BLOCKED');
     result.style.color = value.summary.pass ? '#18794e' : '#b42318';
     copy.textContent = value.summary.pass
-      ? 'Default Progress route is reading Canonical Authority v2 through the read-only facade.'
+      ? `Default Progress route is reading Canonical Authority ${authoritySpec(value.authority)?.label || value.authority?.headVersion || '?'} through the read-only facade.`
       : 'Default Canonical Progress read did not qualify; legacy fallback remains available.';
     detail.textContent = value.summary.pass
       ? `${value.summary.progressRows} Progress rows · ${value.summary.reviewRows} Review · legacy core reads ${value.summary.legacyCoreReadCalls} · blockers 0`

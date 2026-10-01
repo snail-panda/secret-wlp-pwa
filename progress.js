@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.222 — default Canonical Progress reads with forced-legacy rollback and automatic fallback. */
+/* WLP Stage 7 v1.8.6.237 — default Canonical Progress reads across supported Authority v2/v3 mirrors; forced-legacy rollback retained. */
 (() => {
   'use strict';
 
@@ -95,20 +95,20 @@
       const explicitFirstSeenRows = bundle.progressRecords.filter(row => Number(row?.firstSeen || 0) > 0).length;
       if (explicitFirstSeenRows !== 111) throw new Error(`Canonical firstSeen coverage mismatch: ${explicitFirstSeenRows}/111.`);
       const spot = bundle.progressRecords.find(row => String(row?.wordId || '') === '2876') || null;
-      if (!spot || Number(spot.firstSeen || 0) !== 1790459055400) throw new Error('WID 2876 firstSeen does not match the verified Authority v2 value.');
+      if (!spot || Number(spot.firstSeen || 0) !== 1790459055400) throw new Error('WID 2876 firstSeen does not match the verified Canonical Authority value.');
 
       canonicalReadBundle = bundle;
       canonicalReadState.active = true;
       canonicalReadState.fallbackToLegacy = false;
       canonicalReadState.failure = '';
-      canonicalReadState.source = 'canonical-facade-v2';
+      canonicalReadState.source = `canonical-facade-v${Number(facade.meta?.headVersion || 0) || '?'}`;
       canonicalReadState.canonicalSnapshotPrepared = true;
       canonicalReadState.facadeMeta = cloneValue(facade.meta || {});
       canonicalReadState.projectionHash = String(facade.projectionHash || '');
       canonicalReadState.explicitFirstSeenRows = explicitFirstSeenRows;
       canonicalReadState.canonicalReviewRows = bundle.reviewRecords.length;
       canonicalReadState.writeMethodsExposed = writeNames;
-      canonicalReadState.spotCheck2876 = { wordId:'2876', firstSeen:Number(spot.firstSeen || 0), match:Number(spot.firstSeen || 0) === 1790459055400 };
+      canonicalReadState.spotCheck2876 = { wordId:'2876', firstSeen:Number(spot.firstSeen || 0), reviewLevel:String(spot.reviewLevel || ''), match:Number(spot.firstSeen || 0) === 1790459055400 };
       return true;
     } catch (error) {
       canonicalReadBundle = null;

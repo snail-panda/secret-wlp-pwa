@@ -127,6 +127,8 @@
       <button class="action" id="export-cloud-candidate" type="button" disabled>Export Candidate Audit</button>
       <button class="action cloud-action" id="run-cloud-promotion-ack" type="button">Promote v3 Head + Acknowledge</button>
       <button class="action" id="export-cloud-promotion-ack" type="button" disabled>Export v3 Promotion Audit</button>
+      <button class="action cloud-action" id="run-cloud-v3-pull" type="button">Pull v3 Changes → Local Mirror</button>
+      <button class="action" id="export-cloud-v3-pull" type="button" disabled>Export v3 Pull Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -911,6 +913,25 @@
       <p class="status-line" id="cloud-promotion-ack-status">Install the bundled v236 SQL once, then explicitly activate the exact verified v3 candidate. Local mirror is intentionally not updated in this step.</p>
     </section>
 
+    <section class="panel hidden" id="cloud-v3-pull-panel">
+      <div class="panel-head"><div><h2>Canonical sync · incremental v3 pull → local mirror</h2><p>Reads ordered server changes after the local sync cursor, verifies the exact ACTIVE v3 target rows, then atomically applies only the changed <code>learning_state</code> row, appended <code>learning_event</code>, Authority mirror metadata, and sync cursor inside <code>wlp-cloud-v1</code>. No localStorage, live WLP write, Cloud write, or outbox mutation occurs.</p></div><div class="compare-badge">v3 local pull <strong id="cloud-v3-pull-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="cloud-v3-pull-before">—</strong><span>Mirror before</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-changes">0</strong><span>Changes pulled</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-written">0</strong><span>Canonical rows written</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-cursor">0 → 0</strong><span>Sync cursor</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-after">—</strong><span>Mirror after</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-state">—</strong><span>WID2876 Attention</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-event">—</strong><span>attention_set event</span></div>
+        <div class="metric"><strong id="cloud-v3-pull-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Local v3 snapshot manifest SHA-256</p><div class="hash-box" id="cloud-v3-pull-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Pull/apply proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="cloud-v3-pull-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Pull notes</h3><ul class="error-list" id="cloud-v3-pull-notes"></ul>
+      <p class="status-line" id="cloud-v3-pull-status">Requires the ACTIVE v3 Head created by v236. The first PC run should consume change_seq 1 → 2; exact retry must pull zero new changes.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -981,5 +1002,6 @@
   <script src="./cloud-shadow-cloud-receipt-candidate.js"></script>
   <script src="./cloud-shadow-cloud-candidate-materialize.js"></script>
   <script src="./cloud-shadow-cloud-promotion-ack.js"></script>
+  <script src="./cloud-shadow-v3-incremental-pull.js"></script>
 </body>
 </html>

@@ -8,13 +8,14 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.225-storage-compat-facade-outbox-overlay-v1';
+  const APP_VERSION = '1.8.6.237-storage-compat-facade-v3-aware-v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
-  const EXPECTED_CANDIDATE_KEY = 'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283';
-  const EXPECTED_HEAD_VERSION = 2;
-  const EXPECTED_MIGRATION_VERSION = '3';
-  const EXPECTED_MANIFEST = 'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3';
+  const AUTHORITY_SPECS = Object.freeze({
+    'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283': Object.freeze({ label:'v2', headVersion:2, migrationVersion:'3', manifest:'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3', rows:21424 }),
+    'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc': Object.freeze({ label:'v3', headVersion:3, migrationVersion:'3', manifest:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63', rows:21425 })
+  });
   const EXPECTED_PROGRESS_ROWS = 111;
+  function authoritySpec(meta) { return AUTHORITY_SPECS[String(meta?.candidateKey || '')] || null; }
   const EVENT_KEYS = Object.freeze({
     standard: 'wlp:studyq-events:v1',
     ai: 'wlp:ai-study-events:v1',
@@ -325,7 +326,7 @@
         const wrapper = overlayContext.statesById.get(rowKey);
         const cardWrapper = overlayContext.cardsById.get(rowKey);
         if (!wrapper || !cardWrapper) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} cannot resolve its Canonical base/card.`);
-        if (String(mutation?.precondition?.payloadHash || '') !== String(wrapper?.payloadHash || '')) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} base payload hash no longer matches Authority v2.`);
+        if (String(mutation?.precondition?.payloadHash || '') !== String(wrapper?.payloadHash || '')) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} base payload hash no longer matches the installed Canonical Authority.`);
         for (const [field, expected] of Object.entries(mutation?.precondition?.fields || {})) {
           const actual = Object.prototype.hasOwnProperty.call(wrapper?.payload || {}, field) ? wrapper.payload[field] : null;
           if (stableStringify(actual) !== stableStringify(expected)) throw new Error(`Pending learning_state patch ${mutation?.mutationId || '(unknown)'} conflict guard failed for ${field}.`);
@@ -360,10 +361,12 @@
 
   function buildStorageFacade(adapter, overlayContext) {
     if (!adapter?.readOnly) throw new Error('Storage facade safety stop: underlying Canonical Adapter is not read-only.');
-    if (String(adapter.meta?.candidateKey || '') !== EXPECTED_CANDIDATE_KEY) throw new Error('Storage facade safety stop: mirror candidate is not ACTIVE Authority v2.');
-    if (Number(adapter.meta?.headVersion || 0) !== EXPECTED_HEAD_VERSION) throw new Error('Storage facade safety stop: mirror Head version is not 2.');
-    if (String(adapter.meta?.migrationVersion || '') !== EXPECTED_MIGRATION_VERSION) throw new Error('Storage facade safety stop: mirror migration version is not 3.');
-    if (String(adapter.meta?.snapshotManifestHash || '') !== EXPECTED_MANIFEST) throw new Error('Storage facade safety stop: mirror manifest is not ACTIVE Authority v2.');
+    const expectedAuthority = authoritySpec(adapter.meta);
+    if (!expectedAuthority) throw new Error('Storage facade safety stop: mirror is not a supported verified Authority v2/v3 revision.');
+    if (Number(adapter.meta?.headVersion || 0) !== expectedAuthority.headVersion) throw new Error(`Storage facade safety stop: mirror Head version is not ${expectedAuthority.headVersion}.`);
+    if (String(adapter.meta?.migrationVersion || '') !== expectedAuthority.migrationVersion) throw new Error(`Storage facade safety stop: mirror migration version is not ${expectedAuthority.migrationVersion}.`);
+    if (String(adapter.meta?.snapshotManifestHash || '') !== expectedAuthority.manifest) throw new Error(`Storage facade safety stop: mirror manifest is not supported ACTIVE Authority ${expectedAuthority.label}.`);
+    if (Number(adapter.meta?.canonicalRowCount || 0) !== expectedAuthority.rows) throw new Error(`Storage facade safety stop: mirror row count metadata is not ${expectedAuthority.rows}.`);
 
     const baseProgressRecords = buildProgressRecords(adapter);
     const progressByWordId = new Map(baseProgressRecords.map(row => [row.wordId, clone(row)]));
@@ -621,7 +624,7 @@
           facadeSnapshotHash: firstHash,
           repeatedFacadeSnapshotHash: secondHash,
           compatibilityProjectionHash: first.projectionHash,
-          projectionContract: 'authority-v2-explicit-first-seen-at'
+          projectionContract: `authority-${authoritySpec(first.meta)?.label || 'unsupported'}-explicit-first-seen-at`
         },
         api: {
           version: first.version,
@@ -646,7 +649,7 @@
           noLiveWlpWrites: true,
           progressDefaultReadCutoverCompatible: true,
           noReviewReadCutover: true,
-          activeAuthorityV2MirrorRequired: String(first.meta?.snapshotManifestHash || '') === EXPECTED_MANIFEST,
+          supportedActiveAuthorityMirrorRequired: Boolean(authoritySpec(first.meta)) && String(first.meta?.snapshotManifestHash || '') === authoritySpec(first.meta).manifest,
           explicitFirstSeenComplete: first.explicitFirstSeenRows === EXPECTED_PROGRESS_ROWS,
           storageTypedReaderParity: storageParityMismatches === 0,
           currentDeviceHistoryCovered: coverage.missingEventPayloads === 0 && coverage.missingSessionPayloads === 0,
