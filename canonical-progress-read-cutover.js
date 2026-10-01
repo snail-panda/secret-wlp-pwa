@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.237 — default Canonical Progress read audit across supported Authority v2/v3 mirrors; forced-legacy rollback remains available. */
+/* WLP Stage 7 v1.8.6.240 — default Canonical Progress read audit across verified bootstrap mirrors plus committed incremental sync materialization; forced-legacy rollback remains available. */
 (() => {
   'use strict';
 
@@ -87,7 +87,9 @@
     if (fallback) blocking.push('Progress fell back to legacy localStorage core reads.');
     if (!state?.canonicalSnapshotPrepared) blocking.push('Canonical page snapshot was not prepared atomically before render.');
     const expectedAuthority = authoritySpec(meta);
-    if (!expectedAuthority) blocking.push('Mirror candidate is not a supported verified Authority v2/v3 candidate.');
+    const materializedCursor = Number(meta.materializedSyncCursor ?? meta.lastSyncCursor ?? 0);
+    const hasMaterializedSync = materializedCursor > 2 && /^[0-9a-f]{64}$/i.test(String(meta.materializedManifestHash || '')) && Number(meta.materializedCanonicalRowCount || 0) >= Number(expectedAuthority?.canonicalRows || 0);
+    if (!expectedAuthority) blocking.push('Mirror candidate is not a supported verified Authority bootstrap candidate.');
     if (expectedAuthority && Number(meta.headVersion || 0) !== expectedAuthority.headVersion) blocking.push(`Mirror Head version is not ${expectedAuthority.headVersion}.`);
     if (expectedAuthority && String(meta.migrationVersion || '') !== expectedAuthority.migrationVersion) blocking.push(`Mirror migration version is not ${expectedAuthority.migrationVersion}.`);
     if (expectedAuthority && String(meta.snapshotManifestHash || '') !== expectedAuthority.manifestHash) blocking.push(`Mirror manifest does not match Authority ${expectedAuthority.label}.`);
@@ -97,8 +99,10 @@
     if (Number(state?.canonicalReviewRows || 0) !== EXPECTED.reviewRows) blocking.push(`Canonical Review row count is ${state?.canonicalReviewRows ?? 'unknown'}, expected ${EXPECTED.reviewRows}.`);
     if (Number(state?.explicitFirstSeenRows || 0) !== EXPECTED.explicitFirstSeenRows) blocking.push('Explicit firstSeen coverage is incomplete.');
     if (state?.spotCheck2876?.match !== true || Number(state?.spotCheck2876?.firstSeen || 0) !== EXPECTED.wid2876FirstSeen) blocking.push('WID 2876 firstSeen repair is not present in the default cutover.');
-    if (expectedAuthority?.label === 'v3' && String(state?.spotCheck2876?.reviewLevel || '') !== 'medium') blocking.push('WID 2876 Review Attention is not Medium in the v3 Progress read.');
-    if (expectedAuthority?.label === 'v3' && Number(state?.loadedCounts?.interactionEvents || 0) !== EXPECTED.v3InteractionEvents) blocking.push(`v3 interaction-event count is ${state?.loadedCounts?.interactionEvents ?? 'unknown'}, expected ${EXPECTED.v3InteractionEvents}.`);
+    if (expectedAuthority?.label === 'v3' && !hasMaterializedSync && String(state?.spotCheck2876?.reviewLevel || '') !== 'medium') blocking.push('WID 2876 Review Attention is not Medium in the bootstrap v3 Progress read.');
+    if (expectedAuthority?.label === 'v3' && hasMaterializedSync && !['light','medium','high'].includes(String(state?.spotCheck2876?.reviewLevel || ''))) blocking.push('WID 2876 Review Attention is invalid after incremental sync materialization.');
+    if (expectedAuthority?.label === 'v3' && !hasMaterializedSync && Number(state?.loadedCounts?.interactionEvents || 0) !== EXPECTED.v3InteractionEvents) blocking.push(`v3 interaction-event count is ${state?.loadedCounts?.interactionEvents ?? 'unknown'}, expected ${EXPECTED.v3InteractionEvents}.`);
+    if (expectedAuthority?.label === 'v3' && hasMaterializedSync && Number(state?.loadedCounts?.interactionEvents || 0) < EXPECTED.v3InteractionEvents) blocking.push(`Materialized interaction-event count regressed below bootstrap v3 (${state?.loadedCounts?.interactionEvents ?? 'unknown'} < ${EXPECTED.v3InteractionEvents}).`);
     if (Number(state?.legacyCoreReadCalls || 0) !== 0) blocking.push(`${state?.legacyCoreReadCalls} legacy core read call(s) occurred during the default render.`);
     if (!allCanonicalReadersUsed) blocking.push('Not all eight Progress core readers consumed the prepared Canonical snapshot.');
     if (Array.isArray(state?.writeMethodsExposed) && state.writeMethodsExposed.length) blocking.push(`Facade write method(s) exposed: ${state.writeMethodsExposed.join(', ')}.`);
@@ -109,7 +113,7 @@
     return {
       format: 'WLP_CANONICAL_PROGRESS_DEFAULT_READ_CUTOVER',
       version: 1,
-      appVersion: '1.8.6.237-progress-default-read-authority-v3-v1',
+      appVersion: '1.8.6.240-progress-default-read-materialized-sync-v1',
       generatedAt: new Date().toISOString(),
       mode: 'default-canonical-progress-read-with-forced-legacy-rollback',
       device: { platform: platformLabel() },
@@ -118,6 +122,9 @@
         headVersion: meta.headVersion ?? null,
         migrationVersion: meta.migrationVersion || null,
         snapshotManifestHash: meta.snapshotManifestHash || null,
+        materializedSyncCursor: materializedCursor,
+        materializedManifestHash: meta.materializedManifestHash || null,
+        materializedCanonicalRowCount: meta.materializedCanonicalRowCount ?? null,
         projectionHash: state?.projectionHash || null
       },
       summary: {
@@ -169,7 +176,7 @@
     result.textContent = value.summary.pass ? 'PASS' : (value.summary.fallbackToLegacy ? 'FALLBACK' : 'BLOCKED');
     result.style.color = value.summary.pass ? '#18794e' : '#b42318';
     copy.textContent = value.summary.pass
-      ? `Default Progress route is reading Canonical Authority ${authoritySpec(value.authority)?.label || value.authority?.headVersion || '?'} through the read-only facade.`
+      ? `Default Progress route is reading Canonical Authority ${authoritySpec(value.authority)?.label || value.authority?.headVersion || '?'}${Number(value.authority?.materializedSyncCursor||0)>2?` + sync@${value.authority.materializedSyncCursor}`:''} through the read-only facade.`
       : 'Default Canonical Progress read did not qualify; legacy fallback remains available.';
     detail.textContent = value.summary.pass
       ? `${value.summary.progressRows} Progress rows · ${value.summary.reviewRows} Review · legacy core reads ${value.summary.legacyCoreReadCalls} · blockers 0`
