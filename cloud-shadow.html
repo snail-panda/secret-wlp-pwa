@@ -125,6 +125,8 @@
       <button class="action" id="export-cloud-receipt" type="button" disabled>Export Cloud Receipt Audit</button>
       <button class="action cloud-action" id="run-cloud-candidate" type="button">Materialize Quarantined Pair as Inactive Candidate</button>
       <button class="action" id="export-cloud-candidate" type="button" disabled>Export Candidate Audit</button>
+      <button class="action cloud-action" id="run-cloud-promotion-ack" type="button">Promote v3 Head + Acknowledge</button>
+      <button class="action" id="export-cloud-promotion-ack" type="button" disabled>Export v3 Promotion Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -888,6 +890,27 @@
       <p class="status-line" id="cloud-candidate-status">Install the bundled v233 SQL once, then materialize the exact v232 quarantined pair. ACTIVE Authority must remain v2.</p>
     </section>
 
+    <section class="panel hidden" id="cloud-promotion-ack-panel">
+      <div class="panel-head"><div><h2>Canonical sync · v3 activation + acknowledgement</h2><p>Promotes only the exact verified v3 candidate created from the quarantined WID2876 action. In the same server transaction it records one action acknowledgement and two ordered change-feed rows. The local Canonical mirror remains v2 until the next pull/apply step.</p></div><div class="compare-badge">v3 promotion <strong id="cloud-promotion-ack-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="cloud-promotion-ack-head">0</strong><span>ACTIVE Head version</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-candidate">—</strong><span>v3 candidate active</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-ack">—</strong><span>Action acknowledged</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-changes">0</strong><span>Server change rows</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-retry">—</strong><span>Retry idempotency</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-mirror">—</strong><span>Local mirror state</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-outbox">0 → 0</strong><span>Local outbox</span></div>
+        <div class="metric"><strong id="cloud-promotion-ack-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">ACTIVE v3 candidate key</p><div class="hash-box" id="cloud-promotion-ack-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">ACTIVE v3 snapshot manifest SHA-256</p><div class="hash-box" id="cloud-promotion-ack-manifest"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Server change_seq range</p><div class="hash-box" id="cloud-promotion-ack-seq"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="cloud-promotion-ack-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion notes</h3><ul class="error-list" id="cloud-promotion-ack-notes"></ul>
+      <p class="status-line" id="cloud-promotion-ack-status">Install the bundled v236 SQL once, then explicitly activate the exact verified v3 candidate. Local mirror is intentionally not updated in this step.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -957,5 +980,6 @@
   <script src="./cloud-shadow-cloud-transport-preflight.js"></script>
   <script src="./cloud-shadow-cloud-receipt-candidate.js"></script>
   <script src="./cloud-shadow-cloud-candidate-materialize.js"></script>
+  <script src="./cloud-shadow-cloud-promotion-ack.js"></script>
 </body>
 </html>
