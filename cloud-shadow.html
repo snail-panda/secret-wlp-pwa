@@ -123,6 +123,8 @@
       <button class="action" id="export-cloud-transport-preflight" type="button" disabled>Export Cloud Transport Preflight</button>
       <button class="action cloud-action" id="run-cloud-receipt" type="button">Run Quarantined Cloud Receipt + Retry</button>
       <button class="action" id="export-cloud-receipt" type="button" disabled>Export Cloud Receipt Audit</button>
+      <button class="action cloud-action" id="run-cloud-candidate" type="button">Materialize Quarantined Pair as Inactive Candidate</button>
+      <button class="action" id="export-cloud-candidate" type="button" disabled>Export Candidate Audit</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -868,10 +870,6 @@
 
     <section class="panel hidden" id="cloud-candidate-panel">
       <div class="panel-head"><div><h2>Canonical sync · inactive apply candidate</h2><p>Materializes the exact quarantined WID2876 mutation pair into a full VERIFIED but INACTIVE Canonical Authority candidate in one server transaction. The ACTIVE v2 Head is not promoted in this step.</p></div><div class="compare-badge">Candidate materialization <strong id="cloud-candidate-result">—</strong></div></div>
-      <div class="actions">
-        <button type="button" id="run-cloud-candidate">Materialize Quarantined Pair as Inactive Candidate</button>
-        <button type="button" class="secondary" id="export-cloud-candidate" disabled>Export Candidate Audit</button>
-      </div>
       <div class="metrics">
         <div class="metric"><strong id="cloud-candidate-created">—</strong><span>First candidate created</span></div>
         <div class="metric"><strong id="cloud-candidate-records">0</strong><span>Candidate rows</span></div>
