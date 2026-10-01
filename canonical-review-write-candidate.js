@@ -1,4 +1,4 @@
-/* WLP v1.8.6.228 — Review real Apply/Keep control → local outbox round-trip candidate.
+/* WLP v1.8.6.238 — Review v3 entry path for iPhone reverse-sync source test.
    Query-gated by ?wlpCanonicalReviewWrite=1. Normal Review remains legacy.
    On the candidate route, existing Review Apply/Keep suggestion controls are rerouted
    away from legacy localStorage into transport-ineligible sync_outbox mutations.
@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.228-review-real-controls-outbox-roundtrip-v1';
+  const APP_VERSION='1.8.6.238-review-v3-entry-for-reverse-sync-v1';
   const DB_NAME='wlp-cloud-v1', DB_VERSION=1, META_STORE='sync_meta', OUTBOX_STORE='sync_outbox', STATE_STORE='learning_state';
   const META_KEY='authority_mirror';
   const PROGRESS_PREFIX='fc:wordid:';
@@ -17,7 +17,7 @@
   const INTERACTION_EVENTS_KEY='wlp:stage7:interaction-events:v1';
   const CARD_NAMESPACE_UUID='87dc20ed-dd35-5ba3-8bde-04bf389874ce';
   const ANCHOR_WORD_ID='2876';
-  const EXPECTED={candidateKey:'v2:5af226161d437e7941ea21807f78972e4b0c9fafd353832e8128f4cb89d06283',headVersion:2,migrationVersion:'3',manifestHash:'f2c8608ad317390b9ca61096210d246b4aff366a7109a81126917043b6e3c3a3',canonicalRows:21424,anchorFirstSeenMs:1790459055400};
+  const EXPECTED={candidateKey:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',headVersion:3,migrationVersion:'3',manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63',canonicalRows:21425,anchorFirstSeenMs:1790459055400};
   const requested=new URLSearchParams(location.search).get('wlpCanonicalReviewWrite')==='1';
   const state={active:false,busy:false,facade:null,report:null,prepareError:'',readCounts:{review:0,progress:0,standard:0,standardSessions:0,ai:0,interaction:0}};
 
@@ -68,10 +68,10 @@
     try{
       const provider=await waitForStorageFacade();if(!provider?.open)throw new Error('Storage Compatibility Facade v225 is unavailable after page initialization.');
       const facade=await provider.open(),meta=facade.meta||{};
-      if(String(meta.candidateKey||'')!==EXPECTED.candidateKey||Number(meta.headVersion||0)!==EXPECTED.headVersion||String(meta.migrationVersion||'')!==EXPECTED.migrationVersion||String(meta.snapshotManifestHash||'')!==EXPECTED.manifestHash||Number(meta.canonicalRowCount||0)!==EXPECTED.canonicalRows)throw new Error('Review candidate requires the exact ACTIVE Authority-v2 mirror.');
+      if(String(meta.candidateKey||'')!==EXPECTED.candidateKey||Number(meta.headVersion||0)!==EXPECTED.headVersion||String(meta.migrationVersion||'')!==EXPECTED.migrationVersion||String(meta.snapshotManifestHash||'')!==EXPECTED.manifestHash||Number(meta.canonicalRowCount||0)!==EXPECTED.canonicalRows)throw new Error('Review candidate requires the exact ACTIVE Authority-v3 mirror.');
       if(Number(facade.pendingOutboxRows||0)!==0)throw new Error(`Review candidate requires an empty sync_outbox; found ${facade.pendingOutboxRows} pending row(s).`);
-      const anchor=facade.readProgressRecord(ANCHOR_WORD_ID);if(Number(anchor.firstSeen||0)!==EXPECTED.anchorFirstSeenMs)throw new Error('Authority-v2 FirstSeen anchor check failed.');
-      state.facade=facade;state.active=true;state.prepareError='';setStatus('READY · Existing Apply / Keep controls are routed to the Canonical outbox candidate.',null,'Click one Suggested Attention Apply or Keep button below. The candidate verifies the real control path, then rolls itself back to outbox 0.');setButtons();return true;
+      const anchor=facade.readProgressRecord(ANCHOR_WORD_ID);if(Number(anchor.firstSeen||0)!==EXPECTED.anchorFirstSeenMs)throw new Error('Authority-v3 FirstSeen anchor check failed.');
+      state.facade=facade;state.active=true;state.prepareError='';setStatus('READY · Review is reading ACTIVE Canonical v3.',null,'For the reverse-direction test, open WID2876 conjure up with Study. On the Study card, change Medium → High and Save. Do not use Suggested Attention Apply/Keep for this step.');setButtons();return true;
     }catch(error){state.prepareError=error?.message||String(error);state.active=false;setStatus(`BLOCKED · ${state.prepareError}`,false,'Candidate writes stay locked; no legacy write is allowed on this route.');setButtons();return false;}
   }
 
