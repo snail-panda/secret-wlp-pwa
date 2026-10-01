@@ -103,6 +103,8 @@
       <button class="action cloud-action" id="commit-first-seen-candidate" type="button">Commit Authority v2 Candidate + Round-trip</button>
       <button class="action cloud-action" id="retry-first-seen-candidate" type="button" disabled>Retry Same v2 Candidate</button>
       <button class="action" id="export-first-seen-candidate" type="button" disabled>Export Authority v2 Candidate</button>
+      <button class="action cloud-action" id="run-first-seen-promotion-preflight" type="button">Run Authority v2 Promotion Preflight</button>
+      <button class="action" id="export-first-seen-promotion-preflight" type="button" disabled>Export v2 Promotion Preflight</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -659,6 +661,34 @@
       <p class="status-line" id="first-seen-candidate-status">Builds the v2 projection again from the ACTIVE v1 mirror and verified source-stage evidence before any candidate write. Only inactive candidate tables may be written.</p>
     </section>
 
+    <section class="panel hidden" id="first-seen-promotion-preflight-panel">
+      <div class="panel-head"><div><h2>Authority v2 · promotion preflight</h2><p>Read-only final gate before any Head v1 → v2 promotion. Re-verifies the complete inactive v2 candidate, proves all 21,424 payload hashes and manifests again, compares its identity set against the ACTIVE v1 parent, and requires exactly 111 semantic changes confined to <code>learning_state</code> with explicit <code>first_seen_at</code>.</p></div><div class="compare-badge">v2 promotion preflight <strong id="first-seen-promotion-preflight-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="first-seen-promotion-preflight-rows">0</strong><span>Candidate rows</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-changed">0</strong><span>Rows changed vs v1</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-firstseen">0</strong><span>States with first_seen_at</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-head">—</strong><span>Current Head state</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-eligible">—</strong><span>Promotion eligible</span></div>
+        <div class="metric"><strong id="first-seen-promotion-preflight-repeat">—</strong><span>Proof repeatability</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Verified Authority v2 candidate key</p>
+      <div class="hash-box" id="first-seen-promotion-preflight-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Authority v2 manifest SHA-256</p>
+      <div class="hash-box" id="first-seen-promotion-preflight-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Promotion proof</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+          <tbody id="first-seen-promotion-preflight-proof-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Preflight notes</h3>
+      <ul class="error-list" id="first-seen-promotion-preflight-notes"></ul>
+      <p class="status-line" id="first-seen-promotion-preflight-status">Read only. The ACTIVE Head remains v1. A PASS only authorizes the next explicit revision-promotion step; it does not promote anything.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -719,5 +749,6 @@
   <script src="./cloud-shadow-storage-compat-facade.js"></script>
   <script src="./cloud-shadow-first-seen-preflight.js"></script>
   <script src="./cloud-shadow-first-seen-candidate.js"></script>
+  <script src="./cloud-shadow-first-seen-promotion-preflight.js"></script>
 </body>
 </html>
