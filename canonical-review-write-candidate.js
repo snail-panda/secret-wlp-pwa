@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.226-review-canonical-write-candidate-v1';
+  const APP_VERSION='1.8.6.227-review-canonical-write-candidate-facade-ready-fix-v1';
   const DB_NAME='wlp-cloud-v1', DB_VERSION=1, META_STORE='sync_meta', OUTBOX_STORE='sync_outbox', STATE_STORE='learning_state';
   const META_KEY='authority_mirror';
   const PROGRESS_PREFIX='fc:wordid:';
@@ -57,11 +57,25 @@
   function nextFrames(n=2){return new Promise(resolve=>{const step=()=>{if(--n<=0)resolve();else requestAnimationFrame(step);};requestAnimationFrame(step);});}
   function findLevelText(wordId){for(const card of document.querySelectorAll('.review-card')){const meta=card.querySelector('.review-card-meta')?.textContent||'';if(meta.includes(`WID${wordId}`))return (card.querySelector('.review-level-tag')?.textContent||'').trim();}return'';}
 
+  async function waitForStorageFacade(){
+    const current=window.WLPCanonicalStorageCompatibilityFacade;
+    if(current?.open)return current;
+    if(document.readyState==='loading'){
+      await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
+    }
+    for(let i=0;i<4;i++){
+      const provider=window.WLPCanonicalStorageCompatibilityFacade;
+      if(provider?.open)return provider;
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    return null;
+  }
+
   async function prepare(){
     if(!requested)return false;if(state.active)return true;
     makePanel();
     try{
-      const provider=window.WLPCanonicalStorageCompatibilityFacade;if(!provider?.open)throw new Error('Storage Compatibility Facade v225 is unavailable.');
+      const provider=await waitForStorageFacade();if(!provider?.open)throw new Error('Storage Compatibility Facade v225 is unavailable after page initialization.');
       const facade=await provider.open();
       const meta=facade.meta||{};
       if(String(meta.candidateKey||'')!==EXPECTED.candidateKey||Number(meta.headVersion||0)!==EXPECTED.headVersion||String(meta.migrationVersion||'')!==EXPECTED.migrationVersion||String(meta.snapshotManifestHash||'')!==EXPECTED.manifestHash||Number(meta.canonicalRowCount||0)!==EXPECTED.canonicalRows)throw new Error('Review candidate requires the exact ACTIVE Authority-v2 mirror.');
