@@ -79,6 +79,8 @@
       <button class="action cloud-action" id="promote-authority-head" type="button" disabled>Promote Authority Head + Read-back</button>
       <button class="action cloud-action" id="retry-authority-promotion" type="button" disabled>Retry Same Promotion</button>
       <button class="action" id="export-authority-promotion" type="button" disabled>Export Authority Promotion</button>
+      <button class="action cloud-action" id="run-authority-pull-compare" type="button" disabled>Pull Authority + Compare Local</button>
+      <button class="action" id="export-authority-pull-compare" type="button" disabled>Export Pull Compare</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -363,6 +365,34 @@
       <p class="status-line" id="authority-promotion-status">Run Authority Promotion Preflight first and install the Initial Promotion RPC v1 SQL once. Promotion is explicit and still does not apply Cloud data to WLP.</p>
     </section>
 
+    <section class="panel hidden" id="authority-pull-compare-panel">
+      <div class="panel-head"><div><h2>Canonical Authority Pull · read-only local compare</h2><p>Reads the ACTIVE Authority Head and all Canonical payloads from Cloud, verifies every payload hash, rebuilds this browser's current local Canonical snapshot in memory, and compares the two without applying any Cloud data to WLP.</p></div><div class="compare-badge">Pull compare <strong id="authority-pull-compare-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="authority-pull-head">—</strong><span>Authority head</span></div>
+        <div class="metric"><strong id="authority-pull-cloud-rows">0</strong><span>Authority rows</span></div>
+        <div class="metric"><strong id="authority-pull-local-rows">0</strong><span>Local rows</span></div>
+        <div class="metric"><strong id="authority-pull-same">0</strong><span>Same rows</span></div>
+        <div class="metric"><strong id="authority-pull-cloud-only">0</strong><span>Authority only</span></div>
+        <div class="metric"><strong id="authority-pull-local-only">0</strong><span>Local only</span></div>
+        <div class="metric"><strong id="authority-pull-different">0</strong><span>Different payload</span></div>
+        <div class="metric"><strong id="authority-pull-source-match">—</strong><span>Source snapshot anchor</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Active Authority candidate</p>
+      <div class="hash-box" id="authority-pull-candidate-key"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Authority snapshot manifest SHA-256</p>
+      <div class="hash-box" id="authority-pull-manifest"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Per-table pull preview</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Table</th><th>Local</th><th>Authority</th><th>Same</th><th>Authority only</th><th>Local only</th><th>Different</th></tr></thead>
+          <tbody id="authority-pull-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Pull compare notes</h3>
+      <ul class="error-list" id="authority-pull-notes"></ul>
+      <p class="status-line" id="authority-pull-status">Run a fresh Local Scan on this device, then pull the ACTIVE Authority read-only. No Cloud data will be applied to WLP.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -413,5 +443,6 @@
   <script src="./cloud-shadow-authority-candidate.js"></script>
   <script src="./cloud-shadow-authority-promotion-preflight.js"></script>
   <script src="./cloud-shadow-authority-promotion.js"></script>
+  <script src="./cloud-shadow-authority-pull-compare.js"></script>
 </body>
 </html>
