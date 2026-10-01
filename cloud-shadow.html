@@ -83,6 +83,9 @@
       <button class="action" id="export-authority-pull-compare" type="button" disabled>Export Pull Compare</button>
       <button class="action cloud-action" id="run-authority-apply-dry-run" type="button" disabled>Run Authority Apply Dry Run</button>
       <button class="action" id="export-authority-apply-dry-run" type="button" disabled>Export Apply Dry Run</button>
+      <button class="action cloud-action" id="install-canonical-mirror" type="button" disabled>Install Canonical Mirror + Read-back</button>
+      <button class="action cloud-action" id="retry-canonical-mirror" type="button" disabled>Retry Same Mirror</button>
+      <button class="action" id="export-canonical-mirror" type="button" disabled>Export Mirror Report</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -423,6 +426,34 @@
       <p class="status-line" id="authority-apply-status">Run a fresh Local Scan and Pull Authority + Compare Local first. This stage only projects a future Canonical local mirror in memory; it cannot modify WLP.</p>
     </section>
 
+    <section class="panel hidden" id="canonical-mirror-panel">
+      <div class="panel-head"><div><h2>Canonical Local Mirror · isolated IndexedDB bootstrap</h2><p>Installs the complete ACTIVE Authority into the new <code>wlp-cloud-v1</code> IndexedDB mirror, then reads every Canonical row back and verifies payload and manifest hashes. Live WLP remains on its existing local data and does not read from this mirror yet.</p></div><div class="compare-badge">Mirror <strong id="canonical-mirror-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="canonical-mirror-db">—</strong><span>Database</span></div>
+        <div class="metric"><strong id="canonical-mirror-authority">0</strong><span>Authority rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-rows">0</strong><span>Mirror rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-hashes">0</strong><span>Payload hashes verified</span></div>
+        <div class="metric"><strong id="canonical-mirror-mismatches">0</strong><span>Hash mismatches</span></div>
+        <div class="metric"><strong id="canonical-mirror-outbox">0</strong><span>Sync outbox rows</span></div>
+        <div class="metric"><strong id="canonical-mirror-blocking">0</strong><span>Blocking issues</span></div>
+        <div class="metric"><strong id="canonical-mirror-write">NO</strong><span>IndexedDB write this run</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">ACTIVE Authority manifest SHA-256</p>
+      <div class="hash-box" id="canonical-mirror-authority-hash"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Read-back Canonical mirror manifest SHA-256 · must match Authority</p>
+      <div class="hash-box" id="canonical-mirror-mirror-hash"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Read-back by Canonical store</h3>
+      <div class="audit-wrap">
+        <table class="audit-table">
+          <thead><tr><th>Store</th><th>Rows</th><th>Manifest SHA-256</th></tr></thead>
+          <tbody id="canonical-mirror-table-body"></tbody>
+        </table>
+      </div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Canonical mirror notes</h3>
+      <ul class="error-list" id="canonical-mirror-notes"></ul>
+      <p class="status-line" id="canonical-mirror-status">Run a fresh Local Scan, Pull Authority + Compare Local, and Authority Apply Dry Run first. This stage writes only to the new isolated wlp-cloud-v1 IndexedDB mirror; legacy WLP remains untouched.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -475,5 +506,6 @@
   <script src="./cloud-shadow-authority-promotion.js"></script>
   <script src="./cloud-shadow-authority-pull-compare.js"></script>
   <script src="./cloud-shadow-authority-apply-dry-run.js"></script>
+  <script src="./cloud-shadow-canonical-mirror.js"></script>
 </body>
 </html>
