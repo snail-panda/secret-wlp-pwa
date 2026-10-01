@@ -114,6 +114,8 @@
       <button class="action" id="export-canonical-mirror-v2" type="button" disabled>Export Mirror v2 Revision</button>
       <button class="action cloud-action" id="run-write-outbox-preflight" type="button">Run Write / Outbox Contract Preflight</button>
       <button class="action" id="export-write-outbox-preflight" type="button" disabled>Export Write / Outbox Preflight</button>
+      <button class="action cloud-action" id="run-write-outbox-roundtrip" type="button">Run Local Outbox Atomic Round-trip</button>
+      <button class="action" id="export-write-outbox-roundtrip" type="button" disabled>Export Local Outbox Round-trip</button>
     </div>
     <p class="status-line" id="scan-status">Nothing has been scanned yet.</p>
 
@@ -771,6 +773,29 @@
       <p class="status-line" id="write-outbox-preflight-status">Read only. This does not enable Review write cutover or Cloud sync. It proves the local mutation envelope and overlay rules before any real outbox write is allowed.</p>
     </section>
 
+
+    <section class="panel hidden" id="write-outbox-roundtrip-panel">
+      <div class="panel-head"><div><h2>Local write / outbox · atomic round-trip</h2><p>First real local write gate. Writes exactly two deterministic <strong>diagnostic-only</strong> mutations to <code>sync_outbox</code>, verifies persistent read-back, idempotent retry, and overlay materialization, then removes them before PASS. Canonical base rows, localStorage, Cloud, and live WLP remain unchanged.</p></div><div class="compare-badge">Local Outbox <strong id="write-outbox-roundtrip-result">—</strong></div></div>
+      <div class="metrics">
+        <div class="metric"><strong id="write-outbox-roundtrip-base">—</strong><span>Authority-v2 base</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-before">0</strong><span>Outbox before</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-written">0</strong><span>Rows written</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-persisted">0</strong><span>Rows read back</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-retry">—</strong><span>Retry idempotency</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-overlay">—</strong><span>Overlay proof</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-cleanup">—</strong><span>Cleanup</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-after">0</strong><span>Outbox after</span></div>
+        <div class="metric"><strong id="write-outbox-roundtrip-blocking">0</strong><span>Blocking issues</span></div>
+      </div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Diagnostic action ID</p><div class="hash-box" id="write-outbox-roundtrip-action"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Learning State diagnostic mutation ID</p><div class="hash-box" id="write-outbox-roundtrip-state-id"></div>
+      <p class="muted" style="font-size:.78rem;margin:14px 0 5px">Interaction Event diagnostic mutation ID</p><div class="hash-box" id="write-outbox-roundtrip-event-id"></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Round-trip proof</h3>
+      <div class="audit-wrap"><table class="audit-table"><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody id="write-outbox-roundtrip-proof-body"></tbody></table></div>
+      <h3 style="font-size:.9rem;margin:18px 0 8px">Round-trip notes</h3><ul class="error-list" id="write-outbox-roundtrip-notes"></ul>
+      <p class="status-line" id="write-outbox-roundtrip-status">This diagnostic writes only to isolated <code>wlp-cloud-v1 / sync_outbox</code> and self-cleans before PASS. It does not change Review, Canonical base rows, localStorage, or Cloud.</p>
+    </section>
+
     <section class="panel hidden" id="compare-panel">
       <div class="panel-head"><div><h2>Cloud compare · read only</h2><p>Compares the current local snapshot against each per-device Shadow mirror. No Cloud value is applied to WLP.</p></div><div class="compare-badge">Self mirror <strong id="compare-result">—</strong></div></div>
       <div class="compare-meta">Latest server change cursor: <strong id="compare-cursor">0</strong></div>
@@ -835,5 +860,6 @@
   <script src="./cloud-shadow-first-seen-promotion.js"></script>
   <script src="./cloud-shadow-canonical-mirror-revision.js"></script>
   <script src="./cloud-shadow-write-outbox-preflight.js"></script>
+  <script src="./cloud-shadow-write-outbox-roundtrip.js"></script>
 </body>
 </html>
