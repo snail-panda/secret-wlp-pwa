@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.221 — gated Canonical Progress read cutover candidate; legacy default remains rollback path. */
+/* WLP Stage 7 v1.8.6.222 — default Canonical Progress reads with forced-legacy rollback and automatic fallback. */
 (() => {
   'use strict';
 
@@ -20,12 +20,15 @@
   const WLP_ADMIN_PASSWORD_SHA256 = 'd199aa3ab28923618bab089d78e8faa5e5004d0bc37c22ae5589454d575d192c';
   const RECENT_MS = 14 * 24 * 60 * 60 * 1000;
   const $ = id => document.getElementById(id);
-  const CANONICAL_READ_PARAM = 'wlpCanonicalRead';
-  const canonicalReadRequested = new URLSearchParams(location.search).get(CANONICAL_READ_PARAM) === '1';
+  const FORCE_LEGACY_READ_PARAM = 'wlpLegacyProgressRead';
+  const forceLegacyRead = new URLSearchParams(location.search).get(FORCE_LEGACY_READ_PARAM) === '1';
+  const canonicalReadRequested = !forceLegacyRead;
   let canonicalReadBundle = null;
   const canonicalReadState = {
     version: 1,
     requested: canonicalReadRequested,
+    defaultCanonical: true,
+    forcedLegacy: forceLegacyRead,
     active: false,
     fallbackToLegacy: false,
     failure: '',
@@ -114,7 +117,7 @@
       canonicalReadState.failure = error?.message || String(error);
       canonicalReadState.source = 'legacy-localStorage-fallback';
       canonicalReadState.canonicalSnapshotPrepared = false;
-      console.warn('Canonical Progress read candidate fell back to legacy localStorage:', error);
+      console.warn('Canonical Progress default read fell back to legacy localStorage:', error);
       return false;
     }
   }
@@ -1527,8 +1530,10 @@
     aiLearnerProfile = readAILearnerProfile();
     const s = stats();
     const note = canonicalReadState.active
-      ? `${fmt(s.total)} cards · canonical progress candidate`
-      : (canonicalReadState.fallbackToLegacy ? `${fmt(s.total)} cards · local progress · canonical fallback` : `${fmt(s.total)} cards · local progress`);
+      ? `${fmt(s.total)} cards · canonical progress`
+      : (canonicalReadState.fallbackToLegacy
+          ? `${fmt(s.total)} cards · local progress · canonical fallback`
+          : (canonicalReadState.forcedLegacy ? `${fmt(s.total)} cards · local progress · forced legacy rollback` : `${fmt(s.total)} cards · local progress`));
     $('progress-data-note').textContent = note;
     renderOverview();
     renderLandscape();
@@ -1908,7 +1913,7 @@
 
   function runEvidenceAwarePathsSelfTest() { return runSourceIntegrationSelfTest(); }
 
-  window.WLPProgressStage7 = Object.freeze({ version: '1.3.5', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest, getReadSourceState: () => cloneValue(canonicalReadState) });
+  window.WLPProgressStage7 = Object.freeze({ version: '1.3.6', runSourceIntegrationSelfTest, runEvidenceAwarePathsSelfTest, getReadSourceState: () => cloneValue(canonicalReadState) });
 
   const closeOptions = installProgressOptions();
   installViewNavigation();
