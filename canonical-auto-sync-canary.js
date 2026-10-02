@@ -1,4 +1,4 @@
-/* WLP v1.8.6.273 — Foreground Canonical sync last-receipt diagnostics.
+/* WLP v1.8.6.274 — Foreground Canonical sync audit export/resume guard.
    Production scope:
    - foreground source auto-push is enabled for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
@@ -8,7 +8,8 @@
    - single-flight is preserved; a receiver request queued during another sync runs only after any queued source action;
    - normal successful/no-op/deferred sync is silent; ?wlpAutoSyncAudit=1 exposes diagnostics/export;
    - the last successful material sync receipt is persisted locally so audit can inspect/export it even after a later no-op;
-   - blocking sync failures surface diagnostics automatically;
+   - exporting diagnostics temporarily suppresses focus/visibility resume checks so Safari download UI cannot trigger a redundant receiver pull;
+   - transient receiver-only network failures are deferred without replacing the safe Last Sync receipt; true blocking failures still surface diagnostics automatically;
    - ?wlpAutoSyncReceiver=0 disables default page-load and foreground-resume receiver pulls;
    - the legacy ?wlpAutoSyncReceiverCanary=1 diagnostic receiver remains available for compatibility.
    Any failure preserves the source outbox for the proven manual Cloud Shadow fallback.
@@ -16,8 +17,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.273-canonical-foreground-sync-last-receipt-v1';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-last-receipt';
+  const APP_VERSION='1.8.6.274-canonical-foreground-sync-audit-export-guard-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-audit-export-guard';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const AUDIT_FLAG='wlpAutoSyncAudit';
@@ -33,8 +34,8 @@
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_DB_VERSION=1,SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const BASE={key:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',head:3,manifest:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63',rows:21425};
   const CANONICAL_TABLES=Object.freeze(['card_classification','card_content','card_learning_metadata','cards','learner_profile','learner_route_state','learning_alternative_situations','learning_alternatives','learning_events','learning_sessions','learning_situations','learning_state','study_build_cards','study_builds','study_context_cards','study_contexts','user_preferences']);
-  const RESUME_DEBOUNCE_MS=220,RESUME_COOLDOWN_MS=1200;
-  const state={busy:false,report:null,lastReceipt:null,panel:null,status:null,detail:null,exportButton:null,pendingSourceRun:null,pendingReceiverRun:null,resumeTimer:null,lastReceiverRequestAt:0,defaultReceiverEnabled:false,pageKind:'',auditEnabled:false};
+  const RESUME_DEBOUNCE_MS=220,RESUME_COOLDOWN_MS=1200,EXPORT_RESUME_GUARD_MS=5000;
+  const state={busy:false,report:null,lastReceipt:null,panel:null,status:null,detail:null,exportButton:null,pendingSourceRun:null,pendingReceiverRun:null,resumeTimer:null,lastReceiverRequestAt:0,suppressResumeUntil:0,defaultReceiverEnabled:false,pageKind:'',auditEnabled:false};
 
   const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
   function stableValue(v){if(Array.isArray(v))return v.map(stableValue);if(v&&typeof v==='object'){const o={};Object.keys(v).sort().forEach(k=>{if(v[k]!==undefined)o[k]=stableValue(v[k]);});return o;}return v;}
@@ -43,6 +44,7 @@
   async function sha256(text){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(text)));return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}
   function req(r){return new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error||new Error('IndexedDB request failed.'));});}
   function txDone(tx){return new Promise((res,rej)=>{tx.oncomplete=()=>res();tx.onabort=()=>rej(tx.error||new Error('IndexedDB transaction aborted.'));tx.onerror=()=>rej(tx.error||new Error('IndexedDB transaction failed.'));});}
+  function isTransientReceiverNetworkError(error){const m=String(error?.message||error||'').toLowerCase();return m==='load failed'||m.includes('failed to fetch')||m.includes('networkerror')||m.includes('network request failed')||m.includes('network connection was lost');}
 
   function readLastReceipt(){
     try{const raw=localStorage.getItem(LAST_RECEIPT_KEY);if(!raw)return null;const r=JSON.parse(raw),summary=r?.summary||{};if(r?.format!==REPORT_FORMAT||summary.pass!==true||Number(summary.changeRows||0)<=0)return null;return r;}catch(_){return null;}
@@ -61,12 +63,12 @@
     const box=document.createElement('section');
     box.id='wlp-auto-sync-canary-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100001;left:8px;top:max(8px,env(safe-area-inset-top));width:min(390px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v273</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v274</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);state.panel=box;state.status=box.querySelector('#wlp-auto-sync-canary-status');state.detail=box.querySelector('#wlp-auto-sync-canary-detail');state.exportButton=box.querySelector('#wlp-auto-sync-canary-export');
     state.exportButton.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';state.exportButton.addEventListener('click',exportReport);updateExportButton();
   }
   function setStatus(text,ok=null,detail='',options={}){if(!state.panel&&!state.auditEnabled&&!options.forcePanel)return;makePanel();state.status.textContent=text;state.status.style.fontWeight=ok===null?'500':'700';state.status.style.color=ok===true?'#18794e':ok===false?'#b42318':'#1c2d22';state.detail.textContent=detailWithLastReceipt(detail);updateExportButton();}
-  function exportReport(){const report=exportableReport();if(!report)return;const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-foreground-sync-${report.summary?.role||'audit'}-${String(report.generatedAt||new Date().toISOString()).replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
+  function exportReport(){const report=exportableReport();if(!report)return;const now=Date.now();state.suppressResumeUntil=now+EXPORT_RESUME_GUARD_MS;state.lastReceiverRequestAt=now;if(state.resumeTimer){clearTimeout(state.resumeTimer);state.resumeTimer=null;}const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-foreground-sync-${report.summary?.role||'audit'}-${String(report.generatedAt||new Date().toISOString()).replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
 
   function openDb(){return new Promise((res,rej)=>{let upgrading=false;const r=indexedDB.open(DB_NAME,DB_VERSION);r.onupgradeneeded=()=>{upgrading=true;try{r.transaction.abort();}catch(_){}};r.onsuccess=()=>{const db=r.result;if(upgrading){db.close();rej(new Error('wlp-cloud-v1 is not already installed at schema v1.'));return;}const required=[...CANONICAL_TABLES,META_STORE,OUTBOX_STORE],missing=required.filter(s=>!db.objectStoreNames.contains(s));if(missing.length){db.close();rej(new Error(`Missing IndexedDB store(s): ${missing.join(', ')}`));return;}res(db);};r.onerror=()=>rej(r.error||new Error('Could not open wlp-cloud-v1.'));r.onblocked=()=>rej(new Error('Opening wlp-cloud-v1 is blocked by another WLP tab.'));});}
   async function getMeta(db,key){const tx=db.transaction(META_STORE,'readonly'),v=await req(tx.objectStore(META_STORE).get(key));await txDone(tx);return v||null;}
@@ -158,7 +160,7 @@
   }
 
   async function runSync({trigger='manual',expectedActionId='',receiverOnly=false}={}){
-    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v272 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
+    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v274 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
     try{
       const a=await cloudContext();db=await openDb();const meta=await getMeta(db,META_KEY),cursorMeta=await getMeta(db,CURSOR_KEY),outbox=await getAllOutbox(db),cursorBefore=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
       if(String(meta?.candidateKey||'')!==BASE.key||Number(meta?.headVersion||0)!==BASE.head||String(meta?.snapshotManifestHash||'')!==BASE.manifest)throw new Error('Foreground Sync requires ACTIVE Authority v3.');
@@ -200,7 +202,13 @@
       setStatus(role==='source'?`PASS · WID${verified.wordId} ${verified.eventType} auto-pushed at cursor ${verified.seqMax}.`:`PASS · WID${verified.wordId} ${verified.eventType} auto-pulled at cursor ${verified.seqMax}.`,true,`outbox ${outboxBefore} → ${outboxAfter} · ${changes.length} change(s) · ${retry.length-sameActionRetry.length} later remote row(s) pending · manual Cloud Shadow remains available.`);
       window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:true,role,actionId,wordId:verified.wordId,eventType:verified.eventType,changeShape:verified.changeShape,actionSource:verified.actionSource,cursorAfter:verified.seqMax,outboxAfter}}));window.dispatchEvent(new CustomEvent('wlp-canonical-review-candidate-refresh'));return clone(state.report);
     }catch(error){
-      const message=error?.message||String(error);state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,summary:{role,trigger,blockingIssues:1,pass:false},issues:{blocking:[message],warnings:['Automatic sync stopped. The source outbox is intentionally not cleaned up on failure; use Cloud Shadow manual steady sync as fallback.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true}};setStatus(`CHECK · ${message}`,false,'Do not stage another write. Manual Cloud Shadow steady sync remains the fallback.',{forcePanel:true});window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:false,role,error:message}}));return clone(state.report);
+      const message=error?.message||String(error);
+      if(receiverOnly&&isTransientReceiverNetworkError(error)){
+        state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,summary:{role:'receiver-deferred',trigger,changeRows:0,blockingIssues:0,pass:true,deferred:true},issues:{blocking:[],warnings:[`Receiver-only Cloud check was deferred: ${message}`,'No local Canonical write was changed. The next page load or foreground resume will retry automatically.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true}};
+        setStatus('WAIT · Receiver check deferred.',null,'Cloud could not be reached for this receiver-only check. Last Sync remains safe; the next foreground check will retry.');
+        window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:true,deferred:true,role:'receiver-deferred',error:message}}));return clone(state.report);
+      }
+      state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,summary:{role,trigger,blockingIssues:1,pass:false},issues:{blocking:[message],warnings:['Automatic sync stopped. The source outbox is intentionally not cleaned up on failure; use Cloud Shadow manual steady sync as fallback.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true}};setStatus(`CHECK · ${message}`,false,'Do not stage another write. Manual Cloud Shadow steady sync remains the fallback.',{forcePanel:true});window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:false,role,error:message}}));return clone(state.report);
     }finally{
       try{db?.close();}catch(_){}
       state.busy=false;updateExportButton();
@@ -235,6 +243,7 @@
   }
   function onForegroundResume(){
     if(!state.defaultReceiverEnabled)return;
+    if(Date.now()<state.suppressResumeUntil)return;
     requestDefaultReceiver(`receiver-${state.pageKind||'page'}-foreground-resume`,{delay:RESUME_DEBOUNCE_MS});
   }
   function init(){
