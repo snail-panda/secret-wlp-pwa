@@ -1,9 +1,9 @@
-/* WLP Stage 7 — AI Study 1.9.7 + Study Set Source bridge + universal support + voice input v1.8.6.136
-   Preserve validated dedicated support; add voice only when the editable response field is active. */
+/* WLP Stage 7 — AI Study 1.9.8 + Canonical Review candidate source v1.8.6.279
+   Preserve validated AI Practice behavior; source Review candidates from Canonical authority by default. */
 (() => {
   'use strict';
 
-  const VERSION = '1.9.7';
+  const VERSION = '1.9.8';
   const MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
   const SESSION_HISTORY_KEY = 'wlp:ai-study-session-history:v1';
@@ -12,6 +12,7 @@
   const DEFAULT_HINT_LIMIT = 4;
   const VALID_HINT_LIMITS = new Set([0, 2, 4, 6]);
   const PROGRESS_PREFIX = 'fc:wordid:';
+  const FORCE_LEGACY_REVIEW = new URLSearchParams(location.search).get('wlpLegacyStudyHubReview') === '1';
   const MAX_CANDIDATES = 30;
   const MAX_TARGET_PACKETS = 3;
   const TARGET_AUDIT_MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
@@ -1767,7 +1768,7 @@
     return 0;
   }
 
-  function reviewWordIds(limit = MAX_CANDIDATES) {
+  function legacyReviewCandidateRecords() {
     const found = [];
     for (let i = 0; i < localStorage.length; i += 1) {
       const key = localStorage.key(i);
@@ -1778,13 +1779,41 @@
       if (!record || typeof record !== 'object') continue;
       const isReview = record.review === true || record.lastResult === 'review';
       if (!isReview) continue;
-      found.push({
-        wordId,
-        priority: reviewPriority(record.reviewLevel),
-        exposureCount: num(record.exposureCount),
-        lastSeen: clean(record.lastSeen)
-      });
+      found.push({ ...record, wordId });
     }
+    return found;
+  }
+
+  async function canonicalReviewCandidateRecords() {
+    let provider = window.WLPCanonicalStorageCompatibilityFacade;
+    if (!provider?.open && document.readyState === 'loading') {
+      await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+      provider = window.WLPCanonicalStorageCompatibilityFacade;
+    }
+    if (!provider?.open || provider.readOnly !== true) throw new Error('Read-only Canonical Storage Compatibility Facade is unavailable.');
+    const facade = await provider.open();
+    if (!facade?.readOnly || typeof facade.readReviewRecords !== 'function') throw new Error('Canonical Review reader is unavailable.');
+    return facade.readReviewRecords().filter(record => record?.review === true);
+  }
+
+  async function reviewWordIds(limit = MAX_CANDIDATES) {
+    let records;
+    if (FORCE_LEGACY_REVIEW) {
+      records = legacyReviewCandidateRecords();
+    } else {
+      try {
+        records = await canonicalReviewCandidateRecords();
+      } catch (error) {
+        console.warn('AI Practice Canonical Review candidate source fell back to legacy localStorage:', error);
+        records = legacyReviewCandidateRecords();
+      }
+    }
+    const found = records.map(record => ({
+      wordId: clean(record.wordId),
+      priority: reviewPriority(record.reviewLevel),
+      exposureCount: num(record.exposureCount),
+      lastSeen: clean(record.lastSeen)
+    })).filter(item => item.wordId);
     found.sort((a, b) => {
       if (b.priority !== a.priority) return b.priority - a.priority;
       const aTime = Date.parse(a.lastSeen || '') || 0;
@@ -3944,7 +3973,7 @@
       return { ...context, candidates: exact };
     }
     if (source.mode === 'review') {
-      const wordIds = reviewWordIds(MAX_CANDIDATES);
+      const wordIds = await reviewWordIds(MAX_CANDIDATES);
       if (!wordIds.length) throw new Error('No cards are currently marked Review. Choose a deck or deck range, or mark cards for Review first.');
       return data.assembleCandidateContext({ ...base, wordIds });
     }
