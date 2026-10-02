@@ -1,8 +1,8 @@
-/* WLP v1.8.6.284 — Foreground Canonical sync adds Standard Practice event-only transport canary support.
+/* WLP v1.8.6.285 — Foreground Canonical sync adds append-only Standard Practice rating-correction support.
    Production scope:
    - foreground source auto-push is enabled for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
-   - event-only: attention_suggestion_kept, plus query-gated completed Standard Practice event canary;
+   - event-only: attention_suggestion_kept, completed Standard Practice event canary, and query-gated Standard rating-correction canary;
    - normal Home, Review, Study-card, Progress, and Study Hub pages perform receiver-only pulls on page load and debounced foreground resume;
    - receiver pulls never auto-push a pre-existing local outbox; they defer instead;
    - single-flight is preserved; a receiver request queued during another sync runs only after any queued source action;
@@ -17,15 +17,15 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.284-canonical-foreground-sync-standard-event-v1';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-standard-event-canary';
+  const APP_VERSION='1.8.6.285-canonical-foreground-sync-standard-rating-correction-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-standard-rating-correction-canary';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const AUDIT_FLAG='wlpAutoSyncAudit';
   const LAST_RECEIPT_KEY='WLP Canonical Foreground Sync Last Receipt V1';
   const PAIR_EVENT_TYPES=new Set(['studied','studied_removed','review','review_removed','attention_set']);
   const EVENT_ONLY_TYPES=new Set(['attention_suggestion_kept']);
-  const STANDARD_EVENT_STREAM='standard',STANDARD_EVENT_TYPE='event';
+  const STANDARD_EVENT_STREAM='standard',STANDARD_EVENT_TYPE='event',STANDARD_RATING_CORRECTION_TYPE='rating_correction';
   const APPLY_RPC='wlp_sync_apply_incremental_action_v1';
   const CURSOR_ACK_RPC='wlp_sync_ack_cursor_v1';
   const CHANGE_TABLE='wlp_sync_changes_v1';
@@ -107,8 +107,8 @@
   }
   async function fingerprintMirror(db){const rows=[];for(const store of CANONICAL_TABLES){const tx=db.transaction(store,'readonly'),items=await req(tx.objectStore(store).getAll());await txDone(tx);for(const item of items)rows.push({tableName:store,rowKey:String(item.rowKey),tombstone:Boolean(item.tombstone),payloadHash:String(item.payloadHash)});}rows.sort((a,b)=>identity(a.tableName,a.rowKey).localeCompare(identity(b.tableName,b.rowKey)));return{rows,rowCount:rows.length,manifestHash:await sha256(stableStringify(rows))};}
   function stateLabel(payload){const p=payload||{};if(Boolean(p.known)&&!Boolean(p.review))return'studied';if(Boolean(p.review)){const level=String(p.review_level||'').toLowerCase();return level?`review:${level}`:'review';}return'neutral';}
-  function eventOnlyKind(canonicalEvent){const e=canonicalEvent||{},type=String(e.event_type||''),stream=String(e.source_stream||'');if(type==='attention_suggestion_kept'&&stream==='interaction')return'review-keep';if(type===STANDARD_EVENT_TYPE&&stream===STANDARD_EVENT_STREAM)return'standard-event';return'';}
-  function verifyEventOnlyPayload(canonicalEvent){const e=canonicalEvent||{},legacy=e.payload||{},kind=eventOnlyKind(e);if(kind==='review-keep'){const from=String(legacy.fromLevel||'').toLowerCase(),to=String(legacy.suggestedLevel||'').toLowerCase();if(String(legacy.action||'')!=='attention_suggestion_kept'||String(legacy.source||'')!=='review-hub'||!['light','medium','high'].includes(from)||!['light','medium','high'].includes(to)||from===to)throw new Error('Event-only Keep payload is invalid.');return kind;}if(kind==='standard-event'){const sourceEventId=String(e.source_event_id||''),legacyEventId=String(legacy.eventId??legacy.event_id??legacy.id??''),wordId=String(e.legacy_word_id??''),legacyWordId=String(legacy.wordId??'');if(!sourceEventId||legacyEventId!==sourceEventId||!wordId||legacyWordId!==wordId||!String(legacy.completedAt||legacy.completed_at||''))throw new Error('Event-only Standard Practice payload is invalid.');return kind;}throw new Error(`Event-only Foreground Sync event shape is unsupported (${String(e.source_stream||'missing')}:${String(e.event_type||'missing')}).`);}
+  function eventOnlyKind(canonicalEvent){const e=canonicalEvent||{},type=String(e.event_type||''),stream=String(e.source_stream||'');if(type==='attention_suggestion_kept'&&stream==='interaction')return'review-keep';if(type===STANDARD_EVENT_TYPE&&stream===STANDARD_EVENT_STREAM)return'standard-event';if(type===STANDARD_RATING_CORRECTION_TYPE&&stream===STANDARD_EVENT_STREAM)return'standard-rating-correction';return'';}
+  function verifyEventOnlyPayload(canonicalEvent){const e=canonicalEvent||{},legacy=e.payload||{},kind=eventOnlyKind(e);if(kind==='review-keep'){const from=String(legacy.fromLevel||'').toLowerCase(),to=String(legacy.suggestedLevel||'').toLowerCase();if(String(legacy.action||'')!=='attention_suggestion_kept'||String(legacy.source||'')!=='review-hub'||!['light','medium','high'].includes(from)||!['light','medium','high'].includes(to)||from===to)throw new Error('Event-only Keep payload is invalid.');return kind;}if(kind==='standard-event'){const sourceEventId=String(e.source_event_id||''),legacyEventId=String(legacy.eventId??legacy.event_id??legacy.id??''),wordId=String(e.legacy_word_id??''),legacyWordId=String(legacy.wordId??'');if(!sourceEventId||legacyEventId!==sourceEventId||!wordId||legacyWordId!==wordId||!String(legacy.completedAt||legacy.completed_at||''))throw new Error('Event-only Standard Practice payload is invalid.');return kind;}if(kind==='standard-rating-correction'){const wordId=String(e.legacy_word_id??''),legacyWordId=String(legacy.wordId??''),rating=String(legacy.rating||''),previous=String(legacy.previousRating||''),supersedes=String(e.supersedes_event_id||''),originalCanonical=String(legacy.originalCanonicalEventId||'');if(String(legacy.action||'')!=='standard_rating_correction'||String(legacy.source||'')!=='standard-practice-history'||!wordId||legacyWordId!==wordId||!['got-it','almost','not-yet','no-idea'].includes(rating)||!['got-it','almost','not-yet','no-idea'].includes(previous)||rating===previous||!String(legacy.ratingUpdatedAt||'')||!supersedes||supersedes!==originalCanonical)throw new Error('Event-only Standard Practice rating correction payload is invalid.');return kind;}throw new Error(`Event-only Foreground Sync event shape is unsupported (${String(e.source_stream||'missing')}:${String(e.event_type||'missing')}).`);}
   async function verifyChanges(changes){
     if(!Array.isArray(changes)||![1,2].includes(changes.length))throw new Error(`Foreground Sync expected one event-only change or one state/event pair, found ${changes?.length??0}.`);
     const stateChange=changes.find(x=>x.table_name==='learning_state'&&x.operation==='upsert')||null;
@@ -224,7 +224,7 @@
     }
   }
 
-  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),mutationCount=Number(d.mutationCount||0);const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||(eventType===STANDARD_EVENT_TYPE&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
+  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),mutationCount=Number(d.mutationCount||0);const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||((eventType===STANDARD_EVENT_TYPE||eventType===STANDARD_RATING_CORRECTION_TYPE)&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
   function requestDefaultReceiver(trigger,{delay=0,markNow=false}={}){
     if(!state.defaultReceiverEnabled)return;
     if(document.visibilityState&&document.visibilityState!=='visible')return;
@@ -267,7 +267,7 @@
       setTimeout(()=>{void runSync({trigger:'receiver-page-load-canary',receiverOnly:true});},150);
     }
   }
-  const publicApi=Object.freeze({version:2,pairEventTypes:[...PAIR_EVENT_TYPES],eventOnlyTypes:[...EVENT_ONLY_TYPES,'standard:event'],runSync,getReport:()=>clone(state.report),getLastReceipt:()=>clone(state.lastReceipt)});
+  const publicApi=Object.freeze({version:2,pairEventTypes:[...PAIR_EVENT_TYPES],eventOnlyTypes:[...EVENT_ONLY_TYPES,'standard:event','standard:rating_correction'],runSync,getReport:()=>clone(state.report),getLastReceipt:()=>clone(state.lastReceipt)});
   window.WLPCanonicalForegroundSync=publicApi;
   window.WLPCanonicalAutoSyncCanary=publicApi;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
