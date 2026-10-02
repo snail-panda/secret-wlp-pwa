@@ -12,7 +12,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.263-review-default-canonical-auto-sync-hook-v1';
+  const APP_VERSION='1.8.6.265-review-canonical-raw-precondition-fix-v1';
   const ROLLBACK_FLAG='wlpLegacyReview';
   const AUDIT_FLAG='wlpReviewCutoverAudit';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1,META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',STATE_STORE='learning_state',EVENT_STORE='learning_events';
@@ -39,6 +39,7 @@
   function clean(v){return String(v??'').trim();}
   function stableValue(v){if(Array.isArray(v))return v.map(stableValue);if(v&&typeof v==='object'){const o={};Object.keys(v).sort().forEach(k=>{if(v[k]!==undefined)o[k]=stableValue(v[k]);});return o;}return v;}
   function stableStringify(v){return JSON.stringify(stableValue(v));}
+  function rawGuardField(payload,field){return payload&&Object.prototype.hasOwnProperty.call(payload,field)?clone(payload[field]):null;}
   function utf8Bytes(v){return new TextEncoder().encode(String(v??''));}
   async function sha256(v){const out=new Uint8Array(await crypto.subtle.digest('SHA-256',utf8Bytes(v)));return [...out].map(x=>x.toString(16).padStart(2,'0')).join('');}
   function uuidToBytes(v){const h=String(v||'').replace(/-/g,'');if(!/^[0-9a-f]{32}$/i.test(h))throw new Error('Invalid UUID namespace.');return new Uint8Array(h.match(/../g).map(x=>parseInt(x,16)));}
@@ -97,7 +98,7 @@
     const actionId=await uuidV5(CARD_NAMESPACE_UUID,`sync-action|${await sha256(stableStringify(intent))}`),stateMutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_state|${actionId}`),eventMutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_events|${actionId}`),eventId=await uuidV5(CARD_NAMESPACE_UUID,`sync-event|attention_set|${actionId}`);
     const patch={known:false,review:true,review_level:toLevel,last_attention_updated_at:at,revision:Number(base.revision||0)+1,updated_at:at};
     const shared={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt:at,diagnosticOnly:false,candidateOnly:false,canonicalReviewDefaultCutover:true,transportEligible:true,status:'pending'};
-    const stateMutation={...shared,mutationId:stateMutationId,mutationKind:'patch',tableName:'learning_state',rowKey:cardId,precondition:{payloadHash:basePayloadHash,fields:{review:Boolean(base.review),review_level:base.review_level??null,review_reasons:Array.isArray(base.review_reasons)?clone(base.review_reasons):[],last_attention_updated_at:base.last_attention_updated_at??null,revision:Number(base.revision||0)}},changedFields:Object.keys(patch),patch};stateMutation.mutationHash=await sha256(stableStringify(stateMutation));
+    const stateMutation={...shared,mutationId:stateMutationId,mutationKind:'patch',tableName:'learning_state',rowKey:cardId,precondition:{payloadHash:basePayloadHash,fields:{review:rawGuardField(base,'review'),review_level:rawGuardField(base,'review_level'),review_reasons:rawGuardField(base,'review_reasons'),last_attention_updated_at:rawGuardField(base,'last_attention_updated_at'),revision:rawGuardField(base,'revision')}},changedFields:Object.keys(patch),patch};stateMutation.mutationHash=await sha256(stableStringify(stateMutation));
     const reasons=Array.isArray(base.review_reasons)?clone(base.review_reasons):[];
     const eventPayload={event_id:eventId,source_event_id:actionId,card_id:cardId,session_id:null,event_type:'attention_set',source_stream:'interaction',occurred_at:at,completed_at:null,device_id:meta.deviceKey||null,legacy_word_id:Number(wordId),schema_version:1,payload:{timestamp:atMs,action:'attention_set',wordId,source:'review-suggestion',level:toLevel,reasons,fromLevel,suggested:true,suggestionPolicyVersion:String(args.suggestionPolicyVersion||'1.0.0'),evidenceThrough:Number(args.evidenceThrough||0),canonicalReviewDefaultCutover:true},imported_at:null,supersedes_event_id:null};
     const eventMutation={...shared,mutationId:eventMutationId,mutationKind:'append',tableName:'learning_events',rowKey:eventId,precondition:{rowMustBeAbsent:true},payload:eventPayload,payloadHash:await sha256(stableStringify(eventPayload))};eventMutation.mutationHash=await sha256(stableStringify(eventMutation));

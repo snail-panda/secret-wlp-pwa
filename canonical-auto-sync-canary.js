@@ -1,4 +1,4 @@
-/* WLP v1.8.6.264 — Automatic Canonical sync supported-action generalization canary.
+/* WLP v1.8.6.265 — Automatic Canonical sync supported-action generalization after raw-precondition fix.
    Safe scope for this release:
    - foreground source auto-push for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
@@ -9,7 +9,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.264-canonical-auto-sync-supported-actions-v1';
+  const APP_VERSION='1.8.6.265-canonical-auto-sync-raw-precondition-fix-v1';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const PAIR_EVENT_TYPES=new Set(['studied','studied_removed','review','review_removed','attention_set']);
   const EVENT_ONLY_TYPES=new Set(['attention_suggestion_kept']);
@@ -37,7 +37,7 @@
     const box=document.createElement('section');
     box.id='wlp-auto-sync-canary-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100001;left:8px;top:max(8px,env(safe-area-inset-top));width:min(390px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Auto Sync · v264 generalized canary</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Auto Sync · v265 generalized canary</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);state.panel=box;state.status=box.querySelector('#wlp-auto-sync-canary-status');state.detail=box.querySelector('#wlp-auto-sync-canary-detail');state.exportButton=box.querySelector('#wlp-auto-sync-canary-export');
     state.exportButton.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';state.exportButton.addEventListener('click',exportReport);
   }
