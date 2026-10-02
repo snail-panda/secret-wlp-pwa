@@ -1,15 +1,15 @@
-/* WLP v1.8.6.263 — Normal Study Canonical write + automatic-sync canary hook.
+/* WLP v1.8.6.264 — Normal Study Canonical write + generalized foreground auto-sync hook.
    All official Master cards use the Canonical learning_state / learning_events contract
    for Studied, Review, membership removal, and Light/Medium/High Attention writes.
    Missing learning_state rows may be created by the first Studied or Review action.
-   One action pair may be pending at a time; manual Cloud Shadow steady-sync remains the
-   transport step in this release. Legacy localStorage membership/attention remains rollback-only; encounter-only compatibility writes continue without copying Canonical membership.
+   One action pair may be pending at a time; the proven foreground auto-sync may claim supported
+   actions, while manual Cloud Shadow steady-sync remains the fallback. Legacy localStorage membership/attention remains rollback-only; encounter-only compatibility writes continue without copying Canonical membership.
    Explicit rollback: ?wlpLegacyStudyAttentionWrite=1
    Draft cards are excluded. */
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.263-study-default-canonical-write-auto-sync-hook-v1';
+  const APP_VERSION = '1.8.6.264-study-default-canonical-write-auto-sync-hook-v1';
   const DB_NAME = 'wlp-cloud-v1', DB_VERSION = 1;
   const META_STORE = 'sync_meta', OUTBOX_STORE = 'sync_outbox', STATE_STORE = 'learning_state', CARD_STORE = 'cards';
   const META_KEY = 'authority_mirror', CURSOR_KEY = 'sync_cursor';
@@ -375,10 +375,10 @@
         [plan.creating ? 'Initial firstSeen is preserved/created explicitly' : 'Explicit firstSeen survives the Canonical patch', firstSeenOk, String(overlayRecord.firstSeen || 0)]
       ].map(([name, pass, evidence]) => ({ name, pass:Boolean(pass), evidence:String(evidence) }));
       const blocking = checks.filter(x => !x.pass).map(x => x.name), cursor = Math.max(Number(state.meta?.materializedSyncCursor ?? state.meta?.lastSyncCursor ?? 0), Number(state.cursorMeta?.lastSyncCursor || 0));
-      state.report = { format:'WLP_CANONICAL_STUDY_DEFAULT_WRITE_CUTOVER', version:1, appVersion:APP_VERSION, generatedAt:new Date().toISOString(), mode:'normal-study-default-canonical-write-to-persistent-outbox', device:{ deviceKey:state.meta?.deviceKey || null, platform:/iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iPhone Safari/WebKit' : 'Windows Browser' }, authority:{ candidateKey:state.meta?.candidateKey || null, headVersion:state.meta?.headVersion || null, snapshotManifestHash:state.meta?.snapshotManifestHash || null, materializedSyncCursor:cursor, materializedManifestHash:state.meta?.materializedManifestHash || null, materializedRows:state.meta?.materializedCanonicalRowCount || null }, summary:{ defaultCutoverActive:true, wordId:plan.wordId, action:plan.eventType, fromState:plan.fromState, toState:plan.toState, initialCreate:plan.creating, outboxRowsBefore:beforeOutbox, outboxRowsAfter:afterOutbox, overlayMutationsApplied:Number(facade.overlayMutationsApplied || 0), studyUiStudied:ui.studiedText, studyUiReview:ui.reviewText, studyUiAttention:ui.attentionText, transportEligible:true, productionUuidIds:identitiesOk, baseMirrorUntouched:baseUntouched, firstSeenValid:firstSeenOk, legacyLocalStorageUntouched:legacyUntouched, cloudWrites:0, blockingIssues:blocking.length, nextPhaseEligible:blocking.length === 0, pass:blocking.length === 0 }, plan:{ actionId:plan.actionId, eventType:plan.eventType, wordId:plan.wordId, cardId:plan.cardId, fromState:plan.fromState, toState:plan.toState, mutationIds:ours.map(x => x.mutationId).sort(), eventId:plan.eventId, createdAt:plan.at }, checks, issues:{ blocking, warnings:['v256 generalizes normal Study writes to all official cards but still allows only one pending action pair before manual steady sync.','Attention Clear (Review with no level) is not enabled in v256; Light/Medium/High are enabled.','Explicit rollback remains available with ?wlpLegacyStudyAttentionWrite=1.'] }, invariants:{ normalRouteNoQueryOptIn:true, allOfficialCardsEligible:true, noLegacyMembershipAttentionWrite:legacyUntouched, indexedDbWritesRestrictedToSyncOutbox:true, pendingRowsTransportEligible:true, noCloudWrites:true, authorityBaseImmutable:baseUntouched, noConflictAutoOverwrite:true, explicitFirstSeenValid:firstSeenOk } };
+      state.report = { format:'WLP_CANONICAL_STUDY_DEFAULT_WRITE_CUTOVER', version:1, appVersion:APP_VERSION, generatedAt:new Date().toISOString(), mode:'normal-study-default-canonical-write-to-persistent-outbox', device:{ deviceKey:state.meta?.deviceKey || null, platform:/iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iPhone Safari/WebKit' : 'Windows Browser' }, authority:{ candidateKey:state.meta?.candidateKey || null, headVersion:state.meta?.headVersion || null, snapshotManifestHash:state.meta?.snapshotManifestHash || null, materializedSyncCursor:cursor, materializedManifestHash:state.meta?.materializedManifestHash || null, materializedRows:state.meta?.materializedCanonicalRowCount || null }, summary:{ defaultCutoverActive:true, wordId:plan.wordId, action:plan.eventType, fromState:plan.fromState, toState:plan.toState, initialCreate:plan.creating, outboxRowsBefore:beforeOutbox, outboxRowsAfter:afterOutbox, overlayMutationsApplied:Number(facade.overlayMutationsApplied || 0), studyUiStudied:ui.studiedText, studyUiReview:ui.reviewText, studyUiAttention:ui.attentionText, transportEligible:true, productionUuidIds:identitiesOk, baseMirrorUntouched:baseUntouched, firstSeenValid:firstSeenOk, legacyLocalStorageUntouched:legacyUntouched, cloudWrites:0, blockingIssues:blocking.length, nextPhaseEligible:blocking.length === 0, pass:blocking.length === 0 }, plan:{ actionId:plan.actionId, eventType:plan.eventType, wordId:plan.wordId, cardId:plan.cardId, fromState:plan.fromState, toState:plan.toState, mutationIds:ours.map(x => x.mutationId).sort(), eventId:plan.eventId, createdAt:plan.at }, checks, issues:{ blocking, warnings:['v264 keeps one pending Canonical action pair at a time; supported actions may be claimed by foreground auto-sync and manual Cloud Shadow remains fallback.','Attention Clear (Review with no level) is not enabled; Light/Medium/High are enabled.','Explicit rollback remains available with ?wlpLegacyStudyAttentionWrite=1.'] }, invariants:{ normalRouteNoQueryOptIn:true, allOfficialCardsEligible:true, noLegacyMembershipAttentionWrite:legacyUntouched, indexedDbWritesRestrictedToSyncOutbox:true, pendingRowsTransportEligible:true, noCloudWrites:true, authorityBaseImmutable:baseUntouched, noConflictAutoOverwrite:true, explicitFirstSeenValid:firstSeenOk } };
       if (blocking.length) throw new Error(`Cutover verification failed: ${blocking.join('; ')}`);
       cleanupNeeded = false; state.globalPending = true; allRenderedControlsPending(true);
-      setStatus(`PASS · WID ${plan.wordId} ${plan.eventType} is pending Cloud push.`, true, `outbox 0 → 2 · cursor ${cursor} · automatic-sync canary may claim WID6535; otherwise use Cloud Shadow steady sync.`);
+      setStatus(`PASS · WID ${plan.wordId} ${plan.eventType} is pending foreground sync.`, true, `outbox 0 → 2 · cursor ${cursor} · supported actions are claimed by v264 auto-sync; Cloud Shadow remains fallback.`);
       window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged', { detail:{ source:'study', actionId:plan.actionId, wordId:plan.wordId, eventType:plan.eventType, mutationCount:ours.length } }));
       return { pass:true, reloading:false, eventType:plan.eventType, fromState:plan.fromState, toState:plan.toState, report:clone(state.report) };
     } catch (error) {
@@ -467,7 +467,7 @@
   }
   async function onAutoSyncComplete(event) {
     const detail = event?.detail || {};
-    if (!detail.pass || String(detail.wordId || '') !== '6535') return;
+    if (!detail.pass || detail.role !== 'source') return;
     try {
       const outbox = await countOutbox(state.db);
       if (outbox !== 0) return;
@@ -475,7 +475,7 @@
       await refreshFacade(); state.globalPending = false; allRenderedControlsPending(false);
       for (const ctx of state.contexts.values()) updateContextControls(ctx);
       const cursor = Math.max(Number(state.meta?.materializedSyncCursor ?? state.meta?.lastSyncCursor ?? 0), Number(state.cursorMeta?.lastSyncCursor || 0));
-      setStatus(`PASS · WID 6535 auto-sync committed at cursor ${cursor}.`, true, 'outbox 0 · normal Study controls re-enabled · manual Cloud Shadow remains available.');
+      setStatus(`PASS · WID ${String(detail.wordId || '?')} ${String(detail.eventType || 'action')} auto-sync committed at cursor ${cursor}.`, true, 'outbox 0 · normal Study controls re-enabled · manual Cloud Shadow remains available.');
     } catch (error) { console.warn('Canonical Study auto-sync completion refresh failed', error); }
   }
   window.addEventListener('wlp-canonical-auto-sync-complete', onAutoSyncComplete);
