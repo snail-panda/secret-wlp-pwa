@@ -1,8 +1,8 @@
-/* WLP v1.8.6.277 — Foreground Canonical sync adds Study Hub receiver pull/refresh support.
+/* WLP v1.8.6.284 — Foreground Canonical sync adds Standard Practice event-only transport canary support.
    Production scope:
    - foreground source auto-push is enabled for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
-   - event-only: attention_suggestion_kept;
+   - event-only: attention_suggestion_kept, plus query-gated completed Standard Practice event canary;
    - normal Home, Review, Study-card, Progress, and Study Hub pages perform receiver-only pulls on page load and debounced foreground resume;
    - receiver pulls never auto-push a pre-existing local outbox; they defer instead;
    - single-flight is preserved; a receiver request queued during another sync runs only after any queued source action;
@@ -17,14 +17,15 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.278-canonical-foreground-sync-deck-browser-receiver-v1';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-deck-browser-receiver';
+  const APP_VERSION='1.8.6.284-canonical-foreground-sync-standard-event-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-standard-event-canary';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const AUDIT_FLAG='wlpAutoSyncAudit';
   const LAST_RECEIPT_KEY='WLP Canonical Foreground Sync Last Receipt V1';
   const PAIR_EVENT_TYPES=new Set(['studied','studied_removed','review','review_removed','attention_set']);
   const EVENT_ONLY_TYPES=new Set(['attention_suggestion_kept']);
+  const STANDARD_EVENT_STREAM='standard',STANDARD_EVENT_TYPE='event';
   const APPLY_RPC='wlp_sync_apply_incremental_action_v1';
   const CURSOR_ACK_RPC='wlp_sync_ack_cursor_v1';
   const CHANGE_TABLE='wlp_sync_changes_v1';
@@ -63,7 +64,7 @@
     const box=document.createElement('section');
     box.id='wlp-auto-sync-canary-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100001;left:8px;top:max(8px,env(safe-area-inset-top));width:min(390px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v276</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v284</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);state.panel=box;state.status=box.querySelector('#wlp-auto-sync-canary-status');state.detail=box.querySelector('#wlp-auto-sync-canary-detail');state.exportButton=box.querySelector('#wlp-auto-sync-canary-export');
     state.exportButton.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';state.exportButton.addEventListener('click',exportReport);updateExportButton();
   }
@@ -106,6 +107,8 @@
   }
   async function fingerprintMirror(db){const rows=[];for(const store of CANONICAL_TABLES){const tx=db.transaction(store,'readonly'),items=await req(tx.objectStore(store).getAll());await txDone(tx);for(const item of items)rows.push({tableName:store,rowKey:String(item.rowKey),tombstone:Boolean(item.tombstone),payloadHash:String(item.payloadHash)});}rows.sort((a,b)=>identity(a.tableName,a.rowKey).localeCompare(identity(b.tableName,b.rowKey)));return{rows,rowCount:rows.length,manifestHash:await sha256(stableStringify(rows))};}
   function stateLabel(payload){const p=payload||{};if(Boolean(p.known)&&!Boolean(p.review))return'studied';if(Boolean(p.review)){const level=String(p.review_level||'').toLowerCase();return level?`review:${level}`:'review';}return'neutral';}
+  function eventOnlyKind(canonicalEvent){const e=canonicalEvent||{},type=String(e.event_type||''),stream=String(e.source_stream||'');if(type==='attention_suggestion_kept'&&stream==='interaction')return'review-keep';if(type===STANDARD_EVENT_TYPE&&stream===STANDARD_EVENT_STREAM)return'standard-event';return'';}
+  function verifyEventOnlyPayload(canonicalEvent){const e=canonicalEvent||{},legacy=e.payload||{},kind=eventOnlyKind(e);if(kind==='review-keep'){const from=String(legacy.fromLevel||'').toLowerCase(),to=String(legacy.suggestedLevel||'').toLowerCase();if(String(legacy.action||'')!=='attention_suggestion_kept'||String(legacy.source||'')!=='review-hub'||!['light','medium','high'].includes(from)||!['light','medium','high'].includes(to)||from===to)throw new Error('Event-only Keep payload is invalid.');return kind;}if(kind==='standard-event'){const sourceEventId=String(e.source_event_id||''),legacyEventId=String(legacy.eventId??legacy.event_id??legacy.id??''),wordId=String(e.legacy_word_id??''),legacyWordId=String(legacy.wordId??'');if(!sourceEventId||legacyEventId!==sourceEventId||!wordId||legacyWordId!==wordId||!String(legacy.completedAt||legacy.completed_at||''))throw new Error('Event-only Standard Practice payload is invalid.');return kind;}throw new Error(`Event-only Foreground Sync event shape is unsupported (${String(e.source_stream||'missing')}:${String(e.event_type||'missing')}).`);}
   async function verifyChanges(changes){
     if(!Array.isArray(changes)||![1,2].includes(changes.length))throw new Error(`Foreground Sync expected one event-only change or one state/event pair, found ${changes?.length??0}.`);
     const stateChange=changes.find(x=>x.table_name==='learning_state'&&x.operation==='upsert')||null;
@@ -124,10 +127,8 @@
     const actionSource=String(eventPayload.source||'');
     if(changes.length===1){
       if(stateChange)throw new Error('Event-only Foreground Sync must not contain learning_state.');
-      if(!EVENT_ONLY_TYPES.has(eventType))throw new Error(`Event-only Foreground Sync event type is unsupported (${eventType||'missing'}).`);
-      const from=String(eventPayload.fromLevel||'').toLowerCase(),to=String(eventPayload.suggestedLevel||'').toLowerCase();
-      if(String(eventPayload.action||'')!=='attention_suggestion_kept'||actionSource!=='review-hub'||!['light','medium','high'].includes(from)||!['light','medium','high'].includes(to)||from===to)throw new Error('Event-only Keep payload is invalid.');
-      return{changeShape:'event-only',stateChange:null,eventChange,eventType,targetState:null,actionId,wordId,actionSource,expectedMutations:1,seqMax:Number(eventChange.change_seq||0),seqMin:Number(eventChange.change_seq||0)};
+      const eventOnlyShape=verifyEventOnlyPayload(eventChange.payload);
+      return{changeShape:'event-only',eventOnlyShape,stateChange:null,eventChange,eventType,targetState:null,actionId,wordId,actionSource,expectedMutations:1,seqMax:Number(eventChange.change_seq||0),seqMin:Number(eventChange.change_seq||0)};
     }
     if(!stateChange)throw new Error('Two-change Foreground Sync requires one learning_state upsert.');
     if(String(eventChange.payload?.card_id||'')!==String(stateChange.row_key||''))throw new Error('Foreground Sync state/event target card identity mismatch.');
@@ -160,7 +161,7 @@
   }
 
   async function runSync({trigger='manual',expectedActionId='',receiverOnly=false}={}){
-    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v276 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
+    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v284 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
     try{
       const a=await cloudContext();db=await openDb();const meta=await getMeta(db,META_KEY),cursorMeta=await getMeta(db,CURSOR_KEY),outbox=await getAllOutbox(db),cursorBefore=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
       if(String(meta?.candidateKey||'')!==BASE.key||Number(meta?.headVersion||0)!==BASE.head||String(meta?.snapshotManifestHash||'')!==BASE.manifest)throw new Error('Foreground Sync requires ACTIVE Authority v3.');
@@ -178,7 +179,7 @@
         if(expectedActionId&&actionId!==expectedActionId)throw new Error('Foreground Sync staged actionId does not match the pending outbox.');
         const eventMutation=sourceRows.find(x=>x?.tableName==='learning_events'),eventType=String(eventMutation?.payload?.event_type||'');
         if(shape==='state-event'&&!PAIR_EVENT_TYPES.has(eventType))throw new Error(`State/event Foreground Sync event type is unsupported (${eventType||'missing'}); use manual Cloud Shadow.`);
-        if(shape==='event-only'&&!EVENT_ONLY_TYPES.has(eventType))throw new Error(`Event-only Foreground Sync event type is unsupported (${eventType||'missing'}); use manual Cloud Shadow.`);
+        if(shape==='event-only')verifyEventOnlyPayload(eventMutation?.payload||{});
         const raw=await a.rest(`rpc/${APPLY_RPC}`,{method:'POST',body:{p_device_key:String(meta.deviceKey||''),p_mutations:clone(sourceRows)}});serverResult=Array.isArray(raw.data)?raw.data[0]:raw.data;
         if(!serverResult||typeof serverResult!=='object')throw new Error('Foreground Sync apply RPC returned no JSON result.');
         if(serverResult.status==='conflict')throw new Error(`Server preserved conflict ${serverResult.conflictId||'unknown'}; outbox retained for manual resolution.`);
@@ -194,9 +195,9 @@
       const ackRaw=await a.rest(`rpc/${CURSOR_ACK_RPC}`,{method:'POST',body:{p_device_key:String(meta.deviceKey||''),p_change_seq:verified.seqMax}}),cursorAck=Array.isArray(ackRaw.data)?ackRaw.data[0]:ackRaw.data;
       const retry=await fetchChangesAfter(a,verified.seqMax),sameActionRetry=retry.filter(x=>String(x.action_id||'')===actionId),mutations=await fetchMutationsForAction(a,actionId),ack=await fetchAck(a,actionId),head=await fetchHead(a);
       const localStateLabel=verified.stateChange?stateLabel(stateRow?.payload):'unchanged',stateOk=!verified.stateChange||localStateLabel===verified.targetState,eventOk=String(eventRow?.payload?.event_type||'')===verified.eventType,headOk=String(head.candidate_key)===BASE.key&&Number(head.head_version)===BASE.head&&String(head.snapshot_manifest_hash)===BASE.manifest,mutationOk=mutations.length===verified.expectedMutations&&mutations.every(x=>x.status==='applied'),ackOk=Boolean(ack&&ack.status==='applied'&&Array.isArray(ack.mutation_ids)&&ack.mutation_ids.length===verified.expectedMutations),cursorAckOk=Number(cursorAck?.lastAckChangeSeq||0)>=verified.seqMax,outboxOk=outboxAfter===0,retryOk=sameActionRetry.length===0;
-      const checks=[['Supported action shape verified',Boolean(verified.wordId)&&((verified.changeShape==='state-event'&&PAIR_EVENT_TYPES.has(verified.eventType))||(verified.changeShape==='event-only'&&EVENT_ONLY_TYPES.has(verified.eventType))),`${verified.changeShape} · WID${verified.wordId||'?'} · ${verified.eventType}`],['Canonical state converged to target',stateOk,localStateLabel],['Canonical event converged locally',eventOk,String(eventRow?.rowKey||'missing')],['Materialized mirror fingerprint committed',local.after.manifestHash===local.predicted.manifestHash,`${local.after.rowCount} rows · ${local.after.manifestHash}`],['Source outbox clears only after acknowledged local commit',outboxOk,`${outboxBefore} → ${outboxAfter}`],['Mutation ledger + action acknowledgement are complete',mutationOk&&ackOk,`${mutations.length}/${verified.expectedMutations} mutations · ack ${ack?.status||'missing'}`],['Device cursor acknowledgement reached local commit',cursorAckOk,String(cursorAck?.lastAckChangeSeq??'missing')],['Exact action retry is a no-op',retryOk,`${sameActionRetry.length} same-action row(s)`],['Authority v3 head remains unchanged',headOk,`${head.candidate_key} · head ${head.head_version}`]].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)}));
+      const checks=[['Supported action shape verified',Boolean(verified.wordId)&&((verified.changeShape==='state-event'&&PAIR_EVENT_TYPES.has(verified.eventType))||(verified.changeShape==='event-only'&&Boolean(verified.eventOnlyShape))),`${verified.changeShape}${verified.eventOnlyShape?`/${verified.eventOnlyShape}`:''} · WID${verified.wordId||'?'} · ${verified.eventType}`],['Canonical state converged to target',stateOk,localStateLabel],['Canonical event converged locally',eventOk,String(eventRow?.rowKey||'missing')],['Materialized mirror fingerprint committed',local.after.manifestHash===local.predicted.manifestHash,`${local.after.rowCount} rows · ${local.after.manifestHash}`],['Source outbox clears only after acknowledged local commit',outboxOk,`${outboxBefore} → ${outboxAfter}`],['Mutation ledger + action acknowledgement are complete',mutationOk&&ackOk,`${mutations.length}/${verified.expectedMutations} mutations · ack ${ack?.status||'missing'}`],['Device cursor acknowledgement reached local commit',cursorAckOk,String(cursorAck?.lastAckChangeSeq??'missing')],['Exact action retry is a no-op',retryOk,`${sameActionRetry.length} same-action row(s)`],['Authority v3 head remains unchanged',headOk,`${head.candidate_key} · head ${head.head_version}`]].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)}));
       const blocking=checks.filter(x=>!x.pass).map(x=>x.name),pass=blocking.length===0;
-      state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,device:{deviceKey:meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:BASE.key,headVersion:BASE.head,snapshotManifestHash:BASE.manifest},summary:{role,trigger,changeShape:verified.changeShape,wordId:verified.wordId,eventType:verified.eventType,serverApplied:role==='source'?Boolean(serverResult?.applied):false,changeRows:changes.length,cursorBefore,cursorAfter:verified.seqMax,outboxBefore,outboxAfter,stateLevel:localStateLabel,materializedRowsBefore:local.predicted.before.rowCount,materializedRowsAfter:local.after.rowCount,mutationRows:mutations.length,acknowledged:ackOk,cursorAcknowledged:cursorAckOk,retrySameActionRows:sameActionRetry.length,pendingRemoteChangeRows:retry.length-sameActionRetry.length,blockingIssues:blocking.length,pass},serverResult:clone(serverResult),changes:clone(changes),before:{cursor:cursorBefore,outboxRows:outboxBefore,materializedRows:local.predicted.before.rowCount,materializedManifestHash:local.predicted.before.manifestHash},after:{cursor:verified.seqMax,outboxRows:outboxAfter,materializedRows:local.after.rowCount,materializedManifestHash:local.after.manifestHash},checks,issues:{blocking,warnings:['Foreground sync accepts only the already-proven state/event and Keep event-only action shapes; unsupported outbox shapes remain manual Cloud Shadow fallback.','Normal Home, Review, Study-card, Progress, Study Hub, and Deck Browser pages perform receiver-only pulls on page load and debounced foreground resume; ?wlpAutoSyncReceiver=0 disables both.','No Service Worker/background sync is enabled. This is foreground page sync only.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true,authorityHeadUnchanged:headOk}};
+      state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,device:{deviceKey:meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:BASE.key,headVersion:BASE.head,snapshotManifestHash:BASE.manifest},summary:{role,trigger,changeShape:verified.changeShape,eventOnlyShape:verified.eventOnlyShape||null,wordId:verified.wordId,eventType:verified.eventType,serverApplied:role==='source'?Boolean(serverResult?.applied):false,changeRows:changes.length,cursorBefore,cursorAfter:verified.seqMax,outboxBefore,outboxAfter,stateLevel:localStateLabel,materializedRowsBefore:local.predicted.before.rowCount,materializedRowsAfter:local.after.rowCount,mutationRows:mutations.length,acknowledged:ackOk,cursorAcknowledged:cursorAckOk,retrySameActionRows:sameActionRetry.length,pendingRemoteChangeRows:retry.length-sameActionRetry.length,blockingIssues:blocking.length,pass},serverResult:clone(serverResult),changes:clone(changes),before:{cursor:cursorBefore,outboxRows:outboxBefore,materializedRows:local.predicted.before.rowCount,materializedManifestHash:local.predicted.before.manifestHash},after:{cursor:verified.seqMax,outboxRows:outboxAfter,materializedRows:local.after.rowCount,materializedManifestHash:local.after.manifestHash},checks,issues:{blocking,warnings:['Foreground sync accepts the proven state/event actions, Review Keep event-only actions, and the query-gated completed Standard Practice event canary; unsupported outbox shapes remain manual Cloud Shadow fallback.','Normal Home, Review, Study-card, Progress, Study Hub, and Deck Browser pages perform receiver-only pulls on page load and debounced foreground resume; ?wlpAutoSyncReceiver=0 disables both.','No Service Worker/background sync is enabled. This is foreground page sync only.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true,authorityHeadUnchanged:headOk}};
       if(!pass)throw new Error(blocking.join('; '));
       persistLastReceipt(state.report);
       setStatus(role==='source'?`PASS · WID${verified.wordId} ${verified.eventType} auto-pushed at cursor ${verified.seqMax}.`:`PASS · WID${verified.wordId} ${verified.eventType} auto-pulled at cursor ${verified.seqMax}.`,true,`outbox ${outboxBefore} → ${outboxAfter} · ${changes.length} change(s) · ${retry.length-sameActionRetry.length} later remote row(s) pending · manual Cloud Shadow remains available.`);
@@ -223,7 +224,7 @@
     }
   }
 
-  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),mutationCount=Number(d.mutationCount||0);const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
+  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),mutationCount=Number(d.mutationCount||0);const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||(eventType===STANDARD_EVENT_TYPE&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
   function requestDefaultReceiver(trigger,{delay=0,markNow=false}={}){
     if(!state.defaultReceiverEnabled)return;
     if(document.visibilityState&&document.visibilityState!=='visible')return;
@@ -266,7 +267,7 @@
       setTimeout(()=>{void runSync({trigger:'receiver-page-load-canary',receiverOnly:true});},150);
     }
   }
-  const publicApi=Object.freeze({version:1,pairEventTypes:[...PAIR_EVENT_TYPES],eventOnlyTypes:[...EVENT_ONLY_TYPES],runSync,getReport:()=>clone(state.report),getLastReceipt:()=>clone(state.lastReceipt)});
+  const publicApi=Object.freeze({version:2,pairEventTypes:[...PAIR_EVENT_TYPES],eventOnlyTypes:[...EVENT_ONLY_TYPES,'standard:event'],runSync,getReport:()=>clone(state.report),getLastReceipt:()=>clone(state.lastReceipt)});
   window.WLPCanonicalForegroundSync=publicApi;
   window.WLPCanonicalAutoSyncCanary=publicApi;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
