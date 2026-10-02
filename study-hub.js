@@ -1973,6 +1973,9 @@
       if (index >= 0) events[index] = serializable;
       else events.push(serializable);
       localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
+      if (completed && serializable.completedAt) {
+        window.dispatchEvent(new CustomEvent('wlp-standard-practice-completed', { detail: { attempt: serializable } }));
+      }
     } catch (error) {
       console.warn('Could not save Study Q activity', error);
     }
