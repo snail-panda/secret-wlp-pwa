@@ -14,6 +14,7 @@
   const FORCE_LEGACY_REVIEW_PARAM = 'wlpLegacyStudyHubReview';
   const forceLegacyReview = new URLSearchParams(location.search).get(FORCE_LEGACY_REVIEW_PARAM) === '1';
   const studyContextApi = window.WLPStudyContext || null;
+  const standardHistoryApi = window.WLPCanonicalStandardHistoryRead || null;
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STUDYQ_UA = navigator.userAgent || '';
@@ -1640,6 +1641,16 @@
     } catch { return []; }
   }
 
+  function historySessionsForRead() {
+    try {
+      const sessions = standardHistoryApi?.getSessions?.();
+      if (Array.isArray(sessions)) return sessions;
+    } catch (error) {
+      console.warn('Canonical Standard history read is unavailable; using local compatibility history.', error);
+    }
+    return readStudySessions();
+  }
+
   function writeStudySessions(sessions) {
     try {
       localStorage.setItem(STUDYQ_SESSION_KEY, JSON.stringify(sessions.slice(-STUDYQ_SESSION_LIMIT)));
@@ -1728,7 +1739,7 @@
     return ['got-it', 'almost', 'not-yet', 'no-idea'].includes(clean(value));
   }
 
-  function latestSavedAttemptForWord(wordId, sessions = readStudySessions()) {
+  function latestSavedAttemptForWord(wordId, sessions = historySessionsForRead()) {
     const target = clean(wordId);
     if (!target) return null;
     const ordered = (Array.isArray(sessions) ? sessions.slice() : [])
@@ -1742,7 +1753,7 @@
     return null;
   }
 
-  function historyRatingEditPolicy(sessionId, wordId, attempt, sessions = readStudySessions()) {
+  function historyRatingEditPolicy(sessionId, wordId, attempt, sessions = historySessionsForRead()) {
     const rating = clean(attempt?.selfRating);
     const eventId = clean(attempt?.eventId);
     if (!eventId) return { editable: false, reason: 'missing-event' };
@@ -1759,16 +1770,18 @@
 
   function updateSavedSessionRating(sessionId, eventId, rating) {
     if (!validStudyRating(rating)) return { ok: false, reason: 'invalid-rating' };
-    const sessions = readStudySessions();
-    const sessionIndexSaved = sessions.findIndex(item => clean(item?.sessionId) === clean(sessionId));
-    if (sessionIndexSaved < 0) return { ok: false, reason: 'session-not-found' };
-    const record = sessions[sessionIndexSaved];
+    const localSessions = readStudySessions();
+    const localIndex = localSessions.findIndex(item => clean(item?.sessionId) === clean(sessionId));
+    const historySessions = historySessionsForRead();
+    const historyRecord = historySessions.find(item => clean(item?.sessionId) === clean(sessionId));
+    if (!historyRecord && localIndex < 0) return { ok: false, reason: 'session-not-found' };
+    const record = historyRecord ? JSON.parse(JSON.stringify(historyRecord)) : localSessions[localIndex];
     const experience = Array.isArray(record.experiences)
       ? record.experiences.find(item => clean(item?.attempt?.eventId) === clean(eventId))
       : null;
     if (!experience) return { ok: false, reason: 'attempt-not-found' };
     const attempt = experience.attempt || (experience.attempt = {});
-    const policy = historyRatingEditPolicy(record.sessionId, experience.wordId, attempt, sessions);
+    const policy = historyRatingEditPolicy(record.sessionId, experience.wordId, attempt, historySessions);
     if (!policy.editable) return { ok: false, reason: policy.reason };
 
     const previousRating = clean(attempt.selfRating);
@@ -1777,19 +1790,22 @@
     attempt.selfRating = rating;
     if (wasUnrated && clean(eventId)) historyRatingEditGrace.add(clean(eventId));
     record.counts = ratingCounts(record.experiences.map(item => item?.attempt || {}));
-    sessions[sessionIndexSaved] = record;
-    writeStudySessions(sessions);
 
-    try {
-      const events = readStudyEvents();
-      const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
-      if (eventIndex >= 0) {
-        events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt };
-        localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
+    if (localIndex >= 0) {
+      localSessions[localIndex] = record;
+      writeStudySessions(localSessions);
+      try {
+        const events = readStudyEvents();
+        const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
+        if (eventIndex >= 0) {
+          events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt };
+          localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
+        }
+      } catch (error) {
+        console.warn('Could not update Study Q activity rating', error);
       }
-    } catch (error) {
-      console.warn('Could not update Study Q activity rating', error);
     }
+    try { standardHistoryApi?.applyRatingOverlay?.(record.sessionId, eventId, rating); } catch (_) {}
 
     const liveIndex = sessionAttempts.findIndex(item => clean(item?.eventId) === clean(eventId));
     if (liveIndex >= 0) sessionAttempts[liveIndex].selfRating = rating;
@@ -1811,7 +1827,7 @@
   }
 
   function refreshOpenSessionSummary() {
-    const record = readStudySessions().find(item => clean(item?.sessionId) === clean(currentSessionId));
+    const record = historySessionsForRead().find(item => clean(item?.sessionId) === clean(currentSessionId));
     if (!record) return;
     const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
@@ -1894,7 +1910,7 @@
     const section = $('study-history');
     const list = $('study-history-list');
     if (!section || !list) return;
-    const sessions = readStudySessions().sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a)).slice(0, 5);
+    const sessions = historySessionsForRead().sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a)).slice(0, 5);
     list.replaceChildren();
     section.hidden = !sessions.length;
     sessions.forEach(session => {
@@ -1947,7 +1963,7 @@
   function showSavedSession(sessionId) {
     historyRatingEditGrace.clear();
     historyRatingNotice.clear();
-    const record = readStudySessions().find(item => clean(item?.sessionId) === clean(sessionId));
+    const record = historySessionsForRead().find(item => clean(item?.sessionId) === clean(sessionId));
     if (!record || !Array.isArray(record.experiences)) return false;
     viewingSavedSession = true;
     currentSessionId = clean(record.sessionId);
@@ -3073,6 +3089,9 @@
   }
 
   function installEvents() {
+    window.addEventListener('wlp-canonical-standard-history-updated', () => {
+      renderRecentSessions();
+    });
     window.addEventListener('wlp-canonical-auto-sync-complete', event => {
       if (event?.detail?.pass !== true || event?.detail?.deferred === true) return;
       void refreshReviewMapFromAuthority();
