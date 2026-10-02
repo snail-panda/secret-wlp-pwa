@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.250 — default Canonical Progress reads support growing post-bootstrap learning_state rows; forced-legacy rollback retained. */
+/* WLP Stage 7 v1.8.6.276 — Canonical Progress reads refresh after foreground receiver materialization; forced-legacy rollback retained. */
 (() => {
   'use strict';
 
@@ -1931,6 +1931,18 @@
     history.replaceState({ ...initialState, wlpProgress:true, view:requestedView, scrollY:Math.max(0, window.scrollY || 0) }, '', location.href);
   } catch (_) {}
   refreshProgressReturnLinks();
+
+  let canonicalReceiverRefresh = Promise.resolve();
+  window.addEventListener('wlp-canonical-auto-sync-complete', event => {
+    const detail = event?.detail || {};
+    if (!canonicalReadRequested || detail.pass !== true || detail.role !== 'receiver') return;
+    canonicalReceiverRefresh = canonicalReceiverRefresh.then(async () => {
+      const refreshed = await prepareCanonicalReadCandidate();
+      if (refreshed && rows.length) renderAll();
+    }).catch(error => {
+      console.warn('Canonical Progress foreground receiver refresh failed:', error);
+    });
+  });
 
   async function bootProgressPage() {
     await prepareCanonicalReadCandidate();
