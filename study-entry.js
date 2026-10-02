@@ -1,4 +1,4 @@
-/* WLP v1.8.6.169 — Review storage stabilization + compact Classification migration. */
+/* WLP v1.8.6.278 — Study entry Review generator reads Canonical Review authority by default. */
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -6,6 +6,8 @@
   const ACTIVE_CARD_CONTEXT_KEY = 'wlp:active-card-study-context:v1';
   const PRACTICE_MODE_KEY = 'wlp:study-hub-practice-mode:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
+  const FORCE_LEGACY_REVIEW_PARAM = 'wlpLegacyStudyEntryReview';
+  const forceLegacyReview = new URLSearchParams(location.search).get(FORCE_LEGACY_REVIEW_PARAM) === '1';
   const STUDYQ_EVENT_KEY = 'wlp:studyq-events:v1';
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const AI_STUDY_EVENT_KEY = 'wlp:ai-study-events:v1';
@@ -166,7 +168,7 @@
     return `${y}-${m}-${d}`;
   }
 
-  function readReviewPool() {
+  function readLegacyReviewPool() {
     const out = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -190,6 +192,47 @@
       } catch (_) {}
     }
     return out;
+  }
+
+  function normalizeCanonicalReviewPool(records) {
+    return (Array.isArray(records) ? records : []).filter(value => value?.review === true).map(value => {
+      const wordId = clean(value?.wordId);
+      const level = ['high', 'medium', 'light'].includes(clean(value?.reviewLevel).toLowerCase())
+        ? clean(value.reviewLevel).toLowerCase()
+        : '';
+      return {
+        ...value,
+        wordId,
+        reviewLevel: level,
+        reviewReasons: Array.isArray(value?.reviewReasons) ? value.reviewReasons.map(item => clean(item).toLowerCase()).filter(Boolean) : [],
+        reviewCount: Math.max(0, Number(value?.reviewCount) || 0),
+        lastSeen: Math.max(0, Number(value?.lastSeen) || 0),
+        lastAttentionUpdated: Math.max(0, Number(value?.lastAttentionUpdated) || 0)
+      };
+    }).filter(value => value.wordId);
+  }
+
+  async function canonicalReviewProviderAfterDomReady() {
+    let provider = window.WLPCanonicalStorageCompatibilityFacade;
+    if (provider?.open) return provider;
+    if (document.readyState === 'loading') {
+      await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once:true }));
+    }
+    return window.WLPCanonicalStorageCompatibilityFacade;
+  }
+
+  async function readReviewPool() {
+    if (forceLegacyReview) return readLegacyReviewPool();
+    try {
+      const provider = await canonicalReviewProviderAfterDomReady();
+      if (!provider?.open || provider.readOnly !== true) throw new Error('Read-only Canonical Storage Compatibility Facade is unavailable.');
+      const facade = await provider.open();
+      if (!facade?.readOnly || typeof facade.readReviewRecords !== 'function') throw new Error('Canonical Review reader is unavailable.');
+      return normalizeCanonicalReviewPool(facade.readReviewRecords());
+    } catch (error) {
+      console.warn('Study entry Canonical Review source fell back to legacy localStorage:', error);
+      return readLegacyReviewPool();
+    }
   }
 
   function standardSessionFallbackEvents() {
@@ -339,7 +382,7 @@
     return counts;
   }
 
-  function generateNextTodayReview(pool = readReviewPool()) {
+  function generateNextTodayReview(pool = []) {
     const settings = readReviewSettings();
     const setSize = settings.setSize;
     const appearances = todayReviewAppearanceCounts();
@@ -394,7 +437,7 @@
     };
   }
 
-  function generateTodayReview(pool = readReviewPool(), excludedWordIds = []) {
+  function generateTodayReview(pool = [], excludedWordIds = []) {
     const settings = readReviewSettings();
     const excluded = new Set(api?.uniqueWordIds(excludedWordIds) || []);
     const standardMap = latestStandardEvidence();
@@ -897,10 +940,10 @@
     }
   }
 
-  function renderReviewSummary() {
+  async function renderReviewSummary() {
     renderReviewSettings();
     renderRecentReviewSets();
-    const pool = readReviewPool();
+    const pool = await readReviewPool();
     const counts = { total: pool.length, ...reviewBreakdown(pool) };
     $('study-review-total').textContent = counts.total.toLocaleString();
     $('study-review-high').textContent = counts.high.toLocaleString();
@@ -983,10 +1026,14 @@
 
   function refreshActiveStudyPanel() {
     if (mode === 'continue') renderContinue();
-    else if (mode === 'review') renderReviewSummary();
+    else if (mode === 'review') void renderReviewSummary();
   }
 
   window.addEventListener('pageshow', refreshActiveStudyPanel);
+  window.addEventListener('wlp-canonical-auto-sync-complete', event => {
+    if (mode !== 'review' || !event?.detail?.pass) return;
+    void renderReviewSummary();
+  });
 
   function bindRangeJump() {
     const link = document.querySelector('.range-jump-link');
@@ -1020,7 +1067,7 @@
       title.textContent = 'Review';
       copy.textContent = "Review turns cards that need your attention into focused Review Sets you can work through one at a time.";
       deckCount.hidden = true;
-      renderReviewSummary();
+      void renderReviewSummary();
     } else {
       title.textContent = 'Choose a Deck';
       copy.innerHTML = 'Jump straight in, return to a recent deck, or <a class="range-jump-link" href="#browse-section">browse the garden by range<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5"/></svg></a>.';
