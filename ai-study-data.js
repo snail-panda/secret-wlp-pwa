@@ -1,10 +1,14 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
+  const FORCE_LEGACY_PROGRESS_PARAM = 'wlpLegacyAIProgress';
+  const forceLegacyProgress = new URLSearchParams(location.search).get(FORCE_LEGACY_PROGRESS_PARAM) === '1';
+  let canonicalProgressFacade = null;
+  let canonicalProgressPreparePromise = null;
   const LEARNING_META_KEY = 'wlp:learning-meta:v2';
   const STUDYQ_EVENT_KEY = 'wlp:studyq-events:v1';
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
@@ -173,9 +177,36 @@
     return clone(records[`wid:${id}`] || records[id] || null);
   }
 
+  async function prepareCanonicalProgressReader() {
+    if (forceLegacyProgress) return false;
+    if (canonicalProgressFacade?.readOnly && typeof canonicalProgressFacade.readProgressRecord === 'function') return true;
+    if (!canonicalProgressPreparePromise) {
+      canonicalProgressPreparePromise = (async () => {
+        if (document.readyState === 'loading') {
+          await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+        }
+        const provider = window.WLPCanonicalStorageCompatibilityFacade;
+        if (!provider?.open || provider.readOnly !== true) throw new Error('Read-only Canonical Storage Compatibility Facade is unavailable.');
+        const facade = await provider.open();
+        if (!facade?.readOnly || typeof facade.readProgressRecord !== 'function') throw new Error('Canonical Progress reader is unavailable.');
+        canonicalProgressFacade = facade;
+        return true;
+      })().catch(error => {
+        canonicalProgressFacade = null;
+        console.warn('AI Study Canonical Progress context fell back to legacy localStorage:', error);
+        return false;
+      });
+    }
+    return canonicalProgressPreparePromise;
+  }
+
   function readProgressRecord(wordId) {
     const id = clean(wordId);
     if (!id) return null;
+    if (!forceLegacyProgress && canonicalProgressFacade?.readOnly && typeof canonicalProgressFacade.readProgressRecord === 'function') {
+      const record = canonicalProgressFacade.readProgressRecord(id);
+      return record && typeof record === 'object' ? record : null;
+    }
     const record = readJson(`${PROGRESS_PREFIX}${id}`, null);
     return record && typeof record === 'object' ? record : null;
   }
@@ -1217,6 +1248,7 @@
   }
 
   async function assembleCandidateContext(options = {}) {
+    await prepareCanonicalProgressReader();
     const rows = await getMasterRows();
     const routeState = readRouteState();
     const profile = readLearnerProfile();
@@ -1296,6 +1328,7 @@
   }
 
   async function assembleTargetContext(wordId, options = {}) {
+    await prepareCanonicalProgressReader();
     const id = clean(wordId);
     if (!id) throw new Error('wordId is required');
     const rows = await getMasterRows();
