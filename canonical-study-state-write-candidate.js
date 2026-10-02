@@ -1,4 +1,4 @@
-/* WLP v1.8.6.275 — Canonical Study Attention no-level/clear cutover.
+/* WLP v1.8.6.282 — Canonical Study production diagnostics cleanup; normal success stays silent.
    All official Master cards use the Canonical learning_state / learning_events contract
    for Studied, Review, membership removal, and no-level/Light/Medium/High Attention writes.
    Missing learning_state rows may be created by the first Studied or Review action.
@@ -9,7 +9,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.275-study-attention-no-level-v1';
+  const APP_VERSION = '1.8.6.282-study-state-production-diagnostics-v1';
   const DB_NAME = 'wlp-cloud-v1', DB_VERSION = 1;
   const META_STORE = 'sync_meta', OUTBOX_STORE = 'sync_outbox', STATE_STORE = 'learning_state', CARD_STORE = 'cards';
   const META_KEY = 'authority_mirror', CURSOR_KEY = 'sync_cursor';
@@ -25,6 +25,8 @@
 
   const params = new URLSearchParams(location.search);
   const rollbackRequested = params.get('wlpLegacyStudyAttentionWrite') === '1';
+  const AUDIT_FLAG = 'wlpStudyStateAudit';
+  const auditRequested = params.get(AUDIT_FLAG) === '1';
   const draftRoute = params.has('draft');
   const requested = !rollbackRequested && !draftRoute;
   const state = {
@@ -148,17 +150,21 @@
   function nextFrames(n = 2) { return new Promise(resolve => { const step = () => { if (--n <= 0) resolve(); else requestAnimationFrame(step); }; requestAnimationFrame(step); }); }
   async function waitForFacade() { for (let i = 0; i < 80; i++) { const p = window.WLPCanonicalStorageCompatibilityFacade; if (p?.open) return p; await new Promise(r => setTimeout(r, 25)); } return null; }
 
-  function makePanel() {
-    if (!requested || document.getElementById('wlp-study-attention-candidate-box')) return;
+  function makePanel(force = false) {
+    if (!requested || (!auditRequested && !force) || document.getElementById('wlp-study-attention-candidate-box')) return;
     const box = document.createElement('section');
     box.id = 'wlp-study-attention-candidate-box'; box.setAttribute('aria-live', 'polite');
     box.style.cssText = 'position:fixed;z-index:100000;right:8px;top:max(8px,env(safe-area-inset-top));width:min(370px,calc(100vw - 16px));max-height:44vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML = '<strong style="display:block;font-size:13px">Canonical Study State · default write cutover</strong><div id="wlp-study-attention-candidate-status" style="margin-top:4px">Preparing Canonical Study authority…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-study-attention-candidate-export" type="button" disabled>Export JSON</button></div><div id="wlp-study-attention-candidate-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML = '<strong style="display:block;font-size:13px">Canonical Study State · v282</strong><div id="wlp-study-attention-candidate-status" style="margin-top:4px">Preparing Canonical Study authority…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-study-attention-candidate-export" type="button" disabled>Export JSON</button></div><div id="wlp-study-attention-candidate-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);
     box.querySelectorAll('button').forEach(b => b.style.cssText = 'font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;');
     document.getElementById('wlp-study-attention-candidate-export')?.addEventListener('click', exportReport);
   }
-  function setStatus(text, ok = null, detail = '') {
+  function setStatus(text, ok = null, detail = '', options = {}) {
+    if (!document.getElementById('wlp-study-attention-candidate-box')) {
+      if (!auditRequested && !options.forcePanel) return;
+      makePanel(Boolean(options.forcePanel));
+    }
     const el = document.getElementById('wlp-study-attention-candidate-status');
     if (el) { el.textContent = text; el.style.fontWeight = ok === null ? '500' : '700'; el.style.color = ok === true ? '#18794e' : ok === false ? '#b42318' : '#1c2d22'; }
     const d = document.getElementById('wlp-study-attention-candidate-detail'); if (d) d.textContent = detail;
@@ -179,7 +185,7 @@
 
   async function prepare() {
     if (!requested) return false;
-    makePanel();
+    if (auditRequested) makePanel();
     try {
       const db = await openDb(), meta = await getMeta(db, META_KEY), cursorMeta = await getMeta(db, CURSOR_KEY);
       if (String(meta?.candidateKey || '') !== BOOTSTRAP.candidateKey || Number(meta?.headVersion || 0) !== BOOTSTRAP.headVersion || String(meta?.migrationVersion || '') !== BOOTSTRAP.migrationVersion || String(meta?.snapshotManifestHash || '') !== BOOTSTRAP.manifestHash || Number(meta?.canonicalRowCount || 0) !== BOOTSTRAP.canonicalRows) {
@@ -201,7 +207,7 @@
       return true;
     } catch (error) {
       state.prepareError = error?.message || String(error); state.ready = false;
-      setStatus(`BLOCKED · ${state.prepareError}`, false, 'Canonical writes are blocked. Legacy writes stay disabled unless the explicit rollback flag is used.');
+      setStatus(`BLOCKED · ${state.prepareError}`, false, 'Canonical writes are blocked. Legacy writes stay disabled unless the explicit rollback flag is used.', { forcePanel:true });
       return false;
     }
   }
@@ -395,7 +401,7 @@
       try { if (cleanupNeeded) await cleanupMutations(plan); } catch (cleanupError) { console.error('Canonical Study cleanup failed', cleanupError); }
       state.overlayByWordId.delete(plan.wordId); try { ctx?.refresh?.(); } catch (_) {}
       state.report = { format:'WLP_CANONICAL_STUDY_DEFAULT_WRITE_CUTOVER', version:1, appVersion:APP_VERSION, generatedAt:new Date().toISOString(), mode:'normal-study-default-canonical-write-to-persistent-outbox', summary:{ defaultCutoverActive:true, wordId:plan.wordId, action:plan.eventType, blockingIssues:1, nextPhaseEligible:false, pass:false }, issues:{ blocking:[message], warnings:['Best-effort outbox cleanup was attempted. No Cloud write or legacy progress write was intended.'] }, invariants:{ noCloudWrites:true } };
-      setStatus(`BLOCKED · ${message}`, false, 'No second action should be attempted until this is understood.');
+      setStatus(`BLOCKED · ${message}`, false, 'No second action should be attempted until this is understood.', { forcePanel:true });
       return { pass:false, error:message, report:clone(state.report) };
     } finally { state.busy = false; const b = document.getElementById('wlp-study-attention-candidate-export'); if (b) b.disabled = !state.report; }
   }
@@ -413,7 +419,7 @@
       } else toast('Canonical Study action was blocked. No legacy progress write occurred.', 6200);
       return result;
     } catch (error) {
-      const message = error?.message || String(error); setStatus(`BLOCKED · ${message}`, false, 'No Canonical or legacy membership write was performed.'); toast('Canonical Study action was blocked. No legacy progress write occurred.', 6200); return { pass:false, error:message };
+      const message = error?.message || String(error); setStatus(`BLOCKED · ${message}`, false, 'No Canonical or legacy membership write was performed.', { forcePanel:true }); toast('Canonical Study action was blocked. No legacy progress write occurred.', 6200); return { pass:false, error:message };
     }
   }
 
@@ -426,7 +432,7 @@
       else toast('Canonical Study attention was blocked. No legacy attention write occurred.', 6200);
       return result;
     } catch (error) {
-      const message = error?.message || String(error); setStatus(`BLOCKED · ${message}`, false, 'No Canonical or legacy Attention write was performed.'); toast('Canonical Study attention was blocked. No legacy attention write occurred.', 6200); return { pass:false, error:message };
+      const message = error?.message || String(error); setStatus(`BLOCKED · ${message}`, false, 'No Canonical or legacy Attention write was performed.', { forcePanel:true }); toast('Canonical Study attention was blocked. No legacy attention write occurred.', 6200); return { pass:false, error:message };
     }
   }
 
@@ -510,7 +516,7 @@
   function close() { try { state.db?.close(); } catch (_) {} }
   addEventListener('pagehide', close, { once:true });
 
-  const api = { version:9, requested, rollbackRequested, prepare, isActive:() => requested, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
+  const api = { version:10, requested, rollbackRequested, auditRequested, prepare, isActive:() => requested, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
   window.WLPCanonicalStudyAttentionWriteCandidate = Object.freeze(api);
-  if (requested) makePanel();
+  if (auditRequested) makePanel();
 })();
