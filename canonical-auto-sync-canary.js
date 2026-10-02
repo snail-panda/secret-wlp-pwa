@@ -1,8 +1,9 @@
-/* WLP v1.8.6.287 — Foreground Canonical sync supports chained append-only Standard Practice rating corrections.
+/* WLP v1.8.6.288 — Foreground Canonical sync adds completed Standard Practice session-only transport.
    Production scope:
    - foreground source auto-push is enabled for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
    - event-only: attention_suggestion_kept, completed Standard Practice events and append-only Standard rating corrections;
+   - session-only: one completed Standard Practice learning_sessions insert;
    - normal Home, Review, Study-card, Progress, and Study Hub pages perform receiver-only pulls on page load and debounced foreground resume;
    - receiver pulls never auto-push a pre-existing local outbox; they defer instead;
    - single-flight is preserved; a receiver request queued during another sync runs only after any queued source action;
@@ -17,8 +18,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.287-canonical-foreground-sync-standard-rating-chain-v2';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-standard-rating-correction-chain';
+  const APP_VERSION='1.8.6.288-canonical-foreground-sync-standard-session-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-standard-session-canary';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const AUDIT_FLAG='wlpAutoSyncAudit';
@@ -56,7 +57,7 @@
   }
   function isMeaningfulReport(report){return Boolean(report?.summary?.pass===true&&Number(report?.summary?.changeRows||0)>0);}
   function exportableReport(){if(state.report?.summary?.pass===false)return state.report;if(isMeaningfulReport(state.report))return state.report;return state.lastReceipt||state.report||null;}
-  function lastReceiptSummary(){const r=state.lastReceipt,s=r?.summary||{};if(!r)return'';const cursor=(s.cursorBefore!=null&&s.cursorAfter!=null)?`cursor ${s.cursorBefore} → ${s.cursorAfter}`:`cursor ${s.cursorAfter??'?'}`;const target=s.wordId?`WID${s.wordId} ${s.eventType||''}`.trim():(s.eventType||s.role||'sync');return`Last Sync · ${s.role||'sync'} · ${target} · ${cursor} · ${r.generatedAt||''}`;}
+  function lastReceiptSummary(){const r=state.lastReceipt,s=r?.summary||{};if(!r)return'';const cursor=(s.cursorBefore!=null&&s.cursorAfter!=null)?`cursor ${s.cursorBefore} → ${s.cursorAfter}`:`cursor ${s.cursorAfter??'?'}`;const target=s.wordId?`WID${s.wordId} ${s.eventType||''}`.trim():(s.sessionId?`Standard session ${s.sessionId}`:(s.eventType||s.role||'sync'));return`Last Sync · ${s.role||'sync'} · ${target} · ${cursor} · ${r.generatedAt||''}`;}
   function updateExportButton(){if(!state.exportButton)return;const report=exportableReport();state.exportButton.disabled=!report;state.exportButton.textContent=report&&report===state.lastReceipt&&!isMeaningfulReport(state.report)&&state.report?.summary?.pass!==false?'Export Last Sync JSON':'Export JSON';}
   function detailWithLastReceipt(detail=''){const last=state.auditEnabled?lastReceiptSummary():'';return[detail,last].filter(Boolean).join(' · ');}
   function makePanel(){
@@ -64,7 +65,7 @@
     const box=document.createElement('section');
     box.id='wlp-auto-sync-canary-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100001;left:8px;top:max(8px,env(safe-area-inset-top));width:min(390px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v287</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v288</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);state.panel=box;state.status=box.querySelector('#wlp-auto-sync-canary-status');state.detail=box.querySelector('#wlp-auto-sync-canary-detail');state.exportButton=box.querySelector('#wlp-auto-sync-canary-export');
     state.exportButton.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';state.exportButton.addEventListener('click',exportReport);updateExportButton();
   }
@@ -100,37 +101,50 @@
   }
   function sourceShape(rows){
     if(!Array.isArray(rows))return null;
-    const states=rows.filter(x=>x?.tableName==='learning_state'),events=rows.filter(x=>x?.tableName==='learning_events');
-    if(rows.length===2&&states.length===1&&events.length===1)return'state-event';
-    if(rows.length===1&&states.length===0&&events.length===1)return'event-only';
+    const states=rows.filter(x=>x?.tableName==='learning_state'),events=rows.filter(x=>x?.tableName==='learning_events'),sessions=rows.filter(x=>x?.tableName==='learning_sessions');
+    if(rows.length===2&&states.length===1&&events.length===1&&sessions.length===0)return'state-event';
+    if(rows.length===1&&states.length===0&&events.length===1&&sessions.length===0)return'event-only';
+    if(rows.length===1&&states.length===0&&events.length===0&&sessions.length===1&&sessions[0]?.mutationKind==='insert')return'session-only';
     return null;
   }
   async function fingerprintMirror(db){const rows=[];for(const store of CANONICAL_TABLES){const tx=db.transaction(store,'readonly'),items=await req(tx.objectStore(store).getAll());await txDone(tx);for(const item of items)rows.push({tableName:store,rowKey:String(item.rowKey),tombstone:Boolean(item.tombstone),payloadHash:String(item.payloadHash)});}rows.sort((a,b)=>identity(a.tableName,a.rowKey).localeCompare(identity(b.tableName,b.rowKey)));return{rows,rowCount:rows.length,manifestHash:await sha256(stableStringify(rows))};}
   function stateLabel(payload){const p=payload||{};if(Boolean(p.known)&&!Boolean(p.review))return'studied';if(Boolean(p.review)){const level=String(p.review_level||'').toLowerCase();return level?`review:${level}`:'review';}return'neutral';}
   function eventOnlyKind(canonicalEvent){const e=canonicalEvent||{},type=String(e.event_type||''),stream=String(e.source_stream||'');if(type==='attention_suggestion_kept'&&stream==='interaction')return'review-keep';if(type===STANDARD_EVENT_TYPE&&stream===STANDARD_EVENT_STREAM)return'standard-event';if(type===STANDARD_RATING_CORRECTION_TYPE&&stream===STANDARD_EVENT_STREAM)return'standard-rating-correction';return'';}
   function verifyEventOnlyPayload(canonicalEvent){const e=canonicalEvent||{},legacy=e.payload||{},kind=eventOnlyKind(e);if(kind==='review-keep'){const from=String(legacy.fromLevel||'').toLowerCase(),to=String(legacy.suggestedLevel||'').toLowerCase();if(String(legacy.action||'')!=='attention_suggestion_kept'||String(legacy.source||'')!=='review-hub'||!['light','medium','high'].includes(from)||!['light','medium','high'].includes(to)||from===to)throw new Error('Event-only Keep payload is invalid.');return kind;}if(kind==='standard-event'){const sourceEventId=String(e.source_event_id||''),legacyEventId=String(legacy.eventId??legacy.event_id??legacy.id??''),wordId=String(e.legacy_word_id??''),legacyWordId=String(legacy.wordId??'');if(!sourceEventId||legacyEventId!==sourceEventId||!wordId||legacyWordId!==wordId||!String(legacy.completedAt||legacy.completed_at||''))throw new Error('Event-only Standard Practice payload is invalid.');return kind;}if(kind==='standard-rating-correction'){const wordId=String(e.legacy_word_id??''),legacyWordId=String(legacy.wordId??''),rating=String(legacy.rating||''),previous=String(legacy.previousRating||''),supersedes=String(e.supersedes_event_id||''),root=String(legacy.originalCanonicalEventId||''),declaredSupersedes=String(legacy.supersedesEventId||supersedes),originalEventId=String(legacy.originalEventId||'');const validPrevious=!previous||['got-it','almost','not-yet','no-idea'].includes(previous);if(String(legacy.action||'')!=='standard_rating_correction'||String(legacy.source||'')!=='standard-practice-history'||!wordId||legacyWordId!==wordId||!['got-it','almost','not-yet','no-idea'].includes(rating)||!validPrevious||rating===previous||!String(legacy.ratingUpdatedAt||'')||!supersedes||!root||!originalEventId||declaredSupersedes!==supersedes)throw new Error('Event-only Standard Practice rating correction payload is invalid.');return kind;}throw new Error(`Event-only Foreground Sync event shape is unsupported (${String(e.source_stream||'missing')}:${String(e.event_type||'missing')}).`);}
+  function verifyStandardSessionPayload(canonicalSession){
+    const row=canonicalSession||{},legacy=row.payload||{},sourceId=String(row.source_session_id||''),legacyId=String(legacy.sessionId??legacy.session_id??legacy.id??'');
+    if(!sourceId||legacyId!==sourceId||String(row.session_type||'')!=='standard'||String(row.status||'')!=='completed'||String(legacy.status||'')!=='completed'||!String(legacy.completedAt||legacy.completed_at||'')||!String(row.started_at||'')||!String(row.ended_at||'')||!Array.isArray(legacy.experiences)||legacy.experiences.length<1)throw new Error('Standard Practice completed-session payload is invalid.');
+    return 'standard-session';
+  }
   async function verifyChanges(changes){
-    if(!Array.isArray(changes)||![1,2].includes(changes.length))throw new Error(`Foreground Sync expected one event-only change or one state/event pair, found ${changes?.length??0}.`);
+    if(!Array.isArray(changes)||![1,2].includes(changes.length))throw new Error(`Foreground Sync expected one single-row change or one state/event pair, found ${changes?.length??0}.`);
     const stateChange=changes.find(x=>x.table_name==='learning_state'&&x.operation==='upsert')||null;
     const eventChange=changes.find(x=>x.table_name==='learning_events'&&x.operation==='append')||null;
-    if(!eventChange)throw new Error('Foreground Sync requires one learning_events append.');
-    const actionId=String(eventChange.action_id||'');
+    const sessionChange=changes.find(x=>x.table_name==='learning_sessions'&&(x.operation==='insert'||x.operation==='upsert'))||null;
+    const anchor=eventChange||sessionChange;if(!anchor)throw new Error('Foreground Sync requires a supported learning_events or learning_sessions change.');
+    const actionId=String(anchor.action_id||'');
     for(const x of changes){
       if(!x.payload||typeof x.payload!=='object')throw new Error(`Change ${x.change_seq} has no payload.`);
       if(await sha256(stableStringify(x.payload))!==String(x.payload_hash||''))throw new Error(`Change ${x.change_seq} payload hash mismatch.`);
       if(String(x.candidate_key)!==BASE.key||Number(x.head_version)!==BASE.head)throw new Error(`Change ${x.change_seq} is not anchored to ACTIVE Authority v3.`);
       if(String(x.action_id||'')!==actionId)throw new Error('Foreground Sync changes do not share one actionId.');
     }
+    if(changes.length===1&&sessionChange){
+      if(stateChange||eventChange)throw new Error('Session-only Foreground Sync must contain only learning_sessions.');
+      const sessionOnlyShape=verifyStandardSessionPayload(sessionChange.payload);
+      return{changeShape:'session-only',sessionOnlyShape,stateChange:null,eventChange:null,sessionChange,eventType:'session_completed',targetState:null,actionId,wordId:'',sessionId:String(sessionChange.payload?.source_session_id||''),actionSource:'standard-practice-session',expectedMutations:1,seqMax:Number(sessionChange.change_seq||0),seqMin:Number(sessionChange.change_seq||0)};
+    }
+    if(!eventChange)throw new Error('Foreground Sync event shape requires one learning_events append.');
     const eventType=String(eventChange.payload?.event_type||'');
     const eventPayload=eventChange.payload?.payload||{};
     const wordId=String(eventChange.payload?.legacy_word_id??eventPayload.wordId??'');
     const actionSource=String(eventPayload.source||'');
     if(changes.length===1){
-      if(stateChange)throw new Error('Event-only Foreground Sync must not contain learning_state.');
+      if(stateChange||sessionChange)throw new Error('Event-only Foreground Sync must not contain learning_state or learning_sessions.');
       const eventOnlyShape=verifyEventOnlyPayload(eventChange.payload);
-      return{changeShape:'event-only',eventOnlyShape,stateChange:null,eventChange,eventType,targetState:null,actionId,wordId,actionSource,expectedMutations:1,seqMax:Number(eventChange.change_seq||0),seqMin:Number(eventChange.change_seq||0)};
+      return{changeShape:'event-only',eventOnlyShape,stateChange:null,eventChange,sessionChange:null,eventType,targetState:null,actionId,wordId,sessionId:'',actionSource,expectedMutations:1,seqMax:Number(eventChange.change_seq||0),seqMin:Number(eventChange.change_seq||0)};
     }
-    if(!stateChange)throw new Error('Two-change Foreground Sync requires one learning_state upsert.');
+    if(!stateChange||sessionChange)throw new Error('Two-change Foreground Sync requires one learning_state upsert and one learning_events append.');
     if(String(eventChange.payload?.card_id||'')!==String(stateChange.row_key||''))throw new Error('Foreground Sync state/event target card identity mismatch.');
     if(!PAIR_EVENT_TYPES.has(eventType))throw new Error(`State/event Foreground Sync event type is unsupported (${eventType||'missing'}).`);
     const targetState=stateLabel(stateChange.payload);
@@ -143,14 +157,15 @@
     else if(eventType==='studied_removed'&&targetState!=='neutral')throw new Error(`studied_removed event does not converge to neutral state (${targetState}).`);
     else if(eventType==='review'&&!targetState.startsWith('review'))throw new Error(`review event does not converge to review state (${targetState}).`);
     else if(eventType==='review_removed'&&targetState!=='neutral')throw new Error(`review_removed event does not converge to neutral state (${targetState}).`);
-    return{changeShape:'state-event',stateChange,eventChange,eventType,targetState,actionId,wordId,actionSource,expectedMutations:2,seqMax:Math.max(...changes.map(x=>Number(x.change_seq||0))),seqMin:Math.min(...changes.map(x=>Number(x.change_seq||0)))};
+    return{changeShape:'state-event',stateChange,eventChange,sessionChange:null,eventType,targetState,actionId,wordId,sessionId:'',actionSource,expectedMutations:2,seqMax:Math.max(...changes.map(x=>Number(x.change_seq||0))),seqMin:Math.min(...changes.map(x=>Number(x.change_seq||0)))};
   }
   async function predictMaterialized(db,changes){const before=await fingerprintMirror(db),map=new Map(before.rows.map(x=>[identity(x.tableName,x.rowKey),x]));for(const x of changes)map.set(identity(x.table_name,x.row_key),{tableName:String(x.table_name),rowKey:String(x.row_key),tombstone:Boolean(x.tombstone),payloadHash:String(x.payload_hash)});const rows=[...map.values()].sort((a,b)=>identity(a.tableName,a.rowKey).localeCompare(identity(b.tableName,b.rowKey)));return{before,rowCount:rows.length,manifestHash:await sha256(stableStringify(rows))};}
   async function applyLocal(db,changes,meta,cursorMeta,isSource,outboxMutations){
     const verified=await verifyChanges(changes),predicted=await predictMaterialized(db,changes),appliedAt=new Date().toISOString();
-    const stores=[...(verified.stateChange?['learning_state']:[]),'learning_events',META_STORE,OUTBOX_STORE],tx=db.transaction(stores,'readwrite');
+    const stores=[...(verified.stateChange?['learning_state']:[]),...(verified.eventChange?['learning_events']:[]),...(verified.sessionChange?['learning_sessions']:[]),META_STORE,OUTBOX_STORE],tx=db.transaction(stores,'readwrite');
     if(verified.stateChange)tx.objectStore('learning_state').put({rowKey:String(verified.stateChange.row_key),payloadHash:String(verified.stateChange.payload_hash),tombstone:Boolean(verified.stateChange.tombstone),payload:clone(verified.stateChange.payload)});
-    tx.objectStore('learning_events').put({rowKey:String(verified.eventChange.row_key),payloadHash:String(verified.eventChange.payload_hash),tombstone:Boolean(verified.eventChange.tombstone),payload:clone(verified.eventChange.payload)});
+    if(verified.eventChange)tx.objectStore('learning_events').put({rowKey:String(verified.eventChange.row_key),payloadHash:String(verified.eventChange.payload_hash),tombstone:Boolean(verified.eventChange.tombstone),payload:clone(verified.eventChange.payload)});
+    if(verified.sessionChange)tx.objectStore('learning_sessions').put({rowKey:String(verified.sessionChange.row_key),payloadHash:String(verified.sessionChange.payload_hash),tombstone:Boolean(verified.sessionChange.tombstone),payload:clone(verified.sessionChange.payload)});
     const nextMeta={...meta,lastSyncCursor:verified.seqMax,lastSuccessfulSyncAt:appliedAt,materializedSyncCursor:verified.seqMax,materializedManifestHash:predicted.manifestHash,materializedCanonicalRowCount:predicted.rowCount,syncOverlayApplied:true,revisionSource:'wlp_sync_changes_v1-foreground-production',materializedAt:appliedAt};
     tx.objectStore(META_STORE).put(nextMeta);
     tx.objectStore(META_STORE).put({...(cursorMeta||{}),key:CURSOR_KEY,lastSyncCursor:verified.seqMax,lastSuccessfulSyncAt:appliedAt,candidateKey:BASE.key,headVersion:BASE.head,snapshotManifestHash:BASE.manifest,materializedManifestHash:predicted.manifestHash,materializedCanonicalRowCount:predicted.rowCount});
@@ -161,7 +176,7 @@
   }
 
   async function runSync({trigger='manual',expectedActionId='',receiverOnly=false}={}){
-    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v287 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
+    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v288 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
     try{
       const a=await cloudContext();db=await openDb();const meta=await getMeta(db,META_KEY),cursorMeta=await getMeta(db,CURSOR_KEY),outbox=await getAllOutbox(db),cursorBefore=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
       if(String(meta?.candidateKey||'')!==BASE.key||Number(meta?.headVersion||0)!==BASE.head||String(meta?.snapshotManifestHash||'')!==BASE.manifest)throw new Error('Foreground Sync requires ACTIVE Authority v3.');
@@ -177,9 +192,10 @@
         const shape=sourceShape(sourceRows);if(!shape)throw new Error(`Foreground Sync will not touch unsupported outbox shape (${outbox.length} row(s)); use manual Cloud Shadow.`);
         const actionIds=[...new Set(sourceRows.map(x=>String(x.actionId||'')))];if(actionIds.length!==1)throw new Error('Foreground Sync source rows do not share one actionId.');actionId=actionIds[0];
         if(expectedActionId&&actionId!==expectedActionId)throw new Error('Foreground Sync staged actionId does not match the pending outbox.');
-        const eventMutation=sourceRows.find(x=>x?.tableName==='learning_events'),eventType=String(eventMutation?.payload?.event_type||'');
+        const eventMutation=sourceRows.find(x=>x?.tableName==='learning_events'),sessionMutation=sourceRows.find(x=>x?.tableName==='learning_sessions'),eventType=String(eventMutation?.payload?.event_type||'');
         if(shape==='state-event'&&!PAIR_EVENT_TYPES.has(eventType))throw new Error(`State/event Foreground Sync event type is unsupported (${eventType||'missing'}); use manual Cloud Shadow.`);
         if(shape==='event-only')verifyEventOnlyPayload(eventMutation?.payload||{});
+        if(shape==='session-only')verifyStandardSessionPayload(sessionMutation?.payload||{});
         const raw=await a.rest(`rpc/${APPLY_RPC}`,{method:'POST',body:{p_device_key:String(meta.deviceKey||''),p_mutations:clone(sourceRows)}});serverResult=Array.isArray(raw.data)?raw.data[0]:raw.data;
         if(!serverResult||typeof serverResult!=='object')throw new Error('Foreground Sync apply RPC returned no JSON result.');
         if(serverResult.status==='conflict')throw new Error(`Server preserved conflict ${serverResult.conflictId||'unknown'}; outbox retained for manual resolution.`);
@@ -191,17 +207,20 @@
         changes=firstActionOnly(pending);actionId=String(changes[0]?.action_id||'');
       }
       const verified=await verifyChanges(changes);if(actionId!==verified.actionId)throw new Error('Foreground Sync action identity mismatch.');if(verified.seqMin<=cursorBefore)throw new Error(`Foreground Sync change sequence overlaps committed cursor ${cursorBefore}.`);
-      const outboxBefore=outbox.length,local=await applyLocal(db,changes,meta,cursorMeta,role==='source',sourceRows),outboxAfter=(await getAllOutbox(db)).length,stateRow=verified.stateChange?await getRow(db,'learning_state',verified.stateChange.row_key):null,eventRow=await getRow(db,'learning_events',verified.eventChange.row_key);
+      const outboxBefore=outbox.length,local=await applyLocal(db,changes,meta,cursorMeta,role==='source',sourceRows),outboxAfter=(await getAllOutbox(db)).length,stateRow=verified.stateChange?await getRow(db,'learning_state',verified.stateChange.row_key):null,eventRow=verified.eventChange?await getRow(db,'learning_events',verified.eventChange.row_key):null,sessionRow=verified.sessionChange?await getRow(db,'learning_sessions',verified.sessionChange.row_key):null;
       const ackRaw=await a.rest(`rpc/${CURSOR_ACK_RPC}`,{method:'POST',body:{p_device_key:String(meta.deviceKey||''),p_change_seq:verified.seqMax}}),cursorAck=Array.isArray(ackRaw.data)?ackRaw.data[0]:ackRaw.data;
       const retry=await fetchChangesAfter(a,verified.seqMax),sameActionRetry=retry.filter(x=>String(x.action_id||'')===actionId),mutations=await fetchMutationsForAction(a,actionId),ack=await fetchAck(a,actionId),head=await fetchHead(a);
-      const localStateLabel=verified.stateChange?stateLabel(stateRow?.payload):'unchanged',stateOk=!verified.stateChange||localStateLabel===verified.targetState,eventOk=String(eventRow?.payload?.event_type||'')===verified.eventType,headOk=String(head.candidate_key)===BASE.key&&Number(head.head_version)===BASE.head&&String(head.snapshot_manifest_hash)===BASE.manifest,mutationOk=mutations.length===verified.expectedMutations&&mutations.every(x=>x.status==='applied'),ackOk=Boolean(ack&&ack.status==='applied'&&Array.isArray(ack.mutation_ids)&&ack.mutation_ids.length===verified.expectedMutations),cursorAckOk=Number(cursorAck?.lastAckChangeSeq||0)>=verified.seqMax,outboxOk=outboxAfter===0,retryOk=sameActionRetry.length===0;
-      const checks=[['Supported action shape verified',Boolean(verified.wordId)&&((verified.changeShape==='state-event'&&PAIR_EVENT_TYPES.has(verified.eventType))||(verified.changeShape==='event-only'&&Boolean(verified.eventOnlyShape))),`${verified.changeShape}${verified.eventOnlyShape?`/${verified.eventOnlyShape}`:''} · WID${verified.wordId||'?'} · ${verified.eventType}`],['Canonical state converged to target',stateOk,localStateLabel],['Canonical event converged locally',eventOk,String(eventRow?.rowKey||'missing')],['Materialized mirror fingerprint committed',local.after.manifestHash===local.predicted.manifestHash,`${local.after.rowCount} rows · ${local.after.manifestHash}`],['Source outbox clears only after acknowledged local commit',outboxOk,`${outboxBefore} → ${outboxAfter}`],['Mutation ledger + action acknowledgement are complete',mutationOk&&ackOk,`${mutations.length}/${verified.expectedMutations} mutations · ack ${ack?.status||'missing'}`],['Device cursor acknowledgement reached local commit',cursorAckOk,String(cursorAck?.lastAckChangeSeq??'missing')],['Exact action retry is a no-op',retryOk,`${sameActionRetry.length} same-action row(s)`],['Authority v3 head remains unchanged',headOk,`${head.candidate_key} · head ${head.head_version}`]].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)}));
+      const localStateLabel=verified.stateChange?stateLabel(stateRow?.payload):'unchanged',stateOk=!verified.stateChange||localStateLabel===verified.targetState,eventOk=!verified.eventChange||String(eventRow?.payload?.event_type||'')===verified.eventType,sessionOk=!verified.sessionChange||(String(sessionRow?.payload?.source_session_id||'')===verified.sessionId&&String(sessionRow?.payload?.session_type||'')==='standard'&&String(sessionRow?.payload?.status||'')==='completed'),headOk=String(head.candidate_key)===BASE.key&&Number(head.head_version)===BASE.head&&String(head.snapshot_manifest_hash)===BASE.manifest,mutationOk=mutations.length===verified.expectedMutations&&mutations.every(x=>x.status==='applied'),ackOk=Boolean(ack&&ack.status==='applied'&&Array.isArray(ack.mutation_ids)&&ack.mutation_ids.length===verified.expectedMutations),cursorAckOk=Number(cursorAck?.lastAckChangeSeq||0)>=verified.seqMax,outboxOk=outboxAfter===0,retryOk=sameActionRetry.length===0;
+      const shapeOk=(verified.changeShape==='session-only'&&Boolean(verified.sessionOnlyShape)&&Boolean(verified.sessionId))||(Boolean(verified.wordId)&&((verified.changeShape==='state-event'&&PAIR_EVENT_TYPES.has(verified.eventType))||(verified.changeShape==='event-only'&&Boolean(verified.eventOnlyShape))));
+      const shapeEvidence=verified.changeShape==='session-only'?`${verified.changeShape}/${verified.sessionOnlyShape} · ${verified.sessionId}`:`${verified.changeShape}${verified.eventOnlyShape?`/${verified.eventOnlyShape}`:''} · WID${verified.wordId||'?'} · ${verified.eventType}`;
+      const checks=[['Supported action shape verified',shapeOk,shapeEvidence],['Canonical state converged to target',stateOk,localStateLabel],['Canonical event converged locally',eventOk,verified.eventChange?String(eventRow?.rowKey||'missing'):'n/a'],['Canonical session converged locally',sessionOk,verified.sessionChange?String(sessionRow?.rowKey||'missing'):'n/a'],['Materialized mirror fingerprint committed',local.after.manifestHash===local.predicted.manifestHash,`${local.after.rowCount} rows · ${local.after.manifestHash}`],['Source outbox clears only after acknowledged local commit',outboxOk,`${outboxBefore} → ${outboxAfter}`],['Mutation ledger + action acknowledgement are complete',mutationOk&&ackOk,`${mutations.length}/${verified.expectedMutations} mutations · ack ${ack?.status||'missing'}`],['Device cursor acknowledgement reached local commit',cursorAckOk,String(cursorAck?.lastAckChangeSeq??'missing')],['Exact action retry is a no-op',retryOk,`${sameActionRetry.length} same-action row(s)`],['Authority v3 head remains unchanged',headOk,`${head.candidate_key} · head ${head.head_version}`]].map(([name,pass,evidence])=>({name,pass:Boolean(pass),evidence:String(evidence)}));
       const blocking=checks.filter(x=>!x.pass).map(x=>x.name),pass=blocking.length===0;
-      state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,device:{deviceKey:meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:BASE.key,headVersion:BASE.head,snapshotManifestHash:BASE.manifest},summary:{role,trigger,changeShape:verified.changeShape,eventOnlyShape:verified.eventOnlyShape||null,wordId:verified.wordId,eventType:verified.eventType,serverApplied:role==='source'?Boolean(serverResult?.applied):false,changeRows:changes.length,cursorBefore,cursorAfter:verified.seqMax,outboxBefore,outboxAfter,stateLevel:localStateLabel,materializedRowsBefore:local.predicted.before.rowCount,materializedRowsAfter:local.after.rowCount,mutationRows:mutations.length,acknowledged:ackOk,cursorAcknowledged:cursorAckOk,retrySameActionRows:sameActionRetry.length,pendingRemoteChangeRows:retry.length-sameActionRetry.length,blockingIssues:blocking.length,pass},serverResult:clone(serverResult),changes:clone(changes),before:{cursor:cursorBefore,outboxRows:outboxBefore,materializedRows:local.predicted.before.rowCount,materializedManifestHash:local.predicted.before.manifestHash},after:{cursor:verified.seqMax,outboxRows:outboxAfter,materializedRows:local.after.rowCount,materializedManifestHash:local.after.manifestHash},checks,issues:{blocking,warnings:['Foreground sync accepts the proven state/event actions, Review Keep event-only actions, and the query-gated completed Standard Practice event canary; unsupported outbox shapes remain manual Cloud Shadow fallback.','Normal Home, Review, Study-card, Progress, Study Hub, and Deck Browser pages perform receiver-only pulls on page load and debounced foreground resume; ?wlpAutoSyncReceiver=0 disables both.','No Service Worker/background sync is enabled. This is foreground page sync only.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true,authorityHeadUnchanged:headOk}};
+      state.report={format:REPORT_FORMAT,version:REPORT_VERSION,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:REPORT_MODE,device:{deviceKey:meta?.deviceKey||null,platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:BASE.key,headVersion:BASE.head,snapshotManifestHash:BASE.manifest},summary:{role,trigger,changeShape:verified.changeShape,eventOnlyShape:verified.eventOnlyShape||null,sessionOnlyShape:verified.sessionOnlyShape||null,wordId:verified.wordId,sessionId:verified.sessionId||null,eventType:verified.eventType,serverApplied:role==='source'?Boolean(serverResult?.applied):false,changeRows:changes.length,cursorBefore,cursorAfter:verified.seqMax,outboxBefore,outboxAfter,stateLevel:localStateLabel,materializedRowsBefore:local.predicted.before.rowCount,materializedRowsAfter:local.after.rowCount,mutationRows:mutations.length,acknowledged:ackOk,cursorAcknowledged:cursorAckOk,retrySameActionRows:sameActionRetry.length,pendingRemoteChangeRows:retry.length-sameActionRetry.length,blockingIssues:blocking.length,pass},serverResult:clone(serverResult),changes:clone(changes),before:{cursor:cursorBefore,outboxRows:outboxBefore,materializedRows:local.predicted.before.rowCount,materializedManifestHash:local.predicted.before.manifestHash},after:{cursor:verified.seqMax,outboxRows:outboxAfter,materializedRows:local.after.rowCount,materializedManifestHash:local.after.manifestHash},checks,issues:{blocking,warnings:['Foreground sync accepts the proven state/event actions, event-only Review/Standard actions, and the query-gated completed Standard Practice session canary; unsupported outbox shapes remain manual Cloud Shadow fallback.','Normal Home, Review, Study-card, Progress, Study Hub, and Deck Browser pages perform receiver-only pulls on page load and debounced foreground resume; ?wlpAutoSyncReceiver=0 disables both.','No Service Worker/background sync is enabled. This is foreground page sync only.']},invariants:{manualCloudShadowFallbackPreserved:true,sourceOutboxRetainedOnFailure:true,noServiceWorkerSync:true,noConflictAutoOverwrite:true,authorityHeadUnchanged:headOk}};
       if(!pass)throw new Error(blocking.join('; '));
       persistLastReceipt(state.report);
-      setStatus(role==='source'?`PASS · WID${verified.wordId} ${verified.eventType} auto-pushed at cursor ${verified.seqMax}.`:`PASS · WID${verified.wordId} ${verified.eventType} auto-pulled at cursor ${verified.seqMax}.`,true,`outbox ${outboxBefore} → ${outboxAfter} · ${changes.length} change(s) · ${retry.length-sameActionRetry.length} later remote row(s) pending · manual Cloud Shadow remains available.`);
-      window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:true,role,actionId,wordId:verified.wordId,eventType:verified.eventType,changeShape:verified.changeShape,actionSource:verified.actionSource,cursorAfter:verified.seqMax,outboxAfter}}));window.dispatchEvent(new CustomEvent('wlp-canonical-review-candidate-refresh'));return clone(state.report);
+      const targetLabel=verified.changeShape==='session-only'?`Standard session ${verified.sessionId}`:`WID${verified.wordId} ${verified.eventType}`;
+      setStatus(role==='source'?`PASS · ${targetLabel} auto-pushed at cursor ${verified.seqMax}.`:`PASS · ${targetLabel} auto-pulled at cursor ${verified.seqMax}.`,true,`outbox ${outboxBefore} → ${outboxAfter} · ${changes.length} change(s) · ${retry.length-sameActionRetry.length} later remote row(s) pending · manual Cloud Shadow remains available.`);
+      window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:true,role,actionId,wordId:verified.wordId,sessionId:verified.sessionId||'',eventType:verified.eventType,changeShape:verified.changeShape,actionSource:verified.actionSource,cursorAfter:verified.seqMax,outboxAfter}}));window.dispatchEvent(new CustomEvent('wlp-canonical-review-candidate-refresh'));return clone(state.report);
     }catch(error){
       const message=error?.message||String(error);
       if(receiverOnly&&isTransientReceiverNetworkError(error)){
@@ -224,7 +243,7 @@
     }
   }
 
-  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),mutationCount=Number(d.mutationCount||0);const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||((eventType===STANDARD_EVENT_TYPE||eventType===STANDARD_RATING_CORRECTION_TYPE)&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
+  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),tableName=String(d.tableName||''),mutationKind=String(d.mutationKind||''),mutationCount=Number(d.mutationCount||0);const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||((eventType===STANDARD_EVENT_TYPE||eventType===STANDARD_RATING_CORRECTION_TYPE)&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1)||(tableName==='learning_sessions'&&mutationKind==='insert'&&mutationCount===1);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
   function requestDefaultReceiver(trigger,{delay=0,markNow=false}={}){
     if(!state.defaultReceiverEnabled)return;
     if(document.visibilityState&&document.visibilityState!=='visible')return;
@@ -267,7 +286,7 @@
       setTimeout(()=>{void runSync({trigger:'receiver-page-load-canary',receiverOnly:true});},150);
     }
   }
-  const publicApi=Object.freeze({version:2,pairEventTypes:[...PAIR_EVENT_TYPES],eventOnlyTypes:[...EVENT_ONLY_TYPES,'standard:event','standard:rating_correction'],runSync,getReport:()=>clone(state.report),getLastReceipt:()=>clone(state.lastReceipt)});
+  const publicApi=Object.freeze({version:2,pairEventTypes:[...PAIR_EVENT_TYPES],eventOnlyTypes:[...EVENT_ONLY_TYPES,'standard:event','standard:rating_correction'],singleRowTypes:['standard:learning_sessions:insert'],runSync,getReport:()=>clone(state.report),getLastReceipt:()=>clone(state.lastReceipt)});
   window.WLPCanonicalForegroundSync=publicApi;
   window.WLPCanonicalAutoSyncCanary=publicApi;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
