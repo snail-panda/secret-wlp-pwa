@@ -1771,7 +1771,9 @@
     const policy = historyRatingEditPolicy(record.sessionId, experience.wordId, attempt, sessions);
     if (!policy.editable) return { ok: false, reason: policy.reason };
 
-    const wasUnrated = !clean(attempt.selfRating);
+    const previousRating = clean(attempt.selfRating);
+    const wasUnrated = !previousRating;
+    const ratingUpdatedAt = new Date().toISOString();
     attempt.selfRating = rating;
     if (wasUnrated && clean(eventId)) historyRatingEditGrace.add(clean(eventId));
     record.counts = ratingCounts(record.experiences.map(item => item?.attempt || {}));
@@ -1782,7 +1784,7 @@
       const events = readStudyEvents();
       const eventIndex = events.findIndex(item => clean(item?.eventId) === clean(eventId));
       if (eventIndex >= 0) {
-        events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt: new Date().toISOString() };
+        events[eventIndex] = { ...events[eventIndex], selfRating: rating, ratingUpdatedAt };
         localStorage.setItem(STUDYQ_EVENT_KEY, JSON.stringify(events.slice(-STUDYQ_EVENT_LIMIT)));
       }
     } catch (error) {
@@ -1793,7 +1795,19 @@
     if (liveIndex >= 0) sessionAttempts[liveIndex].selfRating = rating;
     if (clean(currentAttempt?.eventId) === clean(eventId)) currentAttempt.selfRating = rating;
     historyRatingNotice.set(clean(eventId), 'Rating saved in Standard Practice history. Review attention is unchanged for now.');
-    return { ok: true, reason: policy.reason, record };
+    if (previousRating !== rating) {
+      window.dispatchEvent(new CustomEvent('wlp-standard-practice-rating-corrected', {
+        detail: {
+          sessionId: clean(record.sessionId),
+          eventId: clean(eventId),
+          wordId: clean(experience.wordId),
+          previousRating,
+          rating,
+          ratingUpdatedAt
+        }
+      }));
+    }
+    return { ok: true, reason: policy.reason, record, previousRating, rating, ratingUpdatedAt };
   }
 
   function refreshOpenSessionSummary() {
