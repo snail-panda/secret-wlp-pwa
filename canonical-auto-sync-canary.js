@@ -1,9 +1,9 @@
-/* WLP v1.8.6.276 — Foreground Canonical sync adds Progress receiver pull/refresh support.
+/* WLP v1.8.6.277 — Foreground Canonical sync adds Study Hub receiver pull/refresh support.
    Production scope:
    - foreground source auto-push is enabled for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
    - event-only: attention_suggestion_kept;
-   - normal Home, Review, Study-card, and Progress pages perform receiver-only pulls on page load and debounced foreground resume;
+   - normal Home, Review, Study-card, Progress, and Study Hub pages perform receiver-only pulls on page load and debounced foreground resume;
    - receiver pulls never auto-push a pre-existing local outbox; they defer instead;
    - single-flight is preserved; a receiver request queued during another sync runs only after any queued source action;
    - normal successful/no-op/deferred sync is silent; ?wlpAutoSyncAudit=1 exposes diagnostics/export;
@@ -17,8 +17,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.276-canonical-foreground-sync-progress-receiver-v1';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-progress-receiver';
+  const APP_VERSION='1.8.6.277-canonical-foreground-sync-study-hub-receiver-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-study-hub-receiver';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const AUDIT_FLAG='wlpAutoSyncAudit';
@@ -248,17 +248,17 @@
   }
   function init(){
     window.addEventListener('wlp-canonical-outbox-staged',onStaged);
-    const params=new URLSearchParams(location.search),explicitReceiver=params.get(RECEIVER_FLAG)==='1',receiverDisabled=params.get(RECEIVER_DISABLE_FLAG)==='0',audit=params.get(AUDIT_FLAG)==='1',reviewPage=/(^|\/)review(?:\.html)?\/?$/i.test(location.pathname),studyPage=/(^|\/)batch(?:\.html)?\/?$/i.test(location.pathname),progressPage=/(^|\/)progress(?:\.html)?\/?$/i.test(location.pathname);
+    const params=new URLSearchParams(location.search),explicitReceiver=params.get(RECEIVER_FLAG)==='1',receiverDisabled=params.get(RECEIVER_DISABLE_FLAG)==='0',audit=params.get(AUDIT_FLAG)==='1',reviewPage=/(^|\/)review(?:\.html)?\/?$/i.test(location.pathname),studyPage=/(^|\/)batch(?:\.html)?\/?$/i.test(location.pathname),progressPage=/(^|\/)progress(?:\.html)?\/?$/i.test(location.pathname),studyHubPage=/(^|\/)study-hub(?:\.html)?\/?$/i.test(location.pathname);
     const scriptPath=(()=>{try{return new URL(document.currentScript?.src||'./canonical-auto-sync-canary.js',location.href).pathname;}catch(_){return '';}})(),appRoot=scriptPath?scriptPath.replace(/\/[^/]*$/,'/'):'';
     const homePage=Boolean(appRoot)&&(location.pathname===appRoot||location.pathname===`${appRoot}index`||location.pathname===`${appRoot}index.html`);
-    const defaultForegroundReceiver=(homePage||reviewPage||studyPage||progressPage)&&!receiverDisabled;
+    const defaultForegroundReceiver=(homePage||reviewPage||studyPage||progressPage||studyHubPage)&&!receiverDisabled;
     state.defaultReceiverEnabled=defaultForegroundReceiver;
-    state.pageKind=homePage?'home':reviewPage?'review':studyPage?'study':progressPage?'progress':'';
+    state.pageKind=homePage?'home':reviewPage?'review':studyPage?'study':progressPage?'progress':studyHubPage?'study-hub':'';
     state.auditEnabled=audit||explicitReceiver;
     state.lastReceipt=readLastReceipt();
     if(state.auditEnabled){makePanel();if(state.lastReceipt)setStatus('AUDIT · Last Sync receipt available.',true,'A new receiver check will still run; if it is a no-op, Export Last Sync JSON keeps the preceding material sync receipt.');}
     if(defaultForegroundReceiver){
-      const trigger=homePage?'receiver-home-load-default':reviewPage?'receiver-review-load-default':studyPage?'receiver-study-load-default':'receiver-progress-load-default';
+      const trigger=homePage?'receiver-home-load-default':reviewPage?'receiver-review-load-default':studyPage?'receiver-study-load-default':progressPage?'receiver-progress-load-default':'receiver-study-hub-load-default';
       requestDefaultReceiver(trigger,{delay:150,markNow:true});
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onForegroundResume();});
       window.addEventListener('focus',onForegroundResume);

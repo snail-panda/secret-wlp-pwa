@@ -10,7 +10,9 @@
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
-  const STUDYQ_STANDARD_VERSION = '2.0.0';
+  const STUDYQ_STANDARD_VERSION = '2.0.1';
+  const FORCE_LEGACY_REVIEW_PARAM = 'wlpLegacyStudyHubReview';
+  const forceLegacyReview = new URLSearchParams(location.search).get(FORCE_LEGACY_REVIEW_PARAM) === '1';
   const studyContextApi = window.WLPStudyContext || null;
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -26,6 +28,7 @@
   let coverageMode = 'all';
   let temporaryStudySet = null;
   let reviewByWordId = new Map();
+  const reviewSourceState = { defaultCanonical:true, forcedLegacy:forceLegacyReview, active:false, fallbackToLegacy:false, source:'uninitialized', failure:'', reviewRows:0 };
   let currentPool = [];
   let sessionQueue = [];
   let sessionIndex = 0;
@@ -460,7 +463,7 @@
     });
   }
 
-  function readReviewMap() {
+  function readLegacyReviewMap() {
     const out = new Map();
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -474,10 +477,60 @@
           ? clean(data.reviewLevel).toLowerCase() : '';
         out.set(wordId, { ...data, wordId, reviewLevel: level });
       } catch (error) {
-        console.warn('Could not read Study Q review record', key, error);
+        console.warn('Could not read Study Q legacy Review record', key, error);
       }
     }
     return out;
+  }
+
+  function reviewMapFromRecords(records) {
+    const out = new Map();
+    (Array.isArray(records) ? records : []).forEach(data => {
+      const wordId = clean(data?.wordId);
+      if (!wordId || data?.review !== true) return;
+      const level = ['high', 'medium', 'light'].includes(clean(data?.reviewLevel).toLowerCase())
+        ? clean(data.reviewLevel).toLowerCase() : '';
+      out.set(wordId, { ...data, wordId, reviewLevel: level });
+    });
+    return out;
+  }
+
+  async function canonicalReviewProviderAfterDomReady() {
+    let provider = window.WLPCanonicalStorageCompatibilityFacade;
+    if (provider?.open) return provider;
+    if (document.readyState === 'loading') {
+      await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once:true }));
+    }
+    provider = window.WLPCanonicalStorageCompatibilityFacade;
+    return provider;
+  }
+
+  async function readReviewMap() {
+    if (forceLegacyReview) {
+      const legacy = readLegacyReviewMap();
+      Object.assign(reviewSourceState, { active:false, fallbackToLegacy:false, source:'legacy-localStorage-forced', failure:'', reviewRows:legacy.size });
+      return legacy;
+    }
+    try {
+      const provider = await canonicalReviewProviderAfterDomReady();
+      if (!provider?.open || provider.readOnly !== true) throw new Error('Read-only Canonical Storage Compatibility Facade is unavailable.');
+      const facade = await provider.open();
+      if (!facade?.readOnly || typeof facade.readReviewRecords !== 'function') throw new Error('Canonical Review reader is unavailable.');
+      const canonical = reviewMapFromRecords(facade.readReviewRecords());
+      Object.assign(reviewSourceState, { active:true, fallbackToLegacy:false, source:`canonical-facade-v${Number(facade.meta?.headVersion || 0) || '?'}`, failure:'', reviewRows:canonical.size });
+      return canonical;
+    } catch (error) {
+      const legacy = readLegacyReviewMap();
+      Object.assign(reviewSourceState, { active:false, fallbackToLegacy:true, source:'legacy-localStorage-fallback', failure:error?.message || String(error), reviewRows:legacy.size });
+      console.warn('Study Hub Canonical Review source fell back to legacy localStorage:', error);
+      return legacy;
+    }
+  }
+
+  async function refreshReviewMapFromAuthority() {
+    reviewByWordId = await readReviewMap();
+    if (rows.length) updateEligibility();
+    return reviewByWordId;
   }
 
   function metadataFor(wordId) {
@@ -3000,6 +3053,10 @@
   }
 
   function installEvents() {
+    window.addEventListener('wlp-canonical-auto-sync-complete', event => {
+      if (event?.detail?.pass !== true || event?.detail?.deferred === true) return;
+      void refreshReviewMapFromAuthority();
+    });
     document.querySelectorAll('[data-source-mode]').forEach(button => button.addEventListener('click', () => setSourceMode(button.dataset.sourceMode)));
     document.querySelectorAll('[data-deck-picker-target]').forEach(button => button.addEventListener('click', () => openDeckPicker(button.dataset.deckPickerTarget)));
     document.querySelectorAll('[data-deck-picker-mode]').forEach(button => button.addEventListener('click', () => setDeckPickerMode(button.dataset.deckPickerMode)));
@@ -3135,7 +3192,8 @@
 
   window.WLPStudyQStandard = Object.freeze({
     version: STUDYQ_STANDARD_VERSION,
-    runPreProgressPolishSelfTest
+    runPreProgressPolishSelfTest,
+    getReviewSourceState: () => JSON.parse(JSON.stringify(reviewSourceState))
   });
 
   applyStudyHubReturnNavigation();
@@ -3146,7 +3204,7 @@
       if (!response.ok) throw new Error(`Master TSV ${response.status}`);
       rows = applyOverrides(parseTSV(await response.text()));
       rowByWordId = new Map(rows.map(row => [clean(row.WordID), row]).filter(([wordId]) => wordId));
-      reviewByWordId = readReviewMap();
+      reviewByWordId = await readReviewMap();
       setDefaults();
       const openedContinueContext = openRequestedContinueContext();
       const requestedSession = new URLSearchParams(location.search).get('session');
