@@ -1852,6 +1852,9 @@
     else sessions.push(record);
     writeStudySessions(sessions);
     updateStandardStudyContext(isComplete ? 'completed' : 'incomplete', record.wordIds, record.plannedExperienceCount);
+    if (isComplete) {
+      window.dispatchEvent(new CustomEvent('wlp-standard-practice-session-completed', { detail: { session: JSON.parse(JSON.stringify(record)) } }));
+    }
     return record;
   }
 
