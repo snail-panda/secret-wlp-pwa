@@ -1,4 +1,4 @@
-/* WLP v1.8.6.262 — Review default Canonical authority cutover.
+/* WLP v1.8.6.263 — Review default Canonical authority + automatic-sync hook.
    Normal review.html now reads Review / evidence / interaction history through the ACTIVE
    Canonical Storage Compatibility Facade and routes real Suggested Attention Apply / Keep
    actions into the proven persistent Canonical outbox contracts.
@@ -12,7 +12,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.262-review-default-canonical-cutover-v1';
+  const APP_VERSION='1.8.6.263-review-default-canonical-auto-sync-hook-v1';
   const ROLLBACK_FLAG='wlpLegacyReview';
   const AUDIT_FLAG='wlpReviewCutoverAudit';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1,META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',STATE_STORE='learning_state',EVENT_STORE='learning_events';
@@ -129,7 +129,7 @@
       const identitiesOk=uuidLike(plan.actionId)&&plan.mutations.every(m=>uuidLike(m.mutationId))&&uuidLike(plan.eventId),transportOk=ours.length===2&&outbox.length===2&&ours.every(r=>r?.transportEligible===true&&r?.diagnosticOnly===false),domOk=!domLevel||domLevel===cap(plan.toLevel),overlayOk=clean(overlayRecord.reviewLevel).toLowerCase()===plan.toLevel&&Number(overlayRecord.firstSeen||0)===Number(baseRecord.firstSeen||0)&&overlayInteractions.length===baseInteractions.length+1&&eventFound&&domOk;
       const blocking=[];if(added!==2||!transportOk)blocking.push(`Expected one state/event action pair; wrote ${added}, outbox ${outbox.length}.`);if(!identitiesOk)blocking.push('Review Apply identity is not production UUID shape.');if(!overlayOk)blocking.push('Review Apply pending overlay did not converge through Canonical facade + DOM.');if(!baseUntouched)blocking.push('Canonical learning_state base changed before steady sync.');if(!legacyUntouched)blocking.push('Legacy localStorage changed during Canonical Review Apply.');
       if(blocking.length){if(wrote)await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();throw new Error(blocking.join(' '));}
-      state.lastActionReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_ACTION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),action:'apply',summary:{wordId,fromLevel:plan.fromLevel,toLevel:plan.toLevel,outboxRowsBefore:0,outboxRowsAfter:outbox.length,transportEligible:transportOk,baseMirrorUntouched:baseUntouched,legacyLocalStorageUntouched:legacyUntouched,pass:true},plan:{actionId:plan.actionId,eventType:'attention_set',mutationIds:ours.map(r=>r.mutationId).sort(),eventId:plan.eventId}};return{pass:true,pending:true,report:clone(state.lastActionReport)};
+      state.lastActionReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_ACTION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),action:'apply',summary:{wordId,fromLevel:plan.fromLevel,toLevel:plan.toLevel,outboxRowsBefore:0,outboxRowsAfter:outbox.length,transportEligible:transportOk,baseMirrorUntouched:baseUntouched,legacyLocalStorageUntouched:legacyUntouched,pass:true},plan:{actionId:plan.actionId,eventType:'attention_set',mutationIds:ours.map(r=>r.mutationId).sort(),eventId:plan.eventId}};window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged',{detail:{source:'review',actionId:plan.actionId,wordId,eventType:'attention_set',mutationCount:2}}));return{pass:true,pending:true,report:clone(state.lastActionReport)};
     }catch(error){if(db&&plan&&wrote){try{await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();}catch(cleanupError){console.error('Canonical Review Apply cleanup failed',cleanupError);}}return{pass:false,error:error?.message||String(error)};}finally{try{db?.close();}catch(_){}state.busy=false;}
   }
 
@@ -145,7 +145,7 @@
       const identitiesOk=uuidLike(plan.actionId)&&uuidLike(plan.mutations[0].mutationId)&&uuidLike(plan.eventId),transportOk=added===1&&ours.length===1&&outbox.length===1&&ours[0]?.transportEligible===true&&ours[0]?.diagnosticOnly===false,overlayOk=overlayInteractions.length===baseInteractions.length+1&&eventFound&&Number(state.facade.overlayEventMutationsApplied||0)===1&&Number(state.facade.overlayStateMutationsApplied||0)===0&&reviewUnchanged;
       const blocking=[];if(!transportOk)blocking.push(`Expected one event-only outbox row; wrote ${added}, outbox ${outbox.length}.`);if(!identitiesOk)blocking.push('Review Keep identity is not production UUID shape.');if(!overlayOk)blocking.push('Review Keep event-only overlay did not converge through the Canonical facade.');if(!baseUntouched)blocking.push('Canonical base changed before steady sync.');if(!legacyUntouched)blocking.push('Legacy interaction localStorage changed during Canonical Review Keep.');
       if(blocking.length){if(wrote)await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();throw new Error(blocking.join(' '));}
-      state.lastActionReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_ACTION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),action:'keep',summary:{wordId,fromLevel:plan.fromLevel,suggestedLevel:plan.toLevel,outboxRowsBefore:0,outboxRowsAfter:outbox.length,transportEligible:transportOk,reviewStateUnchanged:reviewUnchanged,baseMirrorUntouched:baseUntouched,legacyLocalStorageUntouched:legacyUntouched,pass:true},plan:{actionId:plan.actionId,eventType:'attention_suggestion_kept',mutationIds:[ours[0].mutationId],eventId:plan.eventId}};return{pass:true,pending:true,report:clone(state.lastActionReport)};
+      state.lastActionReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_ACTION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),action:'keep',summary:{wordId,fromLevel:plan.fromLevel,suggestedLevel:plan.toLevel,outboxRowsBefore:0,outboxRowsAfter:outbox.length,transportEligible:transportOk,reviewStateUnchanged:reviewUnchanged,baseMirrorUntouched:baseUntouched,legacyLocalStorageUntouched:legacyUntouched,pass:true},plan:{actionId:plan.actionId,eventType:'attention_suggestion_kept',mutationIds:[ours[0].mutationId],eventId:plan.eventId}};window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged',{detail:{source:'review',actionId:plan.actionId,wordId,eventType:'attention_suggestion_kept',mutationCount:1}}));return{pass:true,pending:true,report:clone(state.lastActionReport)};
     }catch(error){if(db&&plan&&wrote){try{await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();}catch(cleanupError){console.error('Canonical Review Keep cleanup failed',cleanupError);}}return{pass:false,error:error?.message||String(error)};}finally{try{db?.close();}catch(_){}state.busy=false;}
   }
 
@@ -163,6 +163,8 @@
   }
   function exportAudit(){if(!state.auditReport)return;const blob=new Blob([JSON.stringify(state.auditReport,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-review-default-cutover-audit-${state.auditReport.generatedAt.replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
 
-  window.WLPCanonicalReviewWriteCandidate=Object.freeze({version:7,requested,rollbackRequested,auditRequested,isActive:()=>state.active,prepare,readReviewRecords,readProgressRecord,readArray,readAIEvents,readInteractionEvents,applySuggestion,keepSuggestion,getReport:()=>clone(state.lastActionReport),getAuditReport:()=>clone(state.auditReport)});
+  window.addEventListener('wlp-canonical-auto-sync-complete',async event=>{if(!state.active||!event?.detail?.pass)return;try{state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();}catch(error){console.warn('Canonical Review auto-sync completion refresh failed',error);}});
+
+  window.WLPCanonicalReviewWriteCandidate=Object.freeze({version:8,requested,rollbackRequested,auditRequested,isActive:()=>state.active,prepare,readReviewRecords,readProgressRecord,readArray,readAIEvents,readInteractionEvents,applySuggestion,keepSuggestion,getReport:()=>clone(state.lastActionReport),getAuditReport:()=>clone(state.auditReport)});
   if(auditRequested)makePanel();
 })();
