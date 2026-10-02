@@ -274,6 +274,7 @@
   function latestSuggestionKeepTimestamp(wordId,fromLevel,toLevel){
     let latest=0;interactionEvents.forEach(event=>{
       if(String(event?.action||'')!=='attention_suggestion_kept')return;
+      if(event?.canonicalEventOnlyTransportCanary===true)return;
       if(String(event?.wordId||'')!==String(wordId||''))return;
       if(String(event?.fromLevel||'')!==String(fromLevel||'')||String(event?.suggestedLevel||'')!==String(toLevel||''))return;
       latest=Math.max(latest,Number(event?.timestamp)||0);
