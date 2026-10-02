@@ -1,4 +1,4 @@
-/* WLP Canonical Mirror Compatibility Adapter · bootstrap Authority + materialized sync overlay compatible.
+/* WLP v1.8.6.267 · Canonical Mirror Compatibility Adapter · authoritative state overlay on preserved migration evidence.
    Reads only the installed wlp-cloud-v1 IndexedDB mirror and projects it into
    legacy-scanner logical record shapes in memory. Authority v2 introduced explicit
    first_seen_at to learning_state; the adapter carries that exact value into
@@ -8,7 +8,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.250-canonical-compat-adapter-growing-state-v1';
+  const APP_VERSION = '1.8.6.267-canonical-compat-adapter-authoritative-state-overlay-v1';
   const DB_NAME = 'wlp-cloud-v1';
   const DB_VERSION = 1;
   const META_STORE = 'sync_meta';
@@ -428,12 +428,15 @@
       const explicitFirstSeen = toMs(row.first_seen_at);
       if (explicitFirstSeen) explicitFirstSeenRows += 1;
       else blocking.push(`learning_state ${row.card_id} is missing explicit Canonical first_seen_at.`);
+      const authoritativeState = synthesizeLearningState(row);
       let payload;
       if (hasOwn(row, 'source_snapshot') && row.source_snapshot && typeof row.source_snapshot === 'object') {
-        payload = clone(row.source_snapshot);
+        // Preserve migration-only evidence, but current Canonical fields are authority.
+        // A materialized post-cutover mutation must never be hidden by a stale source_snapshot.
+        payload = { ...clone(row.source_snapshot), ...authoritativeState };
         preservedSourceSnapshotRows += 1;
       } else {
-        payload = synthesizeLearningState(row);
+        payload = authoritativeState;
         synthesizedStateRows += 1;
       }
       if (explicitFirstSeen) payload.firstSeen = explicitFirstSeen;
@@ -472,7 +475,7 @@
       payload: record.payload
     }))));
 
-    warnings.push(`${preservedSourceSnapshotRows} learning_state row(s) reuse preserved migration source_snapshot evidence; ${synthesizedStateRows} merged row(s) are projected from authoritative Canonical fields because source_snapshot was intentionally removed during merge materialization.`);
+    warnings.push(`${preservedSourceSnapshotRows} learning_state row(s) preserve migration source_snapshot evidence while authoritative Canonical state fields override it; ${synthesizedStateRows} row(s) are projected directly from authoritative Canonical fields.`);
     warnings.push(`${explicitFirstSeenRows} learning_state row(s) carry explicit Canonical first_seen_at into the compatibility projection.`);
 
     return { records, sourceMasterHash, blocking, warnings, stats, preferenceKeys, synthesizedStateRows, preservedSourceSnapshotRows, explicitFirstSeenRows, projectionHash };
