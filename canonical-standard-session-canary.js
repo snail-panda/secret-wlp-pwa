@@ -1,11 +1,11 @@
-/* WLP v1.8.6.288 — Standard Practice completed-session Canonical transport canary.
+/* WLP v1.8.6.289 — Standard Practice completed-session canary with pending-outbox retry recovery.
    Query-gated only: ?wlpCanonicalStandardSession=1.
    Stages one real completed Standard Practice session that is missing from Canonical learning_sessions.
    Legacy localStorage remains byte-identical. Foreground sync performs the actual transport. */
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.288-standard-practice-session-only-canary-v1';
+  const APP_VERSION = '1.8.6.289-standard-practice-session-only-canary-retry-v1';
   const FLAG = 'wlpCanonicalStandardSession';
   const STANDARD_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const DB_NAME = 'wlp-cloud-v1', DB_VERSION = 1;
@@ -79,7 +79,13 @@
   }
 
   async function stageLatest(){
-    if(state.busy||state.staged)return;state.busy=true;state.button.disabled=true;setStatus('CHECKING · Looking for one completed unsynced Standard Practice session…');let db=null;
+    if(state.busy)return;
+    if(state.staged?.recovered){
+      state.busy=true;state.button.disabled=true;setStatus('RETRYING · Existing completed Standard session outbox is being retried…',null,`${state.staged.sourceSessionId} · no new mutation will be staged`);
+      window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged',{detail:{source:'standard-session-canary-retry',tableName:'learning_sessions',mutationKind:'insert',mutationCount:1,actionId:state.staged.actionId,sessionId:state.staged.sourceSessionId}}));
+      state.busy=false;return;
+    }
+    if(state.staged)return;state.busy=true;state.button.disabled=true;setStatus('CHECKING · Looking for one completed unsynced Standard Practice session…');let db=null;
     try{
       db=await openDb();const [meta,cursorMeta,outbox]=await Promise.all([getMeta(db,META_KEY),getMeta(db,CURSOR_KEY),getOutbox(db)]);
       if(!meta||clean(meta.candidateKey)!==BASE.candidateKey||Number(meta.headVersion||0)!==BASE.headVersion||clean(meta.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Standard session canary requires ACTIVE Authority v3.');
@@ -101,9 +107,28 @@
     finally{try{db?.close();}catch(_){}state.busy=false;if(!state.staged)state.button.disabled=false;}
   }
 
+  async function restorePendingCanary(){
+    let db=null;
+    try{
+      db=await openDb();const [meta,cursorMeta,outbox]=await Promise.all([getMeta(db,META_KEY),getMeta(db,CURSOR_KEY),getOutbox(db)]);
+      if(outbox.length!==1)return false;
+      const mutation=outbox[0];
+      if(mutation?.canonicalStandardSessionTransportCanary!==true||mutation?.transportEligible!==true||mutation?.tableName!=='learning_sessions'||mutation?.mutationKind!=='insert')return false;
+      const sourceSessionId=clean(mutation?.payload?.source_session_id),canonicalSessionId=clean(mutation?.rowKey),actionId=clean(mutation?.actionId),mutationId=clean(mutation?.mutationId);
+      if(!sourceSessionId||!canonicalSessionId||!actionId||!mutationId)return false;
+      state.legacyRaw=localStorage.getItem(STANDARD_SESSION_KEY);
+      state.staged={actionId,mutationId,canonicalSessionId,sourceSessionId,cursorBefore:Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0)),recovered:true};
+      state.report={format:'WLP_CANONICAL_STANDARD_SESSION_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'recover-existing-completed-standard-session-outbox',summary:{candidateFound:true,staged:true,recoveredPendingOutbox:true,sourceSessionId,cursorBefore:state.staged.cursorBefore,outboxBefore:1,outboxAfter:1,blockingIssues:0,pass:true},plan:{actionId,mutationId,sessionId:canonicalSessionId,sourceSessionId},issues:{blocking:[],warnings:['Recovered the already-staged v288 completed Standard Practice session mutation. Retry reuses the same actionId/mutationId and does not stage a second write.']},invariants:{oneSessionOnlyMutation:true,noLearningEventMutation:true,noLegacyLocalStorageWrite:true,noDuplicateStageOnRetry:true}};
+      state.button.disabled=false;state.button.textContent='Retry staged session';
+      setStatus('PENDING · Existing completed Standard session outbox recovered.',true,`${sourceSessionId} · retry will reuse the same staged mutation`);
+      return true;
+    }catch(_){return false;}
+    finally{try{db?.close();}catch(_){}}
+  }
+
   async function onSyncComplete(event){
     const detail=event?.detail||{};if(!state.staged||clean(detail.actionId)!==state.staged.actionId)return;
-    if(detail.pass!==true){setStatus(`CHECK · ${clean(detail.error)||'Foreground sync did not complete.'}`,false,'The staged outbox row is intentionally retained on failure.');return;}
+    if(detail.pass!==true){state.button.disabled=false;state.button.textContent='Retry staged session';if(state.staged)state.staged.recovered=true;setStatus(`CHECK · ${clean(detail.error)||'Foreground sync did not complete.'}`,false,'The same staged outbox row is retained. Retry will not create another mutation.');return;}
     let db=null;
     try{
       db=await openDb();const [row,outbox,meta,cursorMeta]=await Promise.all([getRow(db,SESSION_STORE,state.staged.canonicalSessionId),getOutbox(db),getMeta(db,META_KEY),getMeta(db,CURSOR_KEY)]);
@@ -117,4 +142,5 @@
 
   window.addEventListener('wlp-canonical-auto-sync-complete',onSyncComplete);
   makePanel();setStatus('READY · Canary is query-gated. No write has been staged.',true,'Press the button to transport one existing completed Standard Practice session that is missing from Canonical.');
+  void restorePendingCanary();
 })();
