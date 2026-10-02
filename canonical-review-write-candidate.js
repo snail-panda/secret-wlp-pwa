@@ -1,119 +1,168 @@
-/* WLP v1.8.6.259 — Review Canonical read authority preflight.
-   Query-gated by ?wlpCanonicalReviewRead=1; normal Review remains unchanged.
-   This read-only preflight treats the installed Canonical materialized mirror as authority,
-   verifies the exact post-v256 sync state directly from IndexedDB, renders Review through
-   the Canonical Storage Compatibility Facade, and classifies the known legacy divergence
-   without treating stale localStorage membership as authority. No write occurs. */
+/* WLP v1.8.6.262 — Review default Canonical authority cutover.
+   Normal review.html now reads Review / evidence / interaction history through the ACTIVE
+   Canonical Storage Compatibility Facade and routes real Suggested Attention Apply / Keep
+   actions into the proven persistent Canonical outbox contracts.
+
+   Apply  -> learning_state patch + attention_set event (2 mutations)
+   Keep   -> attention_suggestion_kept event only (1 mutation)
+
+   Cloud transport remains manual. One pending Canonical action must be synced before another.
+   Explicit rollback: ?wlpLegacyReview=1 restores the pre-cutover localStorage Review path.
+   Optional read-only cutover audit panel: ?wlpReviewCutoverAudit=1. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.259-review-canonical-read-authority-preflight-v1';
-  const FLAG='wlpCanonicalReviewRead';
+  const APP_VERSION='1.8.6.262-review-default-canonical-cutover-v1';
+  const ROLLBACK_FLAG='wlpLegacyReview';
+  const AUDIT_FLAG='wlpReviewCutoverAudit';
+  const DB_NAME='wlp-cloud-v1',DB_VERSION=1,META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',STATE_STORE='learning_state',EVENT_STORE='learning_events';
+  const META_KEY='authority_mirror',CURSOR_KEY='sync_cursor';
   const PROGRESS_PREFIX='fc:wordid:';
   const STUDYQ_EVENT_KEY='wlp:studyq-events:v1';
   const STUDYQ_SESSION_KEY='wlp:studyq-sessions:v1';
   const AI_STUDY_EVENT_KEY='wlp:ai-study-events:v1';
   const INTERACTION_EVENTS_KEY='wlp:stage7:interaction-events:v1';
-  const DB_NAME='wlp-cloud-v1',DB_VERSION=1,META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',META_KEY='authority_mirror',CURSOR_KEY='sync_cursor';
+  const CARD_NAMESPACE_UUID='87dc20ed-dd35-5ba3-8bde-04bf389874ce';
   const EXPECTED={
-    candidateKey:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',headVersion:3,migrationVersion:'3',manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63',canonicalRows:21425,
-    materializedSyncCursor:20,materializedRows:21437,materializedManifestHash:'d807c9c222f48a9749d7a46a64cbe1ea953ef0df43a260e1cd701a6f30025d8e',
-    reviewCounts:{total:24,high:9,medium:11,light:2,unassigned:2},
-    canonicalOnly:['2884','3817','5396','5397','5398','5553','5909','6390','6792'],legacyOnly:['2876']
+    candidateKey:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',
+    headVersion:3,migrationVersion:'3',manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63',canonicalRows:21425,
+    cutoverCursor:21,cutoverRows:21438,cutoverManifest:'85e445690dfe3edd037ddc473ab1a61afdd9dc7457cf925a7e165cf3f89b55be',
+    reviewCounts:{total:24,high:9,medium:11,light:2,unassigned:2}
   };
-  const requested=new URLSearchParams(location.search).get(FLAG)==='1';
-  const state={active:false,facade:null,report:null,prepareError:'',observer:null,auditTimer:null,mirror:null,readCounts:{review:0,progress:0,standard:0,standardSessions:0,ai:0,interaction:0}};
+  const params=new URLSearchParams(location.search);
+  const rollbackRequested=params.get(ROLLBACK_FLAG)==='1';
+  const auditRequested=params.get(AUDIT_FLAG)==='1';
+  const requested=!rollbackRequested;
+  const state={active:false,busy:false,facade:null,prepareError:'',lastActionReport:null,auditReport:null,auditTimer:null,observer:null,readCounts:{review:0,progress:0,standard:0,standardSessions:0,ai:0,interaction:0}};
 
-  const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
-  const clean=v=>String(v??'').trim();
-  const sameArray=(a,b)=>JSON.stringify([...(a||[])].sort((x,y)=>String(x).localeCompare(String(y),undefined,{numeric:true})))===JSON.stringify([...(b||[])].sort((x,y)=>String(x).localeCompare(String(y),undefined,{numeric:true})));
+  function clone(v){return v==null?v:JSON.parse(JSON.stringify(v));}
+  function clean(v){return String(v??'').trim();}
+  function stableValue(v){if(Array.isArray(v))return v.map(stableValue);if(v&&typeof v==='object'){const o={};Object.keys(v).sort().forEach(k=>{if(v[k]!==undefined)o[k]=stableValue(v[k]);});return o;}return v;}
+  function stableStringify(v){return JSON.stringify(stableValue(v));}
+  function utf8Bytes(v){return new TextEncoder().encode(String(v??''));}
+  async function sha256(v){const out=new Uint8Array(await crypto.subtle.digest('SHA-256',utf8Bytes(v)));return [...out].map(x=>x.toString(16).padStart(2,'0')).join('');}
+  function uuidToBytes(v){const h=String(v||'').replace(/-/g,'');if(!/^[0-9a-f]{32}$/i.test(h))throw new Error('Invalid UUID namespace.');return new Uint8Array(h.match(/../g).map(x=>parseInt(x,16)));}
+  function bytesToUuid(b){const h=[...b].map(x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}
+  async function uuidV5(ns,name){const a=uuidToBytes(ns),b=utf8Bytes(name),all=new Uint8Array(a.length+b.length);all.set(a);all.set(b,a.length);const hash=new Uint8Array(await crypto.subtle.digest('SHA-1',all));const out=hash.slice(0,16);out[6]=(out[6]&0x0f)|0x50;out[8]=(out[8]&0x3f)|0x80;return bytesToUuid(out);}
+  function uuidLike(v){return /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||''));}
   function req(r){return new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error||new Error('IndexedDB request failed.'));});}
   function txDone(tx){return new Promise((res,rej)=>{tx.oncomplete=()=>res();tx.onabort=()=>rej(tx.error||new Error('IndexedDB transaction aborted.'));tx.onerror=()=>rej(tx.error||new Error('IndexedDB transaction failed.'));});}
-  async function readMirrorStatus(){
-    if(!('indexedDB' in window))throw new Error('IndexedDB is unavailable.');
-    let db=null;
-    try{
-      db=await new Promise((resolve,reject)=>{let upgrading=false;const r=indexedDB.open(DB_NAME,DB_VERSION);r.onupgradeneeded=()=>{upgrading=true;try{r.transaction.abort();}catch(_){}};r.onsuccess=()=>{if(upgrading){r.result.close();reject(new Error('wlp-cloud-v1 is not already installed at schema v1.'));return;}const candidate=r.result;const missing=[META_STORE,OUTBOX_STORE].filter(s=>!candidate.objectStoreNames.contains(s));if(missing.length){candidate.close();reject(new Error(`Missing IndexedDB store(s): ${missing.join(', ')}.`));return;}resolve(candidate);};r.onerror=()=>reject(r.error||new Error('Could not open wlp-cloud-v1.'));r.onblocked=()=>reject(new Error('Opening wlp-cloud-v1 is blocked by another WLP tab.'));});
-      const tx=db.transaction([META_STORE,OUTBOX_STORE],'readonly'),metaStore=tx.objectStore(META_STORE),outboxStore=tx.objectStore(OUTBOX_STORE);
-      const [meta,cursor,outbox]=await Promise.all([req(metaStore.get(META_KEY)),req(metaStore.get(CURSOR_KEY)),req(outboxStore.getAll())]);await txDone(tx);
-      const syncCursor=Math.max(Number(meta?.materializedSyncCursor||0),Number(meta?.lastSyncCursor||0),Number(cursor?.lastSyncCursor||0));
-      return{meta:clone(meta||{}),cursor:clone(cursor||{}),syncCursor,materializedManifestHash:String(meta?.materializedManifestHash||cursor?.materializedManifestHash||''),materializedRows:Number(meta?.materializedCanonicalRowCount||cursor?.materializedCanonicalRowCount||0),outboxRows:Array.isArray(outbox)?outbox.length:0};
-    }finally{try{db?.close();}catch(_){}}
-  }
+  function openDb(){return new Promise((resolve,reject)=>{let upgrading=false;const r=indexedDB.open(DB_NAME,DB_VERSION);r.onupgradeneeded=()=>{upgrading=true;try{r.transaction.abort();}catch(_){}};r.onsuccess=()=>{if(upgrading){r.result.close();reject(new Error('wlp-cloud-v1 is not already installed at schema v1.'));return;}const db=r.result,missing=[META_STORE,OUTBOX_STORE,STATE_STORE,EVENT_STORE].filter(s=>!db.objectStoreNames.contains(s));if(missing.length){db.close();reject(new Error(`Missing IndexedDB store(s): ${missing.join(', ')}.`));return;}resolve(db);};r.onerror=()=>reject(r.error||new Error('Could not open wlp-cloud-v1.'));r.onblocked=()=>reject(new Error('Opening wlp-cloud-v1 is blocked by another WLP tab.'));});}
+  async function getMeta(db,key=META_KEY){const tx=db.transaction(META_STORE,'readonly'),v=await req(tx.objectStore(META_STORE).get(key));await txDone(tx);return v||null;}
+  async function getRow(db,store,key){const tx=db.transaction(store,'readonly'),v=await req(tx.objectStore(store).get(key));await txDone(tx);return v||null;}
+  async function getOutbox(db){const tx=db.transaction(OUTBOX_STORE,'readonly'),v=await req(tx.objectStore(OUTBOX_STORE).getAll());await txDone(tx);return Array.isArray(v)?v:[];}
+  async function cardIdForWordId(wordId){return uuidV5(CARD_NAMESPACE_UUID,`card|wid:${clean(wordId)}`);}
+  async function readMirrorStatus(){let db=null;try{db=await openDb();const [meta,cursor,outbox]=await Promise.all([getMeta(db,META_KEY),getMeta(db,CURSOR_KEY),getOutbox(db)]);return{meta:clone(meta||{}),cursor:clone(cursor||{}),syncCursor:Math.max(Number(meta?.materializedSyncCursor||0),Number(meta?.lastSyncCursor||0),Number(cursor?.lastSyncCursor||0)),materializedManifestHash:String(meta?.materializedManifestHash||cursor?.materializedManifestHash||''),materializedRows:Number(meta?.materializedCanonicalRowCount||cursor?.materializedCanonicalRowCount||0),outboxRows:outbox.length};}finally{try{db?.close();}catch(_){}}}
+
   function makePanel(){
-    if(!requested||document.getElementById('wlp-review-read-audit-box'))return;
-    const box=document.createElement('section');box.id='wlp-review-read-audit-box';box.setAttribute('aria-live','polite');
+    if(!auditRequested||document.getElementById('wlp-review-default-audit-box'))return;
+    const box=document.createElement('section');box.id='wlp-review-default-audit-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100000;right:8px;top:max(8px,env(safe-area-inset-top));width:min(430px,calc(100vw - 16px));max-height:56vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Review Read · authority preflight</strong><div id="wlp-review-read-audit-status" style="margin-top:4px">Preparing Canonical Review…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-review-read-audit-export" type="button" disabled>Export JSON</button><a href="./review.html" style="align-self:center">Return to normal Review</a></div><div id="wlp-review-read-audit-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
-    document.body.appendChild(box);box.querySelector('button').style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';
-    document.getElementById('wlp-review-read-audit-export')?.addEventListener('click',exportReport);
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Review · default cutover audit</strong><div id="wlp-review-default-audit-status" style="margin-top:4px">Preparing Canonical Review…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-review-default-audit-export" type="button" disabled>Export JSON</button></div><div id="wlp-review-default-audit-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    document.body.appendChild(box);const button=document.getElementById('wlp-review-default-audit-export');if(button){button.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';button.addEventListener('click',exportAudit);}
   }
-  function setStatus(text,ok=null,detail=''){
-    const el=document.getElementById('wlp-review-read-audit-status');if(el){el.textContent=text;el.style.fontWeight=ok===null?'500':'700';el.style.color=ok===true?'#18794e':ok===false?'#b42318':'#1c2d22';}
-    const d=document.getElementById('wlp-review-read-audit-detail');if(d)d.textContent=detail;
-    const exp=document.getElementById('wlp-review-read-audit-export');if(exp)exp.disabled=!state.report;
-  }
-  async function waitForStorageFacade(){for(let i=0;i<80;i++){const provider=window.WLPCanonicalStorageCompatibilityFacade;if(provider?.open)return provider;await new Promise(r=>setTimeout(r,25));}return null;}
-  function normalizeRecord(record){
-    const wordId=clean(record?.wordId);const review=record?.review===true||record?.lastResult==='review';const rawLevel=clean(record?.reviewLevel).toLowerCase();const reviewLevel=['high','medium','light'].includes(rawLevel)?rawLevel:'';const reviewReasons=Array.isArray(record?.reviewReasons)?record.reviewReasons.map(x=>clean(x).toLowerCase()).filter(Boolean).sort():[];
-    return{wordId,review,reviewLevel,reviewReasons,firstSeen:Number(record?.firstSeen||0),known:record?.known===true,studied:record?.studied===true||record?.known===true};
-  }
-  function readLegacyReview(){
-    const out=[];for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key||!key.startsWith(PROGRESS_PREFIX))continue;try{const raw=JSON.parse(localStorage.getItem(key)||'{}'),record=normalizeRecord({...raw,wordId:raw.wordId||key.slice(PROGRESS_PREFIX.length)});if(record.wordId&&record.review)out.push(record);}catch(_){}}
-    return out.sort((a,b)=>a.wordId.localeCompare(b.wordId,undefined,{numeric:true}));
-  }
-  function legacyProgress(wordId){try{return normalizeRecord({...JSON.parse(localStorage.getItem(`${PROGRESS_PREFIX}${wordId}`)||'{}'),wordId});}catch{return normalizeRecord({wordId});}}
-  function canonicalReview(){return (state.facade?.readReviewRecords?.()||[]).map(normalizeRecord).filter(x=>x.wordId&&x.review).sort((a,b)=>a.wordId.localeCompare(b.wordId,undefined,{numeric:true}));}
-  function canonicalProgress(wordId){return normalizeRecord(state.facade?.readProgressRecord?.(wordId)||{wordId});}
-  function counts(records){const out={total:records.length,high:0,medium:0,light:0,unassigned:0};for(const r of records){if(r.reviewLevel)out[r.reviewLevel]++;else out.unassigned++;}return out;}
-  function domCounts(){const n=id=>Number(clean(document.getElementById(id)?.textContent).replace(/,/g,''));return{total:n('review-total'),high:n('review-high'),medium:n('review-medium'),light:n('review-light'),unassigned:n('review-unassigned')};}
-  function sameReasons(a,b){return JSON.stringify(a||[])===JSON.stringify(b||[]);}
-  function sameCounts(a,b){return Object.keys(EXPECTED.reviewCounts).every(k=>Number(a?.[k])===Number(b?.[k]));}
-  function visibleSuggestionCount(){return [...document.querySelectorAll('[data-review-suggestion]')].filter(el=>el.offsetParent!==null).length;}
-  function scheduleAudit(){if(!state.active||state.report)return;clearTimeout(state.auditTimer);state.auditTimer=setTimeout(runAudit,120);}
-  function observe(){if(state.observer)return;const root=document.getElementById('review-list');if(!root)return;state.observer=new MutationObserver(scheduleAudit);state.observer.observe(root,{childList:true,subtree:true});scheduleAudit();}
-  async function runAudit(){
-    if(!state.active||state.report)return;const list=document.getElementById('review-list');if(!list||list.querySelector('.review-loading')){scheduleAudit();return;}
-    const canonical=canonicalReview(),legacy=readLegacyReview(),cMap=new Map(canonical.map(r=>[r.wordId,r])),lMap=new Map(legacy.map(r=>[r.wordId,r]));
-    const canonicalOnly=[...cMap.keys()].filter(id=>!lMap.has(id)),legacyOnly=[...lMap.keys()].filter(id=>!cMap.has(id)),attentionMismatches=[],reasonMismatches=[];
-    for(const [id,c] of cMap){const l=lMap.get(id);if(!l)continue;if(c.reviewLevel!==l.reviewLevel)attentionMismatches.push({wordId:id,legacy:l.reviewLevel,canonical:c.reviewLevel});if(!sameReasons(c.reviewReasons,l.reviewReasons))reasonMismatches.push({wordId:id,legacy:l.reviewReasons,canonical:c.reviewReasons});}
-    const canonicalCounts=counts(canonical),legacyCounts=counts(legacy),dom=domCounts(),domMatchesCanonical=Object.keys(canonicalCounts).every(k=>Number.isFinite(dom[k])&&dom[k]===canonicalCounts[k]);
-    const unresolved=canonical.filter(r=>{const bundle=state.facade?.getCardBundle?.(r.wordId);return !bundle?.card||!bundle?.content;}).map(r=>r.wordId);
-    const missingFirstSeen=canonical.filter(r=>!(Number(r.firstSeen)>0)).map(r=>r.wordId);
-    const c2876=canonicalProgress('2876'),l2876=legacyProgress('2876'),knownLegacyDivergence2876=c2876.review===false&&c2876.studied===true&&l2876.review===true;
-    const knownMembershipDivergence=sameArray(canonicalOnly,EXPECTED.canonicalOnly)&&sameArray(legacyOnly,EXPECTED.legacyOnly)&&attentionMismatches.length===0&&reasonMismatches.length===0&&knownLegacyDivergence2876;
-    const mirror=state.mirror||{},mirrorCurrent=mirror.syncCursor===EXPECTED.materializedSyncCursor&&mirror.materializedRows===EXPECTED.materializedRows&&mirror.materializedManifestHash===EXPECTED.materializedManifestHash&&mirror.outboxRows===0;
-    const blocking=[];
-    if(!mirrorCurrent)blocking.push(`Materialized mirror is not the exact post-v256 state (cursor ${mirror.syncCursor||0}, rows ${mirror.materializedRows||0}).`);
-    if(!sameCounts(canonicalCounts,EXPECTED.reviewCounts))blocking.push(`Canonical Review counts changed unexpectedly (${canonicalCounts.total} total).`);
-    if(!domMatchesCanonical)blocking.push('Rendered Review summary does not match Canonical Review counts.');
-    if(unresolved.length)blocking.push(`${unresolved.length} Canonical Review row(s) cannot resolve card + content.`);
-    if(missingFirstSeen.length)blocking.push(`${missingFirstSeen.length} Canonical Review row(s) are missing explicit firstSeen.`);
-    if(!knownMembershipDivergence)blocking.push('Legacy/Canonical divergence no longer matches the already-classified post-cutover difference.');
-    const pass=blocking.length===0,warnings=[];
-    warnings.push(`Legacy localStorage is a stale per-device projection here: Canonical-only ${canonicalOnly.length}, legacy-only ${legacyOnly.length}. This divergence is diagnostic, not authority.`);
-    warnings.push('WID2876 is intentionally Canonical Studied while this device still has a legacy Review row from before the Study write cutover.');
-    warnings.push('Suggested Attention Apply/Keep remain locked on this read-only route. Normal review.html is unchanged without ?wlpCanonicalReviewRead=1.');
-    state.report={format:'WLP_CANONICAL_REVIEW_READ_AUTHORITY_PREFLIGHT',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'query-gated-canonical-authority-read-preflight-with-direct-materialized-mirror-check',device:{platform:/iPhone|iPad|iPod/i.test(navigator.userAgent)?'iPhone Safari/WebKit':'Windows Browser'},authority:{candidateKey:mirror.meta?.candidateKey||state.facade?.meta?.candidateKey||null,headVersion:mirror.meta?.headVersion??state.facade?.meta?.headVersion??null,snapshotManifestHash:mirror.meta?.snapshotManifestHash||state.facade?.meta?.snapshotManifestHash||null,materializedSyncCursor:mirror.syncCursor,materializedManifestHash:mirror.materializedManifestHash||null,materializedRows:mirror.materializedRows},summary:{canonicalReviewRows:canonical.length,legacyReviewRows:legacy.length,canonicalOnly:canonicalOnly.length,legacyOnly:legacyOnly.length,attentionMismatches:attentionMismatches.length,learningNeedsMismatches:reasonMismatches.length,knownMembershipDivergence,knownLegacyDivergence2876,visibleSuggestedAttention:visibleSuggestionCount(),pendingOutboxRows:mirror.outboxRows,overlayMutationsApplied:Number(state.facade?.overlayMutationsApplied||0),domMatchesCanonical,unresolvedCanonicalRows:unresolved.length,missingFirstSeenRows:missingFirstSeen.length,mirrorCurrent,blockingIssues:blocking.length,nextPhaseEligible:pass,pass},counts:{canonical:canonicalCounts,legacy:legacyCounts,dom},mismatches:{canonicalOnly,legacyOnly,attention:attentionMismatches,learningNeeds:reasonMismatches},spotCheck2876:{canonical:c2876,legacy:l2876},mirror:{syncCursor:mirror.syncCursor,materializedRows:mirror.materializedRows,materializedManifestHash:mirror.materializedManifestHash,outboxRows:mirror.outboxRows},readCounts:clone(state.readCounts),checks:[['Direct IndexedDB mirror is exact post-v256 state',mirrorCurrent,`cursor ${mirror.syncCursor} · ${mirror.materializedRows} rows`],['Canonical Review counts are stable',sameCounts(canonicalCounts,EXPECTED.reviewCounts),`${canonicalCounts.total} · H${canonicalCounts.high}/M${canonicalCounts.medium}/L${canonicalCounts.light}/U${canonicalCounts.unassigned}`],['Review DOM matches Canonical authority',domMatchesCanonical,`${dom.total} rendered`],['All Canonical Review rows resolve card + content',unresolved.length===0,unresolved.length?unresolved.join(', '):'24/24'],['All Canonical Review rows retain explicit firstSeen',missingFirstSeen.length===0,missingFirstSeen.length?missingFirstSeen.join(', '):'24/24'],['Legacy divergence matches known post-cutover state',knownMembershipDivergence,`canonical-only ${canonicalOnly.length} · legacy-only ${legacyOnly.length}`],['WID2876 stale legacy Review is explained by Canonical Studied transition',knownLegacyDivergence2876,`Canonical ${c2876.studied?'Studied':'not Studied'} / legacy ${l2876.review?'Review':'not Review'}`]].map(([name,ok,evidence])=>({name,pass:Boolean(ok),evidence:String(evidence)})),issues:{blocking,warnings},invariants:{normalReviewRouteUnchanged:true,reviewRenderedFromCanonicalFacade:true,canonicalIsAuthorityForPreflight:true,legacyUsedForDiagnosticsOnly:true,noCloudWrites:true,noIndexedDbWrites:true,noLocalStorageWritesByAudit:true,suggestionWritesLocked:true}};
-    setStatus(pass?'PASS · Canonical Review authority is ready for the next cutover step.':`BLOCKED · ${blocking.length} authority preflight issue(s).`,pass,`Canonical ${canonical.length} · Legacy ${legacy.length} · DOM ${dom.total} · cursor ${mirror.syncCursor}. Export JSON.`);
-  }
+  function setAuditStatus(text,ok=null,detail=''){const el=document.getElementById('wlp-review-default-audit-status');if(el){el.textContent=text;el.style.fontWeight=ok===null?'500':'700';el.style.color=ok===true?'#18794e':ok===false?'#b42318':'#1c2d22';}const d=document.getElementById('wlp-review-default-audit-detail');if(d)d.textContent=detail;const b=document.getElementById('wlp-review-default-audit-export');if(b)b.disabled=!state.auditReport;}
+  function dispatchRefresh(){window.dispatchEvent(new CustomEvent('wlp-canonical-review-candidate-refresh'));}
+  function nextFrames(n=3){return new Promise(resolve=>{const step=()=>{if(--n<=0)resolve();else requestAnimationFrame(step);};requestAnimationFrame(step);});}
+  function cap(v){const s=String(v||'');return s?s[0].toUpperCase()+s.slice(1):'';}
+  function findLevelText(wordId){for(const card of document.querySelectorAll('.review-card')){const meta=card.querySelector('.review-card-meta')?.textContent||'';if(meta.includes(`WID${wordId}`))return clean(card.querySelector('.review-level-tag')?.textContent);}return'';}
+  async function waitForStorageFacade(){for(let i=0;i<80;i++){const p=window.WLPCanonicalStorageCompatibilityFacade;if(p?.open)return p;await new Promise(r=>setTimeout(r,25));}return null;}
+
   async function prepare(){
     if(!requested)return false;if(state.active)return true;makePanel();
     try{
       const provider=await waitForStorageFacade();if(!provider?.open)throw new Error('Storage Compatibility Facade is unavailable.');
-      const [facade,mirror]=await Promise.all([provider.open(),readMirrorStatus()]),meta=facade.meta||{};
-      if(String(meta.candidateKey||'')!==EXPECTED.candidateKey||Number(meta.headVersion||0)!==EXPECTED.headVersion||String(meta.migrationVersion||'')!==EXPECTED.migrationVersion||String(meta.snapshotManifestHash||'')!==EXPECTED.manifestHash||Number(meta.canonicalRowCount||0)!==EXPECTED.canonicalRows)throw new Error('Review authority preflight requires the exact ACTIVE Authority-v3 bootstrap anchor.');
-      state.facade=facade;state.mirror=mirror;state.active=true;state.prepareError='';setStatus('READY · Rendering Review from Canonical authority…',null,`Direct mirror cursor ${mirror.syncCursor}; no write controls are active.`);observe();return true;
-    }catch(error){state.prepareError=error?.message||String(error);state.active=false;state.report={format:'WLP_CANONICAL_REVIEW_READ_AUTHORITY_PREFLIGHT',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{blockingIssues:1,nextPhaseEligible:false,pass:false},issues:{blocking:[state.prepareError]}};setStatus(`BLOCKED · ${state.prepareError}`,false,'Normal Review remains available without the query flag.');return false;}
+      const facade=await provider.open(),meta=facade.meta||{};
+      if(String(meta.candidateKey||'')!==EXPECTED.candidateKey||Number(meta.headVersion||0)!==EXPECTED.headVersion||String(meta.migrationVersion||'')!==EXPECTED.migrationVersion||String(meta.snapshotManifestHash||'')!==EXPECTED.manifestHash||Number(meta.canonicalRowCount||0)!==EXPECTED.canonicalRows)throw new Error('Review cutover requires the ACTIVE Authority-v3 Canonical mirror.');
+      state.facade=facade;state.active=true;state.prepareError='';if(auditRequested){setAuditStatus('READY · Normal Review is reading Canonical authority.',true,'Waiting for the Review DOM to finish rendering…');observeAudit();}return true;
+    }catch(error){state.prepareError=error?.message||String(error);state.active=false;if(auditRequested){state.auditReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_CUTOVER_AUDIT',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{blockingIssues:1,nextPhaseEligible:false,pass:false},issues:{blocking:[state.prepareError]}};setAuditStatus(`BLOCKED · ${state.prepareError}`,false,'Use ?wlpLegacyReview=1 only as an explicit rollback route.');}return false;}
   }
+
   function readReviewRecords(){state.readCounts.review++;return state.facade?state.facade.readReviewRecords():[];}
   function readProgressRecord(wordId){state.readCounts.progress++;return state.facade?state.facade.readProgressRecord(wordId):{};}
   function readAIEvents(){state.readCounts.ai++;return state.facade?state.facade.readAIStudyEvents():[];}
   function readInteractionEvents(){state.readCounts.interaction++;return state.facade?state.facade.readInteractionEvents():[];}
   function readArray(key){if(!state.facade)return null;if(key===STUDYQ_EVENT_KEY){state.readCounts.standard++;return state.facade.readStudyQEvents();}if(key===STUDYQ_SESSION_KEY){state.readCounts.standardSessions++;return state.facade.readStudyQSessions();}if(key===AI_STUDY_EVENT_KEY){state.readCounts.ai++;return state.facade.readAIStudyEvents();}if(key===INTERACTION_EVENTS_KEY){state.readCounts.interaction++;return state.facade.readInteractionEvents();}if(String(key||'').startsWith(PROGRESS_PREFIX)){state.readCounts.progress++;return state.facade.readProgressRecord(String(key).slice(PROGRESS_PREFIX.length));}return null;}
-  async function blockedWrite(){const message='v259 is a read-only Review authority preflight. Suggested Attention writes are locked on this route.';setStatus(`BLOCKED · ${message}`,false,'Return to normal Review; no storage write occurred.');return{pass:false,error:message};}
-  function exportReport(){if(!state.report)return;const blob=new Blob([JSON.stringify(state.report,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-review-read-authority-preflight-${state.report.generatedAt.replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
 
-  window.WLPCanonicalReviewWriteCandidate=Object.freeze({version:5,requested,isActive:()=>state.active,prepare,readReviewRecords,readProgressRecord,readArray,readAIEvents,readInteractionEvents,applySuggestion:blockedWrite,keepSuggestion:blockedWrite,getReport:()=>clone(state.report)});
-  if(requested)makePanel();
+  async function enqueueMutations(db,mutations){const tx=db.transaction(OUTBOX_STORE,'readwrite'),store=tx.objectStore(OUTBOX_STORE),existing=await Promise.all(mutations.map(m=>req(store.get(m.mutationId))));let wrote=0;mutations.forEach((m,i)=>{if(existing[i]){if(stableStringify(existing[i])!==stableStringify(m))throw new Error('Canonical Review mutation ID collision.');}else{store.add(clone(m));wrote++;}});await txDone(tx);return wrote;}
+  async function cleanupMutations(db,mutations){const tx=db.transaction(OUTBOX_STORE,'readwrite'),store=tx.objectStore(OUTBOX_STORE);for(const m of mutations)store.delete(m.mutationId);await txDone(tx);}
+
+  async function buildApplyPlan(meta,stateRow,args){
+    const wordId=clean(args.wordId),fromLevel=clean(args.fromLevel).toLowerCase(),toLevel=clean(args.toLevel).toLowerCase(),base=clone(stateRow?.payload||{}),cardId=await cardIdForWordId(wordId),baseLevel=clean(base.review_level).toLowerCase();
+    if(!wordId||!['high','medium','light'].includes(fromLevel)||!['high','medium','light'].includes(toLevel)||fromLevel===toLevel)throw new Error('Invalid Suggested Attention Apply payload.');
+    if(String(base.card_id||'')!==cardId)throw new Error(`WID ${wordId} Canonical card identity mismatch.`);
+    if(base.review!==true||baseLevel!==fromLevel)throw new Error(`WID ${wordId} attention changed before Apply (${baseLevel||'none'} ≠ ${fromLevel}).`);
+    const at=new Date().toISOString(),atMs=Date.parse(at),basePayloadHash=await sha256(stableStringify(base));if(basePayloadHash!==String(stateRow.payloadHash||''))throw new Error(`WID ${wordId} base payload hash mismatch.`);
+    const intent={kind:'review-suggested-attention-apply',cardId,wordId,fromLevel,toLevel,evidenceThrough:Number(args.evidenceThrough||0),at,basePayloadHash,baseHeadVersion:Number(meta.headVersion||0),baseCandidateKey:String(meta.candidateKey||''),contract:'review-default-apply-v1'};
+    const actionId=await uuidV5(CARD_NAMESPACE_UUID,`sync-action|${await sha256(stableStringify(intent))}`),stateMutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_state|${actionId}`),eventMutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_events|${actionId}`),eventId=await uuidV5(CARD_NAMESPACE_UUID,`sync-event|attention_set|${actionId}`);
+    const patch={known:false,review:true,review_level:toLevel,last_attention_updated_at:at,revision:Number(base.revision||0)+1,updated_at:at};
+    const shared={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt:at,diagnosticOnly:false,candidateOnly:false,canonicalReviewDefaultCutover:true,transportEligible:true,status:'pending'};
+    const stateMutation={...shared,mutationId:stateMutationId,mutationKind:'patch',tableName:'learning_state',rowKey:cardId,precondition:{payloadHash:basePayloadHash,fields:{review:Boolean(base.review),review_level:base.review_level??null,review_reasons:Array.isArray(base.review_reasons)?clone(base.review_reasons):[],last_attention_updated_at:base.last_attention_updated_at??null,revision:Number(base.revision||0)}},changedFields:Object.keys(patch),patch};stateMutation.mutationHash=await sha256(stableStringify(stateMutation));
+    const reasons=Array.isArray(base.review_reasons)?clone(base.review_reasons):[];
+    const eventPayload={event_id:eventId,source_event_id:actionId,card_id:cardId,session_id:null,event_type:'attention_set',source_stream:'interaction',occurred_at:at,completed_at:null,device_id:meta.deviceKey||null,legacy_word_id:Number(wordId),schema_version:1,payload:{timestamp:atMs,action:'attention_set',wordId,source:'review-suggestion',level:toLevel,reasons,fromLevel,suggested:true,suggestionPolicyVersion:String(args.suggestionPolicyVersion||'1.0.0'),evidenceThrough:Number(args.evidenceThrough||0),canonicalReviewDefaultCutover:true},imported_at:null,supersedes_event_id:null};
+    const eventMutation={...shared,mutationId:eventMutationId,mutationKind:'append',tableName:'learning_events',rowKey:eventId,precondition:{rowMustBeAbsent:true},payload:eventPayload,payloadHash:await sha256(stableStringify(eventPayload))};eventMutation.mutationHash=await sha256(stableStringify(eventMutation));
+    return{kind:'apply',actionId,eventId,wordId,cardId,fromLevel,toLevel,basePayloadHash,baseWrapper:clone(stateRow),at,mutations:[stateMutation,eventMutation]};
+  }
+
+  async function buildKeepPlan(meta,stateRow,args){
+    const wordId=clean(args.wordId),fromLevel=clean(args.fromLevel).toLowerCase(),toLevel=clean(args.toLevel).toLowerCase(),base=clone(stateRow?.payload||{}),cardId=await cardIdForWordId(wordId),baseLevel=clean(base.review_level).toLowerCase();
+    if(!wordId||!['high','medium','light'].includes(fromLevel)||!['high','medium','light'].includes(toLevel)||fromLevel===toLevel)throw new Error('Invalid Suggested Attention Keep payload.');
+    if(String(base.card_id||'')!==cardId)throw new Error(`WID ${wordId} Canonical card identity mismatch.`);
+    if(base.review!==true||baseLevel!==fromLevel)throw new Error(`WID ${wordId} attention changed before Keep (${baseLevel||'none'} ≠ ${fromLevel}).`);
+    const at=new Date().toISOString(),atMs=Date.parse(at),basePayloadHash=await sha256(stableStringify(base));if(basePayloadHash!==String(stateRow.payloadHash||''))throw new Error(`WID ${wordId} base payload hash mismatch.`);
+    const intent={kind:'review-suggested-attention-keep',cardId,wordId,fromLevel,suggestedLevel:toLevel,evidenceThrough:Number(args.evidenceThrough||0),at,basePayloadHash,baseHeadVersion:Number(meta.headVersion||0),baseCandidateKey:String(meta.candidateKey||''),contract:'review-default-keep-event-only-v1'};
+    const actionId=await uuidV5(CARD_NAMESPACE_UUID,`sync-action|${await sha256(stableStringify(intent))}`),mutationId=await uuidV5(CARD_NAMESPACE_UUID,`sync-mutation|learning_events|${actionId}`),eventId=await uuidV5(CARD_NAMESPACE_UUID,`sync-event|attention_suggestion_kept|${actionId}`);
+    const eventPayload={event_id:eventId,source_event_id:actionId,card_id:cardId,session_id:null,event_type:'attention_suggestion_kept',source_stream:'interaction',occurred_at:at,completed_at:null,device_id:meta.deviceKey||null,legacy_word_id:Number(wordId),schema_version:1,payload:{timestamp:atMs,action:'attention_suggestion_kept',wordId,source:'review-hub',fromLevel,suggestedLevel:toLevel,suggestionPolicyVersion:String(args.suggestionPolicyVersion||'1.0.0'),evidenceThrough:Number(args.evidenceThrough||0),canonicalReviewDefaultCutover:true},imported_at:null,supersedes_event_id:null};
+    const mutation={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt:at,diagnosticOnly:false,candidateOnly:false,canonicalReviewDefaultCutover:true,transportEligible:true,status:'pending',mutationId,mutationKind:'append',tableName:'learning_events',rowKey:eventId,precondition:{rowMustBeAbsent:true},payload:eventPayload,payloadHash:await sha256(stableStringify(eventPayload))};mutation.mutationHash=await sha256(stableStringify(mutation));
+    return{kind:'keep',actionId,eventId,wordId,cardId,fromLevel,toLevel,basePayloadHash,baseWrapper:clone(stateRow),at,mutations:[mutation]};
+  }
+
+  async function applySuggestion(args){
+    if(!state.active)throw new Error('Canonical Review authority is not active.');if(state.busy)throw new Error('Another Canonical Review action is running.');state.busy=true;let db=null,plan=null,wrote=false;
+    try{
+      db=await openDb();const meta=await getMeta(db),before=await getOutbox(db);if(before.length!==0)throw new Error(`Sync the pending Canonical action before another Review write; sync_outbox has ${before.length} row(s).`);
+      const wordId=clean(args.wordId),cardId=await cardIdForWordId(wordId),stateRow=await getRow(db,STATE_STORE,cardId);if(!stateRow)throw new Error(`WID ${wordId} Canonical learning_state row is missing.`);
+      const baseFacade=await window.WLPCanonicalStorageCompatibilityFacade.open(),baseRecord=baseFacade.readProgressRecord(wordId),baseInteractions=baseFacade.readInteractionEvents(),legacyProgress=localStorage.getItem(`${PROGRESS_PREFIX}${wordId}`),legacyInteractions=localStorage.getItem(INTERACTION_EVENTS_KEY);
+      plan=await buildApplyPlan(meta,stateRow,args);const added=await enqueueMutations(db,plan.mutations);wrote=added>0;const outbox=await getOutbox(db),ours=outbox.filter(r=>String(r?.actionId||'')===plan.actionId);
+      state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();await nextFrames(4);
+      const overlayRecord=state.facade.readProgressRecord(wordId),overlayInteractions=state.facade.readInteractionEvents(),domLevel=findLevelText(wordId),baseDuring=await getRow(db,STATE_STORE,cardId),eventFound=overlayInteractions.some(e=>String(e?.action||'')==='attention_set'&&String(e?.wordId||'')===wordId&&e?.canonicalReviewDefaultCutover===true),baseUntouched=stableStringify(baseDuring)===stableStringify(plan.baseWrapper),legacyUntouched=localStorage.getItem(`${PROGRESS_PREFIX}${wordId}`)===legacyProgress&&localStorage.getItem(INTERACTION_EVENTS_KEY)===legacyInteractions;
+      const identitiesOk=uuidLike(plan.actionId)&&plan.mutations.every(m=>uuidLike(m.mutationId))&&uuidLike(plan.eventId),transportOk=ours.length===2&&outbox.length===2&&ours.every(r=>r?.transportEligible===true&&r?.diagnosticOnly===false),domOk=!domLevel||domLevel===cap(plan.toLevel),overlayOk=clean(overlayRecord.reviewLevel).toLowerCase()===plan.toLevel&&Number(overlayRecord.firstSeen||0)===Number(baseRecord.firstSeen||0)&&overlayInteractions.length===baseInteractions.length+1&&eventFound&&domOk;
+      const blocking=[];if(added!==2||!transportOk)blocking.push(`Expected one state/event action pair; wrote ${added}, outbox ${outbox.length}.`);if(!identitiesOk)blocking.push('Review Apply identity is not production UUID shape.');if(!overlayOk)blocking.push('Review Apply pending overlay did not converge through Canonical facade + DOM.');if(!baseUntouched)blocking.push('Canonical learning_state base changed before steady sync.');if(!legacyUntouched)blocking.push('Legacy localStorage changed during Canonical Review Apply.');
+      if(blocking.length){if(wrote)await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();throw new Error(blocking.join(' '));}
+      state.lastActionReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_ACTION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),action:'apply',summary:{wordId,fromLevel:plan.fromLevel,toLevel:plan.toLevel,outboxRowsBefore:0,outboxRowsAfter:outbox.length,transportEligible:transportOk,baseMirrorUntouched:baseUntouched,legacyLocalStorageUntouched:legacyUntouched,pass:true},plan:{actionId:plan.actionId,eventType:'attention_set',mutationIds:ours.map(r=>r.mutationId).sort(),eventId:plan.eventId}};return{pass:true,pending:true,report:clone(state.lastActionReport)};
+    }catch(error){if(db&&plan&&wrote){try{await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();}catch(cleanupError){console.error('Canonical Review Apply cleanup failed',cleanupError);}}return{pass:false,error:error?.message||String(error)};}finally{try{db?.close();}catch(_){}state.busy=false;}
+  }
+
+  async function keepSuggestion(args){
+    if(!state.active)throw new Error('Canonical Review authority is not active.');if(state.busy)throw new Error('Another Canonical Review action is running.');state.busy=true;let db=null,plan=null,wrote=false;
+    try{
+      db=await openDb();const meta=await getMeta(db),before=await getOutbox(db);if(before.length!==0)throw new Error(`Sync the pending Canonical action before another Review write; sync_outbox has ${before.length} row(s).`);
+      const wordId=clean(args.wordId),cardId=await cardIdForWordId(wordId),stateRow=await getRow(db,STATE_STORE,cardId);if(!stateRow)throw new Error(`WID ${wordId} Canonical learning_state row is missing.`);
+      const baseFacade=await window.WLPCanonicalStorageCompatibilityFacade.open(),baseRecord=baseFacade.readProgressRecord(wordId),baseInteractions=baseFacade.readInteractionEvents(),legacyInteractions=localStorage.getItem(INTERACTION_EVENTS_KEY);
+      plan=await buildKeepPlan(meta,stateRow,args);const added=await enqueueMutations(db,plan.mutations);wrote=added>0;const outbox=await getOutbox(db),ours=outbox.filter(r=>String(r?.actionId||'')===plan.actionId),baseEvent=await getRow(db,EVENT_STORE,plan.eventId),baseDuring=await getRow(db,STATE_STORE,cardId);
+      state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();await nextFrames(4);
+      const overlayRecord=state.facade.readProgressRecord(wordId),overlayInteractions=state.facade.readInteractionEvents(),eventFound=overlayInteractions.some(e=>String(e?.action||'')==='attention_suggestion_kept'&&String(e?.wordId||'')===wordId&&e?.canonicalReviewDefaultCutover===true),reviewUnchanged=clean(overlayRecord.reviewLevel).toLowerCase()===clean(baseRecord.reviewLevel).toLowerCase()&&Boolean(overlayRecord.review)===Boolean(baseRecord.review),baseUntouched=stableStringify(baseDuring)===stableStringify(plan.baseWrapper)&&!baseEvent,legacyUntouched=localStorage.getItem(INTERACTION_EVENTS_KEY)===legacyInteractions;
+      const identitiesOk=uuidLike(plan.actionId)&&uuidLike(plan.mutations[0].mutationId)&&uuidLike(plan.eventId),transportOk=added===1&&ours.length===1&&outbox.length===1&&ours[0]?.transportEligible===true&&ours[0]?.diagnosticOnly===false,overlayOk=overlayInteractions.length===baseInteractions.length+1&&eventFound&&Number(state.facade.overlayEventMutationsApplied||0)===1&&Number(state.facade.overlayStateMutationsApplied||0)===0&&reviewUnchanged;
+      const blocking=[];if(!transportOk)blocking.push(`Expected one event-only outbox row; wrote ${added}, outbox ${outbox.length}.`);if(!identitiesOk)blocking.push('Review Keep identity is not production UUID shape.');if(!overlayOk)blocking.push('Review Keep event-only overlay did not converge through the Canonical facade.');if(!baseUntouched)blocking.push('Canonical base changed before steady sync.');if(!legacyUntouched)blocking.push('Legacy interaction localStorage changed during Canonical Review Keep.');
+      if(blocking.length){if(wrote)await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();throw new Error(blocking.join(' '));}
+      state.lastActionReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_ACTION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),action:'keep',summary:{wordId,fromLevel:plan.fromLevel,suggestedLevel:plan.toLevel,outboxRowsBefore:0,outboxRowsAfter:outbox.length,transportEligible:transportOk,reviewStateUnchanged:reviewUnchanged,baseMirrorUntouched:baseUntouched,legacyLocalStorageUntouched:legacyUntouched,pass:true},plan:{actionId:plan.actionId,eventType:'attention_suggestion_kept',mutationIds:[ours[0].mutationId],eventId:plan.eventId}};return{pass:true,pending:true,report:clone(state.lastActionReport)};
+    }catch(error){if(db&&plan&&wrote){try{await cleanupMutations(db,plan.mutations);state.facade=await window.WLPCanonicalStorageCompatibilityFacade.open();dispatchRefresh();}catch(cleanupError){console.error('Canonical Review Keep cleanup failed',cleanupError);}}return{pass:false,error:error?.message||String(error)};}finally{try{db?.close();}catch(_){}state.busy=false;}
+  }
+
+  function countLevel(records,level){return records.filter(r=>level==='unassigned'?!r.reviewLevel:r.reviewLevel===level).length;}
+  function domCounts(){const n=id=>Number(clean(document.getElementById(id)?.textContent).replace(/,/g,''));return{total:n('review-total'),high:n('review-high'),medium:n('review-medium'),light:n('review-light'),unassigned:n('review-unassigned')};}
+  function visibleSuggestionCount(){return [...document.querySelectorAll('[data-review-suggestion]')].filter(el=>el.offsetParent!==null).length;}
+  function scheduleAudit(){if(!auditRequested||!state.active||state.auditReport)return;clearTimeout(state.auditTimer);state.auditTimer=setTimeout(runAudit,120);}
+  function observeAudit(){if(!auditRequested||state.observer)return;const root=document.getElementById('review-list');if(!root)return;state.observer=new MutationObserver(scheduleAudit);state.observer.observe(root,{childList:true,subtree:true});scheduleAudit();}
+  async function runAudit(){
+    if(!auditRequested||!state.active||state.auditReport)return;const list=document.getElementById('review-list');if(!list||list.querySelector('.review-loading')){scheduleAudit();return;}
+    const mirror=await readMirrorStatus(),canonical=state.facade.readReviewRecords(),counts={total:canonical.length,high:countLevel(canonical,'high'),medium:countLevel(canonical,'medium'),light:countLevel(canonical,'light'),unassigned:countLevel(canonical,'unassigned')},dom=domCounts(),domMatches=Object.keys(counts).every(k=>Number.isFinite(dom[k])&&dom[k]===counts[k]),unresolved=canonical.filter(r=>{const b=state.facade.getCardBundle?.(r.wordId);return !b?.card||!b?.content;}).map(r=>String(r.wordId)),missingFirstSeen=canonical.filter(r=>!(Number(r.firstSeen)>0)).map(r=>String(r.wordId));
+    const mirrorCurrent=mirror.syncCursor===EXPECTED.cutoverCursor&&mirror.materializedRows===EXPECTED.cutoverRows&&mirror.materializedManifestHash===EXPECTED.cutoverManifest&&mirror.outboxRows===0,countsStable=Object.keys(EXPECTED.reviewCounts).every(k=>counts[k]===EXPECTED.reviewCounts[k]);
+    const blocking=[];if(!mirrorCurrent)blocking.push(`Materialized mirror is not the expected post-v260 state (cursor ${mirror.syncCursor}, rows ${mirror.materializedRows}, outbox ${mirror.outboxRows}).`);if(!countsStable)blocking.push(`Canonical Review counts changed unexpectedly (${counts.total} total).`);if(!domMatches)blocking.push('Normal Review DOM does not match Canonical authority.');if(unresolved.length)blocking.push(`${unresolved.length} Canonical Review row(s) cannot resolve card + content.`);if(missingFirstSeen.length)blocking.push(`${missingFirstSeen.length} Canonical Review row(s) are missing firstSeen.`);
+    const pass=blocking.length===0;state.auditReport={format:'WLP_CANONICAL_REVIEW_DEFAULT_CUTOVER_AUDIT',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'normal-review-default-canonical-authority-with-production-suggestion-writes',authority:{candidateKey:mirror.meta?.candidateKey||state.facade.meta?.candidateKey||null,headVersion:mirror.meta?.headVersion??state.facade.meta?.headVersion??null,snapshotManifestHash:mirror.meta?.snapshotManifestHash||state.facade.meta?.snapshotManifestHash||null,materializedSyncCursor:mirror.syncCursor,materializedManifestHash:mirror.materializedManifestHash,materializedRows:mirror.materializedRows},summary:{defaultCanonicalActive:state.active,rollbackRequested:false,canonicalReviewRows:canonical.length,domMatchesCanonical:domMatches,visibleSuggestedAttention:visibleSuggestionCount(),pendingOutboxRows:mirror.outboxRows,unresolvedCanonicalRows:unresolved.length,missingFirstSeenRows:missingFirstSeen.length,applyContractAvailable:typeof window.WLPCanonicalReviewWriteCandidate?.applySuggestion==='function',keepEventOnlyContractAvailable:typeof window.WLPCanonicalReviewWriteCandidate?.keepSuggestion==='function',blockingIssues:blocking.length,nextPhaseEligible:pass,pass},counts:{canonical:counts,dom},readCounts:clone(state.readCounts),checks:[['Normal Review defaults to Canonical authority',state.active,'default route active'],['Direct IndexedDB mirror is exact post-v260 state',mirrorCurrent,`cursor ${mirror.syncCursor} · ${mirror.materializedRows} rows · outbox ${mirror.outboxRows}`],['Canonical Review counts are stable',countsStable,`${counts.total} · H${counts.high}/M${counts.medium}/L${counts.light}/U${counts.unassigned}`],['Normal Review DOM matches Canonical authority',domMatches,`${dom.total} rendered`],['All Canonical Review rows resolve card + content',unresolved.length===0,unresolved.length?unresolved.join(', '):`${canonical.length}/${canonical.length}`],['All Canonical Review rows retain firstSeen',missingFirstSeen.length===0,missingFirstSeen.length?missingFirstSeen.join(', '):`${canonical.length}/${canonical.length}`],['Suggested Attention Apply production contract is installed',typeof window.WLPCanonicalReviewWriteCandidate?.applySuggestion==='function','state + event outbox'],['Suggested Attention Keep event-only contract is installed',typeof window.WLPCanonicalReviewWriteCandidate?.keepSuggestion==='function','event-only outbox']].map(([name,ok,evidence])=>({name,pass:Boolean(ok),evidence:String(evidence)})),issues:{blocking,warnings:['Cloud transport remains manual: one pending Review action must be synced before another Canonical write.','Explicit Review rollback remains available with ?wlpLegacyReview=1.','Visible Suggested Attention may legitimately be 0; this audit does not require an Apply/Keep button to exist.']},invariants:{normalReviewUsesCanonicalAuthority:true,legacyUsedOnlyByExplicitRollback:true,noAuditWrites:true,noCloudWrites:true,noIndexedDbWritesByAudit:true,noLocalStorageWritesByAudit:true}};setAuditStatus(pass?'PASS · Normal Review is now using Canonical authority.':`BLOCKED · ${blocking.length} default-cutover issue(s).`,pass,`Canonical ${counts.total} · DOM ${dom.total} · cursor ${mirror.syncCursor} · Suggested Attention ${visibleSuggestionCount()}.`);
+  }
+  function exportAudit(){if(!state.auditReport)return;const blob=new Blob([JSON.stringify(state.auditReport,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`wlp-canonical-review-default-cutover-audit-${state.auditReport.generatedAt.replace(/[:.]/g,'-')}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
+
+  window.WLPCanonicalReviewWriteCandidate=Object.freeze({version:7,requested,rollbackRequested,auditRequested,isActive:()=>state.active,prepare,readReviewRecords,readProgressRecord,readArray,readAIEvents,readInteractionEvents,applySuggestion,keepSuggestion,getReport:()=>clone(state.lastActionReport),getAuditReport:()=>clone(state.auditReport)});
+  if(auditRequested)makePanel();
 })();

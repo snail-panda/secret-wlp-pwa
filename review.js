@@ -329,7 +329,7 @@
       button.disabled=true;
       try{
         const result=await canonicalReviewCandidate().applySuggestion({wordId,fromLevel,toLevel,evidenceThrough,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION});
-        showReviewToast(result?.pass?`Canonical Apply ${attentionLabel(toLevel)} is pending Cloud sync.`:'Canonical Apply candidate was blocked. See the candidate panel.');
+        showReviewToast(result?.pass?`Canonical Apply ${attentionLabel(toLevel)} is pending Cloud sync.`:(result?.error||'Canonical Apply was blocked.'));
       }finally{if(button.isConnected)button.disabled=false;}
       return;
     }
@@ -348,7 +348,7 @@
       button.disabled=true;
       try{
         const result=await canonicalReviewCandidate().keepSuggestion({wordId,fromLevel,toLevel,evidenceThrough,suggestionPolicyVersion:SUGGESTION_POLICY_VERSION});
-        showReviewToast(result?.pass?`Canonical Keep ${attentionLabel(fromLevel)} round-trip passed.`:'Canonical Keep candidate was blocked. See the candidate panel.');
+        showReviewToast(result?.pass?`Canonical Keep ${attentionLabel(fromLevel)} is pending Cloud sync.`:(result?.error||'Canonical Keep was blocked.'));
       }finally{if(button.isConnected)button.disabled=false;}
       return;
     }
@@ -418,9 +418,7 @@
     const tags=record.reviewReasons.map(r=>`<span class="review-reason-tag">${esc(reasonLabel.get(r)||r)}</span>`).join('');
     const needs=tags?`<div class="review-card-needs"><span class="review-card-mini-label">Learning Needs</span><div class="review-card-tags">${tags}</div></div>`:'';
     const evidence=evidenceBlockHtml(record.wordId);const suggestion=suggestionHtml(record);
-    const reviewCandidateActive=new URLSearchParams(location.search).get('wlpCanonicalReviewWrite')==='1';
-    const studyCandidateSuffix=reviewCandidateActive?'&wlpCanonicalStudyAttentionWrite=1':'';
-    const studyHref=batch?`./flashcards/wlp/batch.html?batch=${encodeURIComponent(batch)}&wordid=${encodeURIComponent(record.wordId)}&solo=1&from=review${studyCandidateSuffix}`:'./deck-browser.html';
+    const studyHref=batch?`./flashcards/wlp/batch.html?batch=${encodeURIComponent(batch)}&wordid=${encodeURIComponent(record.wordId)}&solo=1&from=review`:'./deck-browser.html';
     const edit=isAdmin()?`<a class="review-card-edit" href="./editor-local-edit.html?wid=${encodeURIComponent(record.wordId)}&return=${encodeURIComponent('review.html')}">Edit</a>`:'';
     return `<article class="review-card"><div class="review-card-main"><div class="review-card-head"><strong class="review-card-word">${esc(word)}</strong><span class="review-card-meta">${esc([`WID${record.wordId}`,pos,batch?`WLP${batch}`:''].filter(Boolean).join(' · '))}</span></div>${definition?`<p class="review-card-definition">${esc(definition)}</p>`:''}<div class="review-card-state"><div class="review-card-attention"><span class="review-card-mini-label">Current Attention</span><span class="review-level-tag ${esc(level)}">${esc(levelLabel)}</span></div>${needs}</div>${evidence}${suggestion}</div><div class="review-card-actions"><a class="review-card-study" href="${studyHref}">Study</a>${edit}</div></article>`;
   }
@@ -454,7 +452,9 @@
   });
   (async()=>{
     try{
-      if(canonicalReviewCandidate()?.requested)await canonicalReviewCandidate().prepare();
+      const reviewController=canonicalReviewCandidate(),reviewRollback=new URLSearchParams(location.search).get('wlpLegacyReview')==='1';
+      if(!reviewRollback&&!reviewController)throw new Error('Canonical Review controller is unavailable. Use ?wlpLegacyReview=1 only for explicit rollback.');
+      if(reviewController?.requested){await reviewController.prepare();if(!canonicalReviewCandidateActive())throw new Error('Canonical Review authority could not be prepared. Use ?wlpLegacyReview=1 only for explicit rollback.');}
       const res=await fetch(MASTER_URL,{cache:'no-cache'});if(!res.ok)throw new Error(`Master TSV ${res.status}`);
       rows=applyOverrides(parseTSV(await res.text()));
       rowByWordId=new Map(rows.map(row=>[String(row.WordID||'').trim(),row]).filter(([wid])=>wid));
@@ -511,5 +511,5 @@
     }finally{latestStandardEvidence=priorStd;latestAIEvidence=priorAI;aiEvidenceByWordId=priorHistory;interactionEvents=priorInteractions;}
     return {passed:results.every(item=>item.ok),passedCount:results.filter(item=>item.ok).length,total:results.length,results};
   }
-  window.WLPReviewStage7={version:'1.2.2',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
+  window.WLPReviewStage7={version:'1.2.3',suggestionPolicyVersion:SUGGESTION_POLICY_VERSION,runEvidenceSelfTest};
 })();
