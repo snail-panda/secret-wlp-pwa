@@ -1,4 +1,4 @@
-/* WLP v1.8.6.265 — Canonical precondition representation fix + generalized foreground auto-sync hook.
+/* WLP v1.8.6.269 — Canonical Study projection refresh for source + receiver foreground auto-sync.
    All official Master cards use the Canonical learning_state / learning_events contract
    for Studied, Review, membership removal, and Light/Medium/High Attention writes.
    Missing learning_state rows may be created by the first Studied or Review action.
@@ -9,7 +9,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.265-study-canonical-raw-precondition-fix-v1';
+  const APP_VERSION = '1.8.6.269-study-auto-sync-projection-refresh-v1';
   const DB_NAME = 'wlp-cloud-v1', DB_VERSION = 1;
   const META_STORE = 'sync_meta', OUTBOX_STORE = 'sync_outbox', STATE_STORE = 'learning_state', CARD_STORE = 'cards';
   const META_KEY = 'authority_mirror', CURSOR_KEY = 'sync_cursor';
@@ -38,7 +38,9 @@
     prepareError: '',
     overlayByWordId: new Map(),
     contexts: new Map(),
-    report: null
+    report: null,
+    autoSyncRefreshPending: false,
+    autoSyncRefreshDetail: null
   };
 
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
@@ -192,6 +194,10 @@
       if (outbox !== 0 && outbox !== 2) throw new Error(`Default Canonical Study cutover found unsupported pending sync_outbox size ${outbox}; expected 0 or one action pair (2).`);
       state.ready = true; state.prepareError = '';
       setStatus(outbox ? 'READY · One Canonical Study action is pending Cloud sync.' : 'READY · Normal Study writes now use Canonical outbox.', true, `All official cards · cursor ${cursor} · outbox ${outbox}. Rollback: ?wlpLegacyStudyAttentionWrite=1`);
+      if (state.autoSyncRefreshPending) {
+        const pendingDetail = clone(state.autoSyncRefreshDetail || { pass:true, role:'receiver' });
+        setTimeout(() => { void onAutoSyncComplete({ detail:pendingDetail }); }, 0);
+      }
       return true;
     } catch (error) {
       state.prepareError = error?.message || String(error); state.ready = false;
@@ -470,22 +476,41 @@
   }
   async function onAutoSyncComplete(event) {
     const detail = event?.detail || {};
-    if (!detail.pass || detail.role !== 'source') return;
+    if (!detail.pass || !['source','receiver'].includes(String(detail.role || ''))) return;
+    if (!state.db || !state.ready) {
+      state.autoSyncRefreshPending = true;
+      state.autoSyncRefreshDetail = clone(detail);
+      return;
+    }
     try {
       const outbox = await countOutbox(state.db);
       if (outbox !== 0) return;
+      const wordId = cleanWordId(detail.wordId);
+      if (wordId) state.overlayByWordId.delete(wordId);
       state.meta = await getMeta(state.db, META_KEY); state.cursorMeta = await getMeta(state.db, CURSOR_KEY);
-      await refreshFacade(); state.globalPending = false; allRenderedControlsPending(false);
+      await refreshFacade(); state.globalPending = false;
+      for (const ctx of state.contexts.values()) { try { ctx?.refresh?.(); } catch (_) {} }
+      allRenderedControlsPending(false);
       for (const ctx of state.contexts.values()) updateContextControls(ctx);
       const cursor = Math.max(Number(state.meta?.materializedSyncCursor ?? state.meta?.lastSyncCursor ?? 0), Number(state.cursorMeta?.lastSyncCursor || 0));
-      setStatus(`PASS · WID ${String(detail.wordId || '?')} ${String(detail.eventType || 'action')} auto-sync committed at cursor ${cursor}.`, true, 'outbox 0 · normal Study controls re-enabled · manual Cloud Shadow remains available.');
-    } catch (error) { console.warn('Canonical Study auto-sync completion refresh failed', error); }
+      if (detail.role === 'source') {
+        setStatus(`PASS · WID ${String(detail.wordId || '?')} ${String(detail.eventType || 'action')} auto-sync committed at cursor ${cursor}.`, true, 'outbox 0 · Study projection refreshed · normal controls re-enabled.');
+      } else {
+        setStatus(`READY · Receiver pull committed at cursor ${cursor}.`, true, `WID ${String(detail.wordId || '?')} ${String(detail.eventType || 'change')} · Study projection refreshed · outbox 0.`);
+      }
+      state.autoSyncRefreshPending = false;
+      state.autoSyncRefreshDetail = null;
+    } catch (error) {
+      state.autoSyncRefreshPending = true;
+      state.autoSyncRefreshDetail = clone(detail);
+      console.warn('Canonical Study auto-sync completion refresh failed', error);
+    }
   }
   window.addEventListener('wlp-canonical-auto-sync-complete', onAutoSyncComplete);
   function close() { try { state.db?.close(); } catch (_) {} }
   addEventListener('pagehide', close, { once:true });
 
-  const api = { version:8, requested, rollbackRequested, prepare, isActive:() => requested, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
+  const api = { version:9, requested, rollbackRequested, prepare, isActive:() => requested, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
   window.WLPCanonicalStudyAttentionWriteCandidate = Object.freeze(api);
   if (requested) makePanel();
 })();
