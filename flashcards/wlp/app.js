@@ -1,5 +1,6 @@
 // flashcards/wlp/app.js
 // Stage 5E.1
+// Stage 7 v1.8.6.281 — Study-card Review deck reads Canonical Review authority by default.
 // Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
@@ -34,6 +35,12 @@ const REVIEW_LEVEL_PARAM =
 
 const REVIEW_REASON_PARAM =
   String(PARAMS.get("reviewreason") || "").trim().toLowerCase();
+
+const FORCE_LEGACY_REVIEW_DECK =
+  PARAMS.get("wlpLegacyReviewDeck") === "1";
+
+let canonicalReviewDeckRecords = null;
+let canonicalReviewDeckFallback = false;
 
 const DRAFT_PARAM =
   PARAMS.get("draft");
@@ -1317,97 +1324,103 @@ function pickBatchRows(
 // REVIEW DECK
 // =============================================================
 
-function readAllReviewProgress() {
+function normalizeReviewDeckRecord(data = {}) {
+
+  const wordId =
+    String(data.wordId || "").trim();
+
+  if (!wordId) return null;
+
+  return {
+    wordId,
+    reviewCount: Number(data.reviewCount || 0),
+    lastSeen: Number(data.lastSeen || 0),
+    reviewLevel: ["high", "medium", "light"].includes(
+      String(data.reviewLevel || "").toLowerCase()
+    )
+      ? String(data.reviewLevel).toLowerCase()
+      : "",
+    reviewReasons: Array.isArray(data.reviewReasons)
+      ? data.reviewReasons.map(value => String(value || "").toLowerCase())
+      : []
+  };
+
+}
+
+function readLegacyReviewProgress() {
 
   const records = [];
 
-  for (
-    let i = 0;
-    i < localStorage.length;
-    i++
-  ) {
+  for (let i = 0; i < localStorage.length; i++) {
 
-    const key =
-      localStorage.key(i);
+    const key = localStorage.key(i);
 
-    if (
-      !key ||
-      !key.startsWith(
-        "fc:wordid:"
-      )
-    ) {
-      continue;
-    }
+    if (!key || !key.startsWith("fc:wordid:")) continue;
 
     try {
 
-      const data =
-        JSON.parse(
-          localStorage.getItem(
-            key
-          ) || "{}"
-        );
+      const data = JSON.parse(localStorage.getItem(key) || "{}");
+      const wordId = String(data.wordId || key.replace("fc:wordid:", "")).trim();
+      const currentlyReview = data.review === true || data.lastResult === "review";
 
-      const wordId =
-        String(
-          data.wordId ||
-          key.replace(
-            "fc:wordid:",
-            ""
-          )
-        ).trim();
+      if (!wordId || !currentlyReview) continue;
 
-      const currentlyReview =
-        data.review === true ||
-        data.lastResult ===
-          "review";
-
-      if (
-        !wordId ||
-        !currentlyReview
-      ) {
-        continue;
-      }
-
-      records.push({
-
-        wordId,
-
-        reviewCount:
-          Number(
-            data.reviewCount || 0
-          ),
-
-        lastSeen:
-          Number(
-            data.lastSeen || 0
-          ),
-
-        reviewLevel:
-          ["high", "medium", "light"].includes(
-            String(data.reviewLevel || "").toLowerCase()
-          )
-            ? String(data.reviewLevel).toLowerCase()
-            : "",
-
-        reviewReasons:
-          Array.isArray(data.reviewReasons)
-            ? data.reviewReasons.map(value => String(value || "").toLowerCase())
-            : []
-
-      });
+      const record = normalizeReviewDeckRecord({ ...data, wordId });
+      if (record) records.push(record);
 
     } catch (e) {
 
-      console.warn(
-        "Could not read review progress:",
-        key,
-        e
-      );
+      console.warn("Could not read review progress:", key, e);
 
     }
 
   }
+
+  return records;
+
+}
+
+async function prepareCanonicalReviewDeck() {
+
+  if (!IS_REVIEW_MODE || FORCE_LEGACY_REVIEW_DECK) return false;
+
+  try {
+
+    const provider = window.WLPCanonicalStorageCompatibilityFacade;
+    if (!provider?.open || provider.readOnly !== true) {
+      throw new Error("Read-only Canonical Storage Compatibility Facade is unavailable.");
+    }
+
+    const facade = await provider.open();
+    if (!facade?.readOnly || typeof facade.readReviewRecords !== "function") {
+      throw new Error("Canonical Review reader is unavailable.");
+    }
+
+    canonicalReviewDeckRecords = facade
+      .readReviewRecords()
+      .filter(record => record?.review === true)
+      .map(normalizeReviewDeckRecord)
+      .filter(Boolean);
+
+    canonicalReviewDeckFallback = false;
+    return true;
+
+  } catch (error) {
+
+    canonicalReviewDeckRecords = null;
+    canonicalReviewDeckFallback = true;
+    console.warn("Study-card Review deck fell back to legacy localStorage:", error);
+    return false;
+
+  }
+
+}
+
+function readAllReviewProgress() {
+
+  const records = Array.isArray(canonicalReviewDeckRecords)
+    ? canonicalReviewDeckRecords.map(record => ({ ...record, reviewReasons: [...record.reviewReasons] }))
+    : readLegacyReviewProgress();
 
   const filteredRecords = records.filter(record => {
     if (REVIEW_LEVEL_PARAM) {
@@ -1430,24 +1443,8 @@ function readAllReviewProgress() {
 
   filteredRecords.sort(
     (a, b) => {
-
-      if (
-        b.reviewCount !==
-        a.reviewCount
-      ) {
-
-        return (
-          b.reviewCount -
-          a.reviewCount
-        );
-
-      }
-
-      return (
-        b.lastSeen -
-        a.lastSeen
-      );
-
+      if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
+      return b.lastSeen - a.lastSeen;
     }
   );
 
@@ -4631,6 +4628,10 @@ function escapeHtml(s) {
   const canonicalStudyCandidate = window.WLPCanonicalStudyAttentionWriteCandidate;
   if (canonicalStudyCandidate?.requested) {
     await canonicalStudyCandidate.prepare();
+  }
+
+  if (IS_REVIEW_MODE) {
+    await prepareCanonicalReviewDeck();
   }
 
   const { rows } =
