@@ -1,4 +1,4 @@
-/* WLP v1.8.6.274 — Foreground Canonical sync audit export/resume guard.
+/* WLP v1.8.6.275 — Foreground Canonical sync with no-level Attention support.
    Production scope:
    - foreground source auto-push is enabled for the already-proven Study / Review action shapes;
    - state + event: studied, studied_removed, review, review_removed, attention_set;
@@ -17,8 +17,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.274-canonical-foreground-sync-audit-export-guard-v1';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-audit-export-guard';
+  const APP_VERSION='1.8.6.275-canonical-foreground-sync-attention-no-level-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-production-attention-no-level';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const AUDIT_FLAG='wlpAutoSyncAudit';
@@ -63,7 +63,7 @@
     const box=document.createElement('section');
     box.id='wlp-auto-sync-canary-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100001;left:8px;top:max(8px,env(safe-area-inset-top));width:min(390px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v274</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v275</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);state.panel=box;state.status=box.querySelector('#wlp-auto-sync-canary-status');state.detail=box.querySelector('#wlp-auto-sync-canary-detail');state.exportButton=box.querySelector('#wlp-auto-sync-canary-export');
     state.exportButton.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';state.exportButton.addEventListener('click',exportReport);updateExportButton();
   }
@@ -135,7 +135,7 @@
     const targetState=stateLabel(stateChange.payload);
     if(eventType==='attention_set'){
       const targetLevel=String(stateChange.payload?.review_level||'').toLowerCase();
-      if(!['light','medium','high'].includes(targetLevel)||!Boolean(stateChange.payload?.review))throw new Error(`Foreground Sync target Attention is invalid (${targetLevel||'missing'}).`);
+      if(!['','light','medium','high'].includes(targetLevel)||!Boolean(stateChange.payload?.review))throw new Error(`Foreground Sync target Attention is invalid (${targetLevel||'none'}).`);
       const eventLevel=String(eventPayload.level||'').toLowerCase();
       if(eventLevel&&eventLevel!==targetLevel)throw new Error(`Foreground Sync state/event Attention target mismatch (${targetLevel} vs ${eventLevel}).`);
     }else if(eventType==='studied'&&targetState!=='studied')throw new Error(`studied event does not converge to studied state (${targetState}).`);
@@ -160,7 +160,7 @@
   }
 
   async function runSync({trigger='manual',expectedActionId='',receiverOnly=false}={}){
-    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v274 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
+    if(state.busy){if(expectedActionId)state.pendingSourceRun={trigger,expectedActionId};else if(receiverOnly)state.pendingReceiverRun={trigger,receiverOnly:true};return null;}state.busy=true;setStatus('SYNCING · Canonical Foreground Sync v275 is running…',null,'Source outbox is preserved unless server ACK + atomic local commit both succeed.');let db=null,role='receiver';
     try{
       const a=await cloudContext();db=await openDb();const meta=await getMeta(db,META_KEY),cursorMeta=await getMeta(db,CURSOR_KEY),outbox=await getAllOutbox(db),cursorBefore=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
       if(String(meta?.candidateKey||'')!==BASE.key||Number(meta?.headVersion||0)!==BASE.head||String(meta?.snapshotManifestHash||'')!==BASE.manifest)throw new Error('Foreground Sync requires ACTIVE Authority v3.');
