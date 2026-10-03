@@ -1,4 +1,4 @@
-/* WLP v1.8.6.319 — Card Study encounter default Canonical write diagnostic hardening.
+/* WLP v1.8.6.321 — Card Study encounter default Canonical write + interaction receiver-audit isolation.
    New normal Card Study encounters remain in the existing local activity history for
    rollback/compatibility and are also queued into Canonical learning_events.
    Normal success is silent. Audit only: ?wlpEncounterWriteAudit=1.
@@ -9,11 +9,12 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.319-card-study-encounter-default-canonical-write-v2';
+  const APP_VERSION='1.8.6.321-card-study-encounter-default-canonical-write-v3';
   const ROLLBACK_FLAG='wlpLegacyEncounterWrite';
   const AUDIT_FLAG='wlpEncounterWriteAudit';
   const MANUAL_CANARY_FLAG='wlpEncounterCanary';
   const RECEIVER_AUDIT_FLAG='wlpEncounterReceiveAudit';
+  const INTERACTION_RECEIVER_AUDIT_FLAG='wlpInteractionReceiveAudit';
   const PENDING_KEY='WLP Canonical Card Study Encounter Pending V1';
   const ACTIVITY_KEY='wlp:stage7:activity-events:v1';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -39,7 +40,7 @@
   function rollbackActive(){return params().get(ROLLBACK_FLAG)==='1';}
   function auditActive(){return params().get(AUDIT_FLAG)==='1';}
   function manualCanaryActive(){return params().get(MANUAL_CANARY_FLAG)==='1';}
-  function receiverAuditActive(){return params().has(RECEIVER_AUDIT_FLAG);}
+  function receiverAuditActive(){return params().has(RECEIVER_AUDIT_FLAG)||params().has(INTERACTION_RECEIVER_AUDIT_FLAG);}
   function writerActive(){return !rollbackActive()&&!manualCanaryActive()&&!receiverAuditActive();}
   function validEncounter(e){return e&&typeof e==='object'&&clean(e.type)==='study'&&clean(e.action)==='encounter'&&clean(e.wordId)&&Number(e.timestamp)>0&&['source-deck','review-deck','study-set','solo'].includes(clean(e.source));}
   function eventIdentity(e){return`${Number(e.timestamp)}|${clean(e.wordId)}|${clean(e.source)}|${clean(e.deck)}|study|encounter`;}
