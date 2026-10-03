@@ -1041,14 +1041,23 @@
     }
   }
 
-  function readSessionHistory() {
+  function readLocalSessionHistory() {
     const raw = readJson(SESSION_HISTORY_KEY, []);
     return Array.isArray(raw) ? raw : [];
   }
 
+  function readSessionHistory() {
+    const reader = window.WLPCanonicalAIHistoryRead;
+    if (reader?.getState && reader?.getSessions) {
+      const readerState = reader.getState();
+      if (readerState?.defaultCanonicalActive) return reader.getSessions();
+    }
+    return readLocalSessionHistory();
+  }
+
   function saveSessionHistory(record) {
     if (!record?.sessionId || !num(record.completed)) return true;
-    const history = readSessionHistory().filter(item => clean(item?.sessionId) !== clean(record.sessionId));
+    const history = readLocalSessionHistory().filter(item => clean(item?.sessionId) !== clean(record.sessionId));
     history.unshift(clone(record));
     return writeJson(SESSION_HISTORY_KEY, history);
   }
@@ -4923,6 +4932,7 @@
     updateDifficultyHelp();
     applySavedHintLimit();
     renderHistory();
+    window.addEventListener('wlp-canonical-ai-history-updated', () => { renderHistory(); });
     window.WLPAIStudyUI = Object.freeze({
       version: VERSION,
       getMode: () => state.mode,

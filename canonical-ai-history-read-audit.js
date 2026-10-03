@@ -1,4 +1,4 @@
-/* WLP v1.8.6.295 — AI Practice Canonical history read-only audit.
+/* WLP v1.8.6.302 — AI Practice Canonical history production-read audit.
    Diagnostic only: compares current-device AI Practice localStorage with the verified
    Canonical Storage Compatibility Facade for AI events, completed session history,
    learner route state, and learner profile. It does not write localStorage, IndexedDB,
@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.295-ai-practice-canonical-history-read-audit-v1';
+  const APP_VERSION = '1.8.6.302-ai-practice-canonical-history-production-read-audit-v1';
   const FLAG = 'wlpAIHistoryAudit';
   const AI_EVENT_KEY = 'wlp:ai-study-events:v1';
   const AI_SESSION_KEY = 'wlp:ai-study-session-history:v1';
@@ -181,6 +181,11 @@
       const canonicalSessions = asArray(facade.readAISessions());
       const canonicalRoute = asObject(facade.readAIRouteState());
       const canonicalProfile = asObject(facade.readAILearnerProfile());
+      const productionReader = window.WLPCanonicalAIHistoryRead;
+      if (!productionReader?.refresh || !productionReader?.getState || !productionReader?.getSessions) throw new Error('Production Canonical AI History reader is unavailable.');
+      await productionReader.refresh('audit');
+      const productionState = productionReader.getState();
+      const productionSessions = asArray(productionReader.getSessions());
 
       const events = compareIdentity(localEvents, canonicalEvents, eventId);
       const sessions = compareIdentity(localSessions, canonicalSessions, sessionId);
@@ -200,6 +205,8 @@
       if (sessions.canonicalDuplicateIds.length) structuralIssues.push(`${sessions.canonicalDuplicateIds.length} duplicate Canonical AI session id(s).`);
       if (sessions.localMissingIdentityIndexes.length) structuralIssues.push(`${sessions.localMissingIdentityIndexes.length} local AI session(s) without sessionId.`);
       if (sessions.canonicalMissingIdentityIndexes.length) structuralIssues.push(`${sessions.canonicalMissingIdentityIndexes.length} Canonical AI session(s) without sessionId.`);
+      if (productionState?.defaultCanonicalActive !== true) structuralIssues.push(`Production Canonical AI History reader is not active${productionState?.failure ? `: ${productionState.failure}` : '.'}`);
+      if (productionSessions.length < canonicalSessions.length) structuralIssues.push(`Production AI History exposes ${productionSessions.length} session(s), fewer than Canonical ${canonicalSessions.length}.`);
 
       state.report = {
         format: 'WLP_CANONICAL_AI_PRACTICE_HISTORY_READ_AUDIT',
@@ -234,7 +241,11 @@
           localSessionTurnEventRefs: localTurnCoverage.references,
           localSessionTurnMissingEvents: localTurnCoverage.missing,
           canonicalSessionTurnEventRefs: canonicalTurnCoverage.references,
-          canonicalSessionTurnMissingEvents: canonicalTurnCoverage.missing
+          canonicalSessionTurnMissingEvents: canonicalTurnCoverage.missing,
+          productionDefaultCanonicalActive: productionState?.defaultCanonicalActive === true,
+          productionVisibleSessionRows: productionSessions.length,
+          compatibilityOverlayRows: Number(productionState?.compatibilityOverlayRows || 0),
+          productionReaderCursor: Number(productionState?.cursor || 0)
         },
         comparisons: {
           events,
@@ -248,9 +259,10 @@
         },
         issues: { blocking: structuralIssues },
         interpretation: {
-          localOnlyEventsAndSessionsAreExpectedBeforeAICutover: true,
+          productionAIHistoryReadCutoverActive: productionState?.defaultCanonicalActive === true,
+          localOnlyEventsAndSessionsRemainDiagnosticCompatibilitySignals: true,
           divergenceDoesNotWriteOrRepairAnything: true,
-          nextDecision: 'Use this report to size the AI Practice event/session migration gap before adding any Canonical AI write or read cutover.'
+          nextDecision: 'Verify normal AI Study History on both devices, then continue to the remaining AI route/profile authority cutovers.'
         }
       };
 
@@ -259,9 +271,10 @@
         `Events · local ${s.localAIEvents} · Canonical ${s.canonicalAIEvents} · shared ${s.sharedAIEvents} · local-only ${s.localOnlyAIEvents} · Canonical-only ${s.canonicalOnlyAIEvents}`,
         `Sessions · local ${s.localAISessions} · Canonical ${s.canonicalAISessions} · shared ${s.sharedAISessions} · local-only ${s.localOnlyAISessions} · Canonical-only ${s.canonicalOnlyAISessions}`,
         `Route exact match: ${s.routeExactMatch ? 'yes' : 'no'} · Profile exact match: ${s.profileExactMatch ? 'yes' : 'no'}`,
-        `Local session turn→event gaps: ${s.localSessionTurnMissingEvents} · Canonical session turn→event gaps: ${s.canonicalSessionTurnMissingEvents}`
+        `Local session turn→event gaps: ${s.localSessionTurnMissingEvents} · Canonical session turn→event gaps: ${s.canonicalSessionTurnMissingEvents}`,
+        `Production AI History · Canonical active ${s.productionDefaultCanonicalActive ? 'yes' : 'no'} · visible ${s.productionVisibleSessionRows} · compat ${s.compatibilityOverlayRows} · cursor ${s.productionReaderCursor}`
       ].join('\n');
-      setStatus(s.auditPass ? 'PASS · Read-only AI authority gap measured.' : 'CHECK · AI history structure needs inspection.', s.auditPass, detail);
+      setStatus(s.auditPass ? 'PASS · Production AI History uses Canonical sessions.' : 'CHECK · AI history structure needs inspection.', s.auditPass, detail);
       return clone(state.report);
     } catch (error) {
       state.report = {
