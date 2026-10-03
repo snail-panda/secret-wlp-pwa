@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.307-ai-derived-state-production-read-canary-stable-compare-v1';
+  const APP_VERSION='1.8.6.308-ai-derived-state-production-read-canary-stable-cache-v1';
   const FLAG='wlpAIDerivedReadCanary';
   const AI_ROUTE_KEY='wlp:ai-route-state:v1';
   const AI_PROFILE_KEY='wlp:ai-learner-profile:v1';
@@ -70,8 +70,8 @@
     state.derived=data.deriveDerivedState(events,{generatedAt:latest?new Date(latest).toISOString():new Date(0).toISOString()});
     return {events,derived:state.derived};
   }
-  function getRouteState(){if(!state.ready||!state.derived)return null;return clone(rebuild().derived.routeState);}
-  function getLearnerProfile(){if(!state.ready||!state.derived)return null;return clone(rebuild().derived.learnerProfile);}
+  function getRouteState(){if(!state.ready||!state.derived)return null;return clone(state.derived.routeState);}
+  function getLearnerProfile(){if(!state.ready||!state.derived)return null;return clone(state.derived.learnerProfile);}
 
   function makePanel(){
     if(state.panel||!active())return;
