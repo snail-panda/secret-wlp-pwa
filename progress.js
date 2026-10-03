@@ -1,4 +1,6 @@
-/* WLP Stage 7 v1.8.6.310 — Progress AI route/profile Canonical-event derived read canary; canonical Progress baseline retained. */
+/* WLP Stage 7 v1.8.6.311 — Progress AI route/profile Canonical-event derived default read cutover.
+   Default production read unless ?wlpLegacyAIProgressDerivedRead=1 is present.
+   Optional diagnostics remain query-gated by ?wlpAIProgressDerivedReadCanary=1. */
 (() => {
   'use strict';
 
@@ -22,10 +24,13 @@
   const $ = id => document.getElementById(id);
   const FORCE_LEGACY_READ_PARAM = 'wlpLegacyProgressRead';
   const AI_DERIVED_READ_CANARY_PARAM = 'wlpAIProgressDerivedReadCanary';
+  const FORCE_LEGACY_AI_DERIVED_READ_PARAM = 'wlpLegacyAIProgressDerivedRead';
   const urlParams = new URLSearchParams(location.search);
   const forceLegacyRead = urlParams.get(FORCE_LEGACY_READ_PARAM) === '1';
+  const forceLegacyAIDerivedRead = urlParams.get(FORCE_LEGACY_AI_DERIVED_READ_PARAM) === '1';
   const aiDerivedReadCanaryRequested = urlParams.get(AI_DERIVED_READ_CANARY_PARAM) === '1';
   const canonicalReadRequested = !forceLegacyRead;
+  const aiDerivedReadRequested = canonicalReadRequested && !forceLegacyAIDerivedRead;
   let canonicalReadBundle = null;
   const canonicalReadState = {
     version: 1,
@@ -50,6 +55,9 @@
     loadedCounts: null,
     dataNote: '',
     spotCheck2876: null,
+    aiDerivedReadRequested,
+    aiDerivedReadDefault: true,
+    aiDerivedReadForcedLegacy: forceLegacyAIDerivedRead,
     aiDerivedReadCanaryRequested,
     aiDerivedReadCanaryActive: false,
     aiDerivedReadCanaryFailure: '',
@@ -102,7 +110,7 @@
         aiLearnerProfile: facade.readAILearnerProfile()
       };
 
-      if (aiDerivedReadCanaryRequested) {
+      if (aiDerivedReadRequested) {
         try {
           const data = window.WLPAIStudyData;
           if (!data || typeof data.deriveDerivedState !== 'function') throw new Error('AI Study pure derived-state builder is unavailable.');
