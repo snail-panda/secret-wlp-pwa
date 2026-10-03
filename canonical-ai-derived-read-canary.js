@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.306-ai-derived-state-production-read-canary-v1';
+  const APP_VERSION='1.8.6.307-ai-derived-state-production-read-canary-stable-compare-v1';
   const FLAG='wlpAIDerivedReadCanary';
   const AI_ROUTE_KEY='wlp:ai-route-state:v1';
   const AI_PROFILE_KEY='wlp:ai-learner-profile:v1';
@@ -20,6 +20,32 @@
   const active=()=>new URLSearchParams(location.search).get(FLAG)==='1';
   const time=value=>{const n=Date.parse(String(value||''));return Number.isFinite(n)?n:0;};
   function safeParse(raw,fallback){try{const value=JSON.parse(raw);return value==null?clone(fallback):value;}catch(_){return clone(fallback);}}
+  function canonicalize(value){
+    if(Array.isArray(value))return value.map(canonicalize);
+    if(!value||typeof value!=='object')return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonicalize(value[key])]));
+  }
+  function canonicalJson(value){return JSON.stringify(canonicalize(value));}
+  function firstDiff(a,b,path='$'){
+    if(Object.is(a,b))return '';
+    if(Array.isArray(a)||Array.isArray(b)){
+      if(!Array.isArray(a)||!Array.isArray(b))return path;
+      if(a.length!==b.length)return `${path}.length(${a.length}!=${b.length})`;
+      for(let i=0;i<a.length;i++){const hit=firstDiff(a[i],b[i],`${path}[${i}]`);if(hit)return hit;}
+      return '';
+    }
+    const ao=a&&typeof a==='object',bo=b&&typeof b==='object';
+    if(ao||bo){
+      if(!ao||!bo)return path;
+      const keys=[...new Set([...Object.keys(a),...Object.keys(b)])].sort();
+      for(const key of keys){
+        if(!Object.prototype.hasOwnProperty.call(a,key)||!Object.prototype.hasOwnProperty.call(b,key))return `${path}.${key}`;
+        const hit=firstDiff(a[key],b[key],`${path}.${key}`);if(hit)return hit;
+      }
+      return '';
+    }
+    return `${path}(${JSON.stringify(a)}!=${JSON.stringify(b)})`;
+  }
   function rawLocalRouteCount(){return Object.keys(asObject(asObject(safeParse(localStorage.getItem(AI_ROUTE_KEY)||'',{})).records)).length;}
   function rawLocalProfile(){return asObject(safeParse(localStorage.getItem(AI_PROFILE_KEY)||'',{}));}
   function eventId(event){return clean(event?.eventId||event?.event_id||event?.id);}
@@ -73,8 +99,11 @@
       const routeCount=Object.keys(asObject(productionRoute?.records)).length;
       const derivedCount=Object.keys(asObject(derived?.routeState?.records)).length;
       const profileCounts=value=>[asArray(value?.productionTendencies).length,asArray(value?.reusableConstructions).length,asArray(value?.styleTendencies).length].join('/');
-      const pass=routeCount===derivedCount&&JSON.stringify(productionRoute)===JSON.stringify(derived.routeState)&&JSON.stringify(productionProfile)===JSON.stringify(derived.learnerProfile);
-      show(pass?'READY · Normal AI route/profile reads are using Canonical-event reconstruction.':'CHECK · Production read did not match the reconstructed state.',pass,`Canonical events ${state.canonicalEvents.length} · merged events ${events.length}\nraw local route ${rawLocalRouteCount()} → production route ${routeCount}\nprofile counts ${profileCounts(productionProfile)} · outbox overlay included by Canonical facade\ntrigger ${trigger}`);
+      const routeStableExact=canonicalJson(productionRoute)===canonicalJson(derived.routeState);
+      const profileStableExact=canonicalJson(productionProfile)===canonicalJson(derived.learnerProfile);
+      const pass=routeCount===derivedCount&&routeStableExact&&profileStableExact;
+      const diff=!routeStableExact?`route first diff ${firstDiff(productionRoute,derived.routeState)}`:!profileStableExact?`profile first diff ${firstDiff(productionProfile,derived.learnerProfile)}`:'';
+      show(pass?'READY · Normal AI route/profile reads are using Canonical-event reconstruction.':'CHECK · Production read did not match the reconstructed state.',pass,`Canonical events ${state.canonicalEvents.length} · merged events ${events.length}\nraw local route ${rawLocalRouteCount()} → production route ${routeCount}\nroute stable exact ${routeStableExact?'yes':'no'} · profile stable exact ${profileStableExact?'yes':'no'}\nprofile counts ${profileCounts(productionProfile)} · outbox overlay included by Canonical facade${diff?`\n${diff}`:''}\ntrigger ${trigger}`);
       return pass;
     }catch(error){state.ready=false;state.failure=error?.message||String(error);show(`CHECK · ${state.failure}`,false,'Canary fell back to existing local route/profile reads. No data was changed.');return false;}
     finally{state.busy=false;}
