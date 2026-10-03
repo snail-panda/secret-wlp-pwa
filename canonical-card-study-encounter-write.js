@@ -1,4 +1,4 @@
-/* WLP v1.8.6.318 — Card Study encounter default Canonical write.
+/* WLP v1.8.6.319 — Card Study encounter default Canonical write diagnostic hardening.
    New normal Card Study encounters remain in the existing local activity history for
    rollback/compatibility and are also queued into Canonical learning_events.
    Normal success is silent. Audit only: ?wlpEncounterWriteAudit=1.
@@ -9,10 +9,11 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.318-card-study-encounter-default-canonical-write-v1';
+  const APP_VERSION='1.8.6.319-card-study-encounter-default-canonical-write-v2';
   const ROLLBACK_FLAG='wlpLegacyEncounterWrite';
   const AUDIT_FLAG='wlpEncounterWriteAudit';
   const MANUAL_CANARY_FLAG='wlpEncounterCanary';
+  const RECEIVER_AUDIT_FLAG='wlpEncounterReceiveAudit';
   const PENDING_KEY='WLP Canonical Card Study Encounter Pending V1';
   const ACTIVITY_KEY='wlp:stage7:activity-events:v1';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -38,7 +39,8 @@
   function rollbackActive(){return params().get(ROLLBACK_FLAG)==='1';}
   function auditActive(){return params().get(AUDIT_FLAG)==='1';}
   function manualCanaryActive(){return params().get(MANUAL_CANARY_FLAG)==='1';}
-  function writerActive(){return !rollbackActive()&&!manualCanaryActive();}
+  function receiverAuditActive(){return params().has(RECEIVER_AUDIT_FLAG);}
+  function writerActive(){return !rollbackActive()&&!manualCanaryActive()&&!receiverAuditActive();}
   function validEncounter(e){return e&&typeof e==='object'&&clean(e.type)==='study'&&clean(e.action)==='encounter'&&clean(e.wordId)&&Number(e.timestamp)>0&&['source-deck','review-deck','study-set','solo'].includes(clean(e.source));}
   function eventIdentity(e){return`${Number(e.timestamp)}|${clean(e.wordId)}|${clean(e.source)}|${clean(e.deck)}|study|encounter`;}
   function readPending(){try{const v=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');return(Array.isArray(v)?v:[]).filter(x=>x&&typeof x==='object'&&validEncounter(x.event));}catch(_){return[];}}
@@ -60,7 +62,7 @@
     if(state.busy||!writerActive())return;state.busy=true;let db=null;
     try{
       let pending=readPending();
-      if(!pending.length){show('READY · Production-default encounter write is active.',true,'No pending encounter · normal Study Card opens queue automatically.');return;}
+      if(!pending.length){if(state.report?.summary?.pass===true)return;show('READY · Production-default encounter write is active.',true,'No pending encounter · normal Study Card opens queue automatically.');return;}
       db=await openDb();const [meta,outbox]=await Promise.all([getRow(db,META_STORE,META_KEY),getAll(db,OUTBOX_STORE)]);
       if(!meta||clean(meta.candidateKey)!==BASE.candidateKey||Number(meta.headVersion||0)!==BASE.headVersion||clean(meta.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Encounter default write requires ACTIVE Authority v3.');
       if(outbox.length){show('WAIT · Another Canonical action is pending.',true,`encounter queue ${pending.length} · outbox ${outbox.length}`);return;}
@@ -91,6 +93,6 @@
   window.addEventListener('wlp-card-study-encounter-recorded',onEncounter);
   window.addEventListener('wlp-canonical-auto-sync-complete',onSyncComplete);
   window.WLPCanonicalCardStudyEncounterWrite=Object.freeze({version:1,appVersion:APP_VERSION,rollbackFlag:ROLLBACK_FLAG,auditFlag:AUDIT_FLAG,drain,getReport:()=>clone(state.report),pendingCount:()=>readPending().length,isActive:writerActive});
-  if(auditActive())show(rollbackActive()?'ROLLBACK · Production-default encounter write is disabled.':manualCanaryActive()?'DIAGNOSTIC · Manual encounter canary owns writes on this page.':'READY · Production-default encounter write is active.',true,`pending ${readPending().length} · audit query does not activate the write`);
+  if(auditActive())show(rollbackActive()?'ROLLBACK · Production-default encounter write is disabled.':manualCanaryActive()?'DIAGNOSTIC · Manual encounter canary owns writes on this page.':receiverAuditActive()?'DIAGNOSTIC · Receiver audit is read-only; default encounter write is suppressed on this page.':'READY · Production-default encounter write is active.',true,`pending ${readPending().length} · audit query does not activate the write`);
   if(writerActive())setTimeout(()=>{void drain();},0);
 })();
