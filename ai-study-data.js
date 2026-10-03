@@ -865,12 +865,14 @@
     profile.updatedAt = clean(event.updatedAt || event.createdAt || nowIso());
   }
 
-  function rebuildDerivedState() {
-    const events = readAIEvents();
-    const route = { schemaVersion: 1, updatedAt: nowIso(), records: {} };
+  function deriveDerivedState(eventsInput, options = {}) {
+    const events = array(eventsInput);
+    const routeGeneratedAt = clean(options.routeGeneratedAt || options.generatedAt) || nowIso();
+    const profileGeneratedAt = clean(options.profileGeneratedAt || options.generatedAt) || nowIso();
+    const route = { schemaVersion: 1, updatedAt: routeGeneratedAt, records: {} };
     const profile = {
       schemaVersion: 1,
-      updatedAt: nowIso(),
+      updatedAt: profileGeneratedAt,
       productionTendencies: [],
       reusableConstructions: [],
       styleTendencies: []
@@ -892,9 +894,14 @@
       if (canRecordProfileObservation) applyProfilePatch(profile, event, event.interpreterResult, { allowPromotion: allowProfilePromotion });
     });
 
-    writeJson(AI_ROUTE_KEY, route);
-    writeJson(AI_PROFILE_KEY, profile);
     return { routeState: clone(route), learnerProfile: clone(profile) };
+  }
+
+  function rebuildDerivedState() {
+    const derived = deriveDerivedState(readAIEvents());
+    writeJson(AI_ROUTE_KEY, derived.routeState);
+    writeJson(AI_PROFILE_KEY, derived.learnerProfile);
+    return clone(derived);
   }
 
   function mergeInterpreterResult(eventId, interpreterResult, options = {}) {
@@ -1501,6 +1508,7 @@
     mergeInterpreterResult,
     commitInterpreterTurn,
     inspectCommittedTurn,
+    deriveDerivedState: (events, options = {}) => clone(deriveDerivedState(events, options)),
     rebuildDerivedState,
     readAIEvents: () => clone(readAIEvents()),
     readRouteState: () => clone(readRouteState()),
