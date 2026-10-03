@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.3.1';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -216,6 +216,19 @@
     return Array.isArray(events) ? events : [];
   }
 
+  async function prepareCanonicalDerivedReader() {
+    const reader = window.WLPCanonicalAIDerivedReadCanary;
+    if (!reader || typeof reader.isActive !== 'function' || reader.isActive() !== true) return false;
+    if (typeof reader.isReady === 'function' && reader.isReady() === true) return true;
+    try {
+      if (typeof reader.ensureReady === 'function') return await reader.ensureReady();
+      if (typeof reader.prepare === 'function') return await reader.prepare('ai-study-data-read');
+    } catch (error) {
+      console.warn('AI Study Canonical-derived default read preparation fell back to local derived state:', error);
+    }
+    return false;
+  }
+
   function canonicalDerivedRead(kind) {
     const reader = window.WLPCanonicalAIDerivedReadCanary;
     if (!reader || typeof reader.isActive !== 'function' || reader.isActive() !== true || typeof reader.isReady !== 'function' || reader.isReady() !== true) return null;
@@ -223,7 +236,7 @@
       if (kind === 'route' && typeof reader.getRouteState === 'function') return reader.getRouteState();
       if (kind === 'profile' && typeof reader.getLearnerProfile === 'function') return reader.getLearnerProfile();
     } catch (error) {
-      console.warn('AI Study Canonical-derived read canary fell back to local derived state:', error);
+      console.warn('AI Study Canonical-derived default read fell back to local derived state:', error);
     }
     return null;
   }
@@ -1269,7 +1282,7 @@
   }
 
   async function assembleCandidateContext(options = {}) {
-    await prepareCanonicalProgressReader();
+    await Promise.all([prepareCanonicalProgressReader(), prepareCanonicalDerivedReader()]);
     const rows = await getMasterRows();
     const routeState = readRouteState();
     const profile = readLearnerProfile();
@@ -1349,7 +1362,7 @@
   }
 
   async function assembleTargetContext(wordId, options = {}) {
-    await prepareCanonicalProgressReader();
+    await Promise.all([prepareCanonicalProgressReader(), prepareCanonicalDerivedReader()]);
     const id = clean(wordId);
     if (!id) throw new Error('wordId is required');
     const rows = await getMasterRows();
