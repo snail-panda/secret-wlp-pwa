@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.1';
+  const VERSION = '1.3.2';
   const MASTER_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260909';
   const LOCAL_OVERRIDES_KEY = 'wlp:local-overrides:v1';
   const PROGRESS_PREFIX = 'fc:wordid:';
@@ -16,6 +16,8 @@
   const AI_EVENT_KEY = 'wlp:ai-study-events:v1';
   const AI_ROUTE_KEY = 'wlp:ai-route-state:v1';
   const AI_PROFILE_KEY = 'wlp:ai-learner-profile:v1';
+  const DERIVED_WRITE_CANARY_PARAM = 'wlpAIDerivedWriteCanary';
+  const suppressLegacyDerivedWrites = new URLSearchParams(location.search).get(DERIVED_WRITE_CANARY_PARAM) === '1';
 
   const AI_EVENT_LIMIT = 2400;
   const ROUTE_EXEMPLAR_LIMIT = 5;
@@ -926,8 +928,10 @@
 
   function rebuildDerivedState() {
     const derived = deriveDerivedState(readAIEvents());
-    writeJson(AI_ROUTE_KEY, derived.routeState);
-    writeJson(AI_PROFILE_KEY, derived.learnerProfile);
+    if (!suppressLegacyDerivedWrites) {
+      writeJson(AI_ROUTE_KEY, derived.routeState);
+      writeJson(AI_PROFILE_KEY, derived.learnerProfile);
+    }
     return clone(derived);
   }
 
