@@ -1,4 +1,4 @@
-/* WLP v1.8.6.304 — Canonical AI-event derived-state reconstruction audit.
+/* WLP v1.8.6.305 — Canonical AI-event derived-state reconstruction audit DOM-ready hotfix.
    Diagnostic only. Rebuilds AI route/profile in memory from Canonical AI events by calling
    the same pure derivation path used by normal AI Study, then compares that reconstruction
    with the already-audited safe local+Canonical route union and selected profile semantics.
@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.304-ai-derived-state-rebuild-audit-v1';
+  const APP_VERSION = '1.8.6.305-ai-derived-state-rebuild-audit-dom-ready-hotfix-v1';
   const FLAG = 'wlpAIDerivedRebuildAudit';
   const AI_ROUTE_KEY = 'wlp:ai-route-state:v1';
   const AI_PROFILE_KEY = 'wlp:ai-learner-profile:v1';
@@ -89,6 +89,9 @@
   async function runAudit() {
     if(state.busy)return; state.busy=true; makePanel(); setStatus('Running read-only Canonical-event reconstruction…',null,'No WLP or Cloud data will be changed.');
     try {
+      if(document.readyState==='loading'){
+        await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
+      }
       const provider=window.WLPCanonicalStorageCompatibilityFacade, data=window.WLPAIStudyData;
       if(!provider?.open||provider.readOnly!==true)throw new Error('Read-only Canonical Storage Compatibility Facade is unavailable.');
       if(!data||typeof data.deriveDerivedState!=='function')throw new Error('AI Study pure derived-state builder is unavailable.');
