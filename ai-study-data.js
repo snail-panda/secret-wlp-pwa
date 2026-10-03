@@ -216,8 +216,21 @@
     return Array.isArray(events) ? events : [];
   }
 
+  function canonicalDerivedRead(kind) {
+    const reader = window.WLPCanonicalAIDerivedReadCanary;
+    if (!reader || typeof reader.isActive !== 'function' || reader.isActive() !== true || typeof reader.isReady !== 'function' || reader.isReady() !== true) return null;
+    try {
+      if (kind === 'route' && typeof reader.getRouteState === 'function') return reader.getRouteState();
+      if (kind === 'profile' && typeof reader.getLearnerProfile === 'function') return reader.getLearnerProfile();
+    } catch (error) {
+      console.warn('AI Study Canonical-derived read canary fell back to local derived state:', error);
+    }
+    return null;
+  }
+
   function readRouteState() {
-    const root = readJson(AI_ROUTE_KEY, null);
+    const canonical = canonicalDerivedRead('route');
+    const root = canonical && typeof canonical === 'object' && !Array.isArray(canonical) ? canonical : readJson(AI_ROUTE_KEY, null);
     if (!root || typeof root !== 'object' || Array.isArray(root)) {
       return { schemaVersion: 1, updatedAt: '', records: {} };
     }
@@ -229,7 +242,8 @@
   }
 
   function readLearnerProfile() {
-    const root = readJson(AI_PROFILE_KEY, null);
+    const canonical = canonicalDerivedRead('profile');
+    const root = canonical && typeof canonical === 'object' && !Array.isArray(canonical) ? canonical : readJson(AI_PROFILE_KEY, null);
     if (!root || typeof root !== 'object' || Array.isArray(root)) {
       return {
         schemaVersion: 1,
