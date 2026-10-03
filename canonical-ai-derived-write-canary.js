@@ -1,15 +1,16 @@
-/* WLP v1.8.6.312 — AI Practice legacy route/profile write-suppression canary.
-   Query-gated only: ?wlpAIDerivedWriteCanary=1.
-   While active, ai-study-data.js still derives route/profile in memory from the AI event log,
-   but does not rewrite the durable legacy localStorage route/profile snapshots.
+/* WLP v1.8.6.313 — AI Practice legacy route/profile default write-suppression audit.
+   Production default: durable legacy route/profile snapshots are no longer rewritten.
+   Rollback only: ?wlpLegacyAIDerivedWrite=1.
+   Optional diagnostics panel: ?wlpAIDerivedWriteCanary=1.
+   The diagnostics query does not activate suppression; it only observes the production-default path.
    Canonical AI event/session writes and foreground sync remain unchanged.
-   This canary verifies one interpreted AI turn can complete, reach Canonical storage, and feed
+   This audit verifies one interpreted AI turn can complete, reach Canonical storage, and feed
    the normal Canonical-event-derived production read while both legacy snapshots remain byte-identical.
    No Service Worker/background sync is used. */
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.312-ai-derived-write-suppression-canary-v1';
+  const APP_VERSION = '1.8.6.313-ai-derived-default-write-suppression-audit-v1';
   const FLAG = 'wlpAIDerivedWriteCanary';
   const AI_EVENT_KEY = 'wlp:ai-study-events:v1';
   const AI_ROUTE_KEY = 'wlp:ai-route-state:v1';
@@ -36,7 +37,7 @@
     if(state.panel || !active()) return;
     const panel=document.createElement('section');panel.id='wlp-ai-derived-write-canary';panel.setAttribute('aria-live','polite');
     panel.style.cssText='position:fixed;z-index:100008;right:8px;top:max(8px,env(safe-area-inset-top));width:min(470px,calc(100vw - 16px));max-height:58vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    panel.innerHTML='<strong style="display:block;font-size:13px">AI Practice · legacy route/profile write-suppression canary</strong><div id="wlp-ai-derived-write-status" style="margin-top:4px">Preparing…</div><div id="wlp-ai-derived-write-detail" style="margin-top:7px;font-size:12px;white-space:pre-wrap;opacity:.86"></div>';
+    panel.innerHTML='<strong style="display:block;font-size:13px">AI Practice · legacy route/profile default write-suppression audit</strong><div id="wlp-ai-derived-write-status" style="margin-top:4px">Preparing…</div><div id="wlp-ai-derived-write-detail" style="margin-top:7px;font-size:12px;white-space:pre-wrap;opacity:.86"></div>';
     document.body.appendChild(panel);state.panel=panel;state.status=panel.querySelector('#wlp-ai-derived-write-status');state.detail=panel.querySelector('#wlp-ai-derived-write-detail');
   }
   function show(text,ok=null,detail=''){makePanel();if(!state.status)return;state.status.textContent=text;state.status.style.fontWeight=ok===null?'500':'700';state.status.style.color=ok===true?'#18794e':ok===false?'#b42318':'#1c2d22';state.detail.textContent=detail;}
@@ -59,6 +60,7 @@
       const reader=window.WLPCanonicalAIDerivedReadCanary,data=window.WLPAIStudyData;
       if(!reader?.isActive?.()||typeof reader.ensureReady!=='function')throw new Error('Canonical-event derived production reader is unavailable.');
       if(!data||typeof data.readAIEvents!=='function')throw new Error('AI Study data layer is unavailable.');
+      if(data.legacyDerivedWritesEnabled!==false)throw new Error('Production default legacy route/profile write suppression is not active.');
       const ready=await reader.ensureReady();if(ready!==true)throw new Error('Canonical-event derived production reader is not ready.');
       const canonical=await canonicalEvents();
       state.routeRaw=localStorage.getItem(AI_ROUTE_KEY);
@@ -66,7 +68,7 @@
       state.localEventsBefore=data.readAIEvents().length;
       state.canonicalEventsBefore=canonical.length;
       state.baselineReady=true;state.armed=true;
-      show('READY · Legacy route/profile write suppression is armed.',true,`Canonical AI events ${state.canonicalEventsBefore} · local AI events ${state.localEventsBefore}\nComplete exactly one AI Practice experience. Local route/profile snapshots must remain byte-identical.`);
+      show('READY · Production default legacy write suppression is active.',true,`Canonical AI events ${state.canonicalEventsBefore} · local AI events ${state.localEventsBefore}\nDiagnostics only: this query does not activate suppression. Complete exactly one AI Practice experience; local route/profile snapshots must remain byte-identical.`);
     }catch(error){show(`CHECK · ${error?.message||String(error)}`,false,'Do not run the canary turn until this is understood.');}
   }
 
@@ -91,7 +93,7 @@
       const outbox=await outboxCount();
       const pass=routeUnchanged&&profileUnchanged&&localEventPresent&&canonicalEventPresent&&routeExact&&profileExact&&outbox===0&&canonical.length>=state.canonicalEventsBefore+1;
       const detail=`event ${state.interpretedEventId}\nlocal AI events ${state.localEventsBefore} → ${local.length} · Canonical AI events ${state.canonicalEventsBefore} → ${canonical.length}\nlegacy route bytes unchanged ${routeUnchanged?'yes':'NO'} · legacy profile bytes unchanged ${profileUnchanged?'yes':'NO'}\nproduction route exact ${routeExact?'yes':'NO'} · production profile exact ${profileExact?'yes':'NO'} · outbox ${outbox}\ntrigger ${trigger}`;
-      if(pass)show('PASS · AI turn succeeded without legacy route/profile writes.',true,detail);
+      if(pass)show('PASS · Production-default AI turn succeeded without legacy route/profile writes.',true,detail);
       else show('CHECK · Write-suppression canary has not reached a clean PASS.',false,detail);
     }catch(error){show(`CHECK · ${error?.message||String(error)}`,false,'The legacy snapshots are still being checked; do not start another canary turn.');}
     finally{state.verifying=false;}
