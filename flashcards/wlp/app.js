@@ -293,15 +293,17 @@ function studySource() {
 
 function activityEvent(type, row, extra = {}) {
   const wordId = progressWordId(row);
-  if (!wordId || IS_DRAFT_MODE) return;
-  appendStage7Event(ACTIVITY_EVENTS_KEY, {
+  if (!wordId || IS_DRAFT_MODE) return null;
+  const event = {
     timestamp: Date.now(),
     type,
     wordId,
     source: studySource(),
     deck: String(row?.["Batch #"] || BATCH_PARAM || "").trim(),
     ...extra
-  });
+  };
+  appendStage7Event(ACTIVITY_EVENTS_KEY, event);
+  return event;
 }
 
 function interactionEvent(action, row, extra = {}) {
@@ -354,7 +356,14 @@ function recordEncounter(row) {
     });
   }
 
-  activityEvent("study", row, { action: "encounter" });
+  const encounterEvent = activityEvent("study", row, { action: "encounter" });
+  if (encounterEvent) {
+    window.dispatchEvent(
+      new CustomEvent("wlp-card-study-encounter-recorded", {
+        detail: { event: encounterEvent }
+      })
+    );
+  }
 }
 
 // Stage 7 — Connected Headwords. Synonyms that exactly match an Effective
