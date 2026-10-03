@@ -4466,6 +4466,10 @@
         result: interpreterResult,
         eventId: state.activePlanner.eventId
       });
+      const committedAIEvent = data.findEvent?.(committed.eventId);
+      if (committedAIEvent) {
+        window.dispatchEvent(new CustomEvent('wlp-ai-practice-interpreted', { detail: { event: committedAIEvent } }));
+      }
       state.session.completed += 1;
       state.session.committedEvents.push(committed.eventId);
       const turnUsage = usageDelta(state.activePlanner?.diagnostics?.usageStart, state.session);
