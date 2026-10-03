@@ -4722,6 +4722,9 @@
     }
     renderSessionReview(record);
     const historySaved = session.completed ? saveSessionHistory(record) : true;
+    if (session.completed && historySaved) {
+      window.dispatchEvent(new CustomEvent('wlp-ai-practice-session-completed', { detail: { session: clone(record) } }));
+    }
     renderHistory();
     if (!historySaved) {
       $('#wlp-ai-finished-summary').textContent += ' The learning evidence is saved, but the local AI Study History snapshot could not be written on this device.';
