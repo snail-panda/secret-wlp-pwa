@@ -4468,7 +4468,29 @@ function flip(root) {
 
 function installDeckNavigation() {
 
-  showAt(0);
+  let initialIndex = 0;
+
+  if (
+    !IS_REVIEW_MODE &&
+    !IS_DRAFT_MODE &&
+    WORDID_PARAM &&
+    !IS_SOLO_MODE
+  ) {
+    const wantedWordId =
+      String(WORDID_PARAM || "").trim();
+    const targetIndex =
+      renderedCards.findIndex(
+        item =>
+          progressWordId(item?.row) ===
+          wantedWordId
+      );
+
+    if (targetIndex >= 0) {
+      initialIndex = targetIndex;
+    }
+  }
+
+  showAt(initialIndex);
 
 }
 
