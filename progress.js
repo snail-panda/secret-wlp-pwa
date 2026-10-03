@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.276 — Canonical Progress reads refresh after foreground receiver materialization; forced-legacy rollback retained. */
+/* WLP Stage 7 v1.8.6.310 — Progress AI route/profile Canonical-event derived read canary; canonical Progress baseline retained. */
 (() => {
   'use strict';
 
@@ -21,7 +21,10 @@
   const RECENT_MS = 14 * 24 * 60 * 60 * 1000;
   const $ = id => document.getElementById(id);
   const FORCE_LEGACY_READ_PARAM = 'wlpLegacyProgressRead';
-  const forceLegacyRead = new URLSearchParams(location.search).get(FORCE_LEGACY_READ_PARAM) === '1';
+  const AI_DERIVED_READ_CANARY_PARAM = 'wlpAIProgressDerivedReadCanary';
+  const urlParams = new URLSearchParams(location.search);
+  const forceLegacyRead = urlParams.get(FORCE_LEGACY_READ_PARAM) === '1';
+  const aiDerivedReadCanaryRequested = urlParams.get(AI_DERIVED_READ_CANARY_PARAM) === '1';
   const canonicalReadRequested = !forceLegacyRead;
   let canonicalReadBundle = null;
   const canonicalReadState = {
@@ -46,7 +49,14 @@
     stats: null,
     loadedCounts: null,
     dataNote: '',
-    spotCheck2876: null
+    spotCheck2876: null,
+    aiDerivedReadCanaryRequested,
+    aiDerivedReadCanaryActive: false,
+    aiDerivedReadCanaryFailure: '',
+    aiDerivedCanonicalEvents: 0,
+    aiDerivedRawCanonicalRouteRecords: 0,
+    aiDerivedRouteRecords: 0,
+    aiDerivedProfileCounts: { productionTendencies:0, reusableConstructions:0, styleTendencies:0 }
   };
 
   function cloneValue(value) {
@@ -91,6 +101,39 @@
         aiRouteState: facade.readAIRouteState(),
         aiLearnerProfile: facade.readAILearnerProfile()
       };
+
+      if (aiDerivedReadCanaryRequested) {
+        try {
+          const data = window.WLPAIStudyData;
+          if (!data || typeof data.deriveDerivedState !== 'function') throw new Error('AI Study pure derived-state builder is unavailable.');
+          const aiEvents = Array.isArray(bundle.aiStudyEvents) ? bundle.aiStudyEvents : [];
+          const rawRouteRecords = bundle.aiRouteState && typeof bundle.aiRouteState === 'object' && bundle.aiRouteState.records && typeof bundle.aiRouteState.records === 'object' && !Array.isArray(bundle.aiRouteState.records)
+            ? Object.keys(bundle.aiRouteState.records).length : 0;
+          const eventStamp = event => {
+            const n = Date.parse(String(event?.updatedAt || event?.createdAt || event?.timestamp || ''));
+            return Number.isFinite(n) ? n : 0;
+          };
+          const latest = aiEvents.reduce((max, event) => Math.max(max, eventStamp(event)), 0);
+          const derived = data.deriveDerivedState(aiEvents, { generatedAt: latest ? new Date(latest).toISOString() : new Date(0).toISOString() });
+          const derivedRoute = derived?.routeState && typeof derived.routeState === 'object' ? derived.routeState : { schemaVersion:1, updatedAt:'', records:{} };
+          const derivedProfile = derived?.learnerProfile && typeof derived.learnerProfile === 'object' ? derived.learnerProfile : { schemaVersion:1, updatedAt:'', productionTendencies:[], reusableConstructions:[], styleTendencies:[] };
+          bundle.aiRouteState = derivedRoute;
+          bundle.aiLearnerProfile = derivedProfile;
+          canonicalReadState.aiDerivedReadCanaryActive = true;
+          canonicalReadState.aiDerivedReadCanaryFailure = '';
+          canonicalReadState.aiDerivedCanonicalEvents = aiEvents.length;
+          canonicalReadState.aiDerivedRawCanonicalRouteRecords = rawRouteRecords;
+          canonicalReadState.aiDerivedRouteRecords = Object.keys(derivedRoute.records && typeof derivedRoute.records === 'object' ? derivedRoute.records : {}).length;
+          canonicalReadState.aiDerivedProfileCounts = {
+            productionTendencies: Array.isArray(derivedProfile.productionTendencies) ? derivedProfile.productionTendencies.length : 0,
+            reusableConstructions: Array.isArray(derivedProfile.reusableConstructions) ? derivedProfile.reusableConstructions.length : 0,
+            styleTendencies: Array.isArray(derivedProfile.styleTendencies) ? derivedProfile.styleTendencies.length : 0
+          };
+        } catch (error) {
+          canonicalReadState.aiDerivedReadCanaryActive = false;
+          canonicalReadState.aiDerivedReadCanaryFailure = error?.message || String(error);
+        }
+      }
       if (!Array.isArray(bundle.progressRecords) || bundle.progressRecords.length < 111) throw new Error(`Canonical Progress row count regressed below bootstrap: ${Array.isArray(bundle.progressRecords) ? bundle.progressRecords.length : 'invalid'}.`);
       const explicitFirstSeenRows = bundle.progressRecords.filter(row => Number(row?.firstSeen || 0) > 0).length;
       if (explicitFirstSeenRows !== bundle.progressRecords.length) throw new Error(`Canonical firstSeen coverage mismatch: ${explicitFirstSeenRows}/${bundle.progressRecords.length}.`);
