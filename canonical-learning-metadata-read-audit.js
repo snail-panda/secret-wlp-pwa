@@ -1,4 +1,4 @@
-/* WLP v1.8.6.324 — Learning Metadata Canonical read audit.
+/* WLP v1.8.6.325 — Learning Metadata Canonical difference detail audit.
    Read-only comparison of local Learning Metadata v2 against the materialized
    Canonical mirror (metadata + situations + alternatives + links).
    Query only: ?wlpLearningMetadataAudit=1
@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.324-learning-metadata-canonical-read-audit-v1';
+  const APP_VERSION = '1.8.6.325-learning-metadata-canonical-difference-detail-audit-v1';
   const FLAG = 'wlpLearningMetadataAudit';
   const DB_NAME = 'wlp-cloud-v1', DB_VERSION = 1;
   const STORES = ['cards','card_learning_metadata','learning_situations','learning_alternatives','learning_alternative_situations','sync_meta'];
@@ -115,13 +115,20 @@
       shared.forEach(key=>{if(stableStringify(semanticShape(local[key]))===stableStringify(semanticShape(canonical[key])))semanticExact+=1;else semanticMismatch.push(key);if(stableStringify(lineageShape(local[key]))===stableStringify(lineageShape(canonical[key])))lineageExact+=1;else lineageMismatch.push(key);});
       const lc=countChildren(local),cc=countChildren(canonical),cursor=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
       const pass=localOnly.length===0&&canonicalOnly.length===0&&semanticMismatch.length===0;
-      state.report={format:'WLP_LEARNING_METADATA_CANONICAL_READ_AUDIT',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'read-only-local-v2-vs-materialized-canonical',authority:{candidateKey:meta?.candidateKey||null,headVersion:meta?.headVersion||null,snapshotManifestHash:meta?.snapshotManifestHash||null,materializedSyncCursor:cursor},summary:{localRecords:localKeys.length,canonicalRecords:canonicalKeys.length,sharedRecords:shared.length,semanticExact,semanticMismatches:semanticMismatch.length,lineageExact,lineageMismatches:lineageMismatch.length,localOnly:localOnly.length,canonicalOnly:canonicalOnly.length,localSituations:lc.situations,canonicalSituations:cc.situations,localAlternatives:lc.alternatives,canonicalAlternatives:cc.alternatives,localAlternativeLinks:lc.links,canonicalAlternativeLinks:cc.links,blockingIssues:0,pass},differences:{localOnly,canonicalOnly,semanticMismatch,lineageMismatch},invariants:{readOnly:true,noLocalStorageWrites:true,noIndexedDbWrites:true,noOutboxWrites:true,noCloudWrites:true}};
+      const differenceDetails={
+        localOnly:Object.fromEntries(localOnly.map(key=>[key,clone(local[key])])),
+        canonicalOnly:Object.fromEntries(canonicalOnly.map(key=>[key,clone(canonical[key])])),
+        semanticMismatch:Object.fromEntries(semanticMismatch.map(key=>[key,{local:clone(local[key]),canonical:clone(canonical[key])}])),
+        lineageMismatch:Object.fromEntries(lineageMismatch.map(key=>[key,{local:clone(local[key]),canonical:clone(canonical[key])}]))
+      };
+      state.report={format:'WLP_LEARNING_METADATA_CANONICAL_READ_AUDIT',version:2,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),mode:'read-only-local-v2-vs-materialized-canonical',authority:{candidateKey:meta?.candidateKey||null,headVersion:meta?.headVersion||null,snapshotManifestHash:meta?.snapshotManifestHash||null,materializedSyncCursor:cursor},summary:{localRecords:localKeys.length,canonicalRecords:canonicalKeys.length,sharedRecords:shared.length,semanticExact,semanticMismatches:semanticMismatch.length,lineageExact,lineageMismatches:lineageMismatch.length,localOnly:localOnly.length,canonicalOnly:canonicalOnly.length,localSituations:lc.situations,canonicalSituations:cc.situations,localAlternatives:lc.alternatives,canonicalAlternatives:cc.alternatives,localAlternativeLinks:lc.links,canonicalAlternativeLinks:cc.links,blockingIssues:0,pass},differences:{localOnly,canonicalOnly,semanticMismatch,lineageMismatch},differenceDetails,invariants:{readOnly:true,noLocalStorageWrites:true,noIndexedDbWrites:true,noOutboxWrites:true,noCloudWrites:true}};
       db.close();
       const firstDiff=[...localOnly.map(x=>`local-only ${x}`),...canonicalOnly.map(x=>`Canonical-only ${x}`),...semanticMismatch.map(x=>`semantic mismatch ${x}`)].slice(0,3);
-      const detail=`local ${localKeys.length} / Canonical ${canonicalKeys.length} · semantic exact ${semanticExact}/${shared.length}\nlocal-only ${localOnly.length} · Canonical-only ${canonicalOnly.length} · semantic mismatches ${semanticMismatch.length}\nsituations ${lc.situations}/${cc.situations} · alternatives ${lc.alternatives}/${cc.alternatives} · links ${lc.links}/${cc.links} · cursor ${cursor}${firstDiff.length?`\nfirst differences: ${firstDiff.join(' · ')}`:''}`;
+      const canonicalOnlyPreview=canonicalOnly.slice(0,3).map(key=>{const r=canonical[key];return `${key} · type=${r.entryType||'—'} · sense=${r.senseHook?'yes':'no'} · memory=${r.memoryHook?'yes':'no'} · situations=${r.situations.length} · alternatives=${r.alternatives.length}`;});
+      const detail=`local ${localKeys.length} / Canonical ${canonicalKeys.length} · semantic exact ${semanticExact}/${shared.length}\nlocal-only ${localOnly.length} · Canonical-only ${canonicalOnly.length} · semantic mismatches ${semanticMismatch.length}\nsituations ${lc.situations}/${cc.situations} · alternatives ${lc.alternatives}/${cc.alternatives} · links ${lc.links}/${cc.links} · cursor ${cursor}${firstDiff.length?`\nfirst differences: ${firstDiff.join(' · ')}`:''}${canonicalOnlyPreview.length?`\nCanonical-only detail: ${canonicalOnlyPreview.join(' | ')}`:''}`;
       show(pass?'PASS · Local Learning Metadata matches Canonical semantically.':'CHECK · Learning Metadata has post-snapshot or cross-device differences.',pass,detail);
     } catch (error) {
-      state.report={format:'WLP_LEARNING_METADATA_CANONICAL_READ_AUDIT',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{blockingIssues:1,pass:false},issues:{blocking:[error?.message||String(error)]},invariants:{readOnly:true,noLocalStorageWrites:true,noIndexedDbWrites:true,noOutboxWrites:true,noCloudWrites:true}};
+      state.report={format:'WLP_LEARNING_METADATA_CANONICAL_READ_AUDIT',version:2,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{blockingIssues:1,pass:false},issues:{blocking:[error?.message||String(error)]},invariants:{readOnly:true,noLocalStorageWrites:true,noIndexedDbWrites:true,noOutboxWrites:true,noCloudWrites:true}};
       show(`BLOCKED · ${error?.message||String(error)}`,false,'Read-only audit; no data was changed.');
     }
   }
