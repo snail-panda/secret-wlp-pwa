@@ -309,14 +309,21 @@ function activityEvent(type, row, extra = {}) {
 function interactionEvent(action, row, extra = {}) {
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return;
-  appendStage7Event(INTERACTION_EVENTS_KEY, {
+  const interaction = {
     timestamp: Date.now(),
     action,
     wordId,
     source: studySource(),
     deck: String(row?.["Batch #"] || BATCH_PARAM || "").trim(),
     ...extra
-  });
+  };
+  appendStage7Event(INTERACTION_EVENTS_KEY, interaction);
+  window.dispatchEvent(
+    new CustomEvent("wlp-card-study-interaction-recorded", {
+      detail: { event: interaction }
+    })
+  );
+  return interaction;
 }
 
 function recordEncounter(row) {
