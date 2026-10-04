@@ -1,4 +1,4 @@
-/* WLP v1.8.6.331 — Learning Metadata local-derived parent-row Canonical transport canary.
+/* WLP v1.8.6.332 — Learning Metadata local-derived parent-row Canonical transport canary.
    Source canary: ?wlpLearningMetadataLocalParentCanary=1
    Receiver audit: ?wlpLearningMetadataLocalParentReceive=1
    Builds the WID5578 parent-row payload from the local Learning Metadata v2 record,
@@ -7,7 +7,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.331-learning-metadata-local-derived-parent-canary-v1';
+  const APP_VERSION='1.8.6.332-learning-metadata-local-derived-parent-canary-v1';
   const SOURCE_FLAG='wlpLearningMetadataLocalParentCanary';
   const RECEIVER_FLAG='wlpLearningMetadataLocalParentReceive';
   const TARGET_WID='5578';
@@ -100,7 +100,7 @@
       show(pass?`PASS · Local-derived WID${TARGET_WID} parent row reached Canonical.`:'CHECK · Local-derived parent transport verification is incomplete.',pass,`cursor ${state.active.cursorBefore} → ${cursorAfter} · outbox ${outbox.length}\nlocal-derived payload preserved yes · semantic/lineage change 0`);if(pass)state.active=null;
     }catch(e){show(`CHECK · ${String(e?.message||e)}`,false,'Transport may have completed, but local verification failed.');}finally{try{db?.close();}catch(_){}}
   }
-  window.addEventListener('wlp-canonical-foreground-sync-complete',e=>{void verifyForeground(e.detail);});
+  window.addEventListener('wlp-canonical-auto-sync-complete',e=>{void verifyForeground(e.detail);});
   window.WLPCanonicalLearningMetadataLocalParentCanary=Object.freeze({version:1,prepare,stage,getReport:()=>clone(state.report)});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void prepare();},{once:true});else void prepare();
 })();
