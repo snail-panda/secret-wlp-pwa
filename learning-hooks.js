@@ -1053,11 +1053,20 @@
 
   function recordSemanticSignature(record) {
     const value = normalizeRecord(record, clean(record?.entryKey));
-    return JSON.stringify({
+    const stableValue = input => {
+      if (Array.isArray(input)) return input.map(stableValue);
+      if (input && typeof input === 'object') {
+        const output = {};
+        Object.keys(input).sort().forEach(key => { output[key] = stableValue(input[key]); });
+        return output;
+      }
+      return input;
+    };
+    return JSON.stringify(stableValue({
       status: clean(value.status) || 'provisional',
       deleted: Boolean(value.deletedAt),
       content: normalizeContent(value.content)
-    });
+    }));
   }
 
   function versionIds(record) {
