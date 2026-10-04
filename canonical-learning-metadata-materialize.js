@@ -1,11 +1,11 @@
-/* WLP v1.8.6.327 — Learning Metadata Canonical insert-only materialization.
+/* WLP v1.8.6.328 — Learning Metadata insert-only safety-gate detail audit.
    Query only: ?wlpLearningMetadataMaterialize=1
    Materializes only Canonical records missing locally. Existing local records are never overwritten or deleted.
    No IndexedDB, outbox, or Cloud writes are performed. */
 (() => {
   'use strict';
 
-  const APP_VERSION = '1.8.6.327-learning-metadata-canonical-insert-only-materialization-v1';
+  const APP_VERSION = '1.8.6.328-learning-metadata-insert-only-safety-gate-detail-v1';
   const FLAG = 'wlpLearningMetadataMaterialize';
   const DB_NAME = 'wlp-cloud-v1', DB_VERSION = 1;
   const STORES = ['cards','card_learning_metadata','learning_situations','learning_alternatives','learning_alternative_situations','sync_meta'];
@@ -33,7 +33,7 @@
     const panel=document.createElement('section');
     panel.id='wlp-learning-metadata-materialize';panel.setAttribute('aria-live','polite');
     panel.style.cssText='position:fixed;z-index:100010;left:50%;top:max(8px,env(safe-area-inset-top));transform:translateX(-50%);width:min(760px,calc(100vw - 20px));max-height:52vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 14px;font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22;text-align:center';
-    panel.innerHTML='<strong style="display:block;font-size:13px">Learning Metadata · Canonical insert-only materialization</strong><div id="wlp-learning-metadata-materialize-status" style="margin-top:4px">Checking safe insert-only plan…</div><div id="wlp-learning-metadata-materialize-detail" style="margin-top:7px;font-size:12px;opacity:.84;white-space:pre-line"></div><div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button id="wlp-learning-metadata-materialize-apply" type="button" disabled>Apply insert-only materialization</button><button id="wlp-learning-metadata-materialize-rollback" type="button" hidden>Rollback this materialization</button></div>';
+    panel.innerHTML='<strong style="display:block;font-size:13px">Learning Metadata · Canonical insert-only materialization</strong><div id="wlp-learning-metadata-materialize-status" style="margin-top:4px">Checking safe insert-only plan…</div><div id="wlp-learning-metadata-materialize-detail" style="margin-top:7px;font-size:12px;opacity:.84;white-space:pre-line"></div><div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button id="wlp-learning-metadata-materialize-apply" type="button" disabled>Diagnostic only — no apply</button><button id="wlp-learning-metadata-materialize-rollback" type="button" hidden>Rollback this materialization</button></div>';
     document.body.appendChild(panel);
     const apply=panel.querySelector('#wlp-learning-metadata-materialize-apply'),rollback=panel.querySelector('#wlp-learning-metadata-materialize-rollback');
     [apply,rollback].forEach(button=>button.style.cssText='font:inherit;padding:6px 9px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22');
@@ -85,15 +85,30 @@
       const [meta,cursorMeta,cards,metadata,situations,alternatives,links]=await Promise.all([getRow(db,'sync_meta',META_KEY),getRow(db,'sync_meta',CURSOR_KEY),getAll(db,'cards'),getAll(db,'card_learning_metadata'),getAll(db,'learning_situations'),getAll(db,'learning_alternatives'),getAll(db,'learning_alternative_situations')]);
       if(clean(meta?.candidateKey)!==BASE.candidateKey||Number(meta?.headVersion||0)!==BASE.headVersion||clean(meta?.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Materialization requires ACTIVE Authority v3.');
       const canonical=buildCanonicalPortable(cards,metadata,situations,alternatives,links),before=currentRecords(),beforeKeys=Object.keys(before).sort(),canonicalKeys=Object.keys(canonical.records).sort(),localOnly=beforeKeys.filter(key=>!canonical.records[key]);
-      const plan=api.comparePortableSnapshot(canonical),counts=plan.counts||{},newItems=(plan.items||[]).filter(item=>item.kind==='new'),sameItems=(plan.items||[]).filter(item=>item.kind==='same');
+      const plan=api.comparePortableSnapshot(canonical),counts=plan.counts||{},newItems=(plan.items||[]).filter(item=>item.kind==='new'),sameItems=(plan.items||[]).filter(item=>item.kind==='same'),conflictItems=(plan.items||[]).filter(item=>item.kind==='conflict');
       const cursor=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
+      const conflictDetails=conflictItems.map(item=>{
+        const local=item.local||{},incoming=item.incoming||{},localContent=local.content&&typeof local.content==='object'?local.content:{},incomingContent=incoming.content&&typeof incoming.content==='object'?incoming.content:{};
+        const localKeys=Object.keys(localContent).sort(),incomingKeys=Object.keys(incomingContent).sort();
+        return{incomingKey:item.incomingKey,localKey:item.localKey,reason:item.reason,collision:Boolean(item.collision),metadataIdLocal:clean(local.metadataId),metadataIdCanonical:clean(incoming.metadataId),versionIdLocal:clean(local.versionId),versionIdCanonical:clean(incoming.versionId),parentVersionIdLocal:clean(local.parentVersionId),parentVersionIdCanonical:clean(incoming.parentVersionId),revisionLocal:Number(local.revision||0),revisionCanonical:Number(incoming.revision||0),knownSemanticExact:stableStringify(semanticShape(local))===stableStringify(semanticShape(incoming)),knownLineageExact:stableStringify(lineageShape(local))===stableStringify(lineageShape(incoming)),fullContentExact:stableStringify(localContent)===stableStringify(incomingContent),localOnlyContentKeys:localKeys.filter(key=>!incomingKeys.includes(key)),canonicalOnlyContentKeys:incomingKeys.filter(key=>!localKeys.includes(key))};
+      });
       const safe=localOnly.length===0&&Number(counts.new||0)>0&&Number(counts.incomingNewer||0)===0&&Number(counts.localNewer||0)===0&&Number(counts.conflict||0)===0&&Number(counts.same||0)+Number(counts.new||0)===canonicalKeys.length&&beforeKeys.length+Number(counts.new||0)===canonicalKeys.length;
       state.plan=plan;state.canonical=canonical;state.beforeRaw=localStorage.getItem(api.STORAGE_KEY);state.priorMergeRollbackRaw=api.MERGE_ROLLBACK_KEY?localStorage.getItem(api.MERGE_ROLLBACK_KEY):null;
-      state.report={format:'WLP_LEARNING_METADATA_CANONICAL_INSERT_ONLY_MATERIALIZATION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'ready',authority:{candidateKey:meta?.candidateKey||null,headVersion:meta?.headVersion||null,snapshotManifestHash:meta?.snapshotManifestHash||null,materializedSyncCursor:cursor},before:{localRecords:beforeKeys.length,canonicalRecords:canonicalKeys.length,localOnly},plan:{insertKeys:newItems.map(item=>item.incomingKey),insertCount:newItems.length,sameCount:sameItems.length,incomingNewer:Number(counts.incomingNewer||0),localNewer:Number(counts.localNewer||0),conflicts:Number(counts.conflict||0),overwrites:0,deletes:0},invariants:{insertOnly:safe,noExistingLocalOverwrite:true,noDeletes:true,noIndexedDbWrites:true,noOutboxWrites:true,noCloudWrites:true}};
+      state.report={format:'WLP_LEARNING_METADATA_CANONICAL_INSERT_ONLY_MATERIALIZATION',version:2,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:safe?'ready':'blocked-detail',authority:{candidateKey:meta?.candidateKey||null,headVersion:meta?.headVersion||null,snapshotManifestHash:meta?.snapshotManifestHash||null,materializedSyncCursor:cursor},before:{localRecords:beforeKeys.length,canonicalRecords:canonicalKeys.length,localOnly},plan:{insertKeys:newItems.map(item=>item.incomingKey),insertCount:newItems.length,sameCount:sameItems.length,incomingNewer:Number(counts.incomingNewer||0),localNewer:Number(counts.localNewer||0),conflicts:Number(counts.conflict||0),conflictDetails,overwrites:0,deletes:0},invariants:{insertOnly:safe,noExistingLocalOverwrite:true,noDeletes:true,noIndexedDbWrites:true,noOutboxWrites:true,noCloudWrites:true}};
       db.close();
-      const detail=`before local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${sameItems.length}\nready inserts ${newItems.length}: ${newItems.map(item=>item.incomingKey).join(', ')||'none'} · overwrites 0 · deletes 0\nincoming-newer ${counts.incomingNewer||0} · local-newer ${counts.localNewer||0} · conflicts ${counts.conflict||0} · local-only ${localOnly.length}\ncursor ${cursor} · no data changed yet`;
-      if(!safe)throw new Error(`Insert-only safety gate failed. ${detail.replace(/\n/g,' · ')}`);
-      show('READY · Safe insert-only materialization is available.',null,detail);state.applyButton.disabled=false;
+      const baseDetail=`before local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${sameItems.length}
+ready inserts ${newItems.length}: ${newItems.map(item=>item.incomingKey).join(', ')||'none'} · overwrites 0 · deletes 0
+incoming-newer ${counts.incomingNewer||0} · local-newer ${counts.localNewer||0} · conflicts ${counts.conflict||0} · local-only ${localOnly.length}
+cursor ${cursor} · no data changed`;
+      const conflictText=conflictDetails.map(c=>`conflict ${c.incomingKey} · reason: ${c.reason}
+metadataId local/canonical ${c.metadataIdLocal||'—'} / ${c.metadataIdCanonical||'—'}
+versionId local/canonical ${c.versionIdLocal||'—'} / ${c.versionIdCanonical||'—'} · revision ${c.revisionLocal}/${c.revisionCanonical}
+known semantic exact ${c.knownSemanticExact?'yes':'no'} · known lineage exact ${c.knownLineageExact?'yes':'no'} · full content exact ${c.fullContentExact?'yes':'no'}
+local-only content keys ${c.localOnlyContentKeys.join(', ')||'none'} · Canonical-only content keys ${c.canonicalOnlyContentKeys.join(', ')||'none'}`).join('\n');
+      const detail=conflictText?`${baseDetail}
+${conflictText}`:baseDetail;
+      if(!safe){show('BLOCKED · Insert-only safety gate found a shared-record conflict.',false,detail);state.applyButton.disabled=true;return;}
+      show('READY · Insert-only plan is safe, but v328 is diagnostic-only.',null,detail);state.applyButton.disabled=true;
     }catch(error){state.report={format:'WLP_LEARNING_METADATA_CANONICAL_INSERT_ONLY_MATERIALIZATION',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',issues:{blocking:[error?.message||String(error)]}};show(`BLOCKED · ${error?.message||String(error)}`,false,'No Learning Metadata was changed.');if(state.applyButton)state.applyButton.disabled=true;}
   }
 
