@@ -1,11 +1,11 @@
-/* WLP v1.8.6.337 — Learning Metadata Situation-row Canonical transport canary.
+/* WLP v1.8.6.338 — iPhone sync_outbox read-only audit hotfix for Learning Metadata Situation-row canary.
    Query-gated only: ?wlpLearningMetadataSituationTransportCanary=1
    Stages one byte-exact existing WID5578 learning_situations payload.
    This is a transport-only proof: no Learning Metadata semantic/lineage change. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.337-learning-metadata-situation-transport-canary-v1';
+  const APP_VERSION='1.8.6.338-iphone-outbox-read-only-audit-hotfix-v1';
   const FLAG='wlpLearningMetadataSituationTransportCanary';
   const TARGET_WID='5578';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -34,6 +34,25 @@
   function openDb(){return new Promise((res,rej)=>{let upgrading=false;const r=indexedDB.open(DB_NAME,DB_VERSION);r.onupgradeneeded=()=>{upgrading=true;try{r.transaction.abort();}catch(_){}};r.onsuccess=()=>{const db=r.result;if(upgrading){db.close();rej(new Error('wlp-cloud-v1 is not already installed at schema v1.'));return;}const missing=[META_STORE,OUTBOX_STORE,CARD_STORE,SITUATION_STORE].filter(x=>!db.objectStoreNames.contains(x));if(missing.length){db.close();rej(new Error(`Missing IndexedDB store(s): ${missing.join(', ')}.`));return;}res(db);};r.onerror=()=>rej(r.error||new Error('Could not open wlp-cloud-v1.'));r.onblocked=()=>rej(new Error('Opening wlp-cloud-v1 is blocked by another WLP tab.'));});}
   async function getRow(db,store,key){const tx=db.transaction(store,'readonly'),v=await req(tx.objectStore(store).get(key));await txDone(tx);return v||null;}
   async function getAll(db,store){const tx=db.transaction(store,'readonly'),v=await req(tx.objectStore(store).getAll());await txDone(tx);return Array.isArray(v)?v:[];}
+  function outboxSummary(row,index){
+    const payload=row?.payload||{},legacy=payload?.payload||{};
+    const parts=[
+      `Outbox ${index+1}`,
+      `table ${clean(row?.tableName)||'—'} · ${clean(row?.mutationKind)||'—'} · status ${clean(row?.status)||'—'}`,
+      `transportEligible ${row?.transportEligible===true?'yes':'no'} · diagnosticOnly ${row?.diagnosticOnly===true?'yes':'no'} · candidateOnly ${row?.candidateOnly===true?'yes':'no'}`,
+      `created ${clean(row?.createdAt)||'—'}`,
+      `rowKey ${clean(row?.rowKey)||'—'}`,
+      `actionId ${clean(row?.actionId)||'—'}`,
+      `mutationId ${clean(row?.mutationId)||'—'}`
+    ];
+    if(clean(row?.tableName)==='learning_events')parts.push(`event ${clean(payload?.source_stream)||'—'}:${clean(payload?.event_type)||'—'} · WID${clean(payload?.legacy_word_id)||'—'} · source ${clean(payload?.source_event_id)||'—'}`);
+    if(clean(row?.tableName)==='learning_sessions')parts.push(`session ${clean(payload?.session_type)||'—'} · source ${clean(payload?.source_session_id)||'—'} · ${clean(payload?.status)||'—'}`);
+    if(clean(row?.tableName)==='learning_state')parts.push(`state review ${payload?.review===true?'yes':'no'} · level ${clean(payload?.review_level)||'—'} · known ${payload?.known===true?'yes':'no'}`);
+    if(clean(row?.tableName)==='card_learning_metadata')parts.push(`metadata ${clean(payload?.metadata_id)||'—'} · revision ${Number(payload?.revision||0)||0}`);
+    if(clean(row?.tableName)==='learning_situations')parts.push(`situation ${clean(payload?.source_situation_id)||'—'} · revision ${Number(payload?.revision||0)||0}`);
+    if(clean(row?.tableName)==='learning_events'&&clean(legacy?.action))parts.push(`legacy action ${clean(legacy.action)} · source ${clean(legacy.source)||'—'}`);
+    return parts.join('\n');
+  }
   async function addOutbox(db,row){const tx=db.transaction(OUTBOX_STORE,'readwrite');tx.objectStore(OUTBOX_STORE).add(clone(row));await txDone(tx);}
   async function cursorValue(db,meta){const c=await getRow(db,META_STORE,CURSOR_KEY);return Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(c?.lastSyncCursor||0));}
 
@@ -42,7 +61,13 @@
     try{
       db=await openDb();const [meta,outbox,cards,situations]=await Promise.all([getRow(db,META_STORE,META_KEY),getAll(db,OUTBOX_STORE),getAll(db,CARD_STORE),getAll(db,SITUATION_STORE)]);
       if(!meta||clean(meta.candidateKey)!==BASE.candidateKey||Number(meta.headVersion||0)!==BASE.headVersion||clean(meta.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Situation transport canary requires ACTIVE Authority v3.');
-      if(outbox.length)throw new Error(`sync_outbox must start empty; found ${outbox.length}.`);
+      if(outbox.length){
+        const summaries=outbox.map(outboxSummary);
+        state.button.disabled=true;
+        state.report={format:'WLP_LEARNING_METADATA_SITUATION_TRANSPORT_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked-outbox-read-only',summary:{outbox:outbox.length,blockingIssues:1,pass:false},outboxAudit:clone(outbox),invariants:{readOnlyOutboxAudit:true,noOutboxWrite:true,noCloudWrite:true}};
+        show(`BLOCKED · sync_outbox must start empty; found ${outbox.length}.`,false,`READ-ONLY OUTBOX AUDIT — nothing was changed or sent.\n\n${summaries.join('\n\n')}`);
+        return;
+      }
       const card=cards.find(w=>clean(w?.payload?.legacy_key)===`wid:${TARGET_WID}`);if(!card)throw new Error(`Canonical card for WID${TARGET_WID} is missing.`);
       const cardId=clean(card.rowKey||card?.payload?.card_id);
       const row=situations.map(w=>({wrapper:w,payload:w?.payload||{}})).filter(x=>clean(x.payload.card_id)===cardId&&!clean(x.payload.deleted_at)).sort((a,b)=>(Number(a.payload.ordinal)||0)-(Number(b.payload.ordinal)||0))[0];
