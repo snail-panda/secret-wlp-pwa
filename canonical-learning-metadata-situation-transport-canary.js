@@ -1,16 +1,18 @@
-/* WLP v1.8.6.338 — iPhone sync_outbox read-only audit hotfix for Learning Metadata Situation-row canary.
+/* WLP v1.8.6.339 — Canonical presence read-only audit for pending iPhone sync_outbox row.
    Query-gated only: ?wlpLearningMetadataSituationTransportCanary=1
    Stages one byte-exact existing WID5578 learning_situations payload.
    This is a transport-only proof: no Learning Metadata semantic/lineage change. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.338-iphone-outbox-read-only-audit-hotfix-v1';
+  const APP_VERSION='1.8.6.339-iphone-outbox-canonical-presence-read-only-audit-v1';
   const FLAG='wlpLearningMetadataSituationTransportCanary';
   const TARGET_WID='5578';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
   const META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',CARD_STORE='cards',SITUATION_STORE='learning_situations';
   const META_KEY='authority_mirror',CURSOR_KEY='sync_cursor';
+  const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_DB_VERSION=1,SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
+  const CHANGE_TABLE='wlp_sync_changes_v1',MUTATION_TABLE='wlp_sync_mutations_v1',ACK_TABLE='wlp_sync_action_acknowledgements_v1';
   const BASE=Object.freeze({candidateKey:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',headVersion:3,manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63'});
   const state={panel:null,status:null,detail:null,button:null,active:null,report:null,busy:false};
 
@@ -53,6 +55,41 @@
     if(clean(row?.tableName)==='learning_events'&&clean(legacy?.action))parts.push(`legacy action ${clean(legacy.action)} · source ${clean(legacy.source)||'—'}`);
     return parts.join('\n');
   }
+  function openShadowDb(){return new Promise((res,rej)=>{let upgrading=false;const r=indexedDB.open(SHADOW_DB,SHADOW_DB_VERSION);r.onupgradeneeded=()=>{upgrading=true;try{r.transaction.abort();}catch(_){}};r.onsuccess=()=>{const db=r.result;if(upgrading){db.close();rej(new Error('Supabase Shadow configuration database is not installed.'));return;}if(!db.objectStoreNames.contains(SHADOW_META)){db.close();rej(new Error('Supabase Shadow metadata store is missing.'));return;}res(db);};r.onerror=()=>rej(r.error||new Error('Could not open Supabase Shadow metadata.'));});}
+  async function shadowGetReadOnly(key){const db=await openShadowDb();try{const tx=db.transaction(SHADOW_META,'readonly'),v=await req(tx.objectStore(SHADOW_META).get(key));await txDone(tx);return v||null;}finally{db.close();}}
+  async function refreshAccessToken(config,saved){const headers={'Content-Type':'application/json',apikey:config.publishableKey};const response=await fetch(`${config.url}/auth/v1/token?grant_type=refresh_token`,{method:'POST',headers,body:JSON.stringify({refresh_token:saved.refreshToken})}),text=await response.text();let data=null;try{data=text?JSON.parse(text):null;}catch{data=text;}if(!response.ok)throw new Error(data?.msg||data?.message||data?.error_description||data?.error||`Supabase Auth refresh failed (${response.status}).`);if(!data?.access_token)throw new Error('Supabase Auth refresh returned no access token.');return data.access_token;}
+  async function cloudReadOnlyContext(){
+    const config=await shadowGetReadOnly(CONFIG_KEY),saved=await shadowGetReadOnly(SESSION_KEY);if(!config?.url||!config?.publishableKey)throw new Error('Supabase configuration is missing.');if(!saved?.accessToken||!saved?.refreshToken||!saved?.userId)throw new Error('Saved Supabase session is missing.');let accessToken=saved.accessToken;
+    async function request(path,allowRefresh=true){const headers={apikey:config.publishableKey,Authorization:`Bearer ${accessToken}`};const response=await fetch(`${String(config.url).replace(/\/+$/,'')}/rest/v1/${path}`,{method:'GET',headers}),text=await response.text();let data=null;try{data=text?JSON.parse(text):null;}catch{data=text;}if(response.status===401&&allowRefresh){accessToken=await refreshAccessToken(config,saved);return request(path,false);}if(!response.ok)throw new Error(data?.message||data?.details||data?.hint||`Supabase read-only lookup failed (${response.status}).`);return Array.isArray(data)?data:[];}
+    return{request};
+  }
+  async function canonicalOutboxAudit(outbox){
+    const a=await cloudReadOnlyContext(),results=[];
+    for(const row of outbox){
+      const tableName=clean(row?.tableName),rowKey=clean(row?.rowKey),actionId=clean(row?.actionId),mutationId=clean(row?.mutationId),payloadHash=clean(row?.payloadHash);
+      if(!tableName||!rowKey||!actionId||!mutationId){results.push({state:'check',message:'Outbox identity is incomplete.',rowKey,actionId,mutationId});continue;}
+      const selectChange='change_seq,table_name,row_key,operation,mutation_id,action_id,device_key,payload_hash,tombstone,server_at';
+      const byAction=await a.request(`${CHANGE_TABLE}?select=${encodeURIComponent(selectChange)}&action_id=eq.${encodeURIComponent(actionId)}&order=change_seq.asc`);
+      const byRow=await a.request(`${CHANGE_TABLE}?select=${encodeURIComponent(selectChange)}&table_name=eq.${encodeURIComponent(tableName)}&row_key=eq.${encodeURIComponent(rowKey)}&order=change_seq.asc`);
+      const mutations=await a.request(`${MUTATION_TABLE}?select=${encodeURIComponent('mutation_id,device_key,action_id,table_name,row_key,status,result,received_at,applied_at')}&mutation_id=eq.${encodeURIComponent(mutationId)}`);
+      const acks=await a.request(`${ACK_TABLE}?select=${encodeURIComponent('action_id,device_key,candidate_key,head_version,mutation_ids,status,acknowledged_at,result')}&action_id=eq.${encodeURIComponent(actionId)}`);
+      const exactChange=byAction.find(x=>clean(x?.table_name)===tableName&&clean(x?.row_key)===rowKey&&clean(x?.mutation_id)===mutationId&&clean(x?.action_id)===actionId)||null;
+      const exactMutation=mutations.find(x=>clean(x?.mutation_id)===mutationId&&clean(x?.table_name)===tableName&&clean(x?.row_key)===rowKey&&clean(x?.action_id)===actionId)||null;
+      const exactAck=acks.find(x=>clean(x?.action_id)===actionId)||null;
+      const mutationIds=Array.isArray(exactAck?.mutation_ids)?exactAck.mutation_ids.map(clean):[];
+      const hashMatch=Boolean(exactChange&&clean(exactChange.payload_hash)===payloadHash),mutationApplied=clean(exactMutation?.status)==='applied',ackApplied=clean(exactAck?.status)==='applied'&&mutationIds.includes(mutationId),present=Boolean(exactChange&&hashMatch&&mutationApplied&&ackApplied);
+      const absent=byAction.length===0&&byRow.length===0&&mutations.length===0&&acks.length===0;
+      results.push({state:present?'present':absent?'absent':'check',tableName,rowKey,actionId,mutationId,payloadHash,byActionCount:byAction.length,byRowCount:byRow.length,mutationCount:mutations.length,ackCount:acks.length,changeSeq:exactChange?.change_seq??null,serverAt:clean(exactChange?.server_at),hashMatch,mutationApplied,ackApplied,exactChange:clone(exactChange),exactMutation:clone(exactMutation),exactAck:clone(exactAck)});
+    }
+    return results;
+  }
+  function canonicalAuditSummary(results){
+    return results.map((r,index)=>{
+      if(r.state==='present')return `Canonical ${index+1} · PRESENT\nchangeSeq ${r.changeSeq} · server ${r.serverAt||'—'}\npayload hash match yes · mutation applied yes · ack applied yes\nConclusion: server apply completed; this local outbox row is stale/un-cleared.`;
+      if(r.state==='absent')return `Canonical ${index+1} · NOT FOUND\nchange rows 0 · mutation rows 0 · ack rows 0\nConclusion: this outbox row is genuinely unsent; do not delete it.`;
+      return `Canonical ${index+1} · CHECK\naction changes ${r.byActionCount??0} · row changes ${r.byRowCount??0} · mutations ${r.mutationCount??0} · acks ${r.ackCount??0}\nhash match ${r.hashMatch?'yes':'no'} · mutation applied ${r.mutationApplied?'yes':'no'} · ack applied ${r.ackApplied?'yes':'no'}\nConclusion: remote evidence is partial or mismatched; do not delete or retry yet.`;
+    }).join('\n\n');
+  }
   async function addOutbox(db,row){const tx=db.transaction(OUTBOX_STORE,'readwrite');tx.objectStore(OUTBOX_STORE).add(clone(row));await txDone(tx);}
   async function cursorValue(db,meta){const c=await getRow(db,META_STORE,CURSOR_KEY);return Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(c?.lastSyncCursor||0));}
 
@@ -62,10 +99,13 @@
       db=await openDb();const [meta,outbox,cards,situations]=await Promise.all([getRow(db,META_STORE,META_KEY),getAll(db,OUTBOX_STORE),getAll(db,CARD_STORE),getAll(db,SITUATION_STORE)]);
       if(!meta||clean(meta.candidateKey)!==BASE.candidateKey||Number(meta.headVersion||0)!==BASE.headVersion||clean(meta.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Situation transport canary requires ACTIVE Authority v3.');
       if(outbox.length){
-        const summaries=outbox.map(outboxSummary);
-        state.button.disabled=true;
-        state.report={format:'WLP_LEARNING_METADATA_SITUATION_TRANSPORT_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked-outbox-read-only',summary:{outbox:outbox.length,blockingIssues:1,pass:false},outboxAudit:clone(outbox),invariants:{readOnlyOutboxAudit:true,noOutboxWrite:true,noCloudWrite:true}};
-        show(`BLOCKED · sync_outbox must start empty; found ${outbox.length}.`,false,`READ-ONLY OUTBOX AUDIT — nothing was changed or sent.\n\n${summaries.join('\n\n')}`);
+        const summaries=outbox.map(outboxSummary);state.button.disabled=true;
+        show(`BLOCKED · sync_outbox must start empty; found ${outbox.length}.`,false,`READ-ONLY OUTBOX AUDIT — no WLP data was changed or sent.\n\n${summaries.join('\n\n')}\n\nCanonical presence lookup running…`);
+        let canonicalAudit=null,canonicalAuditError='';
+        try{canonicalAudit=await canonicalOutboxAudit(outbox);}catch(error){canonicalAuditError=String(error?.message||error);}
+        const canonicalDetail=canonicalAudit?canonicalAuditSummary(canonicalAudit):`Canonical lookup · CHECK\n${canonicalAuditError||'Read-only Canonical lookup could not complete.'}\nConclusion: keep the outbox row unchanged.`;
+        state.report={format:'WLP_LEARNING_METADATA_SITUATION_TRANSPORT_CANARY',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked-outbox-canonical-read-only',summary:{outbox:outbox.length,canonicalStates:Array.isArray(canonicalAudit)?canonicalAudit.map(x=>x.state):[],blockingIssues:1,pass:false},outboxAudit:clone(outbox),canonicalReadOnlyAudit:clone(canonicalAudit),canonicalAuditError,invariants:{readOnlyOutboxAudit:true,canonicalLookupGetOnly:true,noOutboxWrite:true,noCanonicalDataWrite:true,noSyncDispatch:true}};
+        show(`BLOCKED · sync_outbox must start empty; found ${outbox.length}.`,false,`READ-ONLY OUTBOX + CANONICAL AUDIT — no WLP data was changed or sent.\n\n${summaries.join('\n\n')}\n\n${canonicalDetail}`);
         return;
       }
       const card=cards.find(w=>clean(w?.payload?.legacy_key)===`wid:${TARGET_WID}`);if(!card)throw new Error(`Canonical card for WID${TARGET_WID} is missing.`);
