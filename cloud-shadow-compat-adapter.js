@@ -1,4 +1,4 @@
-/* WLP v1.8.6.267 · Canonical Mirror Compatibility Adapter · authoritative state overlay on preserved migration evidence.
+/* WLP v1.8.6.375 · Canonical Mirror Compatibility Adapter · Alternative-link row identity normalization.
    Reads only the installed wlp-cloud-v1 IndexedDB mirror and projects it into
    legacy-scanner logical record shapes in memory. Authority v2 introduced explicit
    first_seen_at to learning_state; the adapter carries that exact value into
@@ -8,7 +8,7 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
-  const APP_VERSION = '1.8.6.267-canonical-compat-adapter-authoritative-state-overlay-v1';
+  const APP_VERSION = '1.8.6.375-canonical-compat-adapter-alternative-link-row-identity-v1';
   const DB_NAME = 'wlp-cloud-v1';
   const DB_VERSION = 1;
   const META_STORE = 'sync_meta';
@@ -148,7 +148,7 @@
       card_learning_metadata: item => item.card_id,
       learning_situations: item => item.situation_id,
       learning_alternatives: item => item.alternative_id,
-      learning_alternative_situations: item => `${item.alternative_id}|${item.situation_id}`,
+      learning_alternative_situations: item => item.link_id || `${item.alternative_id}|${item.situation_id}`,
       card_classification: item => item.card_id,
       learning_sessions: item => item.session_id,
       learning_events: item => item.event_id,

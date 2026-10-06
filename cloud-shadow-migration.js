@@ -137,7 +137,7 @@
       card_learning_metadata: row => row.card_id,
       learning_situations: row => row.situation_id,
       learning_alternatives: row => row.alternative_id,
-      learning_alternative_situations: row => `${row.alternative_id}|${row.situation_id}`,
+      learning_alternative_situations: row => row.link_id || `${row.alternative_id}|${row.situation_id}`,
       card_classification: row => row.card_id,
       learning_sessions: row => row.session_id,
       learning_events: row => row.event_id,

@@ -153,7 +153,7 @@
       card_learning_metadata: item => item.card_id,
       learning_situations: item => item.situation_id,
       learning_alternatives: item => item.alternative_id,
-      learning_alternative_situations: item => `${item.alternative_id}|${item.situation_id}`,
+      learning_alternative_situations: item => item.link_id || `${item.alternative_id}|${item.situation_id}`,
       card_classification: item => item.card_id,
       learning_sessions: item => item.session_id,
       learning_events: item => item.event_id,
