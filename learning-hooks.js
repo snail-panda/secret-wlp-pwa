@@ -715,6 +715,44 @@
     });
   }
 
+  // Canonical reconstruction can legitimately normalize transport-only metadata
+  // (timestamps/device/history) while preserving the exact current child state.
+  // Child merge safety should compare stable identity + lineage + semantics, not
+  // those transport-only fields.
+  function situationCurrentSignature(value) {
+    const s = normalizeSituation(value);
+    return JSON.stringify({
+      situationId: clean(s.situationId),
+      status: clean(s.status) || 'provisional',
+      revision: Math.max(1, Number(s.revision) || 1),
+      versionId: clean(s.versionId),
+      parentVersionId: clean(s.parentVersionId),
+      deletedAt: clean(s.deletedAt),
+      title: clean(s.title),
+      anchor: clean(s.anchor),
+      communicativeNeed: clean(s.communicativeNeed)
+    });
+  }
+
+  function alternativeCurrentSignature(value) {
+    const a = normalizeAlternative(value);
+    return JSON.stringify({
+      alternativeId: clean(a.alternativeId),
+      status: clean(a.status) || 'provisional',
+      revision: Math.max(1, Number(a.revision) || 1),
+      versionId: clean(a.versionId),
+      parentVersionId: clean(a.parentVersionId),
+      deletedAt: clean(a.deletedAt),
+      expression: clean(a.expression),
+      situationIds: Array.isArray(a.situationIds) ? a.situationIds.map(clean).filter(Boolean).sort() : [],
+      note: clean(a.note)
+    });
+  }
+
+  function alternativesCurrentSignature(value) {
+    return JSON.stringify(normalizeAlternatives(value).map(alternativeCurrentSignature));
+  }
+
   function changedSituationSemanticFields(beforeValue, afterValue) {
     const before = normalizeSituation(beforeValue);
     const after = normalizeSituation(afterValue);
@@ -750,14 +788,14 @@
     if (clean(local.metadataId) !== clean(incoming.metadataId) || clean(local.entryKey) !== clean(incoming.entryKey)) return bad('Metadata identity differs.');
     if (!sameParentLineage(local, incoming)) return bad('Metadata parent lineage is not the same baseline.');
     if (parentCoreSignature(local) !== parentCoreSignature(incoming)) return bad('Metadata parent semantics differ.');
-    if (JSON.stringify(normalizeAlternatives(local.content?.alternativeExpressions)) !== JSON.stringify(normalizeAlternatives(incoming.content?.alternativeExpressions))) return bad('Alternative children differ.');
+    if (alternativesCurrentSignature(local.content?.alternativeExpressions) !== alternativesCurrentSignature(incoming.content?.alternativeExpressions)) return bad('Alternative children differ.');
     const lm = situationMap(local), im = situationMap(incoming);
     if (!lm.ids.length || JSON.stringify(lm.ids) !== JSON.stringify(im.ids)) return bad('Situation identity/order differs.');
     const localAheadIds = [], incomingAheadIds = [];
     for (const id of lm.ids) {
       const l = lm.byId.get(id), i = im.byId.get(id);
       if (!l || !i) return bad('Situation identity is missing on one side.');
-      if (JSON.stringify(l) === JSON.stringify(i)) continue;
+      if (situationCurrentSignature(l) === situationCurrentSignature(i)) continue;
       const fields = changedSituationSemanticFields(l, i);
       if (!fields.length || !fields.every(field => ['title','anchor','communicativeNeed'].includes(field))) return bad(`Situation ${id} changed unsupported fields.`);
       if (isDescendant(l, i)) { localAheadIds.push(id); continue; }
