@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.369-learning-metadata-situation-conflict-diagnostic-v1';
+  const APP_VERSION='1.8.6.370-learning-metadata-situation-conflict-lock-v1';
   const FLAG='wlpLearningMetadataSituationConflictCanary';
   const TARGET_WID='5578';
   const LOCAL_TITLE='Conflict local test';
@@ -131,6 +131,7 @@
           `parent relation: ${parentRelation}\nchild relation: ${childRelation}\n`+
           `local parent rev ${Number(local.revision||0)} · canonical parent rev ${Number(lp.revision||0)}\n`+
           `local child rev ${Number(lt.revision||0)} · canonical child rev ${Number(ct.revision||0)}\n`+
+          `conflict lock: ${api().getConflictLock?.(`wid:${TARGET_WID}`)?'present':'absent'}\n`+
           `No data changed.`);
         action('',false);
       }else if(state.mode==='resolve'){
@@ -158,14 +159,47 @@
   }
 
   function resolveLocalToCanonical(){
-    const prepared=state.prepared,a=api(),store=rawStore(),key=`wid:${TARGET_WID}`,current=clone(store.records[key]),canonical=prepared.canonical,cp=payload(canonical.parent),cs=payload(canonical.situation),target=targetSituation(current);
-    if(clean(target.title)!==LOCAL_TITLE||clean(cs.title)!==REMOTE_TITLE)throw new Error('Conflict state changed before explicit resolution.');
-    current.status=clean(cp.status)||current.status;current.revision=Number(cp.revision)||current.revision;current.versionId=clean(cp.version_id);current.parentVersionId=clean(cp.parent_version_id);current.createdAt=clean(cp.created_at)||current.createdAt;current.updatedAt=clean(cp.updated_at)||current.updatedAt;current.createdByDevice=clean(cp.created_by_device)||current.createdByDevice;current.updatedByDevice=clean(cp.updated_by_device)||current.updatedByDevice;current.deletedAt=clean(cp.deleted_at);current.history=Array.isArray(cp.source_history)?clone(cp.source_history):[];
-    target.status=clean(cs.status)||target.status;target.revision=Number(cs.revision)||target.revision;target.versionId=clean(cs.version_id);target.parentVersionId=clean(cs.parent_version_id);target.createdAt=clean(cs.created_at)||target.createdAt;target.updatedAt=clean(cs.updated_at)||target.updatedAt;target.createdByDevice=clean(cs.created_by_device)||target.createdByDevice;target.updatedByDevice=clean(cs.updated_by_device)||target.updatedByDevice;target.deletedAt=clean(cs.deleted_at);target.title=clean(cs.title);target.anchor=clean(cs.anchor);target.communicativeNeed=clean(cs.communicative_need);target.history=Array.isArray(cs.source_history)?clone(cs.source_history):[];
-    store.records[key]=current;store.updatedAt=new Date().toISOString();localStorage.setItem(a.STORAGE_KEY,JSON.stringify(store,null,2));
+    const prepared=state.prepared,a=api(),canonical=prepared.canonical,ct=payload(canonical.situation),current=localRecord(),target=targetSituation(current);
+    if(clean(target.title)!==LOCAL_TITLE||clean(ct.title)!==REMOTE_TITLE)throw new Error('Conflict state changed before explicit resolution.');
+    const incomingKey=`wid:${TARGET_WID}`;
+    const incomingRecord={
+      metadataId:clean(payload(canonical.parent).metadata_id),
+      entryKey:incomingKey,
+      entryKind:'master',
+      wordId:TARGET_WID,
+      localDraftId:'',
+      status:clean(payload(canonical.parent).status)||'provisional',
+      revision:Number(payload(canonical.parent).revision)||1,
+      versionId:clean(payload(canonical.parent).version_id),
+      parentVersionId:clean(payload(canonical.parent).parent_version_id),
+      createdAt:clean(payload(canonical.parent).created_at),
+      updatedAt:clean(payload(canonical.parent).updated_at),
+      createdByDevice:clean(payload(canonical.parent).created_by_device),
+      updatedByDevice:clean(payload(canonical.parent).updated_by_device),
+      deletedAt:clean(payload(canonical.parent).deleted_at),
+      content:clone(current.content||{}),
+      history:Array.isArray(payload(canonical.parent).source_history)?clone(payload(canonical.parent).source_history):[]
+    };
+    const incomingTarget=targetSituation(incomingRecord);
+    incomingTarget.status=clean(ct.status)||incomingTarget.status;
+    incomingTarget.revision=Number(ct.revision)||incomingTarget.revision;
+    incomingTarget.versionId=clean(ct.version_id);
+    incomingTarget.parentVersionId=clean(ct.parent_version_id);
+    incomingTarget.createdAt=clean(ct.created_at)||incomingTarget.createdAt;
+    incomingTarget.updatedAt=clean(ct.updated_at)||incomingTarget.updatedAt;
+    incomingTarget.createdByDevice=clean(ct.created_by_device)||incomingTarget.createdByDevice;
+    incomingTarget.updatedByDevice=clean(ct.updated_by_device)||incomingTarget.updatedByDevice;
+    incomingTarget.deletedAt=clean(ct.deleted_at);
+    incomingTarget.title=clean(ct.title);
+    incomingTarget.anchor=clean(ct.anchor);
+    incomingTarget.communicativeNeed=clean(ct.communicative_need);
+    incomingTarget.history=Array.isArray(ct.source_history)?clone(ct.source_history):[];
+
+    if(!a.applyConflictResolution)throw new Error('Shared Learning Metadata conflict-resolution API is unavailable.');
+    a.applyConflictResolution(incomingKey,incomingRecord);
     const after=localRecord();
     if(!exactLocalCanonical(after,canonical))throw new Error('Explicit local→Canonical resolution verification failed.');
-    show('PASS · iPhone local conflict branch explicitly resolved to Canonical.',true,`local "${LOCAL_TITLE}" → Canonical "${REMOTE_TITLE}"\noutbox 0 · Cloud writes 0\nThe production receiver did not silently choose either branch.`);action('',false);
+    show('PASS · iPhone local conflict branch explicitly resolved to Canonical.',true,`local "${LOCAL_TITLE}" → Canonical "${REMOTE_TITLE}"\\noutbox 0 · Cloud writes 0 · conflict lock cleared\\nThe production receiver did not silently choose either branch.`);action('',false);
   }
 
   async function runAction(){

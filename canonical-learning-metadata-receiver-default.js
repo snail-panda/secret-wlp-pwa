@@ -256,8 +256,15 @@
       const changeCount=newItems.length+incoming.length;
       const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · safe Situation tombstone incoming ${safeSituationTombstoneIncoming} · safe Situation resurrection incoming ${safeSituationResurrectionIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · safe Alternative link incoming ${safeAlternativeLinkIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
       if(!safe){
-        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeSituationResurrectionIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
-        show('CHECK · Production receiver found state that requires explicit reconciliation.',false,`${detail}\nno data changed`);return;
+        let conflictLocks=0;
+        if(api?.setConflictLock){
+          [...localNewer,...conflicts].forEach(item=>{
+            if(!item?.localKey||!item?.local||!item?.incoming)return;
+            try{api.setConflictLock(item.localKey,item.local,item.incoming,item.reason||'Production receiver requires explicit reconciliation.');conflictLocks++;}catch(_){}
+          });
+        }
+        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeSituationResurrectionIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,conflictLocks,blockingIssues:1,pass:false}};
+        show('CHECK · Production receiver found state that requires explicit reconciliation.',false,`${detail}\nconflict locks ${conflictLocks} · no data changed`);return;
       }
       if(changeCount===0){
         const verify=verifyAgainstCanonical(canonical),pass=verify.exact;

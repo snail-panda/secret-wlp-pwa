@@ -13,6 +13,8 @@
   //
   // IMPORTANT: v1 is intentionally left untouched as a local rollback shadow.
   const STORAGE_KEY = 'wlp:learning-meta:v2';
+  const CONFLICT_LOCK_KEY = 'wlp:learning-meta:conflict-lock:v1';
+  const CONFLICT_BYPASS_KEY = 'wlp:learning-meta:conflict-bypass:v1';
   const LEGACY_STORAGE_KEY = 'wlp:learning-meta:v1';
   const DEVICE_ID_KEY = 'wlp:device-id:v1';
   const MERGE_ROLLBACK_KEY = 'wlp:learning-meta:merge-rollback:v1';
@@ -274,12 +276,107 @@
     return store;
   }
 
+  function readConflictLocks() {
+    const parsed = parseJson(localStorage.getItem(CONFLICT_LOCK_KEY), null);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.locks && typeof parsed.locks === 'object'
+      ? parsed
+      : { version: 1, updatedAt: '', locks: {} };
+  }
+
+  function writeConflictLocks(value) {
+    const next = value && typeof value === 'object' && value.locks && typeof value.locks === 'object'
+      ? value
+      : { version: 1, updatedAt: '', locks: {} };
+    next.version = 1;
+    next.updatedAt = new Date().toISOString();
+    localStorage.setItem(CONFLICT_LOCK_KEY, JSON.stringify(next, null, 2));
+    return next;
+  }
+
+  function getConflictLock(key) {
+    const safeKey = clean(key);
+    if (!safeKey) return null;
+    const lock = readConflictLocks().locks[safeKey];
+    return lock && typeof lock === 'object' ? clone(lock) : null;
+  }
+
+  function setConflictLock(key, localRecord, incomingRecord, reason = 'explicit reconciliation required') {
+    const safeKey = clean(key);
+    if (!safeKey || !localRecord || !incomingRecord) return null;
+    const store = readConflictLocks();
+    const lock = {
+      entryKey: safeKey,
+      reason: clean(reason),
+      createdAt: new Date().toISOString(),
+      localVersionId: clean(localRecord.versionId),
+      incomingVersionId: clean(incomingRecord.versionId),
+      local: clone(localRecord),
+      incoming: clone(incomingRecord)
+    };
+    store.locks[safeKey] = lock;
+    writeConflictLocks(store);
+    return clone(lock);
+  }
+
+  function clearConflictLock(key) {
+    const safeKey = clean(key);
+    if (!safeKey) return false;
+    const store = readConflictLocks();
+    if (!store.locks[safeKey]) return false;
+    delete store.locks[safeKey];
+    writeConflictLocks(store);
+    return true;
+  }
+
+  function conflictBypassKey() {
+    try { return clean(sessionStorage.getItem(CONFLICT_BYPASS_KEY)); } catch (_) { return ''; }
+  }
+
   function writeStore(store, emit = true) {
     const next = normalizeStore(store);
+    const currentRaw = parseJson(localStorage.getItem(STORAGE_KEY), null);
+    const current = currentRaw && typeof currentRaw === 'object' && currentRaw.records ? normalizeStore(currentRaw) : null;
+    const locks = readConflictLocks().locks || {};
+    const bypass = conflictBypassKey();
+
+    if (current) {
+      Object.entries(locks).forEach(([key, lock]) => {
+        if (!lock || typeof lock !== 'object' || bypass === key) return;
+        const before = current.records[key] ? normalizeRecord(current.records[key], key) : null;
+        const after = next.records[key] ? normalizeRecord(next.records[key], key) : null;
+        if (!before || !after) return;
+        const protectedVersion = clean(lock.localVersionId);
+        if (protectedVersion && clean(before.versionId) === protectedVersion && clean(after.versionId) !== protectedVersion) {
+          throw new Error(`Learning Metadata conflict lock blocked an implicit overwrite for ${key}. Resolve the conflict explicitly first.`);
+        }
+      });
+    }
+
     next.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next, null, 2));
     if (emit) window.dispatchEvent(new CustomEvent('wlp-learning-hooks-changed'));
     return next;
+  }
+
+  function applyConflictResolution(key, incomingRecord) {
+    const safeKey = clean(key);
+    if (!safeKey || !incomingRecord) throw new Error('Conflict resolution requires an entry key and incoming record.');
+    const lock = getConflictLock(safeKey);
+    if (!lock) throw new Error(`No Learning Metadata conflict lock exists for ${safeKey}.`);
+    if (clean(lock.incomingVersionId) && clean(lock.incomingVersionId) !== clean(incomingRecord.versionId)) {
+      throw new Error('Canonical conflict target changed after the lock was created. Re-audit before resolving.');
+    }
+    const store = readStore();
+    if (!store.records[safeKey]) throw new Error(`Local Learning Metadata ${safeKey} is missing.`);
+    try {
+      sessionStorage.setItem(CONFLICT_BYPASS_KEY, safeKey);
+      store.records[safeKey] = normalizeRecord(incomingRecord, safeKey);
+      writeStore(store);
+      clearConflictLock(safeKey);
+    } finally {
+      try { sessionStorage.removeItem(CONFLICT_BYPASS_KEY); } catch (_) {}
+    }
+    return publicEntry(store.records[safeKey]);
   }
 
   function migrateLegacyStore() {
@@ -1273,6 +1370,7 @@
 
   window.WLPLearningHooks = Object.freeze({
     STORAGE_KEY,
+    CONFLICT_LOCK_KEY,
     LEGACY_STORAGE_KEY,
     DEVICE_ID_KEY,
     SCHEMA_VERSION,
@@ -1304,6 +1402,10 @@
     validatePortableSnapshot,
     comparePortableSnapshot,
     applyPortableMerge,
+    getConflictLock,
+    setConflictLock,
+    clearConflictLock,
+    applyConflictResolution,
     undoLastPortableMerge,
     hasMergeRollback,
     MERGE_ROLLBACK_KEY,
