@@ -688,6 +688,133 @@
     };
   }
 
+  function parentCoreSignature(record) {
+    const value = normalizeRecord(record, clean(record?.entryKey));
+    return JSON.stringify({
+      metadataId: clean(value.metadataId),
+      entryKey: clean(value.entryKey),
+      status: clean(value.status) || 'provisional',
+      deletedAt: clean(value.deletedAt),
+      revision: Math.max(1, Number(value.revision) || 1),
+      versionId: clean(value.versionId),
+      parentVersionId: clean(value.parentVersionId),
+      entryType: clean(value.content?.entryType),
+      senseHook: clean(value.content?.senseHook),
+      memoryHook: clean(value.content?.memoryHook)
+    });
+  }
+
+  function situationSemanticSignature(value) {
+    const s = normalizeSituation(value);
+    return JSON.stringify({
+      status: clean(s.status) || 'provisional',
+      deletedAt: clean(s.deletedAt),
+      title: clean(s.title),
+      anchor: clean(s.anchor),
+      communicativeNeed: clean(s.communicativeNeed)
+    });
+  }
+
+  function changedSituationSemanticFields(beforeValue, afterValue) {
+    const before = normalizeSituation(beforeValue);
+    const after = normalizeSituation(afterValue);
+    const out = [];
+    if ((clean(before.status) || 'provisional') !== (clean(after.status) || 'provisional')) out.push('status');
+    if (clean(before.deletedAt) !== clean(after.deletedAt)) out.push('deletedAt');
+    if (clean(before.title) !== clean(after.title)) out.push('title');
+    if (clean(before.anchor) !== clean(after.anchor)) out.push('anchor');
+    if (clean(before.communicativeNeed) !== clean(after.communicativeNeed)) out.push('communicativeNeed');
+    return out;
+  }
+
+  function sameParentLineage(a, b) {
+    return clean(a?.metadataId) === clean(b?.metadataId)
+      && Number(a?.revision || 0) === Number(b?.revision || 0)
+      && clean(a?.versionId) === clean(b?.versionId)
+      && clean(a?.parentVersionId) === clean(b?.parentVersionId);
+  }
+
+  function situationMap(record) {
+    const items = normalizeSituations(record?.content?.situations);
+    return {
+      items,
+      ids: items.map(item => clean(item.situationId)),
+      byId: new Map(items.map(item => [clean(item.situationId), item]))
+    };
+  }
+
+  function analyzeIndependentSituationBranches(localValue, incomingValue) {
+    const local = normalizeRecord(localValue, clean(localValue?.entryKey));
+    const incoming = normalizeRecord(incomingValue, clean(incomingValue?.entryKey));
+    const bad = reason => ({ safe: false, reason, localAheadIds: [], incomingAheadIds: [] });
+    if (clean(local.metadataId) !== clean(incoming.metadataId) || clean(local.entryKey) !== clean(incoming.entryKey)) return bad('Metadata identity differs.');
+    if (!sameParentLineage(local, incoming)) return bad('Metadata parent lineage is not the same baseline.');
+    if (parentCoreSignature(local) !== parentCoreSignature(incoming)) return bad('Metadata parent semantics differ.');
+    if (JSON.stringify(normalizeAlternatives(local.content?.alternativeExpressions)) !== JSON.stringify(normalizeAlternatives(incoming.content?.alternativeExpressions))) return bad('Alternative children differ.');
+    const lm = situationMap(local), im = situationMap(incoming);
+    if (!lm.ids.length || JSON.stringify(lm.ids) !== JSON.stringify(im.ids)) return bad('Situation identity/order differs.');
+    const localAheadIds = [], incomingAheadIds = [];
+    for (const id of lm.ids) {
+      const l = lm.byId.get(id), i = im.byId.get(id);
+      if (!l || !i) return bad('Situation identity is missing on one side.');
+      if (JSON.stringify(l) === JSON.stringify(i)) continue;
+      const fields = changedSituationSemanticFields(l, i);
+      if (!fields.length || !fields.every(field => ['title','anchor','communicativeNeed'].includes(field))) return bad(`Situation ${id} changed unsupported fields.`);
+      if (isDescendant(l, i)) { localAheadIds.push(id); continue; }
+      if (isDescendant(i, l)) { incomingAheadIds.push(id); continue; }
+      return bad(`Situation ${id} diverged on the same child.`);
+    }
+    return { safe: true, reason: '', localAheadIds, incomingAheadIds, local, incoming };
+  }
+
+  function singleExistingSituationContentChange(current, nextContent) {
+    if (!current || current.deletedAt) return false;
+    const currentContent = normalizeContent(current.content);
+    const next = normalizeContent(nextContent);
+    if (clean(currentContent.entryType) !== clean(next.entryType)
+      || clean(currentContent.senseHook) !== clean(next.senseHook)
+      || clean(currentContent.memoryHook) !== clean(next.memoryHook)) return false;
+    if (JSON.stringify(normalizeAlternatives(currentContent.alternativeExpressions)) !== JSON.stringify(normalizeAlternatives(next.alternativeExpressions))) return false;
+    const before = normalizeSituations(currentContent.situations), after = normalizeSituations(next.situations);
+    if (!before.length || before.length !== after.length) return false;
+    if (JSON.stringify(before.map(x => clean(x.situationId))) !== JSON.stringify(after.map(x => clean(x.situationId)))) return false;
+    const changed = before.map((item, index) => [item, after[index]]).filter(([a,b]) => JSON.stringify(a) !== JSON.stringify(b));
+    if (changed.length !== 1) return false;
+    const [oldSituation, newSituation] = changed[0];
+    if (clean(oldSituation.deletedAt) || clean(newSituation.deletedAt) || !clean(oldSituation.anchor) || !clean(newSituation.anchor)) return false;
+    if (!isDescendant(newSituation, oldSituation)) return false;
+    const fields = changedSituationSemanticFields(oldSituation, newSituation);
+    return fields.length > 0 && fields.every(field => ['title','anchor','communicativeNeed'].includes(field));
+  }
+
+  function planIndependentSituationMerge(localValue, incomingValue) {
+    const analysis = analyzeIndependentSituationBranches(localValue, incomingValue);
+    if (!analysis.safe || !analysis.localAheadIds.length || !analysis.incomingAheadIds.length) return null;
+    const merged = clone(analysis.incoming);
+    const localById = situationMap(analysis.local).byId;
+    merged.content.situations = normalizeSituations(merged.content.situations).map(item => analysis.localAheadIds.includes(clean(item.situationId)) ? clone(localById.get(clean(item.situationId))) : item);
+    return {
+      entryKey: clean(analysis.local.entryKey),
+      localVersionId: clean(analysis.local.versionId),
+      incomingVersionId: clean(analysis.incoming.versionId),
+      localAheadIds: analysis.localAheadIds.slice(),
+      incomingAheadIds: analysis.incomingAheadIds.slice(),
+      merged: normalizeRecord(merged, clean(analysis.local.entryKey))
+    };
+  }
+
+  function applyIndependentSituationMerge(key, incomingRecord) {
+    const safeKey = clean(key);
+    const store = readStore();
+    const current = store.records[safeKey] ? normalizeRecord(store.records[safeKey], safeKey) : null;
+    if (!current) throw new Error(`Local Learning Metadata ${safeKey} is missing.`);
+    const plan = planIndependentSituationMerge(current, incomingRecord);
+    if (!plan) throw new Error('Learning Metadata independent-Situation merge is no longer safe. Re-audit first.');
+    store.records[safeKey] = clone(plan.merged);
+    writeStore(store);
+    return { ...plan, merged: publicEntry(plan.merged) };
+  }
+
   function save(key, values = {}) {
     const safeKey = clean(key);
     if (!safeKey) return publicEntry(null);
@@ -725,6 +852,13 @@
     const willDelete = !hasContentPayload(nextContent);
     const alreadyDeleted = Boolean(current.deletedAt);
     if (contentSignature(current.content) === contentSignature(nextContent) && willDelete === alreadyDeleted) return publicEntry(current);
+
+    if (!willDelete && !alreadyDeleted && singleExistingSituationContentChange(current, nextContent)) {
+      const next = { ...current, content: nextContent };
+      store.records[safeKey] = next;
+      writeStore(store);
+      return publicEntry(next);
+    }
 
     const now = new Date().toISOString();
     const next = {
@@ -1238,6 +1372,20 @@
         } else if (clean(localRecord.metadataId) === clean(incomingRecord.metadataId) && isDescendant(localRecord, incomingRecord)) {
           kind = 'local-newer';
           reason = 'This device already has a descendant of the incoming version.';
+        } else if (clean(localRecord.metadataId) === clean(incomingRecord.metadataId) && match.key === incomingKey) {
+          const childBranches = analyzeIndependentSituationBranches(localRecord, incomingRecord);
+          if (childBranches.safe && childBranches.incomingAheadIds.length && !childBranches.localAheadIds.length) {
+            kind = 'incoming-newer';
+            reason = `Canonical has descendant Situation child revision(s): ${childBranches.incomingAheadIds.join(', ')}.`;
+          } else if (childBranches.safe && childBranches.localAheadIds.length && !childBranches.incomingAheadIds.length) {
+            kind = 'local-newer';
+            reason = `This device has descendant Situation child revision(s): ${childBranches.localAheadIds.join(', ')}.`;
+          } else {
+            kind = 'conflict';
+            reason = childBranches.safe && childBranches.localAheadIds.length && childBranches.incomingAheadIds.length
+              ? 'Different Situation children advanced independently on each device.'
+              : 'Both sides changed from different version branches.';
+          }
         } else {
           kind = 'conflict';
           reason = match.key !== incomingKey
@@ -1402,6 +1550,8 @@
     validatePortableSnapshot,
     comparePortableSnapshot,
     applyPortableMerge,
+    planIndependentSituationMerge,
+    applyIndependentSituationMerge,
     getConflictLock,
     setConflictLock,
     clearConflictLock,

@@ -1,4 +1,4 @@
-/* WLP v1.8.6.361 — Learning Metadata production-default Canonical receiver · Alternative link-switch cutover.
+/* WLP v1.8.6.371 — Learning Metadata production-default Canonical receiver · Alternative link-switch cutover.
    Production default on Manage Learning Metadata: safely materializes Canonical-only
    parent-only records, safe Canonical descendant parent revisions, one existing Situation
    content revision, or one existing Alternative content revision when parent lineage advances
@@ -11,7 +11,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.361-learning-metadata-production-default-receiver-alternative-link-v1';
+  const APP_VERSION='1.8.6.371-learning-metadata-production-default-receiver-child-merge-v1';
   const DIAG_FLAG='wlpLearningMetadataReceiverAudit';
   const LEGACY_FLAG='wlpLegacyLearningMetadataReceiver';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -111,6 +111,7 @@
   function changedSituationFields(local,incoming){const a=situationSemantic(local),b=situationSemantic(incoming),fields=[];['status','deletedAt','title','anchor','communicativeNeed'].forEach(key=>{if(a[key]!==b[key])fields.push(key);});return fields;}
   function changedAlternativeFields(local,incoming){const a=alternativeSemantic(local),b=alternativeSemantic(incoming),fields=[];['status','deletedAt','expression','note','situationIds'].forEach(key=>{if(stableStringify(a[key])!==stableStringify(b[key]))fields.push(key);});return fields;}
   function oneStepParent(local,incoming){return clean(local?.metadataId)===clean(incoming?.metadataId)&&Number(incoming?.revision||0)===Number(local?.revision||0)+1&&clean(incoming?.parentVersionId)===clean(local?.versionId)&&clean(incoming?.versionId)&&clean(incoming?.versionId)!==clean(local?.versionId);}
+  function sameParentLineage(local,incoming){return clean(local?.metadataId)===clean(incoming?.metadataId)&&Number(incoming?.revision||0)===Number(local?.revision||0)&&clean(incoming?.versionId)===clean(local?.versionId)&&clean(incoming?.parentVersionId)===clean(local?.parentVersionId);}
   function oneStepSituation(local,incoming){return clean(local?.situationId)===clean(incoming?.situationId)&&Number(incoming?.revision||0)===Number(local?.revision||0)+1&&clean(incoming?.parentVersionId)===clean(local?.versionId)&&clean(incoming?.versionId)&&clean(incoming?.versionId)!==clean(local?.versionId);}
   function oneStepAlternative(local,incoming){return clean(local?.alternativeId)===clean(incoming?.alternativeId)&&Number(incoming?.revision||0)===Number(local?.revision||0)+1&&clean(incoming?.parentVersionId)===clean(local?.versionId)&&clean(incoming?.versionId)&&clean(incoming?.versionId)!==clean(local?.versionId);}
   function restorePriorMergeRollback(api){if(!api?.MERGE_ROLLBACK_KEY)return;if(state.priorMergeRollbackRaw===null)localStorage.removeItem(api.MERGE_ROLLBACK_KEY);else localStorage.setItem(api.MERGE_ROLLBACK_KEY,state.priorMergeRollbackRaw);}
@@ -124,7 +125,7 @@
   function safeSituationIncomingItem(item){
     if(item?.kind!=='incoming-newer'||!item.local||!item.incoming)return false;
     const local=item.local,incoming=item.incoming;
-    if(!oneStepParent(local,incoming))return false;
+    if(!oneStepParent(local,incoming)&&!sameParentLineage(local,incoming))return false;
     if(stableStringify(parentSemantic(local))!==stableStringify(parentSemantic(incoming)))return false;
     if(stableStringify(alternativesShape(local))!==stableStringify(alternativesShape(incoming)))return false;
     const localSituations=situations(local),incomingSituations=situations(incoming);
@@ -252,18 +253,36 @@
       const plan=api.comparePortableSnapshot(canonical),items=Array.isArray(plan.items)?plan.items:[],counts=plan.counts||{};
       const newItems=items.filter(item=>item.kind==='new'),incoming=items.filter(item=>item.kind==='incoming-newer'),same=items.filter(item=>item.kind==='same'),localNewer=items.filter(item=>item.kind==='local-newer'),conflicts=items.filter(item=>item.kind==='conflict');
       const incomingSafety=incoming.map(item=>({item,kind:incomingSafetyKind(item,situations)})),unsafeIncoming=incomingSafety.filter(x=>!x.kind).map(x=>x.item),safeSituationIncoming=incomingSafety.filter(x=>x.kind==='situation').length,safeSituationTombstoneIncoming=incomingSafety.filter(x=>x.kind==='situation-tombstone').length,safeSituationResurrectionIncoming=incomingSafety.filter(x=>x.kind==='situation-resurrection').length,safeAlternativeIncoming=incomingSafety.filter(x=>x.kind==='alternative').length,safeAlternativeLinkIncoming=incomingSafety.filter(x=>x.kind==='alternative-link').length,unsafeNew=newItems.filter(item=>!safeNewItem(item));
+      const independentSituationMerges=[];
+      if(api?.planIndependentSituationMerge){
+        [...localNewer,...conflicts].forEach(item=>{
+          if(!item?.localKey||!item?.local||!item?.incoming)return;
+          try{const mergePlan=api.planIndependentSituationMerge(item.local,item.incoming);if(mergePlan)independentSituationMerges.push({item,mergePlan});}catch(_){}
+        });
+      }
+      const mergeIds=new Set(independentSituationMerges.map(x=>x.item.id)),unresolvedLocalNewer=localNewer.filter(item=>!mergeIds.has(item.id)),unresolvedConflicts=conflicts.filter(item=>!mergeIds.has(item.id));
+      const mergeOnlySafe=independentSituationMerges.length>0&&newItems.length===0&&incoming.length===0&&localOnly.length===0&&unsafeIncoming.length===0&&unsafeNew.length===0&&unresolvedLocalNewer.length===0&&unresolvedConflicts.length===0;
       const safe=localOnly.length===0&&localNewer.length===0&&conflicts.length===0&&unsafeIncoming.length===0&&unsafeNew.length===0;
       const changeCount=newItems.length+incoming.length;
-      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · safe Situation tombstone incoming ${safeSituationTombstoneIncoming} · safe Situation resurrection incoming ${safeSituationResurrectionIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · safe Alternative link incoming ${safeAlternativeLinkIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
+      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · independent Situation merges ${independentSituationMerges.length} · safe Situation tombstone incoming ${safeSituationTombstoneIncoming} · safe Situation resurrection incoming ${safeSituationResurrectionIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · safe Alternative link incoming ${safeAlternativeLinkIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
+      if(mergeOnlySafe){
+        const merged=[];
+        independentSituationMerges.forEach(({item,mergePlan})=>{
+          const result=api.applyIndependentSituationMerge(item.localKey,item.incoming);
+          merged.push({entryKey:item.localKey,localAheadIds:mergePlan.localAheadIds,incomingAheadIds:mergePlan.incomingAheadIds,result});
+        });
+        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'child-merge',summary:{cursor,independentSituationMerges:merged.length,localPendingChildren:merged.reduce((n,x)=>n+x.localAheadIds.length,0),incomingChildrenMerged:merged.reduce((n,x)=>n+x.incomingAheadIds.length,0),blockingIssues:0,pass:true},invariants:{productionDefault:true,differentSituationChildrenMerge:true,sameChildConflictStillBlocked:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true}};
+        show('PASS · Independent Situation children merged locally.',true,`${detail}\nlocal pending child branch preserved ${state.report.summary.localPendingChildren} · incoming child branch merged ${state.report.summary.incomingChildrenMerged}\nIndexedDB 0 writes · outbox 0 writes · Cloud 0 writes · cursor ${cursor}`);return;
+      }
       if(!safe){
         let conflictLocks=0;
         if(api?.setConflictLock){
-          [...localNewer,...conflicts].forEach(item=>{
+          [...unresolvedLocalNewer,...unresolvedConflicts].forEach(item=>{
             if(!item?.localKey||!item?.local||!item?.incoming)return;
             try{api.setConflictLock(item.localKey,item.local,item.incoming,item.reason||'Production receiver requires explicit reconciliation.');conflictLocks++;}catch(_){}
           });
         }
-        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeSituationResurrectionIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,conflictLocks,blockingIssues:1,pass:false}};
+        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeSituationResurrectionIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,independentSituationMerges:independentSituationMerges.length,localNewer:localNewer.length,conflicts:conflicts.length,unresolvedLocalNewer:unresolvedLocalNewer.length,unresolvedConflicts:unresolvedConflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,conflictLocks,blockingIssues:1,pass:false}};
         show('CHECK · Production receiver found state that requires explicit reconciliation.',false,`${detail}\nconflict locks ${conflictLocks} · no data changed`);return;
       }
       if(changeCount===0){

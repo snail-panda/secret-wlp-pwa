@@ -1,4 +1,4 @@
-/* WLP v1.8.6.347 — Learning Metadata existing-Situation production-default Canonical write.
+/* WLP v1.8.6.371 — Learning Metadata existing-Situation production-default Canonical write.
    Production default on editor-local-edit.html?wid=... .
    Diagnostic panel only: ?wlpLearningMetadataSituationWriteAudit=1
    Diagnostic hold for a pre-existing safe local revision: ?wlpLearningMetadataSituationWriteHold=1
@@ -9,15 +9,16 @@
    - no Situation add/remove/reorder/tombstone;
    - no Alternative change;
    - parent semantic fields unchanged;
-   - parent lineage and the changed Situation lineage each advance exactly one revision;
-   - card_learning_metadata parent + learning_situations child are staged together under one actionId.
+   - the changed Situation lineage advances exactly one revision;
+   - for a normal existing-Situation content edit, the metadata parent lineage stays unchanged and only learning_situations is staged;
+   - one-step legacy parent+Situation revisions remain recoverable for compatibility.
 
    A safe local revision that was already saved before this cutover can be recovered without
    asking the user to edit/save it again. No Service Worker/background sync is used. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.347-learning-metadata-situation-default-write-v1';
+  const APP_VERSION='1.8.6.371-learning-metadata-situation-child-only-write-v1';
   const DIAG_FLAG='wlpLearningMetadataSituationWriteAudit';
   const HOLD_FLAG='wlpLearningMetadataSituationWriteHold';
   const ROLLBACK_FLAG='wlpLegacyLearningMetadataSituationWrite';
@@ -61,6 +62,7 @@
   function localRecord(wid){const api=window.WLPLearningHooks;if(!api?.getRecord)throw new Error('Learning Metadata v2 engine is unavailable.');const r=api.getRecord(`wid:${wid}`);if(!r)throw new Error(`Local Learning Metadata WID${wid} is missing.`);return clone(r);}
   function parentSemantic(r){const c=r?.content||{};return{entryType:clean(c.entryType),senseHook:clean(c.senseHook),memoryHook:clean(c.memoryHook),deletedAt:clean(r?.deletedAt)};}
   function parentLineageAdvancedOnce(before,after){return clean(after?.metadataId)===clean(before?.metadataId)&&Number(after?.revision)===Number(before?.revision)+1&&clean(after?.parentVersionId)===clean(before?.versionId)&&clean(after?.versionId)&&clean(after?.versionId)!==clean(before?.versionId);}
+  function parentLineageExact(before,after){return clean(after?.metadataId)===clean(before?.metadataId)&&Number(after?.revision||0)===Number(before?.revision||0)&&clean(after?.versionId)===clean(before?.versionId)&&clean(after?.parentVersionId)===clean(before?.parentVersionId)&&clean(after?.updatedAt)===clean(before?.updatedAt)&&clean(after?.updatedByDevice)===clean(before?.updatedByDevice)&&stableStringify(after?.history||[])===stableStringify(before?.history||[]);}
   function situationSemantic(s){return{title:clean(s?.title),anchor:clean(s?.anchor),communicativeNeed:clean(s?.communicativeNeed),deletedAt:clean(s?.deletedAt)};}
   function situationLineageAdvancedOnce(before,after){return clean(after?.situationId)===clean(before?.situationId)&&Number(after?.revision)===Number(before?.revision)+1&&clean(after?.parentVersionId)===clean(before?.versionId)&&clean(after?.versionId)&&clean(after?.versionId)!==clean(before?.versionId);}
   function activeSituations(r){return (Array.isArray(r?.content?.situations)?r.content.situations:[]).filter(x=>!clean(x?.deletedAt)&&clean(x?.anchor));}
@@ -96,7 +98,8 @@
     if(stableStringify(canonicalRecord)===stableStringify(local))return{kind:'same'};
     if(stableStringify(parentSemantic(canonicalRecord))!==stableStringify(parentSemantic(local)))return{kind:'unsafe',reason:'Entry Type / Sense Hook / Memory Hook differs.'};
     if(stableStringify(alternatives(canonicalRecord))!==stableStringify(alternatives(local)))return{kind:'unsafe',reason:'Alternative content differs.'};
-    if(!parentLineageAdvancedOnce(canonicalRecord,local))return{kind:'unsafe',reason:'Parent lineage is not exactly one revision ahead.'};
+    const parentMode=parentLineageExact(canonicalRecord,local)?'child-only':parentLineageAdvancedOnce(canonicalRecord,local)?'legacy-compound':'';
+    if(!parentMode)return{kind:'unsafe',reason:'Parent lineage is neither the same canonical baseline nor one recoverable legacy revision ahead.'};
     const before=activeSituations(canonicalRecord),after=activeSituations(local);
     if(before.length!==after.length)return{kind:'unsafe',reason:'Situation add/remove is not production-auto-writable yet.'};
     const beforeIds=before.map(x=>clean(x.situationId)),afterIds=after.map(x=>clean(x.situationId));
@@ -108,7 +111,7 @@
     if(!clean(newSituation.anchor)||clean(newSituation.deletedAt))return{kind:'unsafe',reason:'Changed Situation must remain active with a non-empty Anchor.'};
     const changedFields=changedSituationFields(oldSituation,newSituation);
     if(!changedFields.length||!changedFields.every(x=>ALLOWED_SITUATION_FIELDS.has(x)))return{kind:'unsafe',reason:'Situation change includes an unsupported field.'};
-    return{kind:'safe-local-ahead',oldSituation,newSituation,targetSourceSituationId:clean(oldSituation.situationId),changedFields};
+    return{kind:parentMode==='child-only'?'safe-child-only-ahead':'safe-local-ahead',parentMode,oldSituation,newSituation,targetSourceSituationId:clean(oldSituation.situationId),changedFields};
   }
 
   async function stageCurrent({reason='real-save'}={}){
@@ -118,22 +121,27 @@
       db=await openDb();const [meta,outbox]=await Promise.all([getRow(db,META_STORE,META_KEY),getAll(db,OUTBOX_STORE)]);if(outbox.length)throw new Error(`sync_outbox must be empty before staging; found ${outbox.length}.`);
       if(!meta||clean(meta.candidateKey)!==BASE.candidateKey||Number(meta.headVersion||0)!==BASE.headVersion||clean(meta.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Situation production write requires ACTIVE Authority v3.');
       const cursorBefore=await cursorValue(db,meta),canonical=await resolveCanonical(db,wid),local=localRecord(wid),analysis=analyzeAdvance(canonical.canonicalRecord,local);
-      if(analysis.kind!=='safe-local-ahead')throw new Error(analysis.kind==='same'?'No pending Situation revision exists to stage.':analysis.reason||'Local Situation revision is not safe to stage.');
+      if(!['safe-child-only-ahead','safe-local-ahead'].includes(analysis.kind))throw new Error(analysis.kind==='same'?'No pending Situation revision exists to stage.':analysis.reason||'Local Situation revision is not safe to stage.');
       const targetRow=canonical.rowBySourceId.get(analysis.targetSourceSituationId);if(!targetRow)throw new Error('Canonical target Situation row is missing.');
       const currentParentHash=clean(canonical.parent.payloadHash)||await sha256(stableStringify(canonical.parent.payload)),currentSituationHash=clean(targetRow.payloadHash)||await sha256(stableStringify(targetRow.payload));
-      const nextParentPayload=parentPayloadFromLocal(canonical.parent.payload,local,canonical.cardId),nextSituationPayload=situationPayloadFromLocal(targetRow.payload,analysis.newSituation,canonical.cardId),nextParentHash=await sha256(stableStringify(nextParentPayload)),nextSituationHash=await sha256(stableStringify(nextSituationPayload));
-      if(nextParentHash===currentParentHash)throw new Error('Parent lineage payload did not advance.');
+      const nextSituationPayload=situationPayloadFromLocal(targetRow.payload,analysis.newSituation,canonical.cardId),nextSituationHash=await sha256(stableStringify(nextSituationPayload));
       if(nextSituationHash===currentSituationHash)throw new Error('Situation payload did not change.');
-      const actionId=crypto.randomUUID(),createdAt=new Date().toISOString();
-      const parentMutation={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt,diagnosticOnly:false,candidateOnly:false,canonicalLearningMetadataSituationDefaultWrite:true,transportEligible:true,status:'pending',mutationId:crypto.randomUUID(),mutationKind:'upsert',tableName:'card_learning_metadata',rowKey:clean(canonical.parent.rowKey||canonical.cardId),precondition:{payloadHash:currentParentHash},changedFields:['revision','version_id','parent_version_id','updated_at','updated_by_device','source_history'],payload:nextParentPayload,payloadHash:nextParentHash};
-      parentMutation.mutationHash=await sha256(stableStringify(parentMutation));
-      const situationMutation={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt,diagnosticOnly:false,candidateOnly:false,canonicalLearningMetadataSituationDefaultWrite:true,transportEligible:true,status:'pending',mutationId:crypto.randomUUID(),mutationKind:'upsert',tableName:'learning_situations',rowKey:clean(targetRow.rowKey||targetRow.payload?.situation_id),precondition:{payloadHash:currentSituationHash},changedFields:[...analysis.changedFields,'revision','version_id','parent_version_id','updated_at','updated_by_device','source_history'],payload:nextSituationPayload,payloadHash:nextSituationHash};
+      const actionId=crypto.randomUUID(),createdAt=new Date().toISOString(),common={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt,diagnosticOnly:false,candidateOnly:false,canonicalLearningMetadataSituationDefaultWrite:true,transportEligible:true,status:'pending'};
+      const situationMutation={...common,mutationId:crypto.randomUUID(),mutationKind:'upsert',tableName:'learning_situations',rowKey:clean(targetRow.rowKey||targetRow.payload?.situation_id),precondition:{payloadHash:currentSituationHash},changedFields:[...analysis.changedFields,'revision','version_id','parent_version_id','updated_at','updated_by_device','source_history'],payload:nextSituationPayload,payloadHash:nextSituationHash};
       situationMutation.mutationHash=await sha256(stableStringify(situationMutation));
-      await addOutboxRows(db,[parentMutation,situationMutation]);
-      state.armed=false;state.active={actionId,wid,cursorBefore,parentRowKey:parentMutation.rowKey,situationRowKey:situationMutation.rowKey,parentHash:nextParentHash,situationHash:nextSituationHash,changedFields:analysis.changedFields.slice(),reason};
-      state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pending',summary:{wordId:wid,cursorBefore,outboxAfterStage:2,changedFields:clone(analysis.changedFields),recoveredSavedLocalRevision:reason==='saved-local-recovery',blockingIssues:0,pass:true},invariants:{productionDefault:true,parentAndSituationSameAction:true,noAlternativeWrite:true,existingSituationOnly:true}};
-      show(`PENDING · Production-default WID${wid} Situation revision staged.`,true,`cursor ${cursorBefore} · outbox 0 → 2 · changed ${analysis.changedFields.join(', ')}\n${reason==='saved-local-recovery'?'saved local revision recovered without another edit/save':'normal editor Save captured'}\nparent + Situation lineage will travel together.`);
-      window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged',{detail:{source:'learning-metadata-situation-default-write',tableName:'learning_situations',mutationKind:'upsert',actionId,mutationCount:2,companionTable:'card_learning_metadata'}}));
+      let rows=[situationMutation],parentHash=currentParentHash,parentRowKey=clean(canonical.parent.rowKey||canonical.cardId),transportShape='situation-only';
+      if(analysis.parentMode==='legacy-compound'){
+        const nextParentPayload=parentPayloadFromLocal(canonical.parent.payload,local,canonical.cardId),nextParentHash=await sha256(stableStringify(nextParentPayload));
+        if(nextParentHash===currentParentHash)throw new Error('Legacy parent lineage payload did not advance.');
+        const parentMutation={...common,mutationId:crypto.randomUUID(),mutationKind:'upsert',tableName:'card_learning_metadata',rowKey:parentRowKey,precondition:{payloadHash:currentParentHash},changedFields:['revision','version_id','parent_version_id','updated_at','updated_by_device','source_history'],payload:nextParentPayload,payloadHash:nextParentHash};
+        parentMutation.mutationHash=await sha256(stableStringify(parentMutation));
+        rows=[parentMutation,situationMutation];parentHash=nextParentHash;transportShape='legacy-parent+situation';
+      }
+      await addOutboxRows(db,rows);
+      state.armed=false;state.active={actionId,wid,cursorBefore,parentRowKey,situationRowKey:situationMutation.rowKey,parentHash,situationHash:nextSituationHash,changedFields:analysis.changedFields.slice(),reason,transportShape};
+      state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pending',summary:{wordId:wid,cursorBefore,outboxAfterStage:rows.length,changedFields:clone(analysis.changedFields),transportShape,recoveredSavedLocalRevision:reason==='saved-local-recovery',blockingIssues:0,pass:true},invariants:{productionDefault:true,childRowIndependent:transportShape==='situation-only',legacyCompoundRecovery:transportShape==='legacy-parent+situation',noAlternativeWrite:true,existingSituationOnly:true}};
+      show(`PENDING · Production-default WID${wid} Situation revision staged.`,true,`cursor ${cursorBefore} · outbox 0 → ${rows.length} · changed ${analysis.changedFields.join(', ')}\n${reason==='saved-local-recovery'?'saved local revision recovered without another edit/save':'normal editor Save captured'}\n${transportShape==='situation-only'?'Situation child only; metadata parent lineage stays unchanged.':'legacy parent + Situation compatibility recovery.'}`);
+      window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged',{detail:{source:'learning-metadata-situation-default-write',tableName:'learning_situations',mutationKind:'upsert',actionId,mutationCount:rows.length,companionTable:rows.length===2?'card_learning_metadata':''}}));
       return true;
     }catch(e){state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',error:String(e?.message||e),summary:{wordId:targetWid(),blockingIssues:1,pass:false}};show(`BLOCKED · ${String(e?.message||e)}`,false,'The local editor revision remains local. No unsafe Canonical write was staged.',true);return false;}
     finally{state.busy=false;try{db?.close();}catch(_){} }
@@ -151,11 +159,11 @@
       if(analysis.kind==='same'){
         state.before={wid,cursor,canonicalRecord:clone(canonical.canonicalRecord)};state.armed=true;
         state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'ready',summary:{wordId:wid,cursor,outbox:0,blockingIssues:0,pass:true},invariants:{productionDefault:true,localAggregateExactCanonical:true,existingSituationEditArmed:true}};
-        show(`READY · WID${wid} is armed for a safe existing-Situation edit.`,true,`cursor ${cursor} · outbox 0 · local aggregate = Canonical exact\nNormal Save will Canonical-sync one existing Situation content revision together with its parent lineage.`);
+        show(`READY · WID${wid} is armed for a safe existing-Situation edit.`,true,`cursor ${cursor} · outbox 0 · local aggregate = Canonical exact\nNormal Save will Canonical-sync one existing Situation child revision without advancing the metadata parent lineage.`);
         return;
       }
-      if(analysis.kind==='safe-local-ahead'){
-        state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:hold()?'recovery-ready':'recovering',summary:{wordId:wid,cursor,outbox:0,targetSituationId:analysis.targetSourceSituationId,changedFields:clone(analysis.changedFields),blockingIssues:0,pass:true},invariants:{productionDefault:true,safeSavedLocalRevision:true,parentOneStep:true,situationOneStep:true,noAlternativeWrite:true}};
+      if(['safe-child-only-ahead','safe-local-ahead'].includes(analysis.kind)){
+        state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:hold()?'recovery-ready':'recovering',summary:{wordId:wid,cursor,outbox:0,targetSituationId:analysis.targetSourceSituationId,changedFields:clone(analysis.changedFields),blockingIssues:0,pass:true},invariants:{productionDefault:true,safeSavedLocalRevision:true,parentSameBaseline:analysis.kind==='safe-child-only-ahead',legacyParentOneStep:analysis.kind==='safe-local-ahead',situationOneStep:true,noAlternativeWrite:true}};
         if(hold()){
           show(`READY · Saved local WID${wid} Situation revision is safe to recover.`,true,`cursor ${cursor} · outbox 0\nSituation ${analysis.targetSourceSituationId} · changed ${analysis.changedFields.join(', ')}\n${short(analysis.oldSituation.title)} → ${short(analysis.newSituation.title)}\nHOLD is active: no data changed or staged.`);
           return;
@@ -173,18 +181,18 @@
       await new Promise(r=>setTimeout(r,0));const after=localRecord(state.before.wid),analysis=analyzeAdvance(state.before.canonicalRecord,after);
       if(analysis.kind==='same')return;
       state.armed=false;
-      if(analysis.kind!=='safe-local-ahead')throw new Error(analysis.reason||'Saved Situation edit is not safe for automatic Canonical write.');
+      if(!['safe-child-only-ahead','safe-local-ahead'].includes(analysis.kind))throw new Error(analysis.reason||'Saved Situation edit is not safe for automatic Canonical write.');
       await stageCurrent({reason:'real-save'});
     }catch(e){state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked-after-local-save',error:String(e?.message||e),summary:{wordId:state.before?.wid||targetWid(),blockingIssues:1,pass:false}};show(`BLOCKED · ${String(e?.message||e)}`,false,'The local editor save remains local. No unsafe Canonical Situation write was staged.',true);}
   }
 
   async function verifyForeground(detail){
     if(!state.active)return;const d=detail&&typeof detail==='object'?detail:{};if(clean(d.actionId)&&clean(d.actionId)!==state.active.actionId)return;
-    if(d.pass!==true){show(`CHECK · ${clean(d.error)||'Foreground sync did not complete.'}`,false,'The compound outbox action is intentionally retained for retry. Do not make another Learning Metadata edit.',true);return;}
+    if(d.pass!==true){show(`CHECK · ${clean(d.error)||'Foreground sync did not complete.'}`,false,'The outbox action is intentionally retained for retry. Do not make another Learning Metadata edit.',true);return;}
     let db=null;try{
       db=await openDb();const [outbox,parentRow,situationRow,meta]=await Promise.all([getAll(db,OUTBOX_STORE),getRow(db,METADATA_STORE,state.active.parentRowKey),getRow(db,SITUATION_STORE,state.active.situationRowKey),getRow(db,META_STORE,META_KEY)]),cursorAfter=await cursorValue(db,meta),parentOk=clean(parentRow?.payloadHash)===state.active.parentHash,situationOk=clean(situationRow?.payloadHash)===state.active.situationHash,pass=outbox.length===0&&parentOk&&situationOk&&cursorAfter>state.active.cursorBefore;
-      state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:pass?'pass':'check',summary:{wordId:state.active.wid,cursorBefore:state.active.cursorBefore,cursorAfter,outboxAfter:outbox.length,changedFields:clone(state.active.changedFields),recoveredSavedLocalRevision:state.active.reason==='saved-local-recovery',blockingIssues:pass?0:1,pass},invariants:{productionDefault:true,parentAndSituationSameAction:true,parentPayloadMatchesLocalLineage:parentOk,situationPayloadMatchesLocalRevision:situationOk,noAlternativeWrite:true}};
-      show(pass?`PASS · Production-default WID${state.active.wid} Situation revision reached Canonical.`:'CHECK · Situation-write transport verification is incomplete.',pass,`cursor ${state.active.cursorBefore} → ${cursorAfter} · outbox ${outbox.length}\nparent payload match ${parentOk?'yes':'no'} · Situation payload match ${situationOk?'yes':'no'}\nchanged ${state.active.changedFields.join(', ')}${state.active.reason==='saved-local-recovery'?' · saved local revision recovered':''}`,!pass);if(pass)state.active=null;
+      state.report={format:'WLP_LEARNING_METADATA_SITUATION_DEFAULT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:pass?'pass':'check',summary:{wordId:state.active.wid,cursorBefore:state.active.cursorBefore,cursorAfter,outboxAfter:outbox.length,changedFields:clone(state.active.changedFields),transportShape:state.active.transportShape,recoveredSavedLocalRevision:state.active.reason==='saved-local-recovery',blockingIssues:pass?0:1,pass},invariants:{productionDefault:true,parentPayloadExpected:parentOk,situationPayloadMatchesLocalRevision:situationOk,childRowIndependent:state.active.transportShape==='situation-only',noAlternativeWrite:true}};
+      show(pass?`PASS · Production-default WID${state.active.wid} Situation revision reached Canonical.`:'CHECK · Situation-write transport verification is incomplete.',pass,`cursor ${state.active.cursorBefore} → ${cursorAfter} · outbox ${outbox.length}\nparent payload expected ${parentOk?'yes':'no'} · Situation payload match ${situationOk?'yes':'no'}\nshape ${state.active.transportShape} · changed ${state.active.changedFields.join(', ')}${state.active.reason==='saved-local-recovery'?' · saved local revision recovered':''}`,!pass);if(pass)state.active=null;
     }catch(e){show(`CHECK · ${String(e?.message||e)}`,false,'Transport may have completed, but local verification failed.',true);}finally{try{db?.close();}catch(_){} }
   }
 
