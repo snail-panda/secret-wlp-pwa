@@ -1,8 +1,8 @@
-/* WLP v1.8.6.372 — Learning Metadata production-default Canonical receiver · child transport normalization.
+/* WLP v1.8.6.373 — Learning Metadata production-default Canonical receiver · multi-Situation incoming materialization.
    Production default on Manage Learning Metadata: safely materializes Canonical-only
-   parent-only records, safe Canonical descendant parent revisions, one existing Situation
-   content revision, or one existing Alternative content revision when parent lineage advances
-   one step with unchanged parent semantics and all non-target children exact.
+   parent-only records, safe Canonical descendant parent revisions, one or more independent
+   Situation child revisions on the same parent lineage (or one on a one-step parent advance),
+   or one existing Alternative content revision with unchanged parent semantics and non-target children exact.
    Situation/Alternative add-reorder, arbitrary link add/remove, Alternative tombstones, and arbitrary Situation tombstones
    are NOT auto-applied. One existing Alternative one-link → one-link switch is allowed.
    Diagnostic panel: ?wlpLearningMetadataReceiverAudit=1
@@ -11,7 +11,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.372-learning-metadata-child-transport-normalization-v1';
+  const APP_VERSION='1.8.6.373-learning-metadata-multi-situation-incoming-v1';
   const DIAG_FLAG='wlpLearningMetadataReceiverAudit';
   const LEGACY_FLAG='wlpLegacyLearningMetadataReceiver';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -137,12 +137,20 @@
     const localIds=[...localById.keys()].sort(),incomingIds=[...incomingById.keys()].sort();
     if(!localIds.length||stableStringify(localIds)!==stableStringify(incomingIds))return false;
     const changedIds=incomingIds.filter(id=>stableStringify(situationCurrent(localById.get(id)))!==stableStringify(situationCurrent(incomingById.get(id))));
-    if(changedIds.length!==1)return false;
-    const changedId=changedIds[0],oldSituation=localById.get(changedId),newSituation=incomingById.get(changedId);
-    if(!oldSituation||!newSituation||!oneStepSituation(oldSituation,newSituation))return false;
-    const fields=changedSituationFields(oldSituation,newSituation);
-    if(!fields.length||!fields.every(field=>ALLOWED_SITUATION_FIELDS.has(field)))return false;
-    return incomingIds.filter(id=>id!==changedId).every(id=>stableStringify(situationCurrent(localById.get(id)))===stableStringify(situationCurrent(incomingById.get(id))));
+    if(!changedIds.length)return false;
+    // Legacy compound parent transport remains limited to one changed Situation.
+    // Child-only transport can safely batch multiple independent incoming Situation
+    // revisions as long as every changed child is exactly one descendant step and
+    // all parent/Alternative state remains on the same baseline.
+    if(!sameParentLineage(local,incoming)&&changedIds.length!==1)return false;
+    for(const changedId of changedIds){
+      const oldSituation=localById.get(changedId),newSituation=incomingById.get(changedId);
+      if(!oldSituation||!newSituation||!oneStepSituation(oldSituation,newSituation))return false;
+      const fields=changedSituationFields(oldSituation,newSituation);
+      if(!fields.length||!fields.every(field=>ALLOWED_SITUATION_FIELDS.has(field)))return false;
+    }
+    const changedSet=new Set(changedIds);
+    return incomingIds.filter(id=>!changedSet.has(id)).every(id=>stableStringify(situationCurrent(localById.get(id)))===stableStringify(situationCurrent(incomingById.get(id))));
   }
   function safeAlternativeIncomingItem(item){
     if(item?.kind!=='incoming-newer'||!item.local||!item.incoming)return false;
