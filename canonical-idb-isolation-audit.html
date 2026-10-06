@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>WLP IndexedDB Isolation Audit v351</title>
+  <meta name="theme-color" content="#eef6ee">
+  <style>
+    :root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22;background:#eef6ee}
+    body{margin:0;padding:max(18px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom));}
+    main{max-width:760px;margin:0 auto;background:#fff;border:1px solid rgba(31,55,39,.22);border-radius:16px;padding:16px;box-shadow:0 10px 28px rgba(0,0,0,.10)}
+    h1{font-size:20px;margin:0 0 6px} .status{font-weight:800;margin:10px 0;font-size:16px}.detail{white-space:pre-wrap;word-break:break-word;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:#f7faf7;border-radius:10px;padding:10px;min-height:180px}
+    .note{font-size:13px;opacity:.8}.pass{color:#18794e}.fail{color:#b42318}.warn{color:#7a5d00}
+  </style>
+</head>
+<body>
+<main>
+  <h1>IndexedDB Isolation Audit · v351</h1>
+  <div id="status" class="status">RUNNING · isolated read-only test…</div>
+  <div class="note">Standalone page: no WLP receiver, auto-sync, Learning Metadata, PWA registration, or shared app scripts are loaded.</div>
+  <pre id="detail" class="detail"></pre>
+</main>
+<script>
+(() => {
+  'use strict';
+  const DB_NAME='wlp-cloud-v1', DB_VERSION=1, STORE='sync_meta';
+  const META_KEY='authority_mirror', CURSOR_KEY='sync_cursor';
+  const TIMEOUT=4500;
+  const status=document.getElementById('status'), detail=document.getElementById('detail');
+  const lines=[];
+  const log=s=>{lines.push(String(s));detail.textContent=lines.join('\n');};
+  const finish=(s,kind)=>{status.textContent=s;status.className='status '+(kind||'');};
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const timed=(promise,label,ms=TIMEOUT)=>Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' timed out after '+ms+'ms')),ms))]);
+  function openDb(){
+    return new Promise((resolve,reject)=>{
+      let upgrading=false;
+      const r=indexedDB.open(DB_NAME,DB_VERSION);
+      r.onupgradeneeded=()=>{upgrading=true;try{r.transaction.abort();}catch(_){}};
+      r.onsuccess=()=>{const db=r.result;if(upgrading){db.close();reject(new Error('unexpected upgrade'));return;}resolve(db);};
+      r.onerror=()=>reject(r.error||new Error('open error'));
+      r.onblocked=()=>reject(new Error('open blocked'));
+    });
+  }
+  function probeRead(db,store,key,label){
+    return new Promise((resolve,reject)=>{
+      let settled=false;
+      const started=performance.now();
+      let tx;
+      try{tx=db.transaction(store,'readonly');}catch(e){reject(e);return;}
+      log(label+' · transaction created');
+      tx.oncomplete=()=>{log(label+' · tx complete +'+Math.round(performance.now()-started)+'ms');};
+      tx.onabort=()=>{if(!settled){settled=true;reject(tx.error||new Error(label+' tx abort'));}};
+      tx.onerror=()=>{log(label+' · tx error event');};
+      let req;
+      try{req=tx.objectStore(store).get(key);}catch(e){reject(e);return;}
+      req.onsuccess=()=>{log(label+' · request success +'+Math.round(performance.now()-started)+'ms');if(!settled){settled=true;resolve(req.result||null);}};
+      req.onerror=()=>{if(!settled){settled=true;reject(req.error||new Error(label+' request error'));}};
+      setTimeout(()=>{
+        if(settled)return;
+        settled=true;
+        log(label+' · request still pending at '+TIMEOUT+'ms');
+        try{tx.abort();log(label+' · diagnostic abort requested');}catch(e){log(label+' · abort unavailable: '+(e?.name||e));}
+        reject(new Error(label+' request timed out after '+TIMEOUT+'ms'));
+      },TIMEOUT);
+    });
+  }
+  async function run(){
+    let db=null;
+    try{
+      log('mode read-only · standalone isolation page');
+      log('STEP 1 · open '+DB_NAME);
+      db=await timed(openDb(),'open '+DB_NAME);
+      log('PASS 1 · version '+db.version+' · stores '+Array.from(db.objectStoreNames).length);
+      if(!db.objectStoreNames.contains(STORE))throw new Error('sync_meta store missing');
+
+      log('STEP 2 · authority_mirror direct request');
+      const meta=await probeRead(db,STORE,META_KEY,'authority_mirror');
+      log('PASS 2 · cursor '+Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0));
+
+      log('STEP 3 · sync_cursor direct request');
+      const cursor=await probeRead(db,STORE,CURSOR_KEY,'sync_cursor');
+      log('PASS 3 · cursor '+Number(cursor?.lastSyncCursor||0));
+
+      db.close();db=null;
+      await sleep(100);
+      log('STEP 4 · close/reopen and read again');
+      db=await timed(openDb(),'reopen '+DB_NAME);
+      const meta2=await probeRead(db,STORE,META_KEY,'authority_mirror-reopen');
+      log('PASS 4 · reopened cursor '+Number(meta2?.materializedSyncCursor??meta2?.lastSyncCursor??0));
+      finish('PASS · isolated IndexedDB reads work.','pass');
+      log('Diagnosis: the hang is caused by interaction with scripts/transactions on the full Manage Learning Metadata page, not by the stored database alone.');
+    }catch(e){
+      const msg=e?.message||String(e);log('ERROR · '+msg);
+      if(/timed out/i.test(msg)){
+        finish('TIMEOUT · isolated IndexedDB read also stalled.','fail');
+        log('Diagnosis: the IndexedDB/WebKit process is stalled even without WLP page scripts. Do not delete the database.');
+      }else finish('CHECK · '+msg,'fail');
+    }finally{try{db?.close();}catch(_){}}
+  }
+  run();
+})();
+</script>
+</body>
+</html>
