@@ -1,17 +1,17 @@
-/* WLP v1.8.6.356 — Learning Metadata production-default Canonical receiver · Alternative content cutover.
+/* WLP v1.8.6.361 — Learning Metadata production-default Canonical receiver · Alternative link-switch cutover.
    Production default on Manage Learning Metadata: safely materializes Canonical-only
    parent-only records, safe Canonical descendant parent revisions, one existing Situation
    content revision, or one existing Alternative content revision when parent lineage advances
    one step with unchanged parent semantics and all non-target children exact.
-   Situation/Alternative add-remove-reorder, Alternative↔Situation link changes, and tombstones
-   are NOT auto-applied.
+   Situation/Alternative add-remove-reorder, arbitrary link add/remove, and tombstones
+   are NOT auto-applied. One existing Alternative one-link → one-link switch is allowed.
    Diagnostic panel: ?wlpLearningMetadataReceiverAudit=1
    Emergency rollback-to-legacy behavior: ?wlpLegacyLearningMetadataReceiver=1
    Local materialization only: no IndexedDB/outbox/Cloud writes. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.356-learning-metadata-production-default-receiver-alternative-v1';
+  const APP_VERSION='1.8.6.361-learning-metadata-production-default-receiver-alternative-link-v1';
   const DIAG_FLAG='wlpLearningMetadataReceiverAudit';
   const LEGACY_FLAG='wlpLegacyLearningMetadataReceiver';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -157,7 +157,27 @@
     if(!fields.length||!fields.every(field=>ALLOWED_ALTERNATIVE_FIELDS.has(field)))return false;
     return incomingIds.filter(id=>id!==changedId).every(id=>stableStringify(localById.get(id))===stableStringify(incomingById.get(id)));
   }
-  function incomingSafetyKind(item){if(safeParentIncomingItem(item))return'parent';if(safeSituationIncomingItem(item))return'situation';if(safeAlternativeIncomingItem(item))return'alternative';return'';}
+  function safeAlternativeLinkIncomingItem(item){
+    if(item?.kind!=='incoming-newer'||!item.local||!item.incoming)return false;
+    const local=item.local,incoming=item.incoming;
+    if(!oneStepParent(local,incoming))return false;
+    if(stableStringify(parentSemantic(local))!==stableStringify(parentSemantic(incoming)))return false;
+    if(stableStringify(situations(local))!==stableStringify(situations(incoming)))return false;
+    const localAlternatives=alternatives(local),incomingAlternatives=alternatives(incoming);
+    const localById=new Map(localAlternatives.map(a=>[clean(a?.alternativeId),a])),incomingById=new Map(incomingAlternatives.map(a=>[clean(a?.alternativeId),a]));
+    const localIds=[...localById.keys()].sort(),incomingIds=[...incomingById.keys()].sort();
+    if(!localIds.length||stableStringify(localIds)!==stableStringify(incomingIds))return false;
+    const changedIds=incomingIds.filter(id=>stableStringify(localById.get(id))!==stableStringify(incomingById.get(id)));
+    if(changedIds.length!==1)return false;
+    const changedId=changedIds[0],oldAlternative=localById.get(changedId),newAlternative=incomingById.get(changedId);
+    if(!oldAlternative||!newAlternative||!oneStepAlternative(oldAlternative,newAlternative))return false;
+    const fields=changedAlternativeFields(oldAlternative,newAlternative);
+    if(fields.length!==1||fields[0]!=='situationIds')return false;
+    const oldLinks=alternativeSemantic(oldAlternative).situationIds,newLinks=alternativeSemantic(newAlternative).situationIds;
+    if(oldLinks.length!==1||newLinks.length!==1||oldLinks[0]===newLinks[0])return false;
+    return incomingIds.filter(id=>id!==changedId).every(id=>stableStringify(localById.get(id))===stableStringify(incomingById.get(id)));
+  }
+  function incomingSafetyKind(item){if(safeParentIncomingItem(item))return'parent';if(safeSituationIncomingItem(item))return'situation';if(safeAlternativeIncomingItem(item))return'alternative';if(safeAlternativeLinkIncomingItem(item))return'alternative-link';return'';}
   function safeIncomingItem(item){return Boolean(incomingSafetyKind(item));}
   function safeNewItem(item){
     if(item?.kind!=='new'||!item.incoming)return false;
@@ -181,12 +201,12 @@
       const canonical=buildCanonicalPortable(cards,metadata,situations,alternatives,links),before=currentRecords(),beforeKeys=Object.keys(before).sort(),canonicalKeys=Object.keys(canonical.records).sort(),localOnly=beforeKeys.filter(key=>!canonical.records[key]);
       const plan=api.comparePortableSnapshot(canonical),items=Array.isArray(plan.items)?plan.items:[],counts=plan.counts||{};
       const newItems=items.filter(item=>item.kind==='new'),incoming=items.filter(item=>item.kind==='incoming-newer'),same=items.filter(item=>item.kind==='same'),localNewer=items.filter(item=>item.kind==='local-newer'),conflicts=items.filter(item=>item.kind==='conflict');
-      const incomingSafety=incoming.map(item=>({item,kind:incomingSafetyKind(item)})),unsafeIncoming=incomingSafety.filter(x=>!x.kind).map(x=>x.item),safeSituationIncoming=incomingSafety.filter(x=>x.kind==='situation').length,safeAlternativeIncoming=incomingSafety.filter(x=>x.kind==='alternative').length,unsafeNew=newItems.filter(item=>!safeNewItem(item));
+      const incomingSafety=incoming.map(item=>({item,kind:incomingSafetyKind(item)})),unsafeIncoming=incomingSafety.filter(x=>!x.kind).map(x=>x.item),safeSituationIncoming=incomingSafety.filter(x=>x.kind==='situation').length,safeAlternativeIncoming=incomingSafety.filter(x=>x.kind==='alternative').length,safeAlternativeLinkIncoming=incomingSafety.filter(x=>x.kind==='alternative-link').length,unsafeNew=newItems.filter(item=>!safeNewItem(item));
       const safe=localOnly.length===0&&localNewer.length===0&&conflicts.length===0&&unsafeIncoming.length===0&&unsafeNew.length===0;
       const changeCount=newItems.length+incoming.length;
-      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
+      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · safe Alternative link incoming ${safeAlternativeLinkIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
       if(!safe){
-        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeAlternativeIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
+        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
         show('CHECK · Production receiver found state that requires explicit reconciliation.',false,`${detail}\nno data changed`);return;
       }
       if(changeCount===0){
@@ -204,7 +224,7 @@
         if(beforeRaw===null)localStorage.removeItem(api.STORAGE_KEY);else localStorage.setItem(api.STORAGE_KEY,beforeRaw);restorePriorMergeRollback(api);window.dispatchEvent(new CustomEvent('wlp-learning-hooks-changed'));
         throw new Error(`Post-materialization verification failed; local Learning Metadata was restored. changed=${result?.changed??'?'} expected=${expectedChanged}.`);
       }
-      state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pass',summary:{cursor,added:newItems.length,updated:incoming.length,safeSituationIncoming,safeAlternativeIncoming,localAfter:verify.localKeys.length,canonicalAfter:verify.canonicalKeys.length,blockingIssues:0,pass:true},invariants:{productionDefault:true,semanticExact:true,lineageExact:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true,safeExistingSituationContentAutoApplied:true,safeExistingAlternativeContentAutoApplied:true,alternativeLinkChangesNotAutoApplied:true,alternativeIdentityChangesNotAutoApplied:true,alternativeTombstonesNotAutoApplied:true,situationIdentityChangesNotAutoApplied:true,situationTombstonesNotAutoApplied:true}};
+      state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pass',summary:{cursor,added:newItems.length,updated:incoming.length,safeSituationIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localAfter:verify.localKeys.length,canonicalAfter:verify.canonicalKeys.length,blockingIssues:0,pass:true},invariants:{productionDefault:true,semanticExact:true,lineageExact:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true,safeExistingSituationContentAutoApplied:true,safeExistingAlternativeContentAutoApplied:true,safeExistingAlternativeOneLinkSwitchAutoApplied:true,arbitraryAlternativeLinkChangesNotAutoApplied:true,alternativeIdentityChangesNotAutoApplied:true,alternativeTombstonesNotAutoApplied:true,situationIdentityChangesNotAutoApplied:true,situationTombstonesNotAutoApplied:true}};
       show(`PASS · Production-default receiver materialized ${changeCount} Canonical Learning Metadata record${changeCount===1?'':'s'}.`,true,`added ${newItems.length} · updated ${incoming.length}\nafter local ${verify.localKeys.length} / Canonical ${verify.canonicalKeys.length} · semantic exact yes · lineage exact yes\nIndexedDB 0 writes · outbox 0 writes · Cloud 0 writes · cursor ${cursor}\ntrigger ${trigger}`);
     }catch(error){
       state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'error',error:String(error?.message||error),summary:{blockingIssues:1,pass:false}};
