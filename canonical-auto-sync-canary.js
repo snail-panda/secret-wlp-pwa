@@ -20,8 +20,8 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.354-canonical-foreground-sync-v5';
-  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-learning-alternative-transport';
+  const APP_VERSION='1.8.6.364-canonical-foreground-sync-situation-tombstone-v1';
+  const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-learning-metadata-situation-tombstone';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
   const RECOVERY_DISABLE_FLAG='wlpPendingOutboxRecovery';
@@ -160,10 +160,12 @@
     return 'learning-metadata-parent';
   }
   function verifySituationPayload(change){
-    const payload=change?.payload||{};
-    if(String(change?.table_name||'')!=='learning_situations'||String(change?.operation||'')!=='upsert'||!payload||typeof payload!=='object'||String(payload.situation_id||'')!==String(change?.row_key||'')||!String(payload.card_id||''))throw new Error('Learning Metadata Situation-row change is invalid.');
+    const payload=change?.payload||{},operation=String(change?.operation||''),isDelete=operation==='delete'||Boolean(change?.tombstone);
+    if(String(change?.table_name||'')!=='learning_situations'||!['upsert','delete'].includes(operation)||!payload||typeof payload!=='object'||String(payload.situation_id||'')!==String(change?.row_key||'')||!String(payload.card_id||''))throw new Error('Learning Metadata Situation-row change is invalid.');
     if(!String(payload.source_situation_id||'')||!String(payload.version_id||'')||Number(payload.revision||0)<1)throw new Error('Learning Metadata Situation-row lineage is incomplete.');
-    return 'learning-metadata-situation';
+    if(isDelete&&(!Boolean(change?.tombstone)||!String(payload.deleted_at||'')))throw new Error('Learning Metadata Situation tombstone change is incomplete.');
+    if(!isDelete&&Boolean(change?.tombstone))throw new Error('Learning Metadata Situation upsert may not be tombstoned.');
+    return isDelete?'learning-metadata-situation-tombstone':'learning-metadata-situation';
   }
   function verifyAlternativePayload(change){
     const payload=change?.payload||{};
@@ -220,7 +222,7 @@
     const eventChange=changes.find(x=>x.table_name==='learning_events'&&x.operation==='append')||null;
     const sessionChange=changes.find(x=>x.table_name==='learning_sessions'&&(x.operation==='insert'||x.operation==='upsert'))||null;
     const metadataChange=changes.find(x=>x.table_name==='card_learning_metadata'&&x.operation==='upsert')||null;
-    const situationChange=changes.find(x=>x.table_name==='learning_situations'&&x.operation==='upsert')||null;
+    const situationChange=changes.find(x=>x.table_name==='learning_situations'&&(x.operation==='upsert'||x.operation==='delete'))||null;
     const alternativeChange=changes.find(x=>x.table_name==='learning_alternatives'&&x.operation==='upsert')||null;
     const linkChanges=changes.filter(x=>x.table_name==='learning_alternative_situations'&&x.operation==='upsert');
     const anchor=eventChange||sessionChange||metadataChange||situationChange||alternativeChange;if(!anchor)throw new Error('Foreground Sync requires a supported learning_events, learning_sessions, card_learning_metadata, learning_situations, or learning_alternatives change.');
@@ -233,9 +235,9 @@
     }
     if(changes.length===2&&metadataChange&&situationChange){
       if(stateChange||eventChange||sessionChange)throw new Error('Learning Metadata compound Foreground Sync must contain only card_learning_metadata + learning_situations.');
-      const metadataSituationParentShape=verifyMetadataPayload(metadataChange),metadataSituationChildShape=verifySituationPayload(situationChange);
+      const metadataSituationParentShape=verifyMetadataPayload(metadataChange),metadataSituationChildShape=verifySituationPayload(situationChange),situationDelete=String(situationChange.operation||'')==='delete'||Boolean(situationChange.tombstone);
       if(String(situationChange.payload?.card_id||'')!==String(metadataChange.row_key||''))throw new Error('Learning Metadata compound change card identity mismatch.');
-      return{changeShape:'metadata-situation',metadataSituationParentShape,metadataSituationChildShape,stateChange:null,eventChange:null,sessionChange:null,metadataChange,situationChange,eventType:'learning_metadata_situation_upsert',targetState:null,actionId,wordId:'',sessionId:'',metadataRowKey:String(metadataChange.row_key||''),situationRowKey:String(situationChange.row_key||''),actionSource:'learning-metadata-situation-write',expectedMutations:2,seqMax:Math.max(...changes.map(x=>Number(x.change_seq||0))),seqMin:Math.min(...changes.map(x=>Number(x.change_seq||0)))};
+      return{changeShape:situationDelete?'metadata-situation-delete':'metadata-situation',metadataSituationParentShape,metadataSituationChildShape,stateChange:null,eventChange:null,sessionChange:null,metadataChange,situationChange,eventType:situationDelete?'learning_metadata_situation_delete':'learning_metadata_situation_upsert',targetState:null,actionId,wordId:'',sessionId:'',metadataRowKey:String(metadataChange.row_key||''),situationRowKey:String(situationChange.row_key||''),actionSource:situationDelete?'learning-metadata-situation-delete':'learning-metadata-situation-write',expectedMutations:2,seqMax:Math.max(...changes.map(x=>Number(x.change_seq||0))),seqMin:Math.min(...changes.map(x=>Number(x.change_seq||0)))};
     }
     if(changes.length===4&&metadataChange&&alternativeChange&&linkChanges.length===2){
       if(stateChange||eventChange||sessionChange||situationChange)throw new Error('Alternative-link Foreground Sync must contain only parent + Alternative + two link rows.');
@@ -260,6 +262,7 @@
     if(changes.length===1&&situationChange){
       if(stateChange||eventChange||sessionChange||metadataChange)throw new Error('Learning Metadata Situation Foreground Sync must contain only learning_situations.');
       const situationOnlyShape=verifySituationPayload(situationChange);
+      if(String(situationChange.operation||'')==='delete'||Boolean(situationChange.tombstone))throw new Error('Learning Metadata Situation tombstone requires its parent metadata change.');
       return{changeShape:'situation-only',situationOnlyShape,stateChange:null,eventChange:null,sessionChange:null,metadataChange:null,situationChange,eventType:'learning_situation_upsert',targetState:null,actionId,wordId:'',sessionId:'',metadataRowKey:'',situationRowKey:String(situationChange.row_key||''),actionSource:'learning-metadata-situation',expectedMutations:1,seqMax:Number(situationChange.change_seq||0),seqMin:Number(situationChange.change_seq||0)};
     }
     if(changes.length===1&&alternativeChange){
@@ -399,7 +402,7 @@
     }
   }
 
-  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),tableName=String(d.tableName||''),mutationKind=String(d.mutationKind||''),mutationCount=Number(d.mutationCount||0),source=String(d.source||'');const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||(eventType==='event'&&sourceStream===ACTIVITY_EVENT_STREAM&&mutationCount===1)||(eventType==='event'&&sourceStream===INTERACTION_EVENT_STREAM&&mutationCount===1)||((eventType===STANDARD_EVENT_TYPE||eventType===STANDARD_RATING_CORRECTION_TYPE)&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1)||(eventType==='event'&&sourceStream===AI_EVENT_STREAM&&mutationCount===1)||(tableName==='learning_sessions'&&mutationKind==='insert'&&mutationCount===1)||(tableName==='card_learning_metadata'&&mutationKind==='upsert'&&mutationCount===1)||(tableName==='learning_situations'&&mutationKind==='upsert'&&mutationCount===1)||(tableName==='learning_alternatives'&&mutationKind==='upsert'&&mutationCount===1)||((source==='learning-metadata-situation-edit-canary'||source==='learning-metadata-situation-default-write'||source==='learning-metadata-alternative-edit-canary')&&mutationCount===2)||(source==='learning-metadata-alternative-link-canary'&&mutationCount===4);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
+  function onStaged(event){const d=event?.detail||{},eventType=String(d.eventType||''),sourceStream=String(d.sourceStream||''),tableName=String(d.tableName||''),mutationKind=String(d.mutationKind||''),mutationCount=Number(d.mutationCount||0),source=String(d.source||'');const supported=(PAIR_EVENT_TYPES.has(eventType)&&mutationCount===2)||(EVENT_ONLY_TYPES.has(eventType)&&mutationCount===1)||(eventType==='event'&&sourceStream===ACTIVITY_EVENT_STREAM&&mutationCount===1)||(eventType==='event'&&sourceStream===INTERACTION_EVENT_STREAM&&mutationCount===1)||((eventType===STANDARD_EVENT_TYPE||eventType===STANDARD_RATING_CORRECTION_TYPE)&&sourceStream===STANDARD_EVENT_STREAM&&mutationCount===1)||(eventType==='event'&&sourceStream===AI_EVENT_STREAM&&mutationCount===1)||(tableName==='learning_sessions'&&mutationKind==='insert'&&mutationCount===1)||(tableName==='card_learning_metadata'&&mutationKind==='upsert'&&mutationCount===1)||(tableName==='learning_situations'&&mutationKind==='upsert'&&mutationCount===1)||(tableName==='learning_alternatives'&&mutationKind==='upsert'&&mutationCount===1)||((source==='learning-metadata-situation-edit-canary'||source==='learning-metadata-situation-default-write'||source==='learning-metadata-situation-delete-canary'||source==='learning-metadata-alternative-edit-canary')&&mutationCount===2)||(source==='learning-metadata-alternative-link-canary'&&mutationCount===4);if(!supported)return;setTimeout(()=>{void runSync({trigger:`${String(d.source||'canonical')}-outbox-staged`,expectedActionId:String(d.actionId||'')});},80);}
   function requestDefaultReceiver(trigger,{delay=0,markNow=false}={}){
     if(!state.defaultReceiverEnabled)return;
     if(document.visibilityState&&document.visibilityState!=='visible')return;
