@@ -1,4 +1,4 @@
-/* WLP v1.8.6.335 — Learning Metadata parent-field production-default Canonical write.
+/* WLP v1.8.6.374 — Learning Metadata parent-field production-default Canonical write (v335 logic + child-structure delegation).
    Production default on editor-local-edit.html?wid=... .
    Diagnostic panel only: ?wlpLearningMetadataParentWriteAudit=1
    Explicit rollback/compatibility: ?wlpLegacyLearningMetadataParentWrite=1
@@ -10,7 +10,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.335-learning-metadata-parent-default-write-v1';
+  const APP_VERSION='1.8.6.374-learning-metadata-parent-default-write-child-delegation-v1';
   const DIAG_FLAG='wlpLearningMetadataParentWriteAudit';
   const ROLLBACK_FLAG='wlpLegacyLearningMetadataParentWrite';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -88,6 +88,7 @@
   }
 
   async function onLocalChanged(){
+    if(window.WLPCanonicalLearningMetadataChildStructureWrite?.ownsPendingSave?.()){state.armed=false;return;}
     if(!active()||!state.armed||state.busy||!state.before)return;state.busy=true;let db=null;
     try{
       await new Promise(r=>setTimeout(r,0));const before=state.before,after=localRecord(before.wid),changed=changedParentFields(before.local,after);

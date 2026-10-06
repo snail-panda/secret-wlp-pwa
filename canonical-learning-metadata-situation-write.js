@@ -1,4 +1,4 @@
-/* WLP v1.8.6.371 — Learning Metadata existing-Situation production-default Canonical write.
+/* WLP v1.8.6.374 — Learning Metadata existing-Situation production-default Canonical write (v371 logic + child-structure delegation).
    Production default on editor-local-edit.html?wid=... .
    Diagnostic panel only: ?wlpLearningMetadataSituationWriteAudit=1
    Diagnostic hold for a pre-existing safe local revision: ?wlpLearningMetadataSituationWriteHold=1
@@ -18,7 +18,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.371-learning-metadata-situation-child-only-write-v1';
+  const APP_VERSION='1.8.6.374-learning-metadata-situation-child-only-write-delegation-v1';
   const DIAG_FLAG='wlpLearningMetadataSituationWriteAudit';
   const HOLD_FLAG='wlpLearningMetadataSituationWriteHold';
   const ROLLBACK_FLAG='wlpLegacyLearningMetadataSituationWrite';
@@ -176,6 +176,7 @@
   }
 
   async function onLocalChanged(){
+    if(window.WLPCanonicalLearningMetadataChildStructureWrite?.ownsPendingSave?.()){state.armed=false;return;}
     if(rollback()||!state.armed||state.busy||!state.before)return;
     try{
       await new Promise(r=>setTimeout(r,0));const after=localRecord(state.before.wid),analysis=analyzeAdvance(state.before.canonicalRecord,after);
