@@ -1,4 +1,4 @@
-/* WLP v1.8.6.346 — Learning Metadata production-default Canonical receiver.
+/* WLP v1.8.6.352 — Learning Metadata production-default Canonical receiver · Safari IndexedDB transaction hardening.
    Production default on Manage Learning Metadata: safely materializes Canonical-only
    parent-only records, safe Canonical descendant parent revisions, and one existing
    Situation content revision when parent lineage advances one step with unchanged parent
@@ -10,7 +10,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.346-learning-metadata-production-default-receiver-situation-v1';
+  const APP_VERSION='1.8.6.352-learning-metadata-production-default-receiver-safari-idb-v1';
   const DIAG_FLAG='wlpLearningMetadataReceiverAudit';
   const LEGACY_FLAG='wlpLegacyLearningMetadataReceiver';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -42,8 +42,28 @@
   }
   function show(text,ok=null,detail=''){if(!diagnostics())return;makePanel();if(!state.status)return;state.status.textContent=text;state.status.style.fontWeight=ok===null?'500':'700';state.status.style.color=ok===true?'#18794e':ok===false?'#b42318':'#1c2d22';state.detail.textContent=detail;}
   function openDb(){return new Promise((resolve,reject)=>{let upgrading=false;const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{upgrading=true;try{req.transaction.abort();}catch(_){}};req.onsuccess=()=>{const db=req.result;if(upgrading){db.close();reject(new Error('wlp-cloud-v1 is not already installed at schema v1.'));return;}const missing=STORES.filter(name=>!db.objectStoreNames.contains(name));if(missing.length){db.close();reject(new Error(`Missing IndexedDB store(s): ${missing.join(', ')}.`));return;}resolve(db);};req.onerror=()=>reject(req.error||new Error('Could not open wlp-cloud-v1.'));req.onblocked=()=>reject(new Error('Opening wlp-cloud-v1 is blocked by another WLP tab.'));});}
-  async function getAll(db,store){const tx=db.transaction(store,'readonly'),rows=await requestPromise(tx.objectStore(store).getAll());await transactionDone(tx);return Array.isArray(rows)?rows:[];}
-  async function getRow(db,store,key){const tx=db.transaction(store,'readonly'),row=await requestPromise(tx.objectStore(store).get(key));await transactionDone(tx);return row||null;}
+  async function getAll(db,store){const tx=db.transaction(store,'readonly'),done=transactionDone(tx),rows=await requestPromise(tx.objectStore(store).getAll());await done;return Array.isArray(rows)?rows:[];}
+  async function getRow(db,store,key){const tx=db.transaction(store,'readonly'),done=transactionDone(tx),row=await requestPromise(tx.objectStore(store).get(key));await done;return row||null;}
+  async function readCanonicalSnapshot(db){
+    // Safari hardening: use one readonly transaction for the complete Learning Metadata
+    // snapshot and attach completion listeners before awaiting any request. This avoids
+    // the previous seven-transaction Promise.all race on iPhone Safari.
+    const tx=db.transaction(STORES,'readonly'),done=transactionDone(tx);
+    const syncMeta=tx.objectStore('sync_meta');
+    const requests=[
+      syncMeta.get(META_KEY),
+      syncMeta.get(CURSOR_KEY),
+      tx.objectStore('cards').getAll(),
+      tx.objectStore('card_learning_metadata').getAll(),
+      tx.objectStore('learning_situations').getAll(),
+      tx.objectStore('learning_alternatives').getAll(),
+      tx.objectStore('learning_alternative_situations').getAll()
+    ];
+    const values=await Promise.all(requests.map(requestPromise));
+    await done;
+    const [meta,cursorMeta,cards,metadata,situations,alternatives,links]=values;
+    return [meta||null,cursorMeta||null,...[cards,metadata,situations,alternatives,links].map(rows=>Array.isArray(rows)?rows:[])];
+  }
   function buildCanonicalPortable(cards,metadataRows,situationRows,alternativeRows,linkRows){
     const cardKeyById=new Map(cards.map(w=>{const p=payload(w);return[clean(p.card_id),clean(p.legacy_key)];}).filter(([id,key])=>id&&key));
     const situationsByCard=new Map(),alternativesByCard=new Map(),sourceSituationByCanonical=new Map(),linksByAlternative=new Map();
@@ -131,7 +151,7 @@
     try{
       const api=window.WLPLearningHooks;if(!api?.comparePortableSnapshot||!api?.applyPortableMerge||!api?.allRecords||!api?.STORAGE_KEY)throw new Error('Learning Metadata v2 merge engine is unavailable.');
       db=await openDb();
-      const [meta,cursorMeta,cards,metadata,situations,alternatives,links]=await Promise.all([getRow(db,'sync_meta',META_KEY),getRow(db,'sync_meta',CURSOR_KEY),getAll(db,'cards'),getAll(db,'card_learning_metadata'),getAll(db,'learning_situations'),getAll(db,'learning_alternatives'),getAll(db,'learning_alternative_situations')]);
+      const [meta,cursorMeta,cards,metadata,situations,alternatives,links]=await readCanonicalSnapshot(db);
       if(clean(meta?.candidateKey)!==BASE.candidateKey||Number(meta?.headVersion||0)!==BASE.headVersion||clean(meta?.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Production receiver requires ACTIVE Authority v3.');
       const cursor=Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursorMeta?.lastSyncCursor||0));
       const canonical=buildCanonicalPortable(cards,metadata,situations,alternatives,links),before=currentRecords(),beforeKeys=Object.keys(before).sort(),canonicalKeys=Object.keys(canonical.records).sort(),localOnly=beforeKeys.filter(key=>!canonical.records[key]);
