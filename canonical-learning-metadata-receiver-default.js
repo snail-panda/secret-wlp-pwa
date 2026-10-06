@@ -1,15 +1,16 @@
-/* WLP v1.8.6.336 — Learning Metadata production-default Canonical receiver.
+/* WLP v1.8.6.346 — Learning Metadata production-default Canonical receiver.
    Production default on Manage Learning Metadata: safely materializes Canonical-only
-   parent-only records and Canonical descendant parent revisions into local Learning
-   Metadata v2 when there are no local-only/local-newer/conflict records.
-   Child Situation/Alternative differences are intentionally NOT auto-materialized yet.
+   parent-only records, safe Canonical descendant parent revisions, and one existing
+   Situation content revision when parent lineage advances one step with unchanged parent
+   semantics, unchanged Situation identities, and all other child content exact.
+   Alternative / Situation add-remove-reorder / tombstone differences are NOT auto-applied.
    Diagnostic panel: ?wlpLearningMetadataReceiverAudit=1
    Emergency rollback-to-legacy behavior: ?wlpLegacyLearningMetadataReceiver=1
    Local materialization only: no IndexedDB/outbox/Cloud writes. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.336-learning-metadata-production-default-receiver-v1';
+  const APP_VERSION='1.8.6.346-learning-metadata-production-default-receiver-situation-v1';
   const DIAG_FLAG='wlpLearningMetadataReceiverAudit';
   const LEGACY_FLAG='wlpLegacyLearningMetadataReceiver';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -18,6 +19,7 @@
   const CURSOR_KEY='cloud_shadow_steady_sync_v1';
   const BASE=Object.freeze({candidateKey:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',headVersion:3,manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63'});
   const ALLOWED_PARENT_FIELDS=new Set(['entryType','senseHook','memoryHook']);
+  const ALLOWED_SITUATION_FIELDS=new Set(['title','anchor','communicativeNeed']);
   const state={panel:null,status:null,detail:null,running:false,rerun:false,report:null,priorMergeRollbackRaw:null};
 
   const clean=value=>String(value??'').replace(/\r\n?/g,'\n').trim();
@@ -79,14 +81,40 @@
     ['status','deletedAt','entryType','senseHook','memoryHook'].forEach(key=>{if(a[key]!==b[key])fields.push(key);});
     return fields;
   }
+  function situations(record){const c=record?.content||{};return Array.isArray(c.situations)?c.situations:[];}
+  function alternativesShape(record){const c=record?.content||{};return Array.isArray(c.alternativeExpressions)?c.alternativeExpressions:[];}
+  function situationSemantic(situation){return{status:clean(situation?.status)||'provisional',deletedAt:clean(situation?.deletedAt),title:clean(situation?.title),anchor:clean(situation?.anchor),communicativeNeed:clean(situation?.communicativeNeed)};}
+  function changedSituationFields(local,incoming){const a=situationSemantic(local),b=situationSemantic(incoming),fields=[];['status','deletedAt','title','anchor','communicativeNeed'].forEach(key=>{if(a[key]!==b[key])fields.push(key);});return fields;}
+  function oneStepParent(local,incoming){return clean(local?.metadataId)===clean(incoming?.metadataId)&&Number(incoming?.revision||0)===Number(local?.revision||0)+1&&clean(incoming?.parentVersionId)===clean(local?.versionId)&&clean(incoming?.versionId)&&clean(incoming?.versionId)!==clean(local?.versionId);}
+  function oneStepSituation(local,incoming){return clean(local?.situationId)===clean(incoming?.situationId)&&Number(incoming?.revision||0)===Number(local?.revision||0)+1&&clean(incoming?.parentVersionId)===clean(local?.versionId)&&clean(incoming?.versionId)&&clean(incoming?.versionId)!==clean(local?.versionId);}
   function restorePriorMergeRollback(api){if(!api?.MERGE_ROLLBACK_KEY)return;if(state.priorMergeRollbackRaw===null)localStorage.removeItem(api.MERGE_ROLLBACK_KEY);else localStorage.setItem(api.MERGE_ROLLBACK_KEY,state.priorMergeRollbackRaw);}
 
-  function safeIncomingItem(item){
+  function safeParentIncomingItem(item){
     if(item?.kind!=='incoming-newer'||!item.local||!item.incoming)return false;
     if(stableStringify(childShape(item.local))!==stableStringify(childShape(item.incoming)))return false;
     const fields=changedParentFields(item.local,item.incoming);
     return fields.every(field=>ALLOWED_PARENT_FIELDS.has(field));
   }
+  function safeSituationIncomingItem(item){
+    if(item?.kind!=='incoming-newer'||!item.local||!item.incoming)return false;
+    const local=item.local,incoming=item.incoming;
+    if(!oneStepParent(local,incoming))return false;
+    if(stableStringify(parentSemantic(local))!==stableStringify(parentSemantic(incoming)))return false;
+    if(stableStringify(alternativesShape(local))!==stableStringify(alternativesShape(incoming)))return false;
+    const localSituations=situations(local),incomingSituations=situations(incoming);
+    const localById=new Map(localSituations.map(s=>[clean(s?.situationId),s])),incomingById=new Map(incomingSituations.map(s=>[clean(s?.situationId),s]));
+    const localIds=[...localById.keys()].sort(),incomingIds=[...incomingById.keys()].sort();
+    if(!localIds.length||stableStringify(localIds)!==stableStringify(incomingIds))return false;
+    const changedIds=incomingIds.filter(id=>stableStringify(localById.get(id))!==stableStringify(incomingById.get(id)));
+    if(changedIds.length!==1)return false;
+    const changedId=changedIds[0],oldSituation=localById.get(changedId),newSituation=incomingById.get(changedId);
+    if(!oldSituation||!newSituation||!oneStepSituation(oldSituation,newSituation))return false;
+    const fields=changedSituationFields(oldSituation,newSituation);
+    if(!fields.length||!fields.every(field=>ALLOWED_SITUATION_FIELDS.has(field)))return false;
+    return incomingIds.filter(id=>id!==changedId).every(id=>stableStringify(localById.get(id))===stableStringify(incomingById.get(id)));
+  }
+  function incomingSafetyKind(item){if(safeParentIncomingItem(item))return'parent';if(safeSituationIncomingItem(item))return'situation';return'';}
+  function safeIncomingItem(item){return Boolean(incomingSafetyKind(item));}
   function safeNewItem(item){
     if(item?.kind!=='new'||!item.incoming)return false;
     const children=childShape(item.incoming);
@@ -109,12 +137,12 @@
       const canonical=buildCanonicalPortable(cards,metadata,situations,alternatives,links),before=currentRecords(),beforeKeys=Object.keys(before).sort(),canonicalKeys=Object.keys(canonical.records).sort(),localOnly=beforeKeys.filter(key=>!canonical.records[key]);
       const plan=api.comparePortableSnapshot(canonical),items=Array.isArray(plan.items)?plan.items:[],counts=plan.counts||{};
       const newItems=items.filter(item=>item.kind==='new'),incoming=items.filter(item=>item.kind==='incoming-newer'),same=items.filter(item=>item.kind==='same'),localNewer=items.filter(item=>item.kind==='local-newer'),conflicts=items.filter(item=>item.kind==='conflict');
-      const unsafeIncoming=incoming.filter(item=>!safeIncomingItem(item)),unsafeNew=newItems.filter(item=>!safeNewItem(item));
+      const incomingSafety=incoming.map(item=>({item,kind:incomingSafetyKind(item)})),unsafeIncoming=incomingSafety.filter(x=>!x.kind).map(x=>x.item),safeSituationIncoming=incomingSafety.filter(x=>x.kind==='situation').length,unsafeNew=newItems.filter(item=>!safeNewItem(item));
       const safe=localOnly.length===0&&localNewer.length===0&&conflicts.length===0&&unsafeIncoming.length===0&&unsafeNew.length===0;
       const changeCount=newItems.length+incoming.length;
-      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nunsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
+      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
       if(!safe){
-        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
+        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
         show('CHECK · Production receiver found state that requires explicit reconciliation.',false,`${detail}\nno data changed`);return;
       }
       if(changeCount===0){
@@ -132,7 +160,7 @@
         if(beforeRaw===null)localStorage.removeItem(api.STORAGE_KEY);else localStorage.setItem(api.STORAGE_KEY,beforeRaw);restorePriorMergeRollback(api);window.dispatchEvent(new CustomEvent('wlp-learning-hooks-changed'));
         throw new Error(`Post-materialization verification failed; local Learning Metadata was restored. changed=${result?.changed??'?'} expected=${expectedChanged}.`);
       }
-      state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pass',summary:{cursor,added:newItems.length,updated:incoming.length,localAfter:verify.localKeys.length,canonicalAfter:verify.canonicalKeys.length,blockingIssues:0,pass:true},invariants:{productionDefault:true,semanticExact:true,lineageExact:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true,childDifferencesNotAutoApplied:true}};
+      state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pass',summary:{cursor,added:newItems.length,updated:incoming.length,safeSituationIncoming,localAfter:verify.localKeys.length,canonicalAfter:verify.canonicalKeys.length,blockingIssues:0,pass:true},invariants:{productionDefault:true,semanticExact:true,lineageExact:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true,safeExistingSituationContentAutoApplied:true,alternativeDifferencesNotAutoApplied:true,situationIdentityChangesNotAutoApplied:true,situationTombstonesNotAutoApplied:true}};
       show(`PASS · Production-default receiver materialized ${changeCount} Canonical Learning Metadata record${changeCount===1?'':'s'}.`,true,`added ${newItems.length} · updated ${incoming.length}\nafter local ${verify.localKeys.length} / Canonical ${verify.canonicalKeys.length} · semantic exact yes · lineage exact yes\nIndexedDB 0 writes · outbox 0 writes · Cloud 0 writes · cursor ${cursor}\ntrigger ${trigger}`);
     }catch(error){
       state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'error',error:String(error?.message||error),summary:{blockingIssues:1,pass:false}};
