@@ -201,7 +201,33 @@
     if(linked)return false;
     return true;
   }
-  function incomingSafetyKind(item,rawSituationRows){if(safeSituationTombstoneIncomingItem(item,rawSituationRows))return'situation-tombstone';if(safeParentIncomingItem(item))return'parent';if(safeSituationIncomingItem(item))return'situation';if(safeAlternativeIncomingItem(item))return'alternative';if(safeAlternativeLinkIncomingItem(item))return'alternative-link';return'';}
+  function safeSituationResurrectionIncomingItem(item,rawSituationRows){
+    if(item?.kind!=='incoming-newer'||!item.local||!item.incoming)return false;
+    const local=item.local,incoming=item.incoming;
+    if(!oneStepParent(local,incoming))return false;
+    if(stableStringify(parentSemantic(local))!==stableStringify(parentSemantic(incoming)))return false;
+    if(stableStringify(alternativesShape(local))!==stableStringify(alternativesShape(incoming)))return false;
+    const localSituations=situations(local),incomingSituations=situations(incoming);
+    const localById=new Map(localSituations.map(s=>[clean(s?.situationId),s])),incomingById=new Map(incomingSituations.map(s=>[clean(s?.situationId),s]));
+    const addedIds=[...incomingById.keys()].filter(id=>id&&!localById.has(id));
+    if(addedIds.length!==1||incomingById.size!==localById.size+1)return false;
+    if([...localById.keys()].some(id=>stableStringify(localById.get(id))!==stableStringify(incomingById.get(id))))return false;
+    const addedId=addedIds[0],added=incomingById.get(addedId);if(!added||clean(added.deletedAt)||!clean(added.anchor))return false;
+    const hist=Array.isArray(added.history)?added.history:[],prior=hist.length?hist[hist.length-1]:null;
+    if(!prior||!clean(prior.deletedAt))return false;
+    if(Number(added.revision||0)!==Number(prior.revision||0)+1)return false;
+    if(clean(added.parentVersionId)!==clean(prior.versionId)||!clean(added.versionId)||clean(added.versionId)===clean(prior.versionId))return false;
+    if(clean(added.status)!==(clean(prior.status)||'provisional')||clean(added.title)!==clean(prior.title)||clean(added.anchor)!==clean(prior.anchor)||clean(added.communicativeNeed)!==clean(prior.communicativeNeed))return false;
+    const currentRows=(Array.isArray(rawSituationRows)?rawSituationRows:[]).map(payload).filter(Boolean).filter(s=>clean(s.source_situation_id)===addedId&&!clean(s.deleted_at));
+    if(currentRows.length!==1)return false;
+    const row=currentRows[0],rowHist=Array.isArray(row.source_history)?row.source_history:[],rowPrior=rowHist.length?rowHist[rowHist.length-1]:null;
+    if(clean(row.version_id)!==clean(added.versionId)||Number(row.revision||0)!==Number(added.revision||0)||!rowPrior||!clean(rowPrior.deletedAt))return false;
+    if(clean(row.parent_version_id)!==clean(rowPrior.versionId))return false;
+    const linked=alternatives(incoming).some(a=>(Array.isArray(a?.situationIds)?a.situationIds:[]).map(clean).includes(addedId));
+    if(linked)return false;
+    return true;
+  }
+  function incomingSafetyKind(item,rawSituationRows){if(safeSituationTombstoneIncomingItem(item,rawSituationRows))return'situation-tombstone';if(safeSituationResurrectionIncomingItem(item,rawSituationRows))return'situation-resurrection';if(safeParentIncomingItem(item))return'parent';if(safeSituationIncomingItem(item))return'situation';if(safeAlternativeIncomingItem(item))return'alternative';if(safeAlternativeLinkIncomingItem(item))return'alternative-link';return'';}
   function safeIncomingItem(item,rawSituationRows){return Boolean(incomingSafetyKind(item,rawSituationRows));}
   function safeNewItem(item){
     if(item?.kind!=='new'||!item.incoming)return false;
@@ -225,12 +251,12 @@
       const canonical=buildCanonicalPortable(cards,metadata,situations,alternatives,links),before=currentRecords(),beforeKeys=Object.keys(before).sort(),canonicalKeys=Object.keys(canonical.records).sort(),localOnly=beforeKeys.filter(key=>!canonical.records[key]);
       const plan=api.comparePortableSnapshot(canonical),items=Array.isArray(plan.items)?plan.items:[],counts=plan.counts||{};
       const newItems=items.filter(item=>item.kind==='new'),incoming=items.filter(item=>item.kind==='incoming-newer'),same=items.filter(item=>item.kind==='same'),localNewer=items.filter(item=>item.kind==='local-newer'),conflicts=items.filter(item=>item.kind==='conflict');
-      const incomingSafety=incoming.map(item=>({item,kind:incomingSafetyKind(item,situations)})),unsafeIncoming=incomingSafety.filter(x=>!x.kind).map(x=>x.item),safeSituationIncoming=incomingSafety.filter(x=>x.kind==='situation').length,safeSituationTombstoneIncoming=incomingSafety.filter(x=>x.kind==='situation-tombstone').length,safeAlternativeIncoming=incomingSafety.filter(x=>x.kind==='alternative').length,safeAlternativeLinkIncoming=incomingSafety.filter(x=>x.kind==='alternative-link').length,unsafeNew=newItems.filter(item=>!safeNewItem(item));
+      const incomingSafety=incoming.map(item=>({item,kind:incomingSafetyKind(item,situations)})),unsafeIncoming=incomingSafety.filter(x=>!x.kind).map(x=>x.item),safeSituationIncoming=incomingSafety.filter(x=>x.kind==='situation').length,safeSituationTombstoneIncoming=incomingSafety.filter(x=>x.kind==='situation-tombstone').length,safeSituationResurrectionIncoming=incomingSafety.filter(x=>x.kind==='situation-resurrection').length,safeAlternativeIncoming=incomingSafety.filter(x=>x.kind==='alternative').length,safeAlternativeLinkIncoming=incomingSafety.filter(x=>x.kind==='alternative-link').length,unsafeNew=newItems.filter(item=>!safeNewItem(item));
       const safe=localOnly.length===0&&localNewer.length===0&&conflicts.length===0&&unsafeIncoming.length===0&&unsafeNew.length===0;
       const changeCount=newItems.length+incoming.length;
-      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · safe Situation tombstone incoming ${safeSituationTombstoneIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · safe Alternative link incoming ${safeAlternativeLinkIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
+      const detail=`local ${beforeKeys.length} / Canonical ${canonicalKeys.length} · same ${same.length}\nnew ${newItems.length} · incoming-newer ${incoming.length} · local-newer ${localNewer.length} · conflicts ${conflicts.length} · local-only ${localOnly.length}\nsafe Situation incoming ${safeSituationIncoming} · safe Situation tombstone incoming ${safeSituationTombstoneIncoming} · safe Situation resurrection incoming ${safeSituationResurrectionIncoming} · safe Alternative incoming ${safeAlternativeIncoming} · safe Alternative link incoming ${safeAlternativeLinkIncoming} · unsafe incoming ${unsafeIncoming.length} · unsafe new ${unsafeNew.length} · cursor ${cursor}\ntrigger ${trigger}`;
       if(!safe){
-        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
+        state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'blocked',summary:{cursor,new:newItems.length,incomingNewer:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeSituationResurrectionIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localNewer:localNewer.length,conflicts:conflicts.length,localOnly:localOnly.length,unsafeIncoming:unsafeIncoming.length,unsafeNew:unsafeNew.length,blockingIssues:1,pass:false}};
         show('CHECK · Production receiver found state that requires explicit reconciliation.',false,`${detail}\nno data changed`);return;
       }
       if(changeCount===0){
@@ -248,7 +274,7 @@
         if(beforeRaw===null)localStorage.removeItem(api.STORAGE_KEY);else localStorage.setItem(api.STORAGE_KEY,beforeRaw);restorePriorMergeRollback(api);window.dispatchEvent(new CustomEvent('wlp-learning-hooks-changed'));
         throw new Error(`Post-materialization verification failed; local Learning Metadata was restored. changed=${result?.changed??'?'} expected=${expectedChanged}.`);
       }
-      state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pass',summary:{cursor,added:newItems.length,updated:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localAfter:verify.localKeys.length,canonicalAfter:verify.canonicalKeys.length,blockingIssues:0,pass:true},invariants:{productionDefault:true,semanticExact:true,lineageExact:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true,safeExistingSituationContentAutoApplied:true,safeExistingAlternativeContentAutoApplied:true,safeExistingAlternativeOneLinkSwitchAutoApplied:true,arbitraryAlternativeLinkChangesNotAutoApplied:true,alternativeIdentityChangesNotAutoApplied:true,alternativeTombstonesNotAutoApplied:true,situationIdentityChangesNotAutoApplied:true,safeUnlinkedSingleSituationTombstoneAutoApplied:true,arbitrarySituationTombstonesNotAutoApplied:true}};
+      state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'pass',summary:{cursor,added:newItems.length,updated:incoming.length,safeSituationIncoming,safeSituationTombstoneIncoming,safeSituationResurrectionIncoming,safeAlternativeIncoming,safeAlternativeLinkIncoming,localAfter:verify.localKeys.length,canonicalAfter:verify.canonicalKeys.length,blockingIssues:0,pass:true},invariants:{productionDefault:true,semanticExact:true,lineageExact:true,noIndexedDbWrite:true,noOutboxWrite:true,noCloudWrite:true,safeExistingSituationContentAutoApplied:true,safeExistingAlternativeContentAutoApplied:true,safeExistingAlternativeOneLinkSwitchAutoApplied:true,arbitraryAlternativeLinkChangesNotAutoApplied:true,alternativeIdentityChangesNotAutoApplied:true,alternativeTombstonesNotAutoApplied:true,situationIdentityChangesNotAutoApplied:true,safeUnlinkedSingleSituationTombstoneAutoApplied:true,safeExactSituationResurrectionAutoApplied:true,arbitrarySituationTombstonesNotAutoApplied:true}};
       show(`PASS · Production-default receiver materialized ${changeCount} Canonical Learning Metadata record${changeCount===1?'':'s'}.`,true,`added ${newItems.length} · updated ${incoming.length}\nafter local ${verify.localKeys.length} / Canonical ${verify.canonicalKeys.length} · semantic exact yes · lineage exact yes\nIndexedDB 0 writes · outbox 0 writes · Cloud 0 writes · cursor ${cursor}\ntrigger ${trigger}`);
     }catch(error){
       state.report={format:'WLP_LEARNING_METADATA_PRODUCTION_RECEIVER',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),phase:'error',error:String(error?.message||error),summary:{blockingIssues:1,pass:false}};

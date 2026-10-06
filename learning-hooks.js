@@ -473,7 +473,7 @@
           history: [...current.history, situationSnapshot(current)]
         };
       });
-    const oldTombstones = existing.filter(item => item.deletedAt);
+    const oldTombstones = existing.filter(item => item.deletedAt && !seen.has(item.situationId));
     return [...nextActive, ...removed, ...oldTombstones];
   }
 
@@ -1053,20 +1053,11 @@
 
   function recordSemanticSignature(record) {
     const value = normalizeRecord(record, clean(record?.entryKey));
-    const stableValue = input => {
-      if (Array.isArray(input)) return input.map(stableValue);
-      if (input && typeof input === 'object') {
-        const output = {};
-        Object.keys(input).sort().forEach(key => { output[key] = stableValue(input[key]); });
-        return output;
-      }
-      return input;
-    };
-    return JSON.stringify(stableValue({
+    return JSON.stringify({
       status: clean(value.status) || 'provisional',
       deleted: Boolean(value.deletedAt),
       content: normalizeContent(value.content)
-    }));
+    });
   }
 
   function versionIds(record) {
