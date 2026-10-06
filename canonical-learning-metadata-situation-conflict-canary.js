@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.368-learning-metadata-situation-conflict-canary-v1';
+  const APP_VERSION='1.8.6.369-learning-metadata-situation-conflict-diagnostic-v1';
   const FLAG='wlpLearningMetadataSituationConflictCanary';
   const TARGET_WID='5578';
   const LOCAL_TITLE='Conflict local test';
@@ -30,7 +30,7 @@
   const req=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error||new Error('IndexedDB request failed.'));});
   function txDone(tx){return new Promise((res,rej)=>{tx.oncomplete=()=>res();tx.onabort=()=>rej(tx.error||new Error('IndexedDB transaction aborted.'));tx.onerror=()=>rej(tx.error||new Error('IndexedDB transaction failed.'));});}
   const mode=()=>clean(new URLSearchParams(location.search).get(FLAG)).toLowerCase();
-  const enabled=()=>['local','remote','resolve','restore'].includes(mode());
+  const enabled=()=>['local','remote','resolve','restore','diagnose'].includes(mode());
   const targetWid=()=>clean(new URLSearchParams(location.search).get('wid'));
   function payload(w){return w&&typeof w==='object'&&w.payload&&typeof w.payload==='object'?w.payload:{};}
   const cursorValue=(meta,cursor)=>Math.max(Number(meta?.materializedSyncCursor??meta?.lastSyncCursor??0),Number(cursor?.lastSyncCursor||0));
@@ -113,6 +113,26 @@
       }else if(state.mode==='restore'){
         if(!exactLocalCanonical(local,canonical)||clean(lt.title)!==REMOTE_TITLE||clean(ct.title)!==REMOTE_TITLE)throw new Error('Baseline restore requires PC aligned with the Canonical remote-test branch.');
         state.prepared={cursor,canonical,local};show('READY · Restore Situation 3 title to the original blank value.',true,`cursor ${cursor} · outbox 0\nSituation 3 title: "${REMOTE_TITLE}" → blank\nStages exactly parent + Situation 3.`);action('Restore baseline title');
+      }else if(state.mode==='diagnose'){
+        const lp=payload(canonical.parent);
+        const parentRelation =
+          clean(local.versionId)===clean(lp.version_id) ? 'same-version' :
+          clean(local.parentVersionId)===clean(lp.version_id) ? 'local-descends-from-canonical' :
+          clean(lp.parent_version_id)===clean(local.versionId) ? 'canonical-descends-from-local' :
+          'diverged';
+        const childRelation =
+          clean(lt.versionId)===clean(ct.version_id) ? 'same-version' :
+          clean(lt.parentVersionId)===clean(ct.version_id) ? 'local-descends-from-canonical' :
+          clean(ct.parent_version_id)===clean(lt.versionId) ? 'canonical-descends-from-local' :
+          'diverged';
+        show('DIAGNOSTIC · Read-only conflict state captured.',true,
+          `cursor ${cursor} · outbox ${snap.outbox.length}\n`+
+          `LOCAL title: "${clean(lt.title)}"\nCANONICAL title: "${clean(ct.title)}"\n`+
+          `parent relation: ${parentRelation}\nchild relation: ${childRelation}\n`+
+          `local parent rev ${Number(local.revision||0)} · canonical parent rev ${Number(lp.revision||0)}\n`+
+          `local child rev ${Number(lt.revision||0)} · canonical child rev ${Number(ct.revision||0)}\n`+
+          `No data changed.`);
+        action('',false);
       }else if(state.mode==='resolve'){
         if(clean(lt.title)!==LOCAL_TITLE||clean(ct.title)!==REMOTE_TITLE)throw new Error('Explicit resolution requires local conflict title and Canonical remote-test title.');
         state.prepared={cursor,canonical,local};show('READY · Explicitly resolve the iPhone branch to Canonical.',true,`cursor ${cursor} · outbox 0\nlocal "${LOCAL_TITLE}" → Canonical "${REMOTE_TITLE}"\nNo Cloud write. This is an explicit conflict resolution, not auto-merge.`);action('Resolve local to Canonical');
