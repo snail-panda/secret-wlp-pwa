@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.357-learning-metadata-alternative-link-canary-v1';
+  const APP_VERSION='1.8.6.358-learning-metadata-alternative-link-canary-card-lookup-fix-v1';
   const FLAG='wlpLearningMetadataAlternativeLinkCanary';
   const TARGET_WID='5578';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
@@ -66,7 +66,7 @@
 
   function resolveCanonical(snap,local){
     if(!snap.meta||clean(snap.meta.candidateKey)!==BASE.candidateKey||Number(snap.meta.headVersion||0)!==BASE.headVersion||clean(snap.meta.snapshotManifestHash)!==BASE.manifestHash)throw new Error('Alternative-link canary requires ACTIVE Authority v3.');
-    const cardWrap=snap.cards.find(w=>clean(payload(w).legacy_word_id)===TARGET_WID);if(!cardWrap)throw new Error(`Canonical WID${TARGET_WID} card is missing.`);const cardId=clean(payload(cardWrap).card_id||cardWrap.rowKey);if(!cardId)throw new Error('Canonical card identity is missing.');
+    const cardWrap=snap.cards.find(w=>clean(payload(w).legacy_key)===`wid:${TARGET_WID}`);if(!cardWrap)throw new Error(`Canonical WID${TARGET_WID} card is missing.`);const cardId=clean(cardWrap.rowKey||payload(cardWrap).card_id);if(!cardId)throw new Error('Canonical card identity is missing.');
     const parent=snap.metadataRows.find(w=>clean(payload(w).card_id)===cardId&&!clean(payload(w).deleted_at));if(!parent)throw new Error('Canonical Learning Metadata parent is missing.');
     const localAlts=activeAlternatives(local),localSituations=situations(local);if(localAlts.length<1||localSituations.length<2)throw new Error('WID5578 needs Alternative 1 and at least two Situations for this canary.');
     const targetLocalAlt=localAlts[0],sourceAltId=clean(targetLocalAlt.alternativeId);const targetAlt=snap.alternativeRows.find(w=>clean(payload(w).card_id)===cardId&&clean(payload(w).source_alternative_id)===sourceAltId&&!clean(payload(w).deleted_at));if(!targetAlt)throw new Error('Canonical Alternative 1 identity is missing.');
