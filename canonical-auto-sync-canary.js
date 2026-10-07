@@ -20,7 +20,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.382-canonical-foreground-sync-classification-v1';
+  const APP_VERSION='1.8.6.385-canonical-foreground-sync-classification-create-v1';
   const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-classification';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
@@ -200,7 +200,13 @@
     if(shape==='metadata-only'&&(String(metadataMutation?.rowKey||'')!==String(metadataMutation?.payload?.card_id||'')||!String(metadataMutation?.precondition?.payloadHash||'')))throw new Error('Learning Metadata source mutation is invalid.');
     if(shape==='situation-only'&&(String(situationMutation?.rowKey||'')!==String(situationMutation?.payload?.situation_id||'')||!String(situationMutation?.payload?.card_id||'')||!String(situationMutation?.precondition?.payloadHash||'')))throw new Error('Learning Metadata Situation source mutation is invalid.');
     if(shape==='alternative-only'&&(String(alternativeMutation?.rowKey||'')!==String(alternativeMutation?.payload?.alternative_id||'')||!String(alternativeMutation?.payload?.card_id||'')||!String(alternativeMutation?.precondition?.payloadHash||'')))throw new Error('Learning Metadata Alternative source mutation is invalid.');
-    if(shape==='classification-only'&&(String(classificationMutation?.rowKey||'')!==String(classificationMutation?.payload?.card_id||'')||!String(classificationMutation?.precondition?.payloadHash||'')))throw new Error('Classification source mutation is invalid.');
+    if(shape==='classification-only'){
+      const rowMatches=String(classificationMutation?.rowKey||'')===String(classificationMutation?.payload?.card_id||'');
+      const baseHash=String(classificationMutation?.precondition?.payloadHash||'');
+      const createMissing=classificationMutation?.precondition?.mustBeMissing===true&&classificationMutation?.canonicalClassificationCreate===true&&!baseHash;
+      const updateExisting=Boolean(baseHash)&&classificationMutation?.precondition?.mustBeMissing!==true;
+      if(!rowMatches||(!createMissing&&!updateExisting))throw new Error('Classification source mutation is invalid.');
+    }
     if(shape==='metadata-situation'){
       if(String(metadataMutation?.rowKey||'')!==String(metadataMutation?.payload?.card_id||'')||!String(metadataMutation?.precondition?.payloadHash||''))throw new Error('Learning Metadata compound parent mutation is invalid.');
       if(String(situationMutation?.rowKey||'')!==String(situationMutation?.payload?.situation_id||'')||!String(situationMutation?.payload?.card_id||'')||!String(situationMutation?.precondition?.payloadHash||''))throw new Error('Learning Metadata compound Situation mutation is invalid.');
