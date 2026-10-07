@@ -1,0 +1,2273 @@
+{
+  "format": "WLP_CLASSIFICATION_METADATA_V1",
+  "schemaVersion": 1,
+  "exportedAt": "2026-10-07T14:34:46.152Z",
+  "sourceDeviceId": "chatgpt-classification-batch-2026-10-07",
+  "records": {
+    "wid:6991": {
+      "entryTypes": [
+        "noun phrase"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "psychology"
+      ],
+      "discoveryTags": [
+        "subjective judgment",
+        "lack of knowledge"
+      ],
+      "wordId": "6991",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6992": {
+      "entryTypes": [
+        "contrast set",
+        "construction"
+      ],
+      "usageTags": [
+        "figurative"
+      ],
+      "topicTags": [
+        "communication",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "emotional intensity",
+        "literal vs figurative"
+      ],
+      "wordId": "6992",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6993": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "specialist"
+      ],
+      "topicTags": [
+        "medicine",
+        "anatomy"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "6993",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6994": {
+      "entryTypes": [
+        "contrast set",
+        "term"
+      ],
+      "usageTags": [
+        "technical"
+      ],
+      "topicTags": [
+        "language learning",
+        "technology"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "contrast",
+        "specialist knowledge"
+      ],
+      "wordId": "6994",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6995": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "businesslike"
+      ],
+      "topicTags": [
+        "business",
+        "science"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "professional context"
+      ],
+      "wordId": "6995",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6996": {
+      "entryTypes": [
+        "contrast set",
+        "verb pattern",
+        "construction"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "grammar",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "clarification"
+      ],
+      "wordId": "6996",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6997": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "work",
+        "transportation"
+      ],
+      "discoveryTags": [
+        "process details"
+      ],
+      "wordId": "6997",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6998": {
+      "entryTypes": [
+        "slang expression",
+        "word"
+      ],
+      "usageTags": [
+        "informal",
+        "slang",
+        "North American English"
+      ],
+      "topicTags": [
+        "culture"
+      ],
+      "discoveryTags": [
+        "social approval"
+      ],
+      "wordId": "6998",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:6999": {
+      "entryTypes": [
+        "initialism",
+        "internet term"
+      ],
+      "usageTags": [
+        "internet slang",
+        "informal"
+      ],
+      "topicTags": [
+        "internet",
+        "social media"
+      ],
+      "discoveryTags": [
+        "social trust"
+      ],
+      "wordId": "6999",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7000": {
+      "entryTypes": [
+        "slang expression",
+        "internet term",
+        "word"
+      ],
+      "usageTags": [
+        "slang",
+        "informal",
+        "playful"
+      ],
+      "topicTags": [
+        "internet",
+        "culture"
+      ],
+      "discoveryTags": [
+        "social approval",
+        "subjective judgment"
+      ],
+      "wordId": "7000",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7001": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "professional"
+      ],
+      "topicTags": [
+        "business",
+        "work"
+      ],
+      "discoveryTags": [
+        "professional context"
+      ],
+      "wordId": "7001",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7002": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "health",
+        "medicine"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7002",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7003": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "planning"
+      ],
+      "discoveryTags": [
+        "resource allocation",
+        "constraints"
+      ],
+      "wordId": "7003",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7004": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "health",
+        "medicine"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7004",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7005": {
+      "entryTypes": [
+        "form family",
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "literary"
+      ],
+      "topicTags": [],
+      "discoveryTags": [
+        "emotional intensity"
+      ],
+      "wordId": "7005",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7006": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "legalistic"
+      ],
+      "topicTags": [
+        "law",
+        "crime",
+        "art"
+      ],
+      "discoveryTags": [
+        "evidence",
+        "risk"
+      ],
+      "wordId": "7006",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7007": {
+      "entryTypes": [
+        "contrast set",
+        "construction"
+      ],
+      "usageTags": [
+        "American English",
+        "British English"
+      ],
+      "topicTags": [
+        "grammar",
+        "education"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "terminology"
+      ],
+      "wordId": "7007",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7008": {
+      "entryTypes": [
+        "contrast set",
+        "verb pattern",
+        "construction"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "grammar",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "perception"
+      ],
+      "wordId": "7008",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7009": {
+      "entryTypes": [
+        "contrast set",
+        "verb pattern",
+        "construction"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "grammar",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "clarification"
+      ],
+      "wordId": "7009",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7010": {
+      "entryTypes": [
+        "contrast set",
+        "term"
+      ],
+      "usageTags": [
+        "technical"
+      ],
+      "topicTags": [
+        "mathematics",
+        "technology"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "contrast"
+      ],
+      "wordId": "7010",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7011": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "military"
+      ],
+      "topicTags": [
+        "military",
+        "culture"
+      ],
+      "discoveryTags": [
+        "specialist register"
+      ],
+      "wordId": "7011",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7012": {
+      "entryTypes": [
+        "contrast set",
+        "word"
+      ],
+      "usageTags": [
+        "academic",
+        "technical"
+      ],
+      "topicTags": [
+        "science",
+        "philosophy"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "terminology"
+      ],
+      "wordId": "7012",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7013": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "food",
+        "biology"
+      ],
+      "discoveryTags": [
+        "contrast"
+      ],
+      "wordId": "7013",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7014": {
+      "entryTypes": [
+        "phrasal verb"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "everyday life"
+      ],
+      "discoveryTags": [
+        "emphasis"
+      ],
+      "wordId": "7014",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7015": {
+      "entryTypes": [
+        "collocation",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "informal"
+      ],
+      "topicTags": [
+        "automotive",
+        "transportation"
+      ],
+      "discoveryTags": [
+        "emphasis",
+        "warning"
+      ],
+      "wordId": "7015",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7016": {
+      "entryTypes": [
+        "collocation",
+        "verb pattern"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "automotive",
+        "transportation"
+      ],
+      "discoveryTags": [
+        "procedural language"
+      ],
+      "wordId": "7016",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7017": {
+      "entryTypes": [
+        "contrast set",
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "agreement",
+        "contrast"
+      ],
+      "wordId": "7017",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7018": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "history",
+        "agriculture"
+      ],
+      "discoveryTags": [
+        "specialist knowledge"
+      ],
+      "wordId": "7018",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7019": {
+      "entryTypes": [
+        "prepositional phrase",
+        "idiom"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "disagreement",
+        "contrast"
+      ],
+      "wordId": "7019",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7020": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "critical",
+        "evaluative"
+      ],
+      "topicTags": [
+        "psychology"
+      ],
+      "discoveryTags": [
+        "criticism",
+        "subjective judgment"
+      ],
+      "wordId": "7020",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7021": {
+      "entryTypes": [
+        "contrast set",
+        "phrasal verb"
+      ],
+      "usageTags": [
+        "informal"
+      ],
+      "topicTags": [
+        "communication",
+        "crime"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "betrayal",
+        "warning"
+      ],
+      "wordId": "7021",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7022": {
+      "entryTypes": [
+        "form family",
+        "idiom"
+      ],
+      "usageTags": [
+        "literary",
+        "figurative"
+      ],
+      "topicTags": [
+        "literature",
+        "history"
+      ],
+      "discoveryTags": [
+        "origin/etymology",
+        "figurative extension",
+        "excessive emotion"
+      ],
+      "wordId": "7022",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7023": {
+      "entryTypes": [
+        "collocation",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "formal",
+        "legalistic"
+      ],
+      "topicTags": [
+        "law",
+        "government",
+        "politics"
+      ],
+      "discoveryTags": [
+        "policy discussion",
+        "removal"
+      ],
+      "wordId": "7023",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7024": {
+      "entryTypes": [
+        "abbreviation",
+        "term"
+      ],
+      "usageTags": [
+        "North American English",
+        "professional"
+      ],
+      "topicTags": [
+        "law",
+        "government"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "professional context"
+      ],
+      "wordId": "7024",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7025": {
+      "entryTypes": [
+        "collocation",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "technical",
+        "informal"
+      ],
+      "topicTags": [
+        "technology"
+      ],
+      "discoveryTags": [
+        "minor adjustment",
+        "iteration",
+        "implementation"
+      ],
+      "wordId": "7025",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7026": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "informal"
+      ],
+      "topicTags": [
+        "linguistics",
+        "culture"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "emotional intensity",
+        "origin/etymology"
+      ],
+      "wordId": "7026",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7027": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "literary"
+      ],
+      "topicTags": [
+        "psychology"
+      ],
+      "discoveryTags": [
+        "nonconformity",
+        "determination"
+      ],
+      "wordId": "7027",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7028": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [],
+      "discoveryTags": [
+        "maximum effort"
+      ],
+      "wordId": "7028",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7029": {
+      "entryTypes": [
+        "form family",
+        "word"
+      ],
+      "usageTags": [
+        "literary"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "emotional intensity"
+      ],
+      "wordId": "7029",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7030": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "critical"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "criticism",
+        "emotional intensity"
+      ],
+      "wordId": "7030",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7031": {
+      "entryTypes": [
+        "phrasal verb"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "work",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "continuity",
+        "process details"
+      ],
+      "wordId": "7031",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7032": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "planning",
+        "work"
+      ],
+      "discoveryTags": [
+        "possibility",
+        "constraints"
+      ],
+      "wordId": "7032",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7033": {
+      "entryTypes": [
+        "adverbial phrase",
+        "fixed expression"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [],
+      "discoveryTags": [
+        "emphasis",
+        "boundary-setting"
+      ],
+      "wordId": "7033",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7034": {
+      "entryTypes": [
+        "collocation",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "professional"
+      ],
+      "topicTags": [
+        "work",
+        "planning"
+      ],
+      "discoveryTags": [
+        "call to action",
+        "implementation"
+      ],
+      "wordId": "7034",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7035": {
+      "entryTypes": [
+        "adjective phrase"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "finance",
+        "everyday life"
+      ],
+      "discoveryTags": [
+        "evaluation"
+      ],
+      "wordId": "7035",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7036": {
+      "entryTypes": [
+        "phrasal verb"
+      ],
+      "usageTags": [
+        "figurative"
+      ],
+      "topicTags": [
+        "culture",
+        "religion"
+      ],
+      "discoveryTags": [
+        "literal vs figurative",
+        "social approval"
+      ],
+      "wordId": "7036",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7037": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "work",
+        "education"
+      ],
+      "discoveryTags": [
+        "professional context",
+        "strong desire"
+      ],
+      "wordId": "7037",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7038": {
+      "entryTypes": [
+        "phrasal verb",
+        "slang expression"
+      ],
+      "usageTags": [
+        "informal",
+        "figurative"
+      ],
+      "topicTags": [
+        "internet",
+        "entertainment"
+      ],
+      "discoveryTags": [
+        "figurative extension",
+        "promotion"
+      ],
+      "wordId": "7038",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7039": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "anatomy",
+        "medicine"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7039",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7040": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "anatomy",
+        "biology"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7040",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7041": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "anatomy",
+        "biology"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7041",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7042": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "anatomy",
+        "medicine"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7042",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7043": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "education",
+        "sports"
+      ],
+      "discoveryTags": [
+        "terminology"
+      ],
+      "wordId": "7043",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7044": {
+      "entryTypes": [
+        "polysemy set",
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "academic"
+      ],
+      "topicTags": [
+        "linguistics",
+        "chemistry"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "terminology"
+      ],
+      "wordId": "7044",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7045": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "technical",
+        "formal"
+      ],
+      "topicTags": [
+        "chemistry",
+        "finance"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "specialist knowledge"
+      ],
+      "wordId": "7045",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7046": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "animals"
+      ],
+      "discoveryTags": [
+        "terminology"
+      ],
+      "wordId": "7046",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7047": {
+      "entryTypes": [
+        "idiom"
+      ],
+      "usageTags": [
+        "figurative"
+      ],
+      "topicTags": [
+        "psychology"
+      ],
+      "discoveryTags": [
+        "figurative extension",
+        "subjective judgment"
+      ],
+      "wordId": "7047",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7048": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "psychology",
+        "communication"
+      ],
+      "discoveryTags": [
+        "impression"
+      ],
+      "wordId": "7048",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7049": {
+      "entryTypes": [
+        "contrast set",
+        "adjective phrase"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "health",
+        "everyday life"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "clarification"
+      ],
+      "wordId": "7049",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7050": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "academic",
+        "formal"
+      ],
+      "topicTags": [
+        "grammar",
+        "linguistics"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "terminology"
+      ],
+      "wordId": "7050",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7051": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "formal",
+        "technical",
+        "academic"
+      ],
+      "topicTags": [
+        "linguistics",
+        "psychology",
+        "philosophy"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "subjective judgment"
+      ],
+      "wordId": "7051",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7052": {
+      "entryTypes": [
+        "phrasal verb"
+      ],
+      "usageTags": [
+        "North American English",
+        "informal"
+      ],
+      "topicTags": [
+        "automotive",
+        "transportation"
+      ],
+      "discoveryTags": [
+        "procedural language"
+      ],
+      "wordId": "7052",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7053": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "specialist"
+      ],
+      "topicTags": [
+        "anatomy",
+        "biology"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7053",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7054": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "professional"
+      ],
+      "topicTags": [
+        "work",
+        "law"
+      ],
+      "discoveryTags": [
+        "professional context",
+        "commitment"
+      ],
+      "wordId": "7054",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7055": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "academic",
+        "technical",
+        "figurative"
+      ],
+      "topicTags": [
+        "media",
+        "technology",
+        "communication"
+      ],
+      "discoveryTags": [
+        "literal vs figurative",
+        "emphasis"
+      ],
+      "wordId": "7055",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7056": {
+      "entryTypes": [
+        "verb pattern",
+        "fixed expression"
+      ],
+      "usageTags": [
+        "figurative"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "figurative extension",
+        "continuity"
+      ],
+      "wordId": "7056",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7057": {
+      "entryTypes": [
+        "prepositional phrase",
+        "fixed expression"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "planning"
+      ],
+      "discoveryTags": [
+        "warning",
+        "prevention",
+        "early stage"
+      ],
+      "wordId": "7057",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7058": {
+      "entryTypes": [
+        "form family",
+        "noun phrase",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "informal",
+        "conversational"
+      ],
+      "topicTags": [
+        "social media",
+        "communication"
+      ],
+      "discoveryTags": [
+        "social approval",
+        "audience engagement"
+      ],
+      "wordId": "7058",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7059": {
+      "entryTypes": [
+        "form family",
+        "term"
+      ],
+      "usageTags": [
+        "technical"
+      ],
+      "topicTags": [
+        "art",
+        "culture"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "terminology"
+      ],
+      "wordId": "7059",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7060": {
+      "entryTypes": [
+        "term",
+        "noun phrase"
+      ],
+      "usageTags": [
+        "specialist"
+      ],
+      "topicTags": [
+        "history",
+        "art",
+        "culture"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "terminology"
+      ],
+      "wordId": "7060",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7061": {
+      "entryTypes": [
+        "polysemy set",
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "informal"
+      ],
+      "topicTags": [
+        "technology"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "process details"
+      ],
+      "wordId": "7061",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7062": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "professional"
+      ],
+      "topicTags": [
+        "literature",
+        "work"
+      ],
+      "discoveryTags": [
+        "professional context"
+      ],
+      "wordId": "7062",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7063": {
+      "entryTypes": [
+        "verb pattern",
+        "fixed expression"
+      ],
+      "usageTags": [
+        "British English",
+        "professional"
+      ],
+      "topicTags": [
+        "work",
+        "workplace"
+      ],
+      "discoveryTags": [
+        "professional context",
+        "terminology"
+      ],
+      "wordId": "7063",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7064": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "British English"
+      ],
+      "topicTags": [],
+      "discoveryTags": [
+        "terminology"
+      ],
+      "wordId": "7064",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7065": {
+      "entryTypes": [
+        "contrast set",
+        "construction",
+        "verb pattern"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "grammar",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "clarification"
+      ],
+      "wordId": "7065",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7066": {
+      "entryTypes": [
+        "contrast set",
+        "phrasal verb"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "communication",
+        "work"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "professional context"
+      ],
+      "wordId": "7066",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7067": {
+      "entryTypes": [
+        "contrast set",
+        "form family"
+      ],
+      "usageTags": [
+        "academic"
+      ],
+      "topicTags": [
+        "history"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "contrast"
+      ],
+      "wordId": "7067",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7068": {
+      "entryTypes": [
+        "proper noun"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "geography"
+      ],
+      "discoveryTags": [
+        "specialist knowledge"
+      ],
+      "wordId": "7068",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7069": {
+      "entryTypes": [
+        "term",
+        "construction"
+      ],
+      "usageTags": [
+        "technical",
+        "academic"
+      ],
+      "topicTags": [
+        "linguistics",
+        "language learning"
+      ],
+      "discoveryTags": [
+        "origin/etymology",
+        "terminology"
+      ],
+      "wordId": "7069",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7070": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "professional"
+      ],
+      "topicTags": [
+        "finance",
+        "economics"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register"
+      ],
+      "wordId": "7070",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7071": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "academic"
+      ],
+      "topicTags": [
+        "linguistics"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "terminology"
+      ],
+      "wordId": "7071",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7072": {
+      "entryTypes": [
+        "idiom",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "informal",
+        "critical"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "emotional intensity",
+        "criticism"
+      ],
+      "wordId": "7072",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7073": {
+      "entryTypes": [
+        "idiom",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "figurative",
+        "informal"
+      ],
+      "topicTags": [
+        "military"
+      ],
+      "discoveryTags": [
+        "emotional intensity",
+        "figurative extension"
+      ],
+      "wordId": "7073",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7074": {
+      "entryTypes": [
+        "contrast set",
+        "fixed expression"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "removal"
+      ],
+      "wordId": "7074",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7075": {
+      "entryTypes": [
+        "idiom",
+        "sentence pattern"
+      ],
+      "usageTags": [
+        "informal",
+        "rhetorical",
+        "skeptical"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "figurative extension",
+        "lack of knowledge"
+      ],
+      "wordId": "7075",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7076": {
+      "entryTypes": [
+        "construction",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "informal",
+        "critical"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "boundary-setting",
+        "criticism"
+      ],
+      "wordId": "7076",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7077": {
+      "entryTypes": [
+        "slang expression",
+        "noun phrase"
+      ],
+      "usageTags": [
+        "slang",
+        "informal",
+        "humorous"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "risk",
+        "emotional intensity"
+      ],
+      "wordId": "7077",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7078": {
+      "entryTypes": [
+        "polysemy set",
+        "slang expression",
+        "word"
+      ],
+      "usageTags": [
+        "informal",
+        "slang"
+      ],
+      "topicTags": [
+        "everyday life"
+      ],
+      "discoveryTags": [
+        "literal vs figurative",
+        "evaluation"
+      ],
+      "wordId": "7078",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7079": {
+      "entryTypes": [
+        "verb pattern",
+        "fixed expression"
+      ],
+      "usageTags": [
+        "informal",
+        "figurative"
+      ],
+      "topicTags": [
+        "communication",
+        "business"
+      ],
+      "discoveryTags": [
+        "negotiation",
+        "resource allocation",
+        "figurative extension"
+      ],
+      "wordId": "7079",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7080": {
+      "entryTypes": [
+        "polysemy set",
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "academic",
+        "technical"
+      ],
+      "topicTags": [
+        "research",
+        "science"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "contrast"
+      ],
+      "wordId": "7080",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7081": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "professional"
+      ],
+      "topicTags": [
+        "technology",
+        "engineering"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "implementation"
+      ],
+      "wordId": "7081",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7082": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "figurative",
+        "dated"
+      ],
+      "topicTags": [
+        "weather",
+        "psychology"
+      ],
+      "discoveryTags": [
+        "literal vs figurative",
+        "impression"
+      ],
+      "wordId": "7082",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7083": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "literary",
+        "dated"
+      ],
+      "topicTags": [
+        "culture"
+      ],
+      "discoveryTags": [
+        "specialist register"
+      ],
+      "wordId": "7083",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7084": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "specialist"
+      ],
+      "topicTags": [
+        "culture",
+        "military"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "terminology"
+      ],
+      "wordId": "7084",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7085": {
+      "entryTypes": [
+        "form family",
+        "noun phrase",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "informal",
+        "North American English"
+      ],
+      "topicTags": [
+        "travel",
+        "aviation"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "practical details"
+      ],
+      "wordId": "7085",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7086": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "terminology",
+        "evaluation"
+      ],
+      "wordId": "7086",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7087": {
+      "entryTypes": [
+        "idiom"
+      ],
+      "usageTags": [
+        "informal"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "evaluation",
+        "emphasis"
+      ],
+      "wordId": "7087",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7088": {
+      "entryTypes": [
+        "idiom",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "informal",
+        "critical"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "criticism",
+        "emotional intensity"
+      ],
+      "wordId": "7088",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7089": {
+      "entryTypes": [
+        "polysemy set",
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "formal",
+        "technical"
+      ],
+      "topicTags": [
+        "architecture",
+        "technology"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "literal vs figurative"
+      ],
+      "wordId": "7089",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7090": {
+      "entryTypes": [
+        "polysemy set",
+        "word"
+      ],
+      "usageTags": [
+        "formal",
+        "literary",
+        "dated"
+      ],
+      "topicTags": [
+        "mathematics",
+        "philosophy"
+      ],
+      "discoveryTags": [
+        "origin/etymology",
+        "literal vs figurative",
+        "specialist knowledge"
+      ],
+      "wordId": "7090",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7091": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "professional"
+      ],
+      "topicTags": [
+        "finance",
+        "economics"
+      ],
+      "discoveryTags": [
+        "resource allocation",
+        "flexibility"
+      ],
+      "wordId": "7091",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7092": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "professional"
+      ],
+      "topicTags": [
+        "technology"
+      ],
+      "discoveryTags": [
+        "process details",
+        "evidence",
+        "implementation"
+      ],
+      "wordId": "7092",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7093": {
+      "entryTypes": [
+        "polysemy set",
+        "phrasal verb"
+      ],
+      "usageTags": [
+        "figurative",
+        "slang"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "literal vs figurative",
+        "removal",
+        "emotional intensity"
+      ],
+      "wordId": "7093",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7094": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "communication",
+        "planning"
+      ],
+      "discoveryTags": [
+        "flexibility",
+        "constraints"
+      ],
+      "wordId": "7094",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7095": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "formal"
+      ],
+      "topicTags": [
+        "literature",
+        "communication"
+      ],
+      "discoveryTags": [
+        "ambiguity"
+      ],
+      "wordId": "7095",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7096": {
+      "entryTypes": [
+        "idiom"
+      ],
+      "usageTags": [
+        "figurative"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "continuity",
+        "transition"
+      ],
+      "wordId": "7096",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7097": {
+      "entryTypes": [
+        "noun phrase",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "academic"
+      ],
+      "topicTags": [
+        "science",
+        "philosophy"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "cause and effect"
+      ],
+      "wordId": "7097",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7098": {
+      "entryTypes": [
+        "word"
+      ],
+      "usageTags": [
+        "informal",
+        "critical"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "criticism",
+        "incompetence"
+      ],
+      "wordId": "7098",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7099": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "scientific",
+        "formal"
+      ],
+      "topicTags": [
+        "biology",
+        "science"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "figurative extension"
+      ],
+      "wordId": "7099",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7100": {
+      "entryTypes": [
+        "form family",
+        "noun phrase"
+      ],
+      "usageTags": [
+        "formal",
+        "professional"
+      ],
+      "topicTags": [
+        "planning",
+        "business"
+      ],
+      "discoveryTags": [
+        "risk",
+        "possibility",
+        "prevention"
+      ],
+      "wordId": "7100",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7101": {
+      "entryTypes": [
+        "idiom",
+        "discourse expression"
+      ],
+      "usageTags": [
+        "informal",
+        "ironic"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "warning",
+        "risk",
+        "figurative extension"
+      ],
+      "wordId": "7101",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7102": {
+      "entryTypes": [
+        "term",
+        "word"
+      ],
+      "usageTags": [
+        "technical"
+      ],
+      "topicTags": [
+        "technology"
+      ],
+      "discoveryTags": [
+        "specialist knowledge",
+        "specialist register",
+        "implementation"
+      ],
+      "wordId": "7102",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7103": {
+      "entryTypes": [
+        "construction",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "academic",
+        "presentation-friendly"
+      ],
+      "topicTags": [
+        "research",
+        "presentations"
+      ],
+      "discoveryTags": [
+        "presentation language",
+        "process details"
+      ],
+      "wordId": "7103",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7104": {
+      "entryTypes": [
+        "collocation",
+        "verb pattern"
+      ],
+      "usageTags": [
+        "academic",
+        "presentation-friendly"
+      ],
+      "topicTags": [
+        "research",
+        "presentations"
+      ],
+      "discoveryTags": [
+        "presentation language",
+        "process details"
+      ],
+      "wordId": "7104",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7105": {
+      "entryTypes": [
+        "contrast set",
+        "phrasal verb"
+      ],
+      "usageTags": [],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "contrast",
+        "continuity"
+      ],
+      "wordId": "7105",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7106": {
+      "entryTypes": [
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "businesslike",
+        "professional"
+      ],
+      "topicTags": [
+        "technology",
+        "business"
+      ],
+      "discoveryTags": [
+        "transition",
+        "implementation",
+        "professional context"
+      ],
+      "wordId": "7106",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7107": {
+      "entryTypes": [
+        "construction",
+        "sentence pattern",
+        "discourse expression"
+      ],
+      "usageTags": [
+        "informal",
+        "conversational",
+        "ironic"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "subjective judgment",
+        "social approval",
+        "criticism"
+      ],
+      "wordId": "7107",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7108": {
+      "entryTypes": [
+        "slang expression",
+        "noun phrase"
+      ],
+      "usageTags": [
+        "slang",
+        "informal",
+        "derogatory",
+        "offensive"
+      ],
+      "topicTags": [
+        "communication"
+      ],
+      "discoveryTags": [
+        "social approval",
+        "criticism"
+      ],
+      "wordId": "7108",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7109": {
+      "entryTypes": [
+        "construction",
+        "sentence pattern"
+      ],
+      "usageTags": [
+        "conversational"
+      ],
+      "topicTags": [
+        "grammar",
+        "communication"
+      ],
+      "discoveryTags": [
+        "emphasis",
+        "clarification",
+        "complaint"
+      ],
+      "wordId": "7109",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    },
+    "wid:7110": {
+      "entryTypes": [
+        "polysemy set",
+        "word",
+        "term"
+      ],
+      "usageTags": [
+        "technical",
+        "professional"
+      ],
+      "topicTags": [
+        "aviation",
+        "technology"
+      ],
+      "discoveryTags": [
+        "prevention",
+        "procedural language",
+        "implementation"
+      ],
+      "wordId": "7110",
+      "updatedAt": "2026-10-07T14:34:46.152Z"
+    }
+  }
+}
