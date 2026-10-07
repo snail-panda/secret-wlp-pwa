@@ -185,7 +185,16 @@ body.study-quick-card-open{overflow:hidden}
 .study-history{margin-top:12px;border:1px solid #dbe6dd;border-radius:20px;background:rgba(255,255,255,.72);box-shadow:0 6px 18px rgba(40,70,55,.035);padding:14px 16px}
 .study-history-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
 .study-history-head h2{margin:2px 0 0;font-family:"EB Garamond",Georgia,serif;font-size:1.28rem;line-height:1.05;font-weight:600;color:#365c49}
-.study-history-head>a{color:#688073;text-decoration:none;font-size:.68rem;font-weight:700}
+.study-history-head-actions{display:flex;align-items:flex-end;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.study-history-head-actions>a{color:#688073;text-decoration:none;font-size:.68rem;font-weight:700;padding-bottom:2px}
+.study-history-controls{display:grid;justify-items:end;gap:5px}
+.study-history-limit-control{display:flex;align-items:center;gap:4px;color:#7b8a82;font-size:.61rem;font-weight:750}
+.study-history-limit-control>span{margin-right:2px;text-transform:uppercase;letter-spacing:.06em}
+.study-history-limit-control button{border:1px solid #d9e4dc;border-radius:999px;background:#fff;color:#667d70;min-width:30px;padding:4px 7px;font:700 .61rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.study-history-limit-control button[aria-pressed="true"]{border-color:#9fb9a8;background:#edf5ed;color:#315f49}
+.study-history-target-toggle{display:flex;align-items:center;gap:5px;color:#687c71;font-size:.62rem;font-weight:650;cursor:pointer}
+.study-history-target-toggle input{margin:0;accent-color:#668b76}
+.study-history-count{color:#929d97;font-size:.58rem;line-height:1}
 .study-history-list{display:grid;gap:7px;margin-top:10px}
 .study-history-item{width:100%;border:1px solid #dfe8e1;border-radius:13px;background:#fbfdfb;color:#4f6c5d;padding:9px 10px;text-align:left;cursor:pointer;font:inherit}
 .study-history-item-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -194,9 +203,8 @@ body.study-quick-card-open{overflow:hidden}
 .study-history-item small{display:block;margin-top:2px;color:#7d8d84;font-size:.62rem;line-height:1.35}
 .study-history-item-context{color:#60776a!important;font-weight:650}
 .study-history-item-summary{color:#7d8d84!important}
-.study-history-more{display:block;margin:10px auto 0;border:1px solid #d7e2da;border-radius:999px;background:#fff;color:#557161;padding:7px 14px;font:650 .67rem -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
-.study-history-more[hidden]{display:none!important}
 .study-session-review-prompt{margin:0!important;max-width:none!important;padding:7px 8px;border-radius:10px;background:#f7faf7;color:#60756a!important;font-family:"EB Garamond",Georgia,serif;font-size:.86rem!important;line-height:1.36!important;text-align:left}
+@media(max-width:560px){.study-history-head{align-items:flex-start;flex-direction:column}.study-history-head-actions{width:100%;align-items:flex-start;justify-content:space-between}.study-history-controls{justify-items:start}.study-history-limit-control{flex-wrap:wrap}}
 @media(max-width:420px){.study-history-item-top{align-items:flex-start;flex-direction:column;gap:2px}.study-history-item-top time{white-space:normal}}
 
 /* v1.8.6.47 R7 — deck picker, spoken response, and exact-match guidance. */

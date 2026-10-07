@@ -7,8 +7,7 @@
   const STUDYQ_EVENT_LIMIT = 1200;
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const STUDYQ_SESSION_LIMIT = 80;
-  const RECENT_SESSION_INITIAL_LIMIT = 8;
-  const RECENT_SESSION_EXPANDED_LIMIT = 16;
+  const RECENT_SESSION_INITIAL_LIMIT = 10;
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -54,6 +53,7 @@
   const historyRatingEditGrace = new Set();
   const historyRatingNotice = new Map();
   let recentSessionVisibleLimit = RECENT_SESSION_INITIAL_LIMIT;
+  let recentSessionShowTargets = false;
 
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
@@ -1939,12 +1939,22 @@
   function renderRecentSessions() {
     const section = $('study-history');
     const list = $('study-history-list');
-    const more = $('study-history-more');
+    const countLabel = $('study-history-count');
     if (!section || !list) return;
     const allSessions = historySessionsForRead().sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a));
-    const sessions = allSessions.slice(0, recentSessionVisibleLimit);
+    const visibleLimit = Number.isFinite(recentSessionVisibleLimit) ? recentSessionVisibleLimit : allSessions.length;
+    const sessions = allSessions.slice(0, visibleLimit);
     list.replaceChildren();
     section.hidden = !allSessions.length;
+
+    document.querySelectorAll('[data-study-history-limit]').forEach(button => {
+      const value = button.dataset.studyHistoryLimit === 'all' ? Infinity : Number(button.dataset.studyHistoryLimit);
+      button.setAttribute('aria-pressed', String(value === recentSessionVisibleLimit));
+    });
+    const targetToggle = $('study-history-show-targets');
+    if (targetToggle) targetToggle.checked = recentSessionShowTargets;
+    if (countLabel) countLabel.textContent = allSessions.length ? `Showing ${sessions.length} of ${allSessions.length}` : '';
+
     sessions.forEach(session => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -1963,23 +1973,34 @@
       const decks = Array.from(new Set(deckValues.map(Number).filter(Boolean)));
       const sourceLabelText = clean(session.sourceLabel) || 'Standard Practice';
 
-      if (count === 1 && targets[0]) title.textContent = targets[0].label;
-      else title.textContent = `${count} ${count === 1 ? 'experience' : 'experiences'} · ${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`;
+      if (count === 1) {
+        title.textContent = recentSessionShowTargets && targets[0] ? targets[0].label : sourceLabelText;
+      } else {
+        title.textContent = `${count} ${count === 1 ? 'experience' : 'experiences'} · ${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`;
+      }
       top.append(title, when);
 
       const context = document.createElement('small');
       context.className = 'study-history-item-context';
-      if (count === 1 && targets[0]) {
-        const deckLabel = targets[0].batch ? `WLP${String(targets[0].batch).padStart(3, '0')}` : '';
-        const contextParts = [sourceLabelText];
+      if (count === 1) {
+        const firstExperience = experiences[0] || {};
+        const singleBatch = Number(targets[0]?.batch) || Number(firstExperience?.batch) || 0;
+        const singleWordId = clean(targets[0]?.wordId || firstExperience?.wordId);
+        const deckLabel = singleBatch ? `WLP${String(singleBatch).padStart(3, '0')}` : '';
+        const contextParts = recentSessionShowTargets && targets[0] ? [sourceLabelText] : [];
         if (deckLabel && deckLabel !== sourceLabelText) contextParts.push(deckLabel);
-        if (targets[0].wordId) contextParts.push(`WID${targets[0].wordId}`);
+        if (singleWordId) contextParts.push(`WID${singleWordId}`);
         context.textContent = contextParts.filter(Boolean).join(' · ');
-      } else {
-        const preview = targets.slice(0, 3).map(item => item.label);
-        const remainder = Math.max(0, targets.length - preview.length);
-        context.textContent = `${sourceLabelText}${preview.length ? ` · Targets: ${preview.join(' · ')}${remainder ? ` · +${remainder} more` : ''}` : ''}`;
+      } else if (count > 1) {
+        const contextParts = [sourceLabelText];
+        if (recentSessionShowTargets) {
+          const preview = targets.slice(0, 3).map(item => item.label);
+          const remainder = Math.max(0, targets.length - preview.length);
+          if (preview.length) contextParts.push(`Targets: ${preview.join(' · ')}${remainder ? ` · +${remainder} more` : ''}`);
+        }
+        context.textContent = contextParts.filter(Boolean).join(' · ');
       }
+      context.hidden = !context.textContent;
 
       const summary = document.createElement('small');
       summary.className = 'study-history-item-summary';
@@ -1991,11 +2012,6 @@
       button.append(top, context, summary);
       list.append(button);
     });
-    if (more) {
-      const canExpand = recentSessionVisibleLimit < RECENT_SESSION_EXPANDED_LIMIT && allSessions.length > recentSessionVisibleLimit;
-      more.hidden = !canExpand;
-      if (canExpand) more.textContent = `Show ${Math.min(RECENT_SESSION_EXPANDED_LIMIT - recentSessionVisibleLimit, allSessions.length - recentSessionVisibleLimit)} more`;
-    }
   }
 
 
@@ -3175,8 +3191,12 @@
     ['study-deck', 'study-range-start', 'study-range-end', 'study-session-size'].forEach(id => $(id).addEventListener('change', updateEligibility));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => $(id).addEventListener('input', updateEligibility));
     $('study-standard-remember-session-size')?.addEventListener('change', persistStandardSessionSizePreference);
-    $('study-history-more')?.addEventListener('click', () => {
-      recentSessionVisibleLimit = RECENT_SESSION_EXPANDED_LIMIT;
+    document.querySelectorAll('[data-study-history-limit]').forEach(button => button.addEventListener('click', () => {
+      recentSessionVisibleLimit = button.dataset.studyHistoryLimit === 'all' ? Infinity : Number(button.dataset.studyHistoryLimit) || RECENT_SESSION_INITIAL_LIMIT;
+      renderRecentSessions();
+    }));
+    $('study-history-show-targets')?.addEventListener('change', event => {
+      recentSessionShowTargets = Boolean(event.currentTarget.checked);
       renderRecentSessions();
     });
     $('study-start').addEventListener('click', startSession);
