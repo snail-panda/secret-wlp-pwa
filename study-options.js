@@ -1025,12 +1025,22 @@
       catch (_) { return false; }
     }) || makeLink('global-search.html', 'Search', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>');
     const study = findLink('deck-browser.html') || makeLink('deck-browser.html', 'Study', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg>');
-    const simpleDrawerLabel = (link, label) => {
-      const span = link?.querySelector(':scope > span:not(.drawer-item-copy)');
-      if (span) span.textContent = label;
+    const setDrawerCopy = (link, title, detail) => {
+      if (!link) return;
+      let copy = link.querySelector(':scope > .drawer-item-copy');
+      if (!copy) {
+        const directSpan = link.querySelector(':scope > span');
+        copy = document.createElement('span');
+        copy.className = 'drawer-item-copy';
+        if (directSpan) directSpan.replaceWith(copy);
+        else link.appendChild(copy);
+      }
+      copy.innerHTML = '<span class="drawer-item-title"></span><small></small>';
+      copy.querySelector('.drawer-item-title').textContent = title;
+      copy.querySelector('small').textContent = detail;
     };
-    simpleDrawerLabel(study, 'Study');
-    simpleDrawerLabel(practice, 'Practice');
+    setDrawerCopy(study, 'Study', 'Decks · Continue · Review');
+    setDrawerCopy(practice, 'Practice', 'Standard / AI · Review / Decks · Study Sets');
     const review = findLink('review.html') || makeLink('review.html', 'Review', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg>');
     const progress = findLink('progress.html') || makeLink('progress.html', 'Progress', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg>');
     const drafts = findLink('drafts.html') || makeLink('drafts.html', 'Drafts', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>');
