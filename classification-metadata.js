@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.382 — compact Classification storage + Canonical-aware change events. */
+/* WLP Stage 7 v1.8.6.383 — Classification storage cache + Canonical-aware change events. */
 (() => {
   'use strict';
 
@@ -56,10 +56,17 @@
     return next;
   }
 
+  // v1.8.6.383: the Classification editor asks for thousands of WID records while
+  // building its search index. Re-parsing the ~1 MB localStorage snapshot for every
+  // api.get() call can block the main thread for tens of seconds. Keep one normalized
+  // in-memory snapshot per page and invalidate it whenever storage changes externally.
+  let stateCache = null;
+
   function readState() {
+    if (stateCache) return stateCache;
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return emptyState();
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return (stateCache = emptyState());
       const rawRecords = parsed.records && typeof parsed.records === 'object' && !Array.isArray(parsed.records)
         ? parsed.records
         : parsed;
@@ -68,17 +75,27 @@
         if (!/^wid:|^draft:/.test(key) || !value || typeof value !== 'object' || Array.isArray(value)) return;
         records[key] = normalizeRecord(value);
       });
-      return {version: VERSION, records};
+      return (stateCache = {version: VERSION, records});
     } catch {
-      return emptyState();
+      return (stateCache = emptyState());
     }
   }
 
   function writeState(state, detail = {}) {
     const records = state?.records && typeof state.records === 'object' ? state.records : {};
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({version: VERSION, records}));
+    stateCache = {version: VERSION, records};
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateCache));
     window.dispatchEvent(new CustomEvent(EVENT_NAME, {detail:{source:String(detail?.source || 'local'), changedKeys:Array.isArray(detail?.changedKeys) ? detail.changedKeys.map(String) : []}}));
   }
+
+  function invalidateStateCache() { stateCache = null; }
+  window.addEventListener('storage', event => {
+    if (event.key === STORAGE_KEY) invalidateStateCache();
+  });
+  window.addEventListener(EVENT_NAME, event => {
+    const source = String(event?.detail?.source || '');
+    if (!source || source === 'canonical-receiver') invalidateStateCache();
+  });
 
   function hasClassification(record) {
     return ARRAY_FIELDS.some(field => Array.isArray(record?.[field]) && record[field].length > 0);
