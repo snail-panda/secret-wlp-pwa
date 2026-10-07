@@ -1,14 +1,14 @@
-/* WLP v1.8.6.391 — Account-owned Draft create + guarded Draft edit Canonical write.
+/* WLP v1.8.6.392 — Account-owned Draft create/edit/delete Canonical write.
    Scope:
    - Draft create keeps stable UUIDv5 card_id from draft:<localId> and atomic cards + card_content insert;
    - Draft edit updates only card_content with optimistic payload-hash precondition and row_version +1;
+   - Draft delete atomically tombstones cards + card_content after guarded hash checks;
    - ownership is account-scoped in Supabase; localStorage remains the compatibility projection/cache;
-   - Draft delete is intentionally unchanged until the next stage;
    - no Service Worker/background sync is used. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.391-draft-edit-canonical-v1';
+  const APP_VERSION='1.8.6.392-draft-delete-canonical-v1';
   const LOCAL_KEY='wlp:local-additions:v1';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
   const META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',CARD_STORE='cards',CONTENT_STORE='card_content',META_KEY='authority_mirror';
@@ -29,9 +29,9 @@
   const req=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error||new Error('IndexedDB request failed.'));});
   const txDone=t=>new Promise((res,rej)=>{t.oncomplete=()=>res();t.onabort=()=>rej(t.error||new Error('IndexedDB transaction aborted.'));t.onerror=()=>rej(t.error||new Error('IndexedDB transaction failed.'));});
 
-  function readDraft(localId){
-    try{const rows=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');return(Array.isArray(rows)?rows:[]).find(x=>x&&typeof x==='object'&&clean(x.localId)===clean(localId))||null;}catch(_){return null;}
-  }
+  function readDrafts(){try{const rows=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');return Array.isArray(rows)?rows.filter(x=>x&&typeof x==='object'):[];}catch(_){return[];}}
+  function readDraft(localId){return readDrafts().find(x=>clean(x.localId)===clean(localId))||null;}
+  function removeLocalDraft(localId){const id=clean(localId),rows=readDrafts(),next=rows.filter(x=>clean(x.localId)!==id),changed=next.length!==rows.length;if(changed){localStorage.setItem(LOCAL_KEY,JSON.stringify(next,null,2));window.WLPLearningHooks?.removeForDraft(id);window.dispatchEvent(new CustomEvent('wlp-drafts-canonical-changed',{detail:{source:'canonical-draft-delete',changedLocalIds:[id],deletedLocalIds:[id]}}));}return changed;}
   function statusCopy(kind,text){
     const id=kind==='edit'?'draft-edit-success-copy':'new-card-success-copy';
     const el=document.getElementById(id);if(el)el.textContent=text;
@@ -68,6 +68,23 @@
     const mutation={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt:new Date().toISOString(),diagnosticOnly:false,candidateOnly:false,canonicalDraftEdit:true,transportEligible:true,status:'pending',mutationId,mutationKind:'upsert',tableName:CONTENT_STORE,rowKey:cardId,precondition:{payloadHash:baseHash},payload:canonicalContent,payloadHash};
     mutation.mutationHash=await sha256(stableStringify(mutation));
     return{kind:'edit',actionId,cardId,localId,baseHash,mutations:[mutation]};
+  }
+
+
+  async function buildDelete(meta,draft,existingCard,existingContent){
+    const localId=clean(draft.localId);if(!localId)throw new Error('Draft localId is missing.');
+    const cardId=await uuidV5(`card|draft:${localId}`),cardBaseHash=clean(existingCard?.payloadHash),contentBaseHash=clean(existingContent?.payloadHash);if(!cardBaseHash||!contentBaseHash)throw new Error('Draft delete requires current Canonical cards + card_content payload hashes.');
+    const cardVersion=Number(existingCard?.payload?.row_version||0),contentVersion=Number(existingContent?.payload?.row_version||0);if(!Number.isInteger(cardVersion)||cardVersion<1||!Number.isInteger(contentVersion)||contentVersion<1)throw new Error('Draft delete requires valid Canonical row_version values.');
+    const now=new Date().toISOString(),deviceKey=clean(meta.deviceKey)||null;
+    const cardPayload={...clone(existingCard.payload),row_version:cardVersion+1,updated_at:now,updated_by_device:deviceKey,deleted_at:now};
+    const contentPayload={...clone(existingContent.payload),row_version:contentVersion+1,updated_at:now,updated_by_device:deviceKey,migration_source:'draft-canonical-delete',deleted_at:now};
+    const cardPayloadHash=await sha256(stableStringify(cardPayload)),contentPayloadHash=await sha256(stableStringify(contentPayload));
+    const intent={kind:'draft-card-delete',localId,cardId,cardBasePayloadHash:cardBaseHash,contentBasePayloadHash:contentBaseHash,cardPayloadHash,contentPayloadHash,baseHeadVersion:Number(meta.headVersion||0),baseCandidateKey:clean(meta.candidateKey)};
+    const actionId=await uuidV5(`sync-action|draft-card-delete|${await sha256(stableStringify(intent))}`),createdAt=now;
+    const common={schemaVersion:1,baseAuthority:{candidateKey:meta.candidateKey,headVersion:Number(meta.headVersion||0),snapshotManifestHash:meta.snapshotManifestHash},deviceKey:meta.deviceKey||null,actionId,createdAt,diagnosticOnly:false,candidateOnly:false,canonicalDraftDelete:true,transportEligible:true,status:'pending',mutationKind:'upsert',rowKey:cardId};
+    const cardMutation={...common,mutationId:await uuidV5(`sync-mutation|${CARD_STORE}|${actionId}`),tableName:CARD_STORE,precondition:{payloadHash:cardBaseHash},changedFields:['row_version','updated_at','updated_by_device','deleted_at'],payload:cardPayload,payloadHash:cardPayloadHash};cardMutation.mutationHash=await sha256(stableStringify(cardMutation));
+    const contentMutation={...common,mutationId:await uuidV5(`sync-mutation|${CONTENT_STORE}|${actionId}`),tableName:CONTENT_STORE,precondition:{payloadHash:contentBaseHash},changedFields:['row_version','updated_at','updated_by_device','migration_source','deleted_at'],payload:contentPayload,payloadHash:contentPayloadHash};contentMutation.mutationHash=await sha256(stableStringify(contentMutation));
+    return{kind:'delete',actionId,cardId,localId,cardBaseHash,contentBaseHash,mutations:[cardMutation,contentMutation]};
   }
 
   async function stageCreate(localId){
@@ -111,18 +128,42 @@
     finally{try{db?.close();}catch(_){}state.busy=false;}
   }
 
-  async function onSyncComplete(event){
-    const d=event?.detail||{};if(!state.active||clean(d.actionId)!==state.active.actionId)return;
-    const kind=state.active.kind||'create';
-    if(d.pass!==true){statusCopy(kind,`${kind==='edit'?'Draft changes saved':'Draft saved'} locally · account sync CHECK: ${clean(d.error)||'Foreground sync did not complete.'}`);return;}
-    let db=null;try{
-      db=await openDb();const [card,content,outbox]=await Promise.all([getRow(db,CARD_STORE,state.active.cardId),getRow(db,CONTENT_STORE,state.active.cardId),getAll(db,OUTBOX_STORE)]),draft=readDraft(state.active.localId),pass=Boolean(draft&&card&&!card.tombstone&&content&&!content.tombstone&&card.payload?.status==='draft'&&sameDraftContent(content.payload,draft)&&outbox.length===0);
-      state.report={format:'WLP_CANONICAL_DRAFT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{kind,localId:state.active.localId,cardId:state.active.cardId,outboxAfter:outbox.length,blockingIssues:pass?0:1,pass}};
-      statusCopy(kind,pass?(kind==='edit'?'Draft changes saved to your WLP account.':'Draft saved to your WLP account.'):`${kind==='edit'?'Draft changes saved':'Draft saved'} locally · Canonical verification is incomplete.`);if(pass)state.active=null;
-    }catch(error){statusCopy(kind,`${kind==='edit'?'Draft changes saved':'Draft saved'} locally · account verification CHECK: ${error?.message||String(error)}`);}finally{try{db?.close();}catch(_){} }
+
+  async function stageDelete(localId){
+    if(state.busy)return;state.busy=true;let db=null;
+    try{
+      const draft=readDraft(localId);if(!draft)throw new Error(`Draft ${clean(localId)||'(missing id)'} is not available locally.`);
+      db=await openDb();const [meta,outbox]=await Promise.all([getRow(db,META_STORE,META_KEY),getAll(db,OUTBOX_STORE)]);assertAuthority(meta,'Draft Canonical delete');
+      if(outbox.length)throw new Error(`Draft Canonical delete requires an empty sync_outbox; found ${outbox.length}.`);
+      const cardId=await uuidV5(`card|draft:${clean(localId)}`),card=await getRow(db,CARD_STORE,cardId),content=await getRow(db,CONTENT_STORE,cardId);
+      if(card?.tombstone&&content?.tombstone){removeLocalDraft(localId);state.report={format:'WLP_CANONICAL_DRAFT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{kind:'delete',localId:clean(localId),cardId,alreadyCanonical:true,blockingIssues:0,pass:true}};window.dispatchEvent(new CustomEvent('wlp-draft-delete-complete',{detail:{pass:true,localId:clean(localId),alreadyCanonical:true}}));return;}
+      if(!card||card.tombstone||!content||content.tombstone)throw new Error('Draft delete requires one active Canonical Draft cards + card_content pair on this device.');
+      if(String(card.payload?.status||'')!=='draft'||String(card.payload?.origin_kind||'')!=='personal'||String(card.payload?.origin_ref||'')!==clean(localId)||String(card.payload?.legacy_key||'')!==`draft:${clean(localId)}`)throw new Error('Draft delete Canonical identity does not match this local Draft.');
+      const built=await buildDelete(meta,draft,card,content);await addOutboxMany(db,built.mutations);state.active={...built};
+      window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged',{detail:{source:'draft-card-delete',actionId:built.actionId,tableName:'cards',mutationKind:'upsert',mutationCount:2,localDraftId:built.localId}}));
+    }catch(error){const message=error?.message||String(error);state.report={format:'WLP_CANONICAL_DRAFT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{kind:'delete',localId:clean(localId),blockingIssues:1,pass:false},issues:{blocking:[message]}};window.dispatchEvent(new CustomEvent('wlp-draft-delete-complete',{detail:{pass:false,localId:clean(localId),error:message}}));console.error('WLP Draft Canonical delete failed:',error);}
+    finally{try{db?.close();}catch(_){}state.busy=false;}
   }
 
-  window.addEventListener('wlp-draft-core-changed',event=>{const d=event?.detail||{},kind=String(d.kind||''),localId=String(d.localId||'');if(kind==='create')void stageCreate(localId);else if(kind==='edit')void stageEdit(localId);});
+  async function onSyncComplete(event){
+    const d=event?.detail||{};if(!state.active)return;const kind=state.active.kind||'create';
+    if(d.pass!==true){if(d.actionId&&clean(d.actionId)!==state.active.actionId)return;const message=clean(d.error)||'Foreground sync did not complete.';if(kind==='delete')window.dispatchEvent(new CustomEvent('wlp-draft-delete-complete',{detail:{pass:false,localId:state.active.localId,error:message}}));else statusCopy(kind,`${kind==='edit'?'Draft changes saved':'Draft saved'} locally · account sync CHECK: ${message}`);return;}
+    if(clean(d.actionId)!==state.active.actionId)return;
+    let db=null;try{
+      db=await openDb();const [card,content,outbox]=await Promise.all([getRow(db,CARD_STORE,state.active.cardId),getRow(db,CONTENT_STORE,state.active.cardId),getAll(db,OUTBOX_STORE)]);
+      if(kind==='delete'){
+        if(card?.tombstone&&content?.tombstone&&outbox.length===0)removeLocalDraft(state.active.localId);
+        const pass=Boolean(card?.tombstone&&content?.tombstone&&!readDraft(state.active.localId)&&outbox.length===0);
+        state.report={format:'WLP_CANONICAL_DRAFT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{kind,localId:state.active.localId,cardId:state.active.cardId,outboxAfter:outbox.length,blockingIssues:pass?0:1,pass}};
+        window.dispatchEvent(new CustomEvent('wlp-draft-delete-complete',{detail:{pass,localId:state.active.localId,error:pass?'':'Canonical Draft delete verification is incomplete.'}}));if(pass)state.active=null;return;
+      }
+      const draft=readDraft(state.active.localId),pass=Boolean(draft&&card&&!card.tombstone&&content&&!content.tombstone&&card.payload?.status==='draft'&&sameDraftContent(content.payload,draft)&&outbox.length===0);
+      state.report={format:'WLP_CANONICAL_DRAFT_WRITE',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),summary:{kind,localId:state.active.localId,cardId:state.active.cardId,outboxAfter:outbox.length,blockingIssues:pass?0:1,pass}};
+      statusCopy(kind,pass?(kind==='edit'?'Draft changes saved to your WLP account.':'Draft saved to your WLP account.'):`${kind==='edit'?'Draft changes saved':'Draft saved'} locally · Canonical verification is incomplete.`);if(pass)state.active=null;
+    }catch(error){const message=error?.message||String(error);if(kind==='delete')window.dispatchEvent(new CustomEvent('wlp-draft-delete-complete',{detail:{pass:false,localId:state.active.localId,error:message}}));else statusCopy(kind,`${kind==='edit'?'Draft changes saved':'Draft saved'} locally · account verification CHECK: ${message}`);}finally{try{db?.close();}catch(_){} }
+  }
+
+  window.addEventListener('wlp-draft-core-changed',event=>{const d=event?.detail||{},kind=String(d.kind||''),localId=String(d.localId||'');if(kind==='create')void stageCreate(localId);else if(kind==='edit')void stageEdit(localId);else if(kind==='delete')void stageDelete(localId);});
   window.addEventListener('wlp-canonical-auto-sync-complete',event=>{void onSyncComplete(event);});
-  window.WLPCanonicalDraftWrite=Object.freeze({version:2,appVersion:APP_VERSION,stageCreate,stageEdit,getReport:()=>clone(state.report)});
+  window.WLPCanonicalDraftWrite=Object.freeze({version:3,appVersion:APP_VERSION,stageCreate,stageEdit,stageDelete,getReport:()=>clone(state.report)});
 })();
