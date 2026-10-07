@@ -1,4 +1,4 @@
-/* WLP v1.8.6.379 — Card Study encounter default Canonical write + lazy official-card bootstrap.
+/* WLP v1.8.6.380 — Card Study encounter default Canonical write + lazy official-card bootstrap.
    New normal Card Study encounters remain in the existing local activity history for
    rollback/compatibility and are also queued into Canonical learning_events.
    Normal success is silent. Audit only: ?wlpEncounterWriteAudit=1.
@@ -9,7 +9,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.379-card-study-encounter-official-card-bootstrap-v1';
+  const APP_VERSION='1.8.6.380-card-study-encounter-official-card-bootstrap-master-url-fix-v1';
   const ROLLBACK_FLAG='wlpLegacyEncounterWrite';
   const AUDIT_FLAG='wlpEncounterWriteAudit';
   const MANUAL_CANARY_FLAG='wlpEncounterCanary';
@@ -23,6 +23,11 @@
   const NAMESPACE_UUID='87dc20ed-dd35-5ba3-8bde-04bf389874ce';
   const BASE=Object.freeze({candidateKey:'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc',headVersion:3,manifestHash:'2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63'});
   const state={busy:false,active:null,bootstrap:null,report:null,panel:null,status:null,detail:null,masterCache:null,preflightWords:new Set()};
+  // Capture the root-level script URL while document.currentScript is still available.
+  // masterRows() runs later from an event callback, where document.currentScript is null.
+  const SCRIPT_URL=document.currentScript?.src||'';
+  const MASTER_TSV_URL=SCRIPT_URL?new URL('./flashcards/wlp/wlp-flashcard-master.tsv',SCRIPT_URL).href:new URL('./wlp-flashcard-master.tsv',location.href).href;
+
 
   const clean=v=>String(v??'').trim();
   const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
@@ -64,7 +69,7 @@
   }
   async function masterRows(){
     if(state.masterCache)return state.masterCache;
-    const url=new URL('./flashcards/wlp/wlp-flashcard-master.tsv',document.currentScript?.src||location.href),response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(`Master TSV request failed (${response.status}).`);const text=await response.text(),rows=parseTSV(text),hash=await sha256(text);state.masterCache={rows,hash};return state.masterCache;
+    const response=await fetch(MASTER_TSV_URL,{cache:'no-store'});if(!response.ok)throw new Error(`Master TSV request failed (${response.status}).`);const text=await response.text(),rows=parseTSV(text),hash=await sha256(text);state.masterCache={rows,hash};return state.masterCache;
   }
   async function officialBaseHash(db){
     const tx=db.transaction(CARD_STORE,'readonly'),cursor=tx.objectStore(CARD_STORE).openCursor();const value=await new Promise((resolve,reject)=>{cursor.onsuccess=()=>{const c=cursor.result;if(!c){resolve('');return;}const h=clean(c.value?.payload?.official_base_hash);if(h){resolve(h);return;}c.continue();};cursor.onerror=()=>reject(cursor.error||new Error('Could not read an existing official-base hash.'));});await txDone(tx);return clean(value);
