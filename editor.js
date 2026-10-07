@@ -257,9 +257,10 @@
     const title = $('new-card-success-title');
     const copy = $('new-card-success-copy');
     if (title) title.textContent = `Saved “${draft.Word}”`;
-    if (copy) copy.textContent = `Draft saved locally · ${readDraftCount()} Draft${readDraftCount() === 1 ? '' : 's'} total.`;
+    if (copy) copy.textContent = `Draft saved locally · syncing to your WLP account…`;
     if (success) success.hidden = false;
     showToast('Draft saved.');
+    window.dispatchEvent(new CustomEvent('wlp-draft-core-changed', { detail: { kind: 'create', localId: draft.localId } }));
     requestAnimationFrame(() => $('new-card-word')?.focus());
   });
   newCardForm?.addEventListener('reset', () => {

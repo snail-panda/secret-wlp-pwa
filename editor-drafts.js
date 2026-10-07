@@ -158,4 +158,5 @@
   renderManage(); fillEditForm();
   window.addEventListener('pageshow', renderManage);
   window.addEventListener('focus', renderManage);
+  window.addEventListener('wlp-drafts-canonical-changed', renderManage);
 })();
