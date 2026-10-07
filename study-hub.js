@@ -7,6 +7,8 @@
   const STUDYQ_EVENT_LIMIT = 1200;
   const STUDYQ_SESSION_KEY = 'wlp:studyq-sessions:v1';
   const STUDYQ_SESSION_LIMIT = 80;
+  const RECENT_SESSION_INITIAL_LIMIT = 8;
+  const RECENT_SESSION_EXPANDED_LIMIT = 16;
   const DECK_PICKER_MODE_KEY = 'wlp:studyq:deck-picker-mode:v1';
   const STUDYQ_SESSION_SIZE_DEFAULT_KEY = 'wlp:studyq:session-size-default:v1';
   const TEMP_STUDY_SET_KEY = 'wlp:temporary-study-set:v1';
@@ -51,6 +53,7 @@
   let studyVoiceMicPrimed = false;
   const historyRatingEditGrace = new Set();
   const historyRatingNotice = new Map();
+  let recentSessionVisibleLimit = RECENT_SESSION_INITIAL_LIMIT;
 
   const clean = value => String(value ?? '').trim();
   const stripInvisible = value => String(value ?? '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\u00A0/g, ' ');
@@ -1497,7 +1500,21 @@
     closeDeckPicker();
   }
 
+  function renderReviewSourceSummary() {
+    const box = $('study-review-source-summary');
+    if (!box) return;
+    const counts = { high: 0, medium: 0, light: 0, unset: 0 };
+    reviewByWordId.forEach(record => {
+      const level = clean(record?.reviewLevel).toLowerCase();
+      if (level === 'high' || level === 'medium' || level === 'light') counts[level]++;
+      else counts.unset++;
+    });
+    const total = reviewByWordId.size;
+    box.textContent = `${total} Review ${total === 1 ? 'card' : 'cards'} · High ${counts.high} · Medium ${counts.medium} · Light ${counts.light} · Unset ${counts.unset}`;
+  }
+
   function updateEligibility() {
+    renderReviewSourceSummary();
     currentPool = experiencePoolFor();
     const entries = new Set(currentPool.map(item => item.wordId)).size;
     const experiences = currentPool.length;
@@ -1831,7 +1848,7 @@
     if (!record) return;
     const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
-    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`);
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved in Standard Practice history.`);
   }
 
   function persistCurrentSession({ status = 'completed', queue = sessionQueue, attempts = sessionAttempts, plannedCount = currentSessionPlannedCount || sessionQueue.length } = {}) {
@@ -1906,13 +1923,28 @@
     return parts.join(' · ');
   }
 
+  function sessionExperienceTargets(session) {
+    const experiences = Array.isArray(session?.experiences) ? session.experiences : [];
+    const seen = new Set();
+    return experiences.map(experience => {
+      const label = clean(experience?.cardHeadword || experience?.answerTarget);
+      const wordId = clean(experience?.wordId);
+      const key = `${wordId}|${label}`;
+      if (!label || seen.has(key)) return null;
+      seen.add(key);
+      return { label, wordId, batch: Number(experience?.batch) || 0 };
+    }).filter(Boolean);
+  }
+
   function renderRecentSessions() {
     const section = $('study-history');
     const list = $('study-history-list');
+    const more = $('study-history-more');
     if (!section || !list) return;
-    const sessions = historySessionsForRead().sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a)).slice(0, 5);
+    const allSessions = historySessionsForRead().sort((a, b) => sessionTimestampValue(b) - sessionTimestampValue(a));
+    const sessions = allSessions.slice(0, recentSessionVisibleLimit);
     list.replaceChildren();
-    section.hidden = !sessions.length;
+    section.hidden = !allSessions.length;
     sessions.forEach(session => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -1920,22 +1952,52 @@
       button.dataset.studyqSessionId = clean(session.sessionId);
       const top = document.createElement('span');
       top.className = 'study-history-item-top';
-      const source = document.createElement('strong');
-      source.textContent = clean(session.sourceLabel) || 'Study Q';
+      const title = document.createElement('strong');
       const when = document.createElement('time');
       when.textContent = formatSessionWhen(session.completedAt || session.endedAt || session.startedAt);
-      top.append(source, when);
-      const meta = document.createElement('small');
+
+      const experiences = Array.isArray(session?.experiences) ? session.experiences : [];
+      const count = Number(session.experienceCount) || experiences.length || 0;
+      const targets = sessionExperienceTargets(session);
+      const deckValues = Array.isArray(session?.decks) && session.decks.length ? session.decks : experiences.map(item => Number(item?.batch) || 0);
+      const decks = Array.from(new Set(deckValues.map(Number).filter(Boolean)));
+      const sourceLabelText = clean(session.sourceLabel) || 'Standard Practice';
+
+      if (count === 1 && targets[0]) title.textContent = targets[0].label;
+      else title.textContent = `${count} ${count === 1 ? 'experience' : 'experiences'} · ${decks.length} ${decks.length === 1 ? 'deck' : 'decks'}`;
+      top.append(title, when);
+
+      const context = document.createElement('small');
+      context.className = 'study-history-item-context';
+      if (count === 1 && targets[0]) {
+        const deckLabel = targets[0].batch ? `WLP${String(targets[0].batch).padStart(3, '0')}` : '';
+        const contextParts = [sourceLabelText];
+        if (deckLabel && deckLabel !== sourceLabelText) contextParts.push(deckLabel);
+        if (targets[0].wordId) contextParts.push(`WID${targets[0].wordId}`);
+        context.textContent = contextParts.filter(Boolean).join(' · ');
+      } else {
+        const preview = targets.slice(0, 3).map(item => item.label);
+        const remainder = Math.max(0, targets.length - preview.length);
+        context.textContent = `${sourceLabelText}${preview.length ? ` · Targets: ${preview.join(' · ')}${remainder ? ` · +${remainder} more` : ''}` : ''}`;
+      }
+
+      const summary = document.createElement('small');
+      summary.className = 'study-history-item-summary';
       const ratings = sessionRatingSummary(session.counts || {});
-      const count = Number(session.experienceCount) || session.experiences?.length || 0;
       const planned = Number(session.plannedExperienceCount) || count;
       const status = clean(session.status);
-      const statusText = status === 'ended-early' ? `Ended early · ${count}/${planned}` : status === 'incomplete' ? `Left early · ${count}/${planned}` : `${count} experiences`;
-      setNumericEmphasis(meta, `${statusText}${ratings ? ` · ${ratings}` : ''}`);
-      button.append(top, meta);
+      const statusText = status === 'ended-early' ? `Ended early · ${count}/${planned}` : status === 'incomplete' ? `Left early · ${count}/${planned}` : count === 1 ? '1 experience' : '';
+      setNumericEmphasis(summary, [statusText, ratings].filter(Boolean).join(' · ') || 'No self-check ratings');
+      button.append(top, context, summary);
       list.append(button);
     });
+    if (more) {
+      const canExpand = recentSessionVisibleLimit < RECENT_SESSION_EXPANDED_LIMIT && allSessions.length > recentSessionVisibleLimit;
+      more.hidden = !canExpand;
+      if (canExpand) more.textContent = `Show ${Math.min(RECENT_SESSION_EXPANDED_LIMIT - recentSessionVisibleLimit, allSessions.length - recentSessionVisibleLimit)} more`;
+    }
   }
+
 
   function itemFromSavedExperience(snapshot) {
     const wordId = clean(snapshot?.wordId);
@@ -1981,10 +2043,10 @@
     const savedCount = Number(record.experienceCount) || sessionQueue.length;
     const savedPlanned = Number(record.plannedExperienceCount) || savedCount;
     $('study-finished').querySelector('h2').textContent = savedStatus === 'completed' || !savedStatus ? 'You finished this set.' : 'Saved partial session.';
-    $('study-finished-copy').textContent = `Saved session · ${clean(record.sourceLabel) || 'Study Q'} · ${formatSessionWhen(record.completedAt || record.endedAt || record.startedAt)}${savedStatus && savedStatus !== 'completed' ? ` · ${savedCount}/${savedPlanned} experiences` : ''}.`;
+    $('study-finished-copy').textContent = `Saved session · ${clean(record.sourceLabel) || 'Standard Practice'} · ${formatSessionWhen(record.completedAt || record.endedAt || record.startedAt)}${savedStatus && savedStatus !== 'completed' ? ` · ${savedCount}/${savedPlanned} experiences` : ''}.`;
     const summary = sessionRatingSummary(record.counts || ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
-    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved on this device.`);
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved in Standard Practice history.`);
     renderFinishedDeckLinks();
     renderSessionReview();
     $('study-finished').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2428,8 +2490,8 @@
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     $('study-self-check-status').textContent = attempt?.selfRating
-      ? `Saved locally · self-check: ${ratingLabel(attempt.selfRating)}.`
-      : 'Not rated yet · activity is still saved locally.';
+      ? `Recorded · self-check: ${ratingLabel(attempt.selfRating)}.`
+      : 'Not rated yet · this attempt is still recorded.';
 
     $('study-open-card').dataset.wordId = item.wordId;
     $('study-next').textContent = sessionIndex === sessionQueue.length - 1 ? 'Finish Session' : 'Next Experience';
@@ -2775,7 +2837,7 @@
     const summary = sessionRatingSummary(counts);
     const record = persistCurrentSession({ status: 'completed' });
     $('study-finished-summary').hidden = false;
-    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved on this device.`);
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved in Standard Practice history.`);
     renderFinishedDeckLinks();
     renderSessionReview();
     renderRecentSessions();
@@ -2842,7 +2904,7 @@
     $('study-finished-copy').textContent = `You worked through ${sessionQueue.length} of ${planned} experiences from ${sourceLabel(lastSessionSpec?.mode || sourceMode)}.`;
     const summary = sessionRatingSummary(ratingCounts(sessionAttempts));
     $('study-finished-summary').hidden = false;
-    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Partial session saved on this device.`);
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Partial session saved on this browser.`);
     renderFinishedDeckLinks();
     renderSessionReview();
     renderRecentSessions();
@@ -2944,7 +3006,7 @@
         const micLine = studyVoiceMicPrimed
           ? 'Safari was able to access the microphone, but its speech-recognition service still did not start.'
           : 'Safari could not start voice input. This does not always mean the site microphone setting is wrong.';
-        help.innerHTML = `<strong>Voice input could not start in Safari.</strong><br>${micLine}${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br><br>Check Safari’s Page Menu → … → Website Settings → Microphone → Ask or Allow. Also check iPhone Settings → General → Keyboard → Enable Dictation.<br><br>If those are already enabled and it still fails, this can be Safari/WebKit speech-recognition behavior rather than your WLP setting. Chrome can be used for Study Q voice input for now.<br><button type="button">Dismiss</button>`;
+        help.innerHTML = `<strong>Voice input could not start in Safari.</strong><br>${micLine}${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br><br>Check Safari’s Page Menu → … → Website Settings → Microphone → Ask or Allow. Also check iPhone Settings → General → Keyboard → Enable Dictation.<br><br>If those are already enabled and it still fails, this can be Safari/WebKit speech-recognition behavior rather than your WLP setting. Chrome can be used for Practice voice input for now.<br><button type="button">Dismiss</button>`;
       } else if (STUDYQ_IS_IOS_CHROME) {
         help.innerHTML = `<strong>Voice input could not start in Chrome.</strong>${code ? ` <span class="study-voice-error-code">(${code})</span>` : ''}<br>Check the site microphone prompt/permission and iPhone Settings → Apps → Chrome → Microphone. Then try Speak answer again.<br><button type="button">Dismiss</button>`;
       } else {
@@ -3113,6 +3175,10 @@
     ['study-deck', 'study-range-start', 'study-range-end', 'study-session-size'].forEach(id => $(id).addEventListener('change', updateEligibility));
     ['study-deck', 'study-range-start', 'study-range-end'].forEach(id => $(id).addEventListener('input', updateEligibility));
     $('study-standard-remember-session-size')?.addEventListener('change', persistStandardSessionSizePreference);
+    $('study-history-more')?.addEventListener('click', () => {
+      recentSessionVisibleLimit = RECENT_SESSION_EXPANDED_LIMIT;
+      renderRecentSessions();
+    });
     $('study-start').addEventListener('click', startSession);
     $('study-show-need').addEventListener('click', () => {
       $('study-need-block').hidden = false;

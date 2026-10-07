@@ -987,7 +987,7 @@
       practice.className = 'drawer-item';
       practice.href = new URL('./study-hub.html', scriptUrl).href;
       if (location.pathname.endsWith('/study-hub.html') || location.pathname === '/study-hub.html') practice.classList.add('is-current');
-      practice.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice (Study Q)</span>';
+      practice.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice</span>';
     }
 
     let studyOptions = nav.querySelector('[data-study-options-launch]');
@@ -1024,7 +1024,13 @@
       try { return new URL(link.href, location.href).pathname.endsWith('/global-search.html'); }
       catch (_) { return false; }
     }) || makeLink('global-search.html', 'Search', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>');
-    const study = findLink('deck-browser.html') || makeLink('deck-browser.html', 'Study (Deck Browser)', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg>');
+    const study = findLink('deck-browser.html') || makeLink('deck-browser.html', 'Study', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg>');
+    const simpleDrawerLabel = (link, label) => {
+      const span = link?.querySelector(':scope > span:not(.drawer-item-copy)');
+      if (span) span.textContent = label;
+    };
+    simpleDrawerLabel(study, 'Study');
+    simpleDrawerLabel(practice, 'Practice');
     const review = findLink('review.html') || makeLink('review.html', 'Review', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg>');
     const progress = findLink('progress.html') || makeLink('progress.html', 'Progress', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg>');
     const drafts = findLink('drafts.html') || makeLink('drafts.html', 'Drafts', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>');

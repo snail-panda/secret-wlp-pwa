@@ -167,10 +167,10 @@
           </section>
 
           <section class="settings-panel" data-settings-panel="practice" hidden>
-            <header class="settings-panel-head"><span class="settings-eyebrow">Practice</span><h2>Standard &amp; AI defaults</h2><p>Practice keeps its fast controls in Study Hub. Settings gives you the wider view of the defaults that persist between sessions.</p><div class="settings-head-actions"><a class="settings-primary-link" href="./study-hub.html">Open Practice</a></div></header>
+            <header class="settings-panel-head"><span class="settings-eyebrow">Practice</span><h2>Standard &amp; AI defaults</h2><p>Practice keeps its fast controls on the Practice page. Settings gives you the wider view of the defaults that persist between sessions.</p><div class="settings-head-actions"><a class="settings-primary-link" href="./study-hub.html">Open Practice</a></div></header>
             <article class="settings-card">
               <div class="settings-card-head"><div><span class="settings-card-kicker">Practice Mode</span><h3>Default mode</h3></div><strong class="settings-inline-value" id="practice-mode-value">Standard Practice</strong></div>
-              <label class="settings-field-block"><span><strong>Practice mode</strong><small>Which mode Study Hub opens with</small></span><select id="settings-practice-mode"><option value="standard">Standard Practice</option><option value="ai">AI Practice</option></select></label>
+              <label class="settings-field-block"><span><strong>Practice mode</strong><small>Which mode Practice opens with</small></span><select id="settings-practice-mode"><option value="standard">Standard Practice</option><option value="ai">AI Practice</option></select></label>
             </article>
             <div class="settings-two-column settings-practice-grid">
               <article class="settings-card settings-practice-card settings-practice-card-standard">
@@ -235,9 +235,9 @@
     <nav class="drawer-nav">
       <a class="drawer-item" href="./index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H5v-9"/><path d="M9 20v-6h6v6"/></svg><span>Home</span></a>
       <a class="drawer-item" href="./global-search.html?return=links.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></a>
-      <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study (Deck Browser)</span></a>
+      <a class="drawer-item" href="./deck-browser.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7v12c-2.1-1.9-4.8-2.5-8-1.7v-12ZM20 5.5c-3.2-.8-5.9-.2-8 1.7v12c2.1-1.9 4.8-2.5 8-1.7v-12Z"/></svg><span>Study</span></a>
       <button class="drawer-item drawer-study-options" type="button" data-study-options-launch><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5M13 7h7M9 5v4M4 12h10M18 12h2M14 10v4M4 17h3M11 17h9M7 15v4"/></svg><span>Study Options</span></button>
-      <a class="drawer-item" href="./study-hub.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice (Study Q)</span></a>
+      <a class="drawer-item" href="./study-hub.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/></svg><span>Practice</span></a>
       <a class="drawer-item" href="./review.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 11a7.5 7.5 0 1 0 2.2-5.3L4 8.4"/><path d="M4 4v4.4h4.4"/></svg><span>Review</span></a>
       <a class="drawer-item" href="./progress.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-8M20 20V8"/></svg><span>Progress</span></a>
       <a class="drawer-item" href="./drafts.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg><span class="drawer-item-copy"><span class="drawer-item-title">Drafts</span><small>Study your new local cards</small></span></a>
@@ -271,8 +271,8 @@
   <div class="support-hidden-home-hooks" aria-hidden="true"><div id="continue-card" hidden><span id="continue-title"></span><a id="continue-link" href="#"></a></div><div id="recent-home-list"></div></div>
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden></div>
   <script src="./stage7-home.js?v=20260917-s7-shell-v1865"></script>
-  <script src="./study-options.js?v=20260919-s7-options-v18624-r12"></script>
-  <script src="./settings.js?v=20260924-s7-settings-v186116"></script>
+  <script src="./study-options.js?v=20261006-s7-post-freeze-naming-v186376"></script>
+  <script src="./settings.js?v=20261006-s7-post-freeze-copy-v186376"></script>
   <script src="./pwa-register.js?v=20260918-s7-nav-v32-baseline-v18638"></script>
 </body>
 </html>

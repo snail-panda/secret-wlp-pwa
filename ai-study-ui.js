@@ -1019,7 +1019,7 @@
     const data = window.WLPAIStudyData;
     const contract = window.WLPAIStudyContract;
     const transport = window.WLPAIStudyTransport;
-    if (!data || !contract || !transport) throw new Error('AI Study layers are not fully loaded. Reload Study Hub and try again.');
+    if (!data || !contract || !transport) throw new Error('AI Study layers are not fully loaded. Reload Practice and try again.');
     return { data, contract, transport };
   }
 
@@ -2310,7 +2310,7 @@
           <div class="wlp-ai-method-copy">
             <div class="wlp-ai-method-status"><span>Provider-agnostic</span><span class="wlp-ai-provider-pill" id="wlp-ai-provider-pill">Checking connection…</span></div>
             <strong>Experience → Response → Learning Route</strong>
-            <p>Existing Review, Study Q, Learning Layer, route evidence, and learner-generated neighbors can guide the next experience. Natural alternatives are evidence, not automatic mistakes.</p>
+            <p>Existing Review, Standard Practice, Learning Layer, route evidence, and learner-generated neighbors can guide the next experience. Natural alternatives are evidence, not automatic mistakes.</p>
           </div>
         </article>
         <div class="wlp-ai-mode-warning" id="wlp-ai-mode-warning" hidden></div>
@@ -2887,7 +2887,7 @@
     }
     warning.hidden = false;
     warning.textContent = '';
-    const text = document.createTextNode('AI transport is currently in local Mock mode. The general Study Hub needs Real mode for arbitrary WLP cards.');
+    const text = document.createTextNode('AI transport is currently in local Mock mode. The Practice page needs Real mode for arbitrary WLP cards.');
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = 'Use Real AI';

@@ -125,12 +125,12 @@
   "Interaction": "操作",
   "Swipe to change cards": "スワイプでカード移動",
   "Horizontal swipes move between Study cards": "横スワイプでStudy Cardを移動",
-  "Practice keeps its fast controls in Study Hub. Settings gives you the wider view of the defaults that persist between sessions.": "Practiceの素早い操作はStudy Hubに残し、Settingsではセッション間で保持される既定値を全体的に確認できます。",
+  "Practice keeps its fast controls on the Practice page. Settings gives you the wider view of the defaults that persist between sessions.": "Practiceの素早い操作はPracticeページに残し、Settingsではセッション間で保持される既定値を全体的に確認できます。",
   "Open Practice": "Practiceを開く",
   "Practice Mode": "Practiceモード",
   "Default mode": "既定モード",
   "Practice mode": "Practiceモード",
-  "Which mode Study Hub opens with": "Study Hubを開いたときのモード",
+  "Which mode Practice opens with": "Practiceを開いたときのモード",
   "Standard Practice": "Standard Practice",
   "AI Practice": "AI Practice",
   "Non-AI practice with your own self-rating after each experience.": "AIを使わず、各experience後に自分で評価するPracticeです。",
@@ -391,7 +391,7 @@
     });
 
     const practiceGuidance = [
-      ['Default mode', 'Study Hubを開いたときに最初に使うPracticeモードです。'],
+      ['Default mode', 'Practiceを開いたときに最初に使うモードです。'],
       ['Standard Practice', 'AIを使わず、各experienceの結果を自分で評価するPracticeです。'],
       ['AI Practice', 'AIがexperienceを生成し、セッション数やHint数の既定値を使うPracticeです。']
     ];
