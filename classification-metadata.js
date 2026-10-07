@@ -1,4 +1,4 @@
-/* WLP Stage 7 v1.8.6.169 — compact Classification storage + safe snapshot import. */
+/* WLP Stage 7 v1.8.6.382 — compact Classification storage + Canonical-aware change events. */
 (() => {
   'use strict';
 
@@ -74,10 +74,10 @@
     }
   }
 
-  function writeState(state) {
+  function writeState(state, detail = {}) {
     const records = state?.records && typeof state.records === 'object' ? state.records : {};
     localStorage.setItem(STORAGE_KEY, JSON.stringify({version: VERSION, records}));
-    window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, {detail:{source:String(detail?.source || 'local'), changedKeys:Array.isArray(detail?.changedKeys) ? detail.changedKeys.map(String) : []}}));
   }
 
   function hasClassification(record) {
@@ -121,7 +121,7 @@
     }
     if (!hasClassification(next)) delete state.records[cleanKey];
     else state.records[cleanKey] = next;
-    writeState(state);
+    writeState(state, {source:'local-save', changedKeys:[cleanKey]});
     return next;
   }
 
@@ -129,7 +129,7 @@
     const state = readState();
     if (!Object.prototype.hasOwnProperty.call(state.records, key)) return false;
     delete state.records[key];
-    writeState(state);
+    writeState(state, {source:'local-remove', changedKeys:[key]});
     return true;
   }
 
@@ -256,7 +256,8 @@
       else if (item.kind === 'unknown') result.unknown++;
     });
 
-    writeState(next);
+    const changedKeys = plan.items.filter(item => item && item.key && (item.kind === 'new' || item.kind === 'incomingNewer' || (item.kind === 'conflict' && resolutions[item.key] === 'incoming'))).map(item => item.key);
+    writeState(next, {source:'portable-merge', changedKeys});
     return result;
   }
 
@@ -271,7 +272,7 @@
     try {
       const parsed = JSON.parse(localStorage.getItem(ROLLBACK_KEY) || 'null');
       if (!parsed?.state?.records || typeof parsed.state.records !== 'object') return false;
-      writeState(parsed.state);
+      writeState(parsed.state, {source:'portable-undo', changedKeys:Object.keys(parsed.state.records || {})});
       localStorage.removeItem(ROLLBACK_KEY);
       return true;
     } catch { return false; }
