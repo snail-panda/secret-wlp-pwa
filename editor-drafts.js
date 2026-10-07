@@ -102,7 +102,7 @@
       const date=formatDate(d.updatedAt||d.createdAt);
       const meta=[`Draft ${String(i+1).padStart(3,'0')}`,pos,date?`Updated ${date}`:''].filter(Boolean).join(' · ');
       const detail=String(d.Definition||d['Example Sentence']||d['Note(s)']||'No definition yet.').trim();
-      return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}&return=${encodeURIComponent('editor-drafts.html')}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}">Delete</button></div></article>`;
+      return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}&return=${encodeURIComponent('editor-drafts.html')}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}" disabled aria-disabled="true" title="Account Draft delete sync is enabled in the next stage.">Delete</button></div></article>`;
     }).join('');
     list.querySelectorAll('[data-delete-draft]').forEach(btn=>btn.addEventListener('click',async()=>{
       if(!isAdmin()) return;
@@ -138,7 +138,10 @@
       const fd=new FormData(form); const word=String(fd.get('Word')||'').trim(); if(!word){ $('draft-edit-word')?.focus(); return; }
       const next={...latest[at],updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{ next[field]=String(fd.get(field)||'').trim(); }); latest[at]=next; writeDrafts(latest);
       if (window.WLPLearningHooks) window.WLPLearningHooks.saveForDraft(id, window.WLPLearningHooks.fromForm(form));
-      const success=$('draft-edit-success'); if(success) success.hidden=false; if(study) study.href=studyHref(latest,at); syncEditNavigation(latest,at);
+      const success=$('draft-edit-success'), copy=$('draft-edit-success-copy');
+      if(copy) copy.textContent='Draft changes saved locally · syncing to your WLP account…';
+      if(success) success.hidden=false; if(study) study.href=studyHref(latest,at); syncEditNavigation(latest,at);
+      window.dispatchEvent(new CustomEvent('wlp-draft-core-changed',{detail:{kind:'edit',localId:id}}));
     });
     $('draft-edit-delete')?.addEventListener('click',async()=>{
       if(!isAdmin()) return; const latest=readDrafts(); const current=latest.find(d=>String(d.localId||'')===id); if(!current) return;

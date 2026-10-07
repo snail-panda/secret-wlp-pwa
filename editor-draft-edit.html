@@ -65,14 +65,14 @@
         <div>
           <span class="section-kicker">Editor · Draft</span>
           <h1>Edit Draft</h1>
-          <p>Update this browser-local card. Its Draft ID and original creation date stay the same.</p>
+          <p>Update this account-owned Draft. Its Draft ID and original creation date stay the same.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
       </section>
 
       <section class="editor-note" aria-label="Draft edit note">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 1-4 9.7-9.7a1.8 1.8 0 0 1 2.6 0l1.4 1.4a1.8 1.8 0 0 1 0 2.6L10 18l-5 1Z"/><path d="m14.5 5.5 4 4"/></svg>
-        <div><strong>Browser-local Draft</strong><span>Saving here never modifies the canonical Master TSV.</span></div>
+        <div><strong>WLP account Draft</strong><span>Saving updates your account Draft; the official Master TSV is not modified.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
@@ -93,7 +93,7 @@
           <section class="new-card-panel new-card-primary-panel">
             <div class="new-card-section-head">
               <div><span class="editor-tool-kicker">Draft</span><h2>Word</h2></div>
-              <span class="new-card-draft-badge" id="draft-edit-badge">Local Draft</span>
+              <span class="new-card-draft-badge" id="draft-edit-badge">Account Draft</span>
             </div>
             <label class="new-card-field new-card-word-field"><span>Word <b aria-hidden="true">*</b></span><input name="Word" id="draft-edit-word" type="text" required autocomplete="off"></label>
             <div class="new-card-grid two-col">
@@ -161,11 +161,11 @@
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Usage</span><h2>Examples &amp; Connections</h2></div></div><label class="new-card-field"><span>Synonym(s)</span><textarea name="Synonym(s)" rows="2"></textarea></label><label class="new-card-field"><span>Example Sentence</span><textarea name="Example Sentence" rows="4"></textarea></label><label class="new-card-field"><span>Note(s)</span><textarea name="Note(s)" rows="4"></textarea></label></section>
           <section class="new-card-panel"><div class="new-card-section-head"><div><span class="editor-tool-kicker">Optional</span><h2>Metadata</h2></div></div><div class="new-card-grid two-col"><label class="new-card-field"><span>Category</span><input name="Category" type="text" autocomplete="off"></label><label class="new-card-field"><span>Source</span><input name="Source" type="text" autocomplete="off"></label></div></section>
           <div class="new-card-save-bar draft-edit-save-bar">
-            <button type="button" class="draft-edit-delete" id="draft-edit-delete">Delete Draft</button>
+            <button type="button" class="draft-edit-delete" id="draft-edit-delete" disabled aria-disabled="true" title="Account Draft delete sync is enabled in the next stage.">Delete Draft</button>
             <div class="new-card-actions"><a class="draft-edit-cancel" id="draft-edit-cancel" href="./editor-drafts.html">Cancel</a><button type="submit" class="new-card-primary">Save Changes</button></div>
           </div>
         </form>
-        <section class="new-card-success" id="draft-edit-success" hidden aria-live="polite"><div><strong>Changes saved</strong><span>The updated Draft is already available in Drafts and Global Search.</span></div><div class="new-card-success-actions"><a id="draft-edit-success-primary" href="./editor-drafts.html">Back to Manage Drafts</a><a id="draft-edit-success-secondary" href="./drafts.html">Study Draft</a><a id="draft-edit-home" href="./index.html">Home</a><a class="backup-restore-link" href="./editor-backup.html">Backup &amp; Restore</a></div></section>
+        <section class="new-card-success" id="draft-edit-success" hidden aria-live="polite"><div><strong>Changes saved</strong><span id="draft-edit-success-copy">Draft changes saved locally · syncing to your WLP account…</span></div><div class="new-card-success-actions"><a id="draft-edit-success-primary" href="./editor-drafts.html">Back to Manage Drafts</a><a id="draft-edit-success-secondary" href="./drafts.html">Study Draft</a><a id="draft-edit-home" href="./index.html">Home</a><a class="backup-restore-link" href="./editor-backup.html">Backup &amp; Restore</a></div></section>
         <datalist id="wlp-entry-type-options">
           <option value="word"></option><option value="phrase"></option><option value="idiom"></option><option value="phrasal verb"></option>
           <option value="collocation"></option><option value="construction"></option><option value="conversational frame"></option>
@@ -239,9 +239,10 @@
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./learning-hooks.js?v=20260918-s7-language-architecture-v18640"></script>
-  <script src="./canonical-auto-sync-canary.js?v=20261007-v390-draft-create"></script>
+  <script src="./canonical-auto-sync-canary.js?v=20261007-v391-draft-edit"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-drafts.js?v=20261007-v390-draft-create"></script>
+  <script src="./canonical-draft-write.js?v=20261007-v391-draft-edit"></script>
+  <script src="./editor-drafts.js?v=20261007-v391-draft-edit"></script>
   <script src="./reference-assist.js?v=20260918-s7-google-action"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
