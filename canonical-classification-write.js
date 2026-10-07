@@ -12,7 +12,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.384-classification-create-portable-queue-v1';
+  const APP_VERSION='1.8.6.386-classification-bootstrap-preflight-backlog-guard-v1';
   const PENDING_KEY='WLP Canonical Classification Pending V1';
   const DB_NAME='wlp-cloud-v1',DB_VERSION=1;
   const META_STORE='sync_meta',OUTBOX_STORE='sync_outbox',CARD_STORE='cards',CONTENT_STORE='card_content',CLASS_STORE='card_classification',META_KEY='authority_mirror';
@@ -140,8 +140,9 @@
         if((!card||clean(card?.payload?.word_id)!==wid)&&!state.preflightWords.has(wid)&&window.WLPCanonicalForegroundSync?.runSync){
           state.preflightWords.add(wid);refreshProgress(`Checking Cloud for WID${wid} card identity…`);
           const pulled=await window.WLPCanonicalForegroundSync.runSync({trigger:'classification-card-identity-preflight',receiverOnly:true});
-          if(pulled===null){setTimeout(()=>{void drain();},320);return;}
+          if(pulled===null){state.preflightWords.delete(wid);setTimeout(()=>{void drain();},320);return;}
           card=await getRow(db,CARD_STORE,cardId);
+          if((!card||clean(card?.payload?.word_id)!==wid)&&Number(pulled?.summary?.pendingRemoteChangeRows||0)>0){state.preflightWords.delete(wid);refreshProgress(`Catching up Cloud before WID${wid} card bootstrap · ${Number(pulled.summary.pendingRemoteChangeRows||0)} later remote change row(s) pending.`);setTimeout(()=>{void drain();},320);return;}
         }
         if(!card||clean(card?.payload?.word_id)!==wid){
           const bootstrap=await buildOfficialCardBootstrap(db,meta,wid,cardId);await addOutboxMany(db,bootstrap.mutations);state.bootstrap={...bootstrap,key};

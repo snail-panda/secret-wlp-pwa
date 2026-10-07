@@ -20,7 +20,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.385-canonical-foreground-sync-classification-create-v1';
+  const APP_VERSION='1.8.6.386-canonical-receiver-backlog-drain-v1';
   const REPORT_FORMAT='WLP_CANONICAL_FOREGROUND_SYNC',REPORT_VERSION=1,REPORT_MODE='foreground-sync-classification';
   const RECEIVER_FLAG='wlpAutoSyncReceiverCanary';
   const RECEIVER_DISABLE_FLAG='wlpAutoSyncReceiver';
@@ -69,7 +69,7 @@
     const box=document.createElement('section');
     box.id='wlp-auto-sync-canary-box';box.setAttribute('aria-live','polite');
     box.style.cssText='position:fixed;z-index:100001;left:8px;top:max(8px,env(safe-area-inset-top));width:min(390px,calc(100vw - 16px));max-height:46vh;overflow:auto;background:#fff;border:1px solid rgba(31,55,39,.24);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c2d22';
-    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v347</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
+    box.innerHTML='<strong style="display:block;font-size:13px">Canonical Foreground Sync · v386</strong><div id="wlp-auto-sync-canary-status" style="margin-top:4px">Waiting…</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="wlp-auto-sync-canary-export" type="button" disabled>Export JSON</button></div><div id="wlp-auto-sync-canary-detail" style="margin-top:7px;font-size:12px;opacity:.82"></div>';
     document.body.appendChild(box);state.panel=box;state.status=box.querySelector('#wlp-auto-sync-canary-status');state.detail=box.querySelector('#wlp-auto-sync-canary-detail');state.exportButton=box.querySelector('#wlp-auto-sync-canary-export');
     state.exportButton.style.cssText='font:inherit;padding:6px 8px;border:1px solid #aeb9b1;border-radius:8px;background:#f7faf7;color:#1c2d22;';state.exportButton.addEventListener('click',exportReport);updateExportButton();
   }
@@ -424,7 +424,9 @@
       if(role==='source'&&outboxAfter>0&&recoveryPlan?.recoverable){state.pendingReceiverRun={trigger:'pending-outbox-recovery-continue',receiverOnly:true};setStatus(`PASS · ${targetLabel} recovered; continuing pending outbox recovery.`,true,`outbox ${outboxBefore} → ${outboxAfter} · action ${actionId} committed · next supported pending action will retry automatically.`);}
       else if(completedBatch&&completedBatch.totalActions>1){setStatus('PASS · Pending outbox recovery batch completed.',true,`outbox ${completedBatch.initialOutbox} → 0 · ${completedBatch.completed.length}/${completedBatch.totalActions} action(s) recovered · last cursor ${verified.seqMax}.`);}
       else{setStatus(role==='source'?`PASS · ${targetLabel} ${recoveredPendingOutbox?'recovered from pending outbox':'auto-pushed'} at cursor ${verified.seqMax}.`:`PASS · ${targetLabel} auto-pulled at cursor ${verified.seqMax}.`,true,`outbox ${outboxBefore} → ${outboxAfter} · ${changes.length} change(s) · ${retry.length-sameActionRetry.length} later remote row(s) pending · manual Cloud Shadow remains available.`);}
-      window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:true,role,actionId,wordId:verified.wordId,sessionId:verified.sessionId||'',eventType:verified.eventType,changeShape:verified.changeShape,actionSource:verified.actionSource,metadataRowKey:verified.metadataRowKey||'',situationRowKey:verified.situationRowKey||'',alternativeRowKey:verified.alternativeRowKey||'',linkRowKeys:verified.linkRowKeys||[],cursorAfter:verified.seqMax,outboxAfter,recoveryBatchCompleted:Boolean(completedBatch)}}));window.dispatchEvent(new CustomEvent('wlp-canonical-review-candidate-refresh'));return clone(state.report);
+      const pendingRemoteRows=Math.max(0,retry.length-sameActionRetry.length);
+      if(role==='receiver'&&pendingRemoteRows>0)state.pendingReceiverRun={trigger:'receiver-backlog-continue',receiverOnly:true};
+      window.dispatchEvent(new CustomEvent('wlp-canonical-auto-sync-complete',{detail:{pass:true,role,actionId,wordId:verified.wordId,sessionId:verified.sessionId||'',eventType:verified.eventType,changeShape:verified.changeShape,actionSource:verified.actionSource,metadataRowKey:verified.metadataRowKey||'',situationRowKey:verified.situationRowKey||'',alternativeRowKey:verified.alternativeRowKey||'',linkRowKeys:verified.linkRowKeys||[],cursorAfter:verified.seqMax,outboxAfter,pendingRemoteChangeRows:pendingRemoteRows,recoveryBatchCompleted:Boolean(completedBatch)}}));window.dispatchEvent(new CustomEvent('wlp-canonical-review-candidate-refresh'));return clone(state.report);
     }catch(error){
       const message=error?.message||String(error);
       if(effectiveReceiverOnly&&isTransientReceiverNetworkError(error)){
