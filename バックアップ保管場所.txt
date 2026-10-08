@@ -1,0 +1,1 @@
+local (static), canonical統合付近stage7のバックアップはdocument-WLP-stage7-backupにある
