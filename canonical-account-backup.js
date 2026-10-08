@@ -1,16 +1,20 @@
-/* WLP v1.8.6.402 — Canonical Safety Archive export + proven Restore execution layer.
-   Adds a read-only external ZIP archive containing the effective account snapshot,
-   ACTIVE Authority base, raw sync history, mutation/ACK/conflict ledgers, and restore audit.
-   Restore behavior remains the proven v400/v401 path; no restore semantics change here. */
+/* WLP v1.8.6.403 — Server-verified external Account Backup Restore execution.
+   Keeps the proven Cloud Restore Point execution path and adds a confirmed external
+   WLP_CANONICAL_ACCOUNT_BACKUP v1 path using isolated staged rows, server-side hash/manifest
+   verification, the shared account writer lock, append-only restoring actions, and post-checks. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.402-canonical-safety-archive-v1';
+  const APP_VERSION='1.8.6.403-external-backup-restore-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
   const RESTORE_RPC='wlp_create_account_restore_point_v1';
   const EXECUTE_RESTORE_RPC='wlp_execute_account_restore_point_v1';
+  const BEGIN_BACKUP_RESTORE_RPC='wlp_begin_account_backup_restore_v1';
+  const UPLOAD_BACKUP_RESTORE_RPC='wlp_upload_account_backup_restore_chunk_v1';
+  const FINALIZE_BACKUP_RESTORE_RPC='wlp_finalize_account_backup_restore_v1';
+  const EXECUTE_BACKUP_RESTORE_RPC='wlp_execute_account_backup_restore_v1';
   const AUTHORITY_HEAD='wlp_canonical_authority_heads';
   const AUTHORITY_RECORDS='wlp_canonical_authority_candidate_records';
   const CHANGE_TABLE='wlp_sync_changes_v1';
@@ -21,7 +25,7 @@
   const RESTORE_RUN_TABLE='wlp_account_restore_runs_v1';
   const $=id=>document.getElementById(id);
   const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
-  const state={restorePoints:[],preview:null,executing:false};
+  const state={restorePoints:[],preview:null,executing:false,backupTarget:null};
 
   function stableValue(value){
     if(Array.isArray(value))return value.map(stableValue);
@@ -329,29 +333,29 @@
 
   function compareEffectiveStates(current,target){
     const keys=new Set([...current.map.keys(),...target.map.keys()]);
-    const changes=[],byTable={};let unchanged=0,historyOnlyExtra=0;
+    const changes=[],auditOnly=[],byTable={};let unchanged=0,historyOnlyExtra=0;
     function bucket(table){return byTable[table]||(byTable[table]={create:0,update:0,resurrect:0,tombstone:0,unchanged:0,historyOnlyExtra:0,totalActions:0});}
     for(const key of keys){
       const cur=current.map.get(key)||null,tgt=target.map.get(key)||null,table=tgt?.tableName||cur?.tableName||'unknown',rowKey=tgt?.rowKey||cur?.rowKey||'',b=bucket(table);
       if(!cur&&tgt){
         const kind=tgt.tombstone?'history-only-target-tombstone':'create';
-        if(kind==='create'){b.create+=1;b.totalActions+=1;changes.push({kind,tableName:table,rowKey,current:null,target:tgt});}else{b.historyOnlyExtra+=1;historyOnlyExtra+=1;}
+        if(kind==='create'){b.create+=1;b.totalActions+=1;changes.push({kind,tableName:table,rowKey,current:null,target:tgt});}else{b.historyOnlyExtra+=1;historyOnlyExtra+=1;auditOnly.push({kind,tableName:table,rowKey,current:null,target:tgt});}
         continue;
       }
       if(cur&&!tgt){
-        if(cur.tombstone){b.historyOnlyExtra+=1;historyOnlyExtra+=1;}else{b.tombstone+=1;b.totalActions+=1;changes.push({kind:'tombstone',tableName:table,rowKey,current:cur,target:null});}
+        if(cur.tombstone){b.historyOnlyExtra+=1;historyOnlyExtra+=1;auditOnly.push({kind:'history-only-current-tombstone',tableName:table,rowKey,current:cur,target:null});}else{b.tombstone+=1;b.totalActions+=1;changes.push({kind:'tombstone',tableName:table,rowKey,current:cur,target:null});}
         continue;
       }
       const exact=Boolean(cur&&tgt&&cur.tombstone===tgt.tombstone&&String(cur.payloadHash||'')===String(tgt.payloadHash||''));
       if(exact){unchanged+=1;b.unchanged+=1;continue;}
       if(cur.tombstone&&!tgt.tombstone){b.resurrect+=1;b.totalActions+=1;changes.push({kind:'resurrect',tableName:table,rowKey,current:cur,target:tgt});continue;}
       if(!cur.tombstone&&tgt.tombstone){b.tombstone+=1;b.totalActions+=1;changes.push({kind:'tombstone',tableName:table,rowKey,current:cur,target:tgt});continue;}
-      if(cur.tombstone&&tgt.tombstone){b.historyOnlyExtra+=1;historyOnlyExtra+=1;continue;}
+      if(cur.tombstone&&tgt.tombstone){b.historyOnlyExtra+=1;historyOnlyExtra+=1;auditOnly.push({kind:'history-only-tombstone-difference',tableName:table,rowKey,current:cur,target:tgt});continue;}
       b.update+=1;b.totalActions+=1;changes.push({kind:'update',tableName:table,rowKey,current:cur,target:tgt});
     }
     const totals=Object.values(byTable).reduce((acc,b)=>{acc.create+=b.create;acc.update+=b.update;acc.resurrect+=b.resurrect;acc.tombstone+=b.tombstone;acc.totalActions+=b.totalActions;return acc;},{create:0,update:0,resurrect:0,tombstone:0,totalActions:0});
     changes.sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
-    return{changes,byTable,unchanged,historyOnlyExtra,...totals};
+    return{changes,auditOnly,byTable,unchanged,historyOnlyExtra,...totals};
   }
 
   async function restorePlanHash(diff){
@@ -362,24 +366,52 @@
     })).sort((a,b)=>a.tableName<b.tableName?-1:a.tableName>b.tableName?1:a.rowKey<b.rowKey?-1:a.rowKey>b.rowKey?1:0);
     return sha256(stableStringify(rows));
   }
-  function confirmationPhrase(report){return report?.restorePointId?`RESTORE ${String(report.restorePointId).slice(0,8)}`:'';}
+  async function postRestoreManifestHash(current,diff){
+    const map=new Map();
+    for(const [key,row] of current.map.entries())map.set(key,clone(row));
+    for(const item of diff?.changes||[]){
+      const key=identity(item.tableName,item.rowKey);
+      if(item.target){map.set(key,clone(item.target));continue;}
+      if(!item.current)throw new Error(`Restore plan cannot materialize ${item.tableName}/${item.rowKey}.`);
+      map.set(key,{...clone(item.current),tombstone:true});
+    }
+    const rows=[...map.values()].sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
+    return sha256(stableStringify(rows.map(row=>({tableName:row.tableName,rowKey:row.rowKey,payloadHash:row.payloadHash,tombstone:Boolean(row.tombstone)}))));
+  }
+  function isCloudPreview(report){return Boolean(report&&report.targetSource==='Cloud Restore Point'&&report.restorePointId);}
+  function isBackupPreview(report){return Boolean(report&&report.targetSource==='Canonical Account Backup JSON'&&report.backupValidated&&state.backupTarget);}
+  function confirmationPhrase(report){
+    if(isCloudPreview(report))return `RESTORE ${String(report.restorePointId).slice(0,8)}`;
+    if(isBackupPreview(report))return `RESTORE BACKUP ${String(report.targetManifestHash||'').slice(0,8)}`;
+    return'';
+  }
   function updateExecutionButton(){
     const button=$('canonical-restore-execute-button'),input=$('canonical-restore-confirm-input');if(!button)return;
-    const report=state.preview,phrase=confirmationPhrase(report),eligible=Boolean(report&&report.targetSource==='Cloud Restore Point'&&report.restorePointId);
+    const report=state.preview,phrase=confirmationPhrase(report),eligible=isCloudPreview(report)||isBackupPreview(report);
     button.disabled=state.executing||!eligible||!input||String(input.value||'')!==phrase;
   }
   function renderExecutionGate(report){
     const box=$('canonical-restore-execute');if(!box)return;
-    const eligible=Boolean(report&&report.targetSource==='Cloud Restore Point'&&report.restorePointId);
+    const cloud=isCloudPreview(report),backup=isBackupPreview(report),eligible=cloud||backup;
     box.hidden=!eligible;
     if(!eligible){const input=$('canonical-restore-confirm-input');if(input)input.value='';updateExecutionButton();return;}
     const phrase=confirmationPhrase(report),count=Number(report.diff?.totalActions||0);
     $('canonical-restore-confirm-phrase').textContent=phrase;
-    $('canonical-restore-execute-copy').textContent=count===0
-      ? 'This preview is already an exact match. Confirming now exercises the locked server execution gate as a true NOOP: zero Canonical restore changes, with only a durable restore-run audit marker.'
-      : `${count.toLocaleString()} restoring action(s) are locked by this Preview. Execution will append new Canonical restore changes; it will not delete historical rows or rewrite the Authority snapshot.`;
+    const kicker=$('canonical-restore-execute-kicker'),title=$('canonical-restore-execute-title'),button=$('canonical-restore-execute-button');
+    if(kicker)kicker.textContent=cloud?'Confirmed Cloud Restore':'Confirmed External Backup Restore';
+    if(title)title.textContent=cloud?'Execute this frozen Restore Point plan':'Execute this validated Backup JSON plan';
+    if(button)button.textContent=cloud?'Confirm Cloud Restore':'Confirm External Backup Restore';
+    $('canonical-restore-execute-copy').textContent=cloud
+      ? (count===0
+        ? 'This preview is already an exact match. Confirming now exercises the locked server execution gate as a true NOOP: zero Canonical restore changes, with only a durable restore-run audit marker.'
+        : `${count.toLocaleString()} restoring action(s) are locked by this Preview. Execution will append new Canonical restore changes; it will not delete historical rows or rewrite the Authority snapshot.`)
+      : (count===0
+        ? 'This validated external backup already matches the effective account state. Confirming will stage and server-verify the complete backup, then exercise the locked execution gate as a NOOP: zero Canonical restore changes plus a durable restore-run audit marker.'
+        : `${count.toLocaleString()} restoring action(s) are locked by this Preview. Confirming first stages and server-verifies the complete external backup, then appends only the required restoring changes under the account writer lock.`);
     const input=$('canonical-restore-confirm-input');if(input)input.value='';
-    const result=$('canonical-restore-execute-result');if(result)result.textContent='Preview is frozen until the Canonical cursor or plan changes. Any drift blocks execution.';
+    const result=$('canonical-restore-execute-result');if(result)result.textContent=cloud
+      ? 'Preview is frozen until the Canonical cursor or plan changes. Any drift blocks execution.'
+      : 'The selected backup is validated locally. Confirmation will stage all backup records for independent server hash/manifest verification before any Canonical restore write.';
     updateExecutionButton();
   }
 
@@ -391,7 +423,7 @@
   }
 
   function clearRestorePreview(){
-    state.preview=null;
+    state.preview=null;state.backupTarget=null;
     const section=$('canonical-restore-preview');if(section)section.hidden=true;
     const input=$('canonical-restore-file');if(input)input.value='';
     if($('canonical-restore-preview-tables'))$('canonical-restore-preview-tables').innerHTML='';
@@ -417,7 +449,7 @@
     $('canonical-restore-preview-history-only').textContent=String(report.diff.historyOnlyExtra);
     $('canonical-restore-preview-summary').textContent=report.diff.totalActions===0
       ? `No restoring actions are needed. Current Canonical effective state already matches this target. ${report.diff.historyOnlyExtra?`${report.diff.historyOnlyExtra} history-only tombstone row(s) are retained for audit continuity.`:''}`
-      : `${report.diff.totalActions.toLocaleString()} restoring action(s) would be needed to make the effective account state match this target. For a Cloud Restore Point, v400 can execute only after this exact Preview is confirmed and revalidated.`;
+      : `${report.diff.totalActions.toLocaleString()} restoring action(s) would be needed to make the effective account state match this target. Execution is available only after this exact Preview is confirmed and revalidated; external Backup JSON is additionally staged and server-verified before Canonical writes.`;
     const tables=Object.entries(report.diff.byTable).filter(([,b])=>b.totalActions||b.historyOnlyExtra).sort((a,b)=>a[0].localeCompare(b[0]));
     $('canonical-restore-preview-tables').innerHTML=tables.length?tables.map(([table,b])=>`<div class="canonical-preview-table-row"><strong>${escapeHtml(table)}</strong><span>${b.totalActions} action${b.totalActions===1?'':'s'}${b.create?` · +${b.create} create`:''}${b.update?` · ${b.update} update`:''}${b.resurrect?` · ${b.resurrect} resurrect`:''}${b.tombstone?` · ${b.tombstone} tombstone`:''}${b.historyOnlyExtra?` · ${b.historyOnlyExtra} audit-only`:''}</span></div>`).join(''):'<p class="canonical-preview-empty">No table changes.</p>';
     const samples=report.diff.changes.slice(0,40);
@@ -440,8 +472,8 @@
     const headCheck=await fetchHead(api),highWaterCheck=await fetchHighWater(api,headCheck);
     if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed during Restore Preview. Retry.');
     if(highWaterCheck!==currentHighWater)throw new Error(`Canonical change cursor advanced during Restore Preview (${currentHighWater} → ${highWaterCheck}). Retry.`);
-    const diff=compareEffectiveStates(current,target),planHash=await restorePlanHash(diff);
-    return{targetSource:'Cloud Restore Point',targetLabel:String(point.label||'Manual checkpoint'),restorePointId:String(point.restore_point_id||''),restorePointHash:String(point.restore_point_hash||''),targetCursor,currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,planHash,diff};
+    const diff=compareEffectiveStates(current,target),planHash=await restorePlanHash(diff),postManifestHash=await postRestoreManifestHash(current,diff);
+    return{targetSource:'Cloud Restore Point',targetLabel:String(point.label||'Manual checkpoint'),restorePointId:String(point.restore_point_id||''),restorePointHash:String(point.restore_point_hash||''),targetCursor,currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,postManifestHash,planHash,diff};
   }
 
   async function previewRestorePoint(restorePointId){
@@ -451,24 +483,66 @@
     return report;
   }
 
-  async function previewBackupFile(file){
-    if(!file)return;
-    const api=await cloudContext();
-    setStatus(`Reading ${file.name}…`,'working');
-    let backup;try{backup=JSON.parse(await file.text());}catch{throw new Error('Selected file is not valid JSON.');}
-    const target=await validateBackupFile(backup,api),head=await fetchHead(api);
+  async function computeBackupPreview(target,filename){
+    const api=await cloudContext(),backup=target.backup,head=await fetchHead(api);
     if(!headMatches(backup.authority,head))throw new Error('Restore Preview blocked: selected backup belongs to a different Authority Head.');
     if(Number(backup.authority?.canonicalRowCount||0)!==Number(head.canonical_row_count||0))throw new Error('Restore Preview blocked: selected backup Authority row count does not match the ACTIVE Authority.');
     const currentHighWater=await fetchHighWater(api,head),dataset=await fetchCanonicalDataset(api,head,currentHighWater),current=await materializeRecords(dataset.baseRows,dataset.changeRows,currentHighWater,'Current Canonical state');
     const headCheck=await fetchHead(api),highWaterCheck=await fetchHighWater(api,headCheck);
     if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed during Restore Preview. Retry.');
     if(highWaterCheck!==currentHighWater)throw new Error(`Canonical change cursor advanced during Restore Preview (${currentHighWater} → ${highWaterCheck}). Retry.`);
-    const diff=compareEffectiveStates(current,target),planHash=await restorePlanHash(diff);
-    renderRestorePreview({targetSource:'Canonical Account Backup JSON',targetLabel:file.name,targetCursor:Number(backup.highWaterChangeSeq||0),currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,planHash,diff});
-    setStatus(diff.totalActions?`Backup Restore Preview ready · ${diff.totalActions.toLocaleString()} restoring action(s) would be required · JSON execution remains disabled in v400.`:`Backup Restore Preview PASS · current state already matches the selected backup · JSON execution remains disabled in v400.`,'success');
+    const diff=compareEffectiveStates(current,target),planHash=await restorePlanHash(diff),postManifestHash=await postRestoreManifestHash(current,diff);
+    return{targetSource:'Canonical Account Backup JSON',targetLabel:filename,targetCursor:Number(backup.highWaterChangeSeq||0),currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,postManifestHash,planHash,diff,backupValidated:true};
   }
 
-  async function executeRestorePoint(){
+  async function previewBackupFile(file){
+    if(!file)return;
+    const api=await cloudContext();
+    setStatus(`Reading ${file.name}…`,'working');
+    let backup;try{backup=JSON.parse(await file.text());}catch{throw new Error('Selected file is not valid JSON.');}
+    const target=await validateBackupFile(backup,api);
+    state.backupTarget={target,filename:file.name};
+    const report=await computeBackupPreview(target,file.name);
+    renderRestorePreview(report);
+    setStatus(report.diff.totalActions?`Backup Restore Preview ready · ${report.diff.totalActions.toLocaleString()} restoring action(s) locked for confirmation · NO CANONICAL DATA WRITTEN.`:`Backup Restore Preview PASS · current effective state already matches the selected backup · confirmed server-verified NOOP execution is available.`,'success');
+    return report;
+  }
+
+  async function stageBackupTarget(api,target,filename,deviceKey,resultNode){
+    const backup=target.backup;
+    if(!target.records.every(row=>row.payload!=null))throw new Error('External Backup execution requires payload bytes for every record, including tombstones. Re-export the Canonical Account Backup with v398 or later.');
+    if(resultNode)resultNode.textContent=`Staging validated external backup for server verification · 0 / ${target.records.length.toLocaleString()} records…`;
+    const beginResponse=await api.rest(`rpc/${BEGIN_BACKUP_RESTORE_RPC}`,{method:'POST',body:{
+      p_device_key:deviceKey,
+      p_source_filename:String(filename||''),
+      p_source_format:String(backup.format||''),
+      p_source_version:Number(backup.version||0),
+      p_candidate_key:String(backup.authority?.candidateKey||''),
+      p_head_version:Number(backup.authority?.headVersion||0),
+      p_snapshot_manifest_hash:String(backup.authority?.snapshotManifestHash||''),
+      p_authority_row_count:Number(backup.authority?.canonicalRowCount||0),
+      p_source_high_water_change_seq:Number(backup.highWaterChangeSeq||0),
+      p_expected_record_count:Number(target.recordCount||0),
+      p_expected_active_count:Number(target.activeCount||0),
+      p_expected_tombstone_count:Number(target.tombstoneCount||0),
+      p_expected_manifest_hash:String(target.manifestHash||'')
+    }}),begin=Array.isArray(beginResponse.data)?beginResponse.data[0]:beginResponse.data;
+    const importId=String(begin?.restoreImportId||'');
+    if(!importId)throw new Error('External Backup staging RPC did not return an import ID.');
+    const chunkSize=200;
+    for(let offset=0;offset<target.records.length;offset+=chunkSize){
+      const rows=target.records.slice(offset,offset+chunkSize).map(row=>({tableName:row.tableName,rowKey:row.rowKey,payloadHash:row.payloadHash,payload:row.payload,tombstone:Boolean(row.tombstone)}));
+      const uploadResponse=await api.rest(`rpc/${UPLOAD_BACKUP_RESTORE_RPC}`,{method:'POST',body:{p_restore_import_id:importId,p_device_key:deviceKey,p_rows:rows}}),upload=Array.isArray(uploadResponse.data)?uploadResponse.data[0]:uploadResponse.data;
+      const uploaded=Number(upload?.uploadedRecordCount||Math.min(offset+rows.length,target.records.length));
+      if(resultNode)resultNode.textContent=`Staging validated external backup for server verification · ${uploaded.toLocaleString()} / ${target.records.length.toLocaleString()} records…`;
+    }
+    if(resultNode)resultNode.textContent='Finalizing server-side payload hashes, record counts, and complete target manifest…';
+    const finalizeResponse=await api.rest(`rpc/${FINALIZE_BACKUP_RESTORE_RPC}`,{method:'POST',body:{p_restore_import_id:importId,p_device_key:deviceKey}}),finalized=Array.isArray(finalizeResponse.data)?finalizeResponse.data[0]:finalizeResponse.data;
+    if(String(finalized?.status||'')!=='verified'||String(finalized?.manifestHash||'')!==String(target.manifestHash||''))throw new Error('External Backup server verification did not return the exact validated target manifest.');
+    return importId;
+  }
+
+  async function executeCloudRestorePoint(){
     const frozen=clone(state.preview);
     if(!frozen||frozen.targetSource!=='Cloud Restore Point'||!frozen.restorePointId)throw new Error('Run Preview on a Cloud Restore Point before execution.');
     const phrase=confirmationPhrase(frozen),input=String($('canonical-restore-confirm-input')?.value||'');
@@ -511,6 +585,60 @@
         setStatus(`Restore PASS · ${Number(server.appliedActionCount||0).toLocaleString()} restoring action(s) appended · browser receiver committed · post-restore Preview 0.`,'success');
       }
     }finally{state.executing=false;setBusy(false);updateExecutionButton();}
+  }
+
+
+  async function executeBackupRestore(){
+    const frozen=clone(state.preview),source=state.backupTarget;
+    if(!frozen||!isBackupPreview(frozen)||!source?.target)throw new Error('Choose and Preview a Canonical Account Backup JSON before execution.');
+    const phrase=confirmationPhrase(frozen),input=String($('canonical-restore-confirm-input')?.value||'');
+    if(input!==phrase)throw new Error(`Type the exact confirmation phrase: ${phrase}`);
+    state.executing=true;setBusy(true);
+    const resultNode=$('canonical-restore-execute-result');if(resultNode)resultNode.textContent='Revalidating the selected external backup against the current Canonical account…';
+    try{
+      const fresh=await computeBackupPreview(source.target,source.filename);
+      const same=Number(fresh.currentCursor)===Number(frozen.currentCursor)&&String(fresh.currentManifestHash||'')===String(frozen.currentManifestHash||'')&&String(fresh.targetManifestHash||'')===String(frozen.targetManifestHash||'')&&String(fresh.postManifestHash||'')===String(frozen.postManifestHash||'')&&Number(fresh.diff.totalActions||0)===Number(frozen.diff?.totalActions||0)&&String(fresh.planHash||'')===String(frozen.planHash||'');
+      if(!same)throw new Error('External Backup Restore blocked: Canonical state or restore plan changed after Preview. Run Preview again.');
+      const api=await cloudContext(),deviceKey=String(localStorage.getItem('wlp:device-id:v1')||'').trim();
+      if(!deviceKey)throw new Error("External Backup Restore requires this browser's registered WLP device key.");
+      const importId=await stageBackupTarget(api,source.target,source.filename,deviceKey,resultNode);
+      if(resultNode)resultNode.textContent='Backup snapshot independently verified by the server. Calling the locked append-only restore execution RPC…';
+      const response=await api.rest(`rpc/${EXECUTE_BACKUP_RESTORE_RPC}`,{method:'POST',body:{
+        p_restore_import_id:importId,
+        p_device_key:deviceKey,
+        p_expected_current_change_seq:Number(fresh.currentCursor),
+        p_expected_current_manifest_hash:String(fresh.currentManifestHash),
+        p_expected_target_manifest_hash:String(fresh.targetManifestHash),
+        p_expected_post_manifest_hash:String(fresh.postManifestHash),
+        p_expected_action_count:Number(fresh.diff.totalActions||0),
+        p_expected_plan_hash:String(fresh.planHash),
+        p_confirmation:phrase
+      }}),server=Array.isArray(response.data)?response.data[0]:response.data;
+      if(!server||!['noop','applied'].includes(String(server.status||'')))throw new Error(`External Backup Restore RPC returned unexpected status ${String(server?.status||'missing')}.`);
+      if(String(server.status)==='applied'){
+        if(Number(server.appliedActionCount||0)!==Number(fresh.diff.totalActions||0)||!server.actionId||!Number(server.lastChangeSeq||0))throw new Error('External Backup Restore applied result is incomplete.');
+        const sync=window.WLPCanonicalForegroundSync;if(!sync?.runSync)throw new Error('External Backup Restore was accepted by Cloud, but the local Canonical receiver is unavailable on this page. Do not execute again; reload this page so the receiver can be retried.');
+        if(resultNode)resultNode.textContent=`Cloud appended ${Number(server.appliedActionCount||0).toLocaleString()} external-backup restoring action(s). Applying them to this browser…`;
+        const receipt=await sync.runSync({trigger:'external-backup-restore-execution',receiverOnly:true});
+        if(!receipt?.summary?.pass||Number(receipt.summary.cursorAfter||0)<Number(server.lastChangeSeq||0))throw new Error('External Backup Restore succeeded, but local receiver verification did not reach the restore cursor. Do not execute again; retry receiver sync.');
+      }else if(Number(server.changeWrites||0)!==0){throw new Error('External Backup Restore NOOP unexpectedly reported Canonical change writes.');}
+      const post=await computeBackupPreview(source.target,source.filename);
+      if(Number(post.diff.totalActions||0)!==0)throw new Error(`External Backup Restore post-check failed: ${Number(post.diff.totalActions||0)} restoring action(s) still remain.`);
+      renderRestorePreview(post);
+      if(String(server.status)==='noop'){
+        if(resultNode)resultNode.textContent=`PASS · server-verified external Backup NOOP · 0 Canonical changes written · restore-run ${String(server.restoreRunId||'').slice(0,8)}… recorded for audit.`;
+        setStatus('External Backup Restore execution gate PASS · complete backup staged + server-verified · NOOP · 0 Canonical changes written · durable audit marker recorded.','success');
+      }else{
+        if(resultNode)resultNode.textContent=`PASS · ${Number(server.appliedActionCount||0).toLocaleString()} append-only external-backup restoring change(s) applied · history retained · post-restore Preview 0.`;
+        setStatus(`External Backup Restore PASS · ${Number(server.appliedActionCount||0).toLocaleString()} restoring action(s) appended · browser receiver committed · post-restore Preview 0.`,'success');
+      }
+    }finally{state.executing=false;setBusy(false);updateExecutionButton();}
+  }
+
+  async function executeRestore(){
+    if(isCloudPreview(state.preview))return executeCloudRestorePoint();
+    if(isBackupPreview(state.preview))return executeBackupRestore();
+    throw new Error('Run a Restore Preview before execution.');
   }
 
   async function refreshSummary(){
@@ -578,7 +706,7 @@
     });
     $('canonical-restore-preview-clear')?.addEventListener('click',clearRestorePreview);
     $('canonical-restore-confirm-input')?.addEventListener('input',updateExecutionButton);
-    $('canonical-restore-execute-button')?.addEventListener('click',()=>{void executeRestorePoint().catch(error=>setStatus(error?.message||String(error),'error'));});
+    $('canonical-restore-execute-button')?.addEventListener('click',()=>{void executeRestore().catch(error=>setStatus(error?.message||String(error),'error'));});
     void refreshSummary();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();
