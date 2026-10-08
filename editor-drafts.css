@@ -1,4 +1,8 @@
 .draft-manage-content{max-width:760px}
+/* v395: Manage Drafts stays a single-column workspace on desktop.
+   Shared editor.css changes .editor-workspace to two columns at >=720px,
+   which stretched the toolbar beside the tall Draft list. */
+.draft-manage-content .editor-workspace{grid-template-columns:1fr}
 .draft-manage-intro{padding-top:0}
 .draft-manage-toolbar{display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px}
 .draft-manage-toolbar a,.draft-manage-empty a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:7px 12px;border-radius:999px;text-decoration:none;font-size:.72rem;font-weight:800}
