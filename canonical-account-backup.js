@@ -1,11 +1,11 @@
-/* WLP v1.8.6.403 — Server-verified external Account Backup Restore execution.
-   Keeps the proven Cloud Restore Point execution path and adds a confirmed external
-   WLP_CANONICAL_ACCOUNT_BACKUP v1 path using isolated staged rows, server-side hash/manifest
-   verification, the shared account writer lock, append-only restoring actions, and post-checks. */
+/* WLP v1.8.6.405 — Canonical Library human-portable export layer.
+   Keeps the proven Backup/Restore paths unchanged and adds fail-closed, Cloud-Canonical
+   Full Master TSV, Anki-ready TSV, and card-oriented Library JSON exports from one fixed
+   Authority/cursor boundary. Browser-local legacy authoring is audited, never silently merged. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.403-external-backup-restore-v1';
+  const APP_VERSION='1.8.6.405-canonical-library-export-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
@@ -23,6 +23,12 @@
   const RECEIPT_TABLE='wlp_sync_mutation_receipts_v1';
   const CONFLICT_TABLE='wlp_sync_conflicts_v1';
   const RESTORE_RUN_TABLE='wlp_account_restore_runs_v1';
+  const LIBRARY_FORMAT='WLP_CANONICAL_LIBRARY_EXPORT',LIBRARY_VERSION=1;
+  const LIBRARY_TABLES=new Set(['cards','card_content','card_local_overrides','card_classification','card_learning_metadata','learning_situations','learning_alternatives','learning_alternative_situations']);
+  const MASTER_COLUMNS=['Batch #','Guidance #','WordID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
+  const ANKI_COLUMNS=['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source','WordID','Card ID','Tags'];
+  const CONTENT_FIELDS=['word','ipa','part_of_speech','definition','synonyms','example_sentence','notes','category','source'];
+  const LOCAL_OVERRIDE_KEY='wlp:local-overrides:v1',LOCAL_DRAFT_KEY='wlp:local-additions:v1';
   const $=id=>document.getElementById(id);
   const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
   const state={restorePoints:[],preview:null,executing:false,backupTarget:null};
@@ -80,7 +86,7 @@
     node.hidden=false;node.textContent=text;node.dataset.tone=tone;
   }
   function setBusy(busy){
-    ['canonical-account-export','canonical-account-archive','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
+    ['canonical-account-export','canonical-account-archive','canonical-library-master-export','canonical-library-anki-export','canonical-library-json-export','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
     const confirm=$('canonical-restore-confirm-input');if(confirm)confirm.disabled=Boolean(busy);
     document.querySelectorAll('.canonical-restore-preview-button').forEach(b=>{b.disabled=Boolean(busy);});
     updateExecutionButton();
@@ -641,6 +647,204 @@
     throw new Error('Run a Restore Preview before execution.');
   }
 
+  function tsvEscape(value){
+    const text=String(value??'');
+    return /[\t\n\r"]/.test(text)?`"${text.replaceAll('"','""')}"`:text;
+  }
+  function buildTsv(rows,columns){
+    return `${columns.join('\t')}\n${rows.map(row=>columns.map(column=>tsvEscape(row?.[column]??'')).join('\t')).join('\n')}\n`;
+  }
+  function downloadTsv(rows,columns,filename){
+    const text=`\uFEFF${buildTsv(rows,columns)}`;
+    downloadBlob(new Blob([text],{type:'text/tab-separated-values;charset=utf-8'}),filename);
+  }
+  function normalizedTag(value){
+    return String(value??'').trim().toLowerCase().replace(/\s+/g,'_').replace(/[^\p{L}\p{N}_:+.-]+/gu,'_').replace(/^_+|_+$/g,'');
+  }
+  function ankiTags(classification){
+    const c=classification&&typeof classification==='object'?classification:{},tags=[];
+    for(const [prefix,values] of [['entry',c.entry_types],['usage',c.usage_tags],['topic',c.topic_tags],['discovery',c.discovery_tags]]){
+      for(const raw of Array.isArray(values)?values:[]){
+        const tag=normalizedTag(raw);if(tag)tags.push(`${prefix}::${tag}`);
+      }
+    }
+    return [...new Set(tags)].join(' ');
+  }
+  function activeTableRecords(current,tableName){
+    return current.records.filter(row=>row.tableName===tableName&&!row.tombstone&&row.payload!=null);
+  }
+  function mapByCardId(rows,label){
+    const map=new Map();
+    for(const row of rows){
+      const cardId=String(row.payload?.card_id||row.rowKey||'');
+      if(!cardId)throw new Error(`Canonical Library export blocked: ${label} row without card_id.`);
+      if(String(row.rowKey||'')!==cardId)throw new Error(`Canonical Library export blocked: ${label} identity mismatch ${row.rowKey}/${cardId}.`);
+      if(map.has(cardId))throw new Error(`Canonical Library export blocked: duplicate ${label} row for ${cardId}.`);
+      map.set(cardId,row);
+    }
+    return map;
+  }
+  function applyCanonicalOverride(base,override){
+    const out=clone(base)||{};
+    if(!override)return out;
+    for(const field of CONTENT_FIELDS){
+      if(Object.prototype.hasOwnProperty.call(override,field))out[field]=clone(override[field]);
+    }
+    return out;
+  }
+  function masterRow(entry){
+    const c=entry.effectiveContent||{},card=entry.card||{};
+    return{
+      'Batch #':card.legacy_batch??'',
+      'Guidance #':card.legacy_guidance??'',
+      WordID:card.word_id??'',
+      Word:c.word??'',IPA:c.ipa??'','Part of Speech':c.part_of_speech??'',
+      Definition:c.definition??'','Synonym(s)':c.synonyms??'','Example Sentence':c.example_sentence??'',
+      'Note(s)':c.notes??'',Category:c.category??'',Source:c.source??''
+    };
+  }
+  function ankiRow(entry){
+    const c=entry.effectiveContent||{},card=entry.card||{};
+    return{
+      Word:c.word??'',IPA:c.ipa??'','Part of Speech':c.part_of_speech??'',
+      Definition:c.definition??'','Synonym(s)':c.synonyms??'','Example Sentence':c.example_sentence??'',
+      'Note(s)':c.notes??'',Category:c.category??'',Source:c.source??'',
+      WordID:card.word_id??'','Card ID':entry.cardId,Tags:ankiTags(entry.classification)
+    };
+  }
+  function safeJsonLocal(key,fallback){
+    try{const raw=localStorage.getItem(key);if(!raw)return fallback;const value=JSON.parse(raw);return value??fallback;}catch{return fallback;}
+  }
+  function browserCompatibilityAudit(entries){
+    const localOverrides=safeJsonLocal(LOCAL_OVERRIDE_KEY,{}),localDrafts=safeJsonLocal(LOCAL_DRAFT_KEY,[]);
+    const overrideObject=localOverrides&&typeof localOverrides==='object'&&!Array.isArray(localOverrides)?localOverrides:{};
+    const draftArray=Array.isArray(localDrafts)?localDrafts:[];
+    const canonicalOverrideByWid=new Map(),canonicalDraftIds=new Set();
+    for(const entry of entries){
+      const wid=String(entry.card?.word_id??'').trim();
+      if(entry.localOverride&&wid)canonicalOverrideByWid.set(wid,entry.localOverride);
+      if(entry.kind==='draft'){
+        const localId=String(entry.card?.origin_ref||'').trim()||String(entry.card?.legacy_key||'').replace(/^draft:/,'');
+        if(localId)canonicalDraftIds.add(localId);
+      }
+    }
+    const browserOverrideWids=Object.keys(overrideObject).filter(wid=>/^\d+$/.test(String(wid))).sort((a,b)=>Number(a)-Number(b));
+    const browserOnlyOverrideWids=browserOverrideWids.filter(wid=>!canonicalOverrideByWid.has(String(wid)));
+    const canonicalOnlyOverrideWids=[...canonicalOverrideByWid.keys()].filter(wid=>!Object.prototype.hasOwnProperty.call(overrideObject,wid)).sort((a,b)=>Number(a)-Number(b));
+    let sharedOverrideContentMismatches=0;
+    const localToCanonical={Word:'word',IPA:'ipa','Part of Speech':'part_of_speech',Definition:'definition','Synonym(s)':'synonyms','Example Sentence':'example_sentence','Note(s)':'notes',Category:'category',Source:'source'};
+    for(const wid of browserOverrideWids){
+      const remote=canonicalOverrideByWid.get(String(wid));if(!remote)continue;
+      const local=overrideObject[wid]||{};
+      if(Object.entries(localToCanonical).some(([lk,rk])=>String(local?.[lk]??'')!==String(remote?.[rk]??'')))sharedOverrideContentMismatches+=1;
+    }
+    const browserDraftIds=draftArray.map(item=>String(item?.localId||'').trim()).filter(Boolean);
+    const browserOnlyDraftIds=browserDraftIds.filter(id=>!canonicalDraftIds.has(id));
+    const canonicalOnlyDraftIds=[...canonicalDraftIds].filter(id=>!browserDraftIds.includes(id));
+    return{
+      browserLocalOverrideCount:browserOverrideWids.length,
+      canonicalActiveOverrideCount:canonicalOverrideByWid.size,
+      browserOnlyLocalOverrideCount:browserOnlyOverrideWids.length,
+      browserOnlyLocalOverrideWordIds:browserOnlyOverrideWids,
+      canonicalOnlyLocalOverrideCount:canonicalOnlyOverrideWids.length,
+      canonicalOnlyLocalOverrideWordIds:canonicalOnlyOverrideWids,
+      sharedOverrideContentMismatchCount:sharedOverrideContentMismatches,
+      browserLocalDraftCount:browserDraftIds.length,
+      canonicalDraftCount:canonicalDraftIds.size,
+      browserOnlyDraftCount:browserOnlyDraftIds.length,
+      browserOnlyDraftIds,
+      canonicalOnlyDraftCount:canonicalOnlyDraftIds.length,
+      canonicalOnlyDraftIds
+    };
+  }
+
+  async function buildCanonicalLibrary(api){
+    setStatus('Building Canonical Library exports · validating one fixed Cloud boundary…','working');
+    const start=await readCurrentCanonical(api),current=start.current;
+    const cardRows=activeTableRecords(current,'cards'),contentRows=activeTableRecords(current,'card_content');
+    const overrideRows=activeTableRecords(current,'card_local_overrides'),classificationRows=activeTableRecords(current,'card_classification');
+    const metadataRows=activeTableRecords(current,'card_learning_metadata'),situationRows=activeTableRecords(current,'learning_situations');
+    const alternativeRows=activeTableRecords(current,'learning_alternatives'),linkRows=activeTableRecords(current,'learning_alternative_situations');
+    const contentByCard=mapByCardId(contentRows,'card_content'),overrideByCard=mapByCardId(overrideRows,'card_local_overrides');
+    const classificationByCard=mapByCardId(classificationRows,'card_classification'),metadataByCard=mapByCardId(metadataRows,'card_learning_metadata');
+    const situationsByCard=new Map(),alternativesByCard=new Map(),linksByAlternative=new Map();
+    for(const row of situationRows){const cardId=String(row.payload?.card_id||'');if(!cardId)throw new Error(`Canonical Library export blocked: learning_situations/${row.rowKey} has no card_id.`);if(!situationsByCard.has(cardId))situationsByCard.set(cardId,[]);situationsByCard.get(cardId).push(row);}
+    for(const row of alternativeRows){const cardId=String(row.payload?.card_id||'');if(!cardId)throw new Error(`Canonical Library export blocked: learning_alternatives/${row.rowKey} has no card_id.`);if(!alternativesByCard.has(cardId))alternativesByCard.set(cardId,[]);alternativesByCard.get(cardId).push(row);}
+    for(const row of linkRows){const alternativeId=String(row.payload?.alternative_id||'');if(!alternativeId)throw new Error(`Canonical Library export blocked: learning_alternative_situations/${row.rowKey} has no alternative_id.`);if(!linksByAlternative.has(alternativeId))linksByAlternative.set(alternativeId,[]);linksByAlternative.get(alternativeId).push(row);}
+    for(const rows of situationsByCard.values())rows.sort((a,b)=>Number(a.payload?.ordinal||0)-Number(b.payload?.ordinal||0)||a.rowKey.localeCompare(b.rowKey));
+    for(const rows of alternativesByCard.values())rows.sort((a,b)=>Number(a.payload?.ordinal||0)-Number(b.payload?.ordinal||0)||a.rowKey.localeCompare(b.rowKey));
+
+    const entries=[],seenCardIds=new Set(),seenOfficialWids=new Set();
+    for(const cardRow of cardRows){
+      const cardId=String(cardRow.payload?.card_id||cardRow.rowKey||'');
+      if(!cardId||cardId!==String(cardRow.rowKey||''))throw new Error(`Canonical Library export blocked: cards identity mismatch ${cardRow.rowKey}/${cardId}.`);
+      if(seenCardIds.has(cardId))throw new Error(`Canonical Library export blocked: duplicate active card ${cardId}.`);seenCardIds.add(cardId);
+      const contentRow=contentByCard.get(cardId);if(!contentRow)throw new Error(`Canonical Library export blocked: active card ${cardId} has no active card_content.`);
+      const card=clone(cardRow.payload),baseContent=clone(contentRow.payload),overrideRow=overrideByCard.get(cardId)||null,localOverride=clone(overrideRow?.payload)||null;
+      const status=String(card.status||''),originKind=String(card.origin_kind||''),kind=status==='active'&&originKind==='official'?'official':status==='draft'?'draft':'unsupported';
+      if(kind==='unsupported')throw new Error(`Canonical Library export blocked: unsupported active card state ${status}/${originKind} for ${cardId}.`);
+      if(kind==='official'){
+        const wid=Number(card.word_id);
+        if(!Number.isInteger(wid)||wid<=0)throw new Error(`Canonical Library export blocked: official card ${cardId} has invalid WordID.`);
+        if(seenOfficialWids.has(wid))throw new Error(`Canonical Library export blocked: duplicate active official WordID ${wid}.`);seenOfficialWids.add(wid);
+      }
+      const alternatives=(alternativesByCard.get(cardId)||[]).map(row=>{
+        const payload=clone(row.payload),alternativeId=String(payload?.alternative_id||'');
+        return{...payload,situationLinks:(linksByAlternative.get(alternativeId)||[]).map(link=>clone(link.payload))};
+      });
+      entries.push({
+        kind,cardId,card,baseContent,effectiveContent:applyCanonicalOverride(baseContent,localOverride),
+        localOverride,classification:clone(classificationByCard.get(cardId)?.payload)||null,
+        learningMetadata:clone(metadataByCard.get(cardId)?.payload)||null,
+        situations:(situationsByCard.get(cardId)||[]).map(row=>clone(row.payload)),
+        alternatives
+      });
+    }
+    for(const contentRow of contentRows){if(!seenCardIds.has(String(contentRow.rowKey||'')))throw new Error(`Canonical Library export blocked: active card_content ${contentRow.rowKey} has no active cards row.`);}
+    for(const row of [...overrideRows,...classificationRows,...metadataRows,...situationRows,...alternativeRows]){const cardId=String(row.payload?.card_id||'');if(!seenCardIds.has(cardId))throw new Error(`Canonical Library export blocked: active ${row.tableName}/${row.rowKey} points to inactive/missing card ${cardId||'—'}.`);}
+    const activeAlternativeIds=new Set(alternativeRows.map(row=>String(row.payload?.alternative_id||'')).filter(Boolean)),activeSituationIds=new Set(situationRows.map(row=>String(row.payload?.situation_id||'')).filter(Boolean));
+    for(const row of linkRows){const alt=String(row.payload?.alternative_id||''),sit=String(row.payload?.situation_id||'');if(!activeAlternativeIds.has(alt)||!activeSituationIds.has(sit))throw new Error(`Canonical Library export blocked: active learning link ${row.rowKey} points to inactive/missing child rows.`);}
+    const officialCards=entries.filter(entry=>entry.kind==='official').sort((a,b)=>String(a.card.order_key||'').localeCompare(String(b.card.order_key||''))||Number(a.card.word_id||0)-Number(b.card.word_id||0)||a.cardId.localeCompare(b.cardId));
+    const draftCards=entries.filter(entry=>entry.kind==='draft').sort((a,b)=>String(a.card.order_key||'').localeCompare(String(b.card.order_key||''))||String(a.card.created_at||'').localeCompare(String(b.card.created_at||''))||a.cardId.localeCompare(b.cardId));
+    const relevantProof=current.records.filter(row=>LIBRARY_TABLES.has(row.tableName)&&!row.tombstone).map(row=>({tableName:row.tableName,rowKey:row.rowKey,payloadHash:row.payloadHash})).sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
+    const libraryManifestHash=await sha256(stableStringify(relevantProof)),compatibilityAudit=browserCompatibilityAudit(entries);
+    const endHead=await fetchHead(api),endHighWater=await fetchHighWater(api,endHead);
+    if(!headMatches(start.head,endHead)||Number(endHighWater)!==Number(start.highWater))throw new Error('Canonical Library export blocked: ACTIVE Authority or Canonical cursor moved during export. Retry when authoring/sync is idle.');
+    const exportedAt=new Date().toISOString();
+    return{
+      format:LIBRARY_FORMAT,version:LIBRARY_VERSION,appVersion:APP_VERSION,exportedAt,
+      authority:{candidateKey:String(start.head.candidate_key),headVersion:Number(start.head.head_version),snapshotManifestHash:String(start.head.snapshot_manifest_hash),canonicalRowCount:Number(start.head.canonical_row_count||0)},
+      highWaterChangeSeq:Number(start.highWater||0),
+      sourceCanonicalManifestHash:String(current.manifestHash||''),libraryManifestHash,
+      summary:{activeCardCount:entries.length,officialCardCount:officialCards.length,draftCardCount:draftCards.length,activeCanonicalLocalEditCount:overrideRows.length,classificationCount:classificationRows.length,learningMetadataCount:metadataRows.length,situationCount:situationRows.length,alternativeCount:alternativeRows.length,alternativeSituationLinkCount:linkRows.length},
+      compatibilityAudit,masterColumns:[...MASTER_COLUMNS],ankiColumns:[...ANKI_COLUMNS],officialCards,draftCards
+    };
+  }
+
+  function updateCanonicalLibrarySummary(library,label){
+    const a=library.compatibilityAudit||{},warnings=[];
+    if(Number(a.browserOnlyLocalOverrideCount||0))warnings.push(`${a.browserOnlyLocalOverrideCount} browser-only Local Edit${Number(a.browserOnlyLocalOverrideCount)===1?'':'s'}`);
+    if(Number(a.sharedOverrideContentMismatchCount||0))warnings.push(`${a.sharedOverrideContentMismatchCount} Local Edit mismatch${Number(a.sharedOverrideContentMismatchCount)===1?'':'es'}`);
+    if(Number(a.browserOnlyDraftCount||0))warnings.push(`${a.browserOnlyDraftCount} browser-only Draft${Number(a.browserOnlyDraftCount)===1?'':'s'}`);
+    const warningText=warnings.length?` · compatibility CHECK: ${warnings.join(', ')}`:' · browser compatibility audit clean';
+    const node=$('canonical-library-export-summary');
+    if(node)node.textContent=`${library.summary.officialCardCount} official · ${library.summary.draftCardCount} Drafts · cursor ${library.highWaterChangeSeq}${warningText}`;
+    setStatus(`${label} ready · ${library.summary.officialCardCount} official cards · cursor ${library.highWaterChangeSeq}${warningText}.`,warnings.length?'warning':'success');
+  }
+
+  async function exportCanonicalMasterTsv(){
+    setBusy(true);
+    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api),rows=library.officialCards.map(masterRow),filename=`wlp-canonical-full-master-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,MASTER_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Full Master TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+  }
+  async function exportCanonicalAnkiTsv(){
+    setBusy(true);
+    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api),rows=library.officialCards.map(ankiRow),filename=`wlp-canonical-anki-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,ANKI_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Anki TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+  }
+  async function exportCanonicalLibraryJson(){
+    setBusy(true);
+    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api),filename=`wlp-canonical-library-${stamp(new Date(library.exportedAt))}.json`;downloadJson(library,filename);updateCanonicalLibrarySummary(library,`Canonical Library JSON: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+  }
+
   async function refreshSummary(){
     setBusy(true);
     try{
@@ -693,6 +897,9 @@
     $('canonical-restore-create')?.addEventListener('click',()=>{void createRestorePoint();});
     $('canonical-account-export')?.addEventListener('click',()=>{void exportCanonicalAccount();});
     $('canonical-account-archive')?.addEventListener('click',()=>{void exportCanonicalSafetyArchive();});
+    $('canonical-library-master-export')?.addEventListener('click',()=>{void exportCanonicalMasterTsv();});
+    $('canonical-library-anki-export')?.addEventListener('click',()=>{void exportCanonicalAnkiTsv();});
+    $('canonical-library-json-export')?.addEventListener('click',()=>{void exportCanonicalLibraryJson();});
     $('canonical-restore-list')?.addEventListener('click',event=>{
       const button=event.target.closest?.('.canonical-restore-preview-button');if(!button)return;
       setBusy(true);clearRestorePreview();

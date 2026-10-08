@@ -221,7 +221,7 @@
               <p>Stores an immutable account checkpoint as ACTIVE Authority + Canonical change-sequence high-water. It does not alter cards or learning data.</p>
               <label class="canonical-restore-label"><span>Label <small>optional</small></span><input id="canonical-restore-label" type="text" maxlength="160" placeholder="Before Official Library cutover"></label>
               <button class="backup-primary" id="canonical-restore-create" type="button">Create Restore Point</button>
-              <small>v402 keeps the proven v400/v401 Preview + confirmed execution path. Restore appends new restoring actions; history is retained.</small>
+              <small>Confirmed Restore remains append-only and server-revalidated. Historical Canonical rows are retained.</small>
             </article>
 
             <article class="authoring-transfer-card canonical-account-card">
@@ -236,6 +236,17 @@
               <p>Downloads one integrity-manifested ZIP containing the effective account snapshot, ACTIVE Authority base, raw change feed, mutation/ACK/receipt/conflict ledgers, Cloud Restore Points, and Restore execution audit runs.</p>
               <button class="backup-primary" id="canonical-account-archive" type="button">Export Canonical Safety Archive <span>.zip</span></button>
               <small id="canonical-account-archive-summary">Read-only export · fixed Canonical boundary · no access/refresh token or Supabase session/config included.</small>
+            </article>
+
+            <article class="authoring-transfer-card canonical-account-card canonical-account-archive-card canonical-library-export-card">
+              <h3>Export Canonical Library</h3>
+              <p>Human-portable library files built directly from one fixed Cloud Canonical boundary. Full Master and Anki TSV include active Official cards only and apply active Canonical Local Edit overlays; Drafts and attached authoring metadata are preserved in the Library JSON.</p>
+              <div class="canonical-library-export-actions">
+                <button class="backup-primary" id="canonical-library-master-export" type="button">Full Master <span>.tsv</span></button>
+                <button class="backup-secondary-action" id="canonical-library-anki-export" type="button">Anki-ready <span>.tsv</span></button>
+                <button class="backup-secondary-action" id="canonical-library-json-export" type="button">Library <span>.json</span></button>
+              </div>
+              <small id="canonical-library-export-summary">Cloud Canonical only · browser-local legacy Draft / Local Edit data is audited and reported, never silently folded into these exports.</small>
             </article>
           </div>
 
@@ -753,7 +764,7 @@
   <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186145"></script>
   <script src="./local-data-safety.js?v=20260927-s7-backup-change-counts-v186151"></script>
   <script src="./canonical-auto-sync-canary.js?v=20261008-s7-account-restore-receiver-v186400"></script>
-  <script src="./canonical-account-backup.js?v=1.8.6.403"></script>
+  <script src="./canonical-account-backup.js?v=1.8.6.405"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>
