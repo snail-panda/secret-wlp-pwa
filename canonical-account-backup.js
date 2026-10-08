@@ -1,11 +1,11 @@
-/* WLP v1.8.6.407 — Local collection preservation gate.
-   Keeps Backup/Restore and Canonical Library export paths unchanged, keeps legacy browser
-   Local Edit copies in place for offline/local compatibility, and allows Official TSV export
-   only when every browser-only Local Edit is proven Canonical-equivalent. */
+/* WLP v1.8.6.408 — Canonical + Legacy Anki export contract.
+   Keeps the v407 local-collection preservation gate intact, formalizes the recommended
+   Canonical Anki TSV with stable WLP Card ID as the first field, and preserves a separate
+   seven-field Legacy Anki TSV for the existing WLP Note Type workflow. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.407-local-collection-preservation-gate-v1';
+  const APP_VERSION='1.8.6.408-canonical-legacy-anki-export-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
@@ -26,7 +26,8 @@
   const LIBRARY_FORMAT='WLP_CANONICAL_LIBRARY_EXPORT',LIBRARY_VERSION=1;
   const LIBRARY_TABLES=new Set(['cards','card_content','card_local_overrides','card_classification','card_learning_metadata','learning_situations','learning_alternatives','learning_alternative_situations']);
   const MASTER_COLUMNS=['Batch #','Guidance #','WordID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
-  const ANKI_COLUMNS=['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source','WordID','Card ID','Tags'];
+  const ANKI_CANONICAL_COLUMNS=['Card ID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source','WordID','Tags'];
+  const ANKI_LEGACY_COLUMNS=['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)'];
   const CONTENT_FIELDS=['word','ipa','part_of_speech','definition','synonyms','example_sentence','notes','category','source'];
   const LOCAL_EDIT_FIELDS=[
     ['Word','word','Word'],['IPA','ipa','IPA'],['Part of Speech','part_of_speech','Part of Speech'],
@@ -92,7 +93,7 @@
     node.hidden=false;node.textContent=text;node.dataset.tone=tone;
   }
   function setBusy(busy){
-    ['canonical-account-export','canonical-account-archive','canonical-library-master-export','canonical-library-anki-export','canonical-library-json-export','canonical-legacy-local-edit-preview','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
+    ['canonical-account-export','canonical-account-archive','canonical-library-master-export','canonical-library-anki-canonical-export','canonical-library-anki-legacy-export','canonical-library-json-export','canonical-legacy-local-edit-preview','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
     const confirm=$('canonical-restore-confirm-input');if(confirm)confirm.disabled=Boolean(busy);
     document.querySelectorAll('.canonical-restore-preview-button').forEach(b=>{b.disabled=Boolean(busy);});
     updateExecutionButton();
@@ -660,8 +661,17 @@
   function buildTsv(rows,columns){
     return `${columns.join('\t')}\n${rows.map(row=>columns.map(column=>tsvEscape(row?.[column]??'')).join('\t')).join('\n')}\n`;
   }
+  function buildTsvDataRows(rows,columns){
+    return `${rows.map(row=>columns.map(column=>tsvEscape(row?.[column]??'')).join('\t')).join('\n')}\n`;
+  }
   function downloadTsv(rows,columns,filename){
     const text=`\uFEFF${buildTsv(rows,columns)}`;
+    downloadBlob(new Blob([text],{type:'text/tab-separated-values;charset=utf-8'}),filename);
+  }
+  function downloadAnkiTsv(rows,columns,filename,{tagsColumn=0}={}){
+    const headers=['#separator:Tab',`#columns:${columns.join('\t')}`];
+    if(tagsColumn)headers.push(`#tags column:${Number(tagsColumn)}`);
+    const text=`\uFEFF${headers.join('\n')}\n${buildTsvDataRows(rows,columns)}`;
     downloadBlob(new Blob([text],{type:'text/tab-separated-values;charset=utf-8'}),filename);
   }
   function normalizedTag(value){
@@ -709,13 +719,21 @@
       'Note(s)':c.notes??'',Category:c.category??'',Source:c.source??''
     };
   }
-  function ankiRow(entry){
+  function ankiCanonicalRow(entry){
     const c=entry.effectiveContent||{},card=entry.card||{};
+    return{
+      'Card ID':entry.cardId,Word:c.word??'',IPA:c.ipa??'','Part of Speech':c.part_of_speech??'',
+      Definition:c.definition??'','Synonym(s)':c.synonyms??'','Example Sentence':c.example_sentence??'',
+      'Note(s)':c.notes??'',Category:c.category??'',Source:c.source??'',WordID:card.word_id??'',
+      Tags:ankiTags(entry.classification)
+    };
+  }
+  function ankiLegacyRow(entry){
+    const c=entry.effectiveContent||{};
     return{
       Word:c.word??'',IPA:c.ipa??'','Part of Speech':c.part_of_speech??'',
       Definition:c.definition??'','Synonym(s)':c.synonyms??'','Example Sentence':c.example_sentence??'',
-      'Note(s)':c.notes??'',Category:c.category??'',Source:c.source??'',
-      WordID:card.word_id??'','Card ID':entry.cardId,Tags:ankiTags(entry.classification)
+      'Note(s)':c.notes??''
     };
   }
   function safeJsonLocal(key,fallback){
@@ -889,7 +907,7 @@
       highWaterChangeSeq:Number(start.highWater||0),
       sourceCanonicalManifestHash:String(current.manifestHash||''),libraryManifestHash,
       summary:{activeCardCount:entries.length,officialCardCount:officialCards.length,draftCardCount:draftCards.length,activeCanonicalLocalEditCount:overrideRows.length,classificationCount:classificationRows.length,learningMetadataCount:metadataRows.length,situationCount:situationRows.length,alternativeCount:alternativeRows.length,alternativeSituationLinkCount:linkRows.length},
-      compatibilityAudit,masterColumns:[...MASTER_COLUMNS],ankiColumns:[...ANKI_COLUMNS],officialCards,draftCards
+      compatibilityAudit,masterColumns:[...MASTER_COLUMNS],ankiColumns:[...ANKI_CANONICAL_COLUMNS],ankiLegacyColumns:[...ANKI_LEGACY_COLUMNS],officialCards,draftCards
     };
   }
 
@@ -918,7 +936,23 @@
   }
   async function exportCanonicalAnkiTsv(){
     setBusy(true);
-    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api);assertOfficialTsvCompatibility(library,'Canonical Anki TSV');const rows=library.officialCards.map(ankiRow),filename=`wlp-canonical-anki-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,ANKI_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Anki TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+    try{
+      const api=await cloudContext(),library=await buildCanonicalLibrary(api);
+      assertOfficialTsvCompatibility(library,'Canonical Anki TSV');
+      const rows=library.officialCards.map(ankiCanonicalRow),filename=`wlp-canonical-anki-ready-${stamp(new Date(library.exportedAt))}.tsv`;
+      downloadAnkiTsv(rows,ANKI_CANONICAL_COLUMNS,filename,{tagsColumn:ANKI_CANONICAL_COLUMNS.indexOf('Tags')+1});
+      updateCanonicalLibrarySummary(library,`Canonical Anki-ready TSV: ${filename}`);
+    }catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+  }
+  async function exportLegacyAnkiTsv(){
+    setBusy(true);
+    try{
+      const api=await cloudContext(),library=await buildCanonicalLibrary(api);
+      assertOfficialTsvCompatibility(library,'Legacy 7-field Anki TSV');
+      const rows=library.officialCards.map(ankiLegacyRow),filename=`wlp-anki-legacy-7-field-${stamp(new Date(library.exportedAt))}.tsv`;
+      downloadAnkiTsv(rows,ANKI_LEGACY_COLUMNS,filename);
+      updateCanonicalLibrarySummary(library,`Legacy 7-field Anki TSV: ${filename}`);
+    }catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
   }
   async function exportCanonicalLibraryJson(){
     setBusy(true);
@@ -978,7 +1012,8 @@
     $('canonical-account-export')?.addEventListener('click',()=>{void exportCanonicalAccount();});
     $('canonical-account-archive')?.addEventListener('click',()=>{void exportCanonicalSafetyArchive();});
     $('canonical-library-master-export')?.addEventListener('click',()=>{void exportCanonicalMasterTsv();});
-    $('canonical-library-anki-export')?.addEventListener('click',()=>{void exportCanonicalAnkiTsv();});
+    $('canonical-library-anki-canonical-export')?.addEventListener('click',()=>{void exportCanonicalAnkiTsv();});
+    $('canonical-library-anki-legacy-export')?.addEventListener('click',()=>{void exportLegacyAnkiTsv();});
     $('canonical-library-json-export')?.addEventListener('click',()=>{void exportCanonicalLibraryJson();});
     $('canonical-legacy-local-edit-preview')?.addEventListener('click',()=>{void previewLegacyLocalEdits();});
     $('canonical-restore-list')?.addEventListener('click',event=>{
