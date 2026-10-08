@@ -1,11 +1,11 @@
-/* WLP v1.8.6.405 — Canonical Library human-portable export layer.
-   Keeps the proven Backup/Restore paths unchanged and adds fail-closed, Cloud-Canonical
-   Full Master TSV, Anki-ready TSV, and card-oriented Library JSON exports from one fixed
-   Authority/cursor boundary. Browser-local legacy authoring is audited, never silently merged. */
+/* WLP v1.8.6.406 — Legacy Local Edit migration preview.
+   Keeps the proven Backup/Restore and Canonical Library export paths unchanged, adds a
+   read-only browser-local → Canonical comparison for legacy Local Edits, and blocks
+   human-portable Official TSV exports while browser-only Local Edits remain unresolved. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.405-canonical-library-export-v1';
+  const APP_VERSION='1.8.6.406-legacy-local-edit-migration-preview-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
@@ -28,10 +28,16 @@
   const MASTER_COLUMNS=['Batch #','Guidance #','WordID','Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const ANKI_COLUMNS=['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source','WordID','Card ID','Tags'];
   const CONTENT_FIELDS=['word','ipa','part_of_speech','definition','synonyms','example_sentence','notes','category','source'];
+  const LOCAL_EDIT_FIELDS=[
+    ['Word','word','Word'],['IPA','ipa','IPA'],['Part of Speech','part_of_speech','Part of Speech'],
+    ['Definition','definition','Definition'],['Synonym(s)','synonyms','Synonym(s)'],
+    ['Example Sentence','example_sentence','Example Sentence'],['Note(s)','notes','Note(s)'],
+    ['Category','category','Category'],['Source','source','Source']
+  ];
   const LOCAL_OVERRIDE_KEY='wlp:local-overrides:v1',LOCAL_DRAFT_KEY='wlp:local-additions:v1';
   const $=id=>document.getElementById(id);
   const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
-  const state={restorePoints:[],preview:null,executing:false,backupTarget:null};
+  const state={restorePoints:[],preview:null,executing:false,backupTarget:null,legacyLocalEditPreview:null};
 
   function stableValue(value){
     if(Array.isArray(value))return value.map(stableValue);
@@ -86,7 +92,7 @@
     node.hidden=false;node.textContent=text;node.dataset.tone=tone;
   }
   function setBusy(busy){
-    ['canonical-account-export','canonical-account-archive','canonical-library-master-export','canonical-library-anki-export','canonical-library-json-export','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
+    ['canonical-account-export','canonical-account-archive','canonical-library-master-export','canonical-library-anki-export','canonical-library-json-export','canonical-legacy-local-edit-preview','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
     const confirm=$('canonical-restore-confirm-input');if(confirm)confirm.disabled=Boolean(busy);
     document.querySelectorAll('.canonical-restore-preview-button').forEach(b=>{b.disabled=Boolean(busy);});
     updateExecutionButton();
@@ -715,6 +721,58 @@
   function safeJsonLocal(key,fallback){
     try{const raw=localStorage.getItem(key);if(!raw)return fallback;const value=JSON.parse(raw);return value??fallback;}catch{return fallback;}
   }
+  function comparableText(value){return String(value??'').trim();}
+  function clipPreview(value,limit=220){
+    const text=String(value??'').replace(/\r\n/g,'\n');
+    return text.length>limit?`${text.slice(0,limit)}…`:text;
+  }
+  function localEditDiff(local,base){
+    const changes=[];
+    for(const [localKey,canonicalKey,label] of LOCAL_EDIT_FIELDS){
+      const localValue=comparableText(local?.[localKey]),baseValue=comparableText(base?.[canonicalKey]);
+      if(localValue!==baseValue)changes.push({field:label,localKey,canonicalKey,baseValue:String(base?.[canonicalKey]??''),localValue:String(local?.[localKey]??'')});
+    }
+    return changes;
+  }
+  function renderLegacyLocalEditPreview(report){
+    const panel=$('canonical-legacy-local-edit-preview-panel'),summary=$('canonical-legacy-local-edit-preview-summary'),counts=$('canonical-legacy-local-edit-preview-counts'),list=$('canonical-legacy-local-edit-preview-list');
+    if(!panel||!summary||!counts||!list)return;
+    panel.hidden=false;
+    counts.innerHTML=`<div><strong>${report.total}</strong><span>Browser-only</span></div><div><strong>${report.needsMigration}</strong><span>Needs migration</span></div><div><strong>${report.redundant}</strong><span>Redundant copy</span></div><div><strong>${report.blocked}</strong><span>Blocked</span></div>`;
+    summary.textContent=`Authority v${report.headVersion} · cursor ${report.cursor} · ${report.total} browser-only Local Edit${report.total===1?'':'s'} compared · NO DATA WRITTEN.`;
+    if(!report.items.length){list.innerHTML='<p class="canonical-preview-empty">No browser-only Local Edits remain on this PC.</p>';return;}
+    list.innerHTML=report.items.map(item=>{
+      const tone=item.kind==='needs-migration'?'is-migrate':item.kind==='redundant'?'is-redundant':'is-blocked';
+      const label=item.kind==='needs-migration'?'Needs migration':item.kind==='redundant'?'Redundant browser copy':'Blocked';
+      const fieldChips=item.changes.length?item.changes.map(c=>`<span>${escapeHtml(c.field)}</span>`).join(''):'<span>no content differences</span>';
+      const diffs=item.changes.length?`<details class="canonical-local-edit-diffs"><summary>View ${item.changes.length} changed field${item.changes.length===1?'':'s'}</summary>${item.changes.map(c=>`<div class="canonical-local-edit-diff"><strong>${escapeHtml(c.field)}</strong><div><small>Canonical base</small><pre>${escapeHtml(clipPreview(c.baseValue)||'—')}</pre></div><div><small>Browser Local Edit</small><pre>${escapeHtml(clipPreview(c.localValue)||'—')}</pre></div></div>`).join('')}</details>`:'';
+      const note=item.reason?`<p>${escapeHtml(item.reason)}</p>`:'';
+      return `<article class="canonical-local-edit-migration-item ${tone}"><div class="canonical-local-edit-migration-head"><div><span class="canonical-preview-kind">${escapeHtml(label)}</span><strong>WID${escapeHtml(item.wid)} · ${escapeHtml(item.word||'—')}</strong></div><code>${escapeHtml(item.cardId||'')}</code></div><div class="canonical-local-edit-field-chips">${fieldChips}</div>${note}${diffs}</article>`;
+    }).join('');
+  }
+  async function previewLegacyLocalEdits(){
+    setBusy(true);
+    try{
+      const api=await cloudContext(),library=await buildCanonicalLibrary(api),audit=library.compatibilityAudit||{},browserOnly=(audit.browserOnlyLocalOverrideWordIds||[]).map(String),localOverrides=safeJsonLocal(LOCAL_OVERRIDE_KEY,{});
+      const officialByWid=new Map(library.officialCards.map(entry=>[String(entry.card?.word_id??''),entry]));
+      const items=[];let needsMigration=0,redundant=0,blocked=0;
+      for(const wid of browserOnly){
+        const local=localOverrides?.[wid],entry=officialByWid.get(String(wid));
+        if(!local||typeof local!=='object'||Array.isArray(local)){blocked++;items.push({kind:'blocked',wid,word:'',cardId:'',changes:[],reason:'Browser Local Edit payload is missing or malformed.'});continue;}
+        if(!entry||entry.kind!=='official'){blocked++;items.push({kind:'blocked',wid,word:String(local.Word||''),cardId:'',changes:[],reason:'No active Official Canonical card matches this WID.'});continue;}
+        if(entry.localOverride){blocked++;items.push({kind:'blocked',wid,word:String(entry.effectiveContent?.word||local.Word||''),cardId:entry.cardId,changes:[],reason:'Canonical already has an active Local Edit; use a content-mismatch review instead of legacy migration.'});continue;}
+        const changes=localEditDiff(local,entry.baseContent||{}),word=String(local.Word||entry.baseContent?.word||'');
+        if(changes.length){needsMigration++;items.push({kind:'needs-migration',wid,word,cardId:entry.cardId,changes,reason:`${changes.length} content field${changes.length===1?' differs':'s differ'} from the Canonical base. Keep this browser copy until migration execution is explicitly confirmed.`});}
+        else{redundant++;items.push({kind:'redundant',wid,word,cardId:entry.cardId,changes:[],reason:'All nine Local Edit content fields already match the Canonical base. This browser record is a redundant compatibility copy, not a missing Cloud edit.'});}
+      }
+      const report={format:'WLP_LEGACY_LOCAL_EDIT_MIGRATION_PREVIEW',version:1,appVersion:APP_VERSION,generatedAt:new Date().toISOString(),headVersion:Number(library.authority?.headVersion||0),candidateKey:String(library.authority?.candidateKey||''),cursor:Number(library.highWaterChangeSeq||0),total:browserOnly.length,needsMigration,redundant,blocked,items};
+      state.legacyLocalEditPreview=report;renderLegacyLocalEditPreview(report);
+      const tone=blocked?'error':needsMigration?'warning':'success';
+      setStatus(`Legacy Local Edit migration Preview · ${browserOnly.length} browser-only · ${needsMigration} need migration · ${redundant} redundant · ${blocked} blocked · NO DATA WRITTEN.`,tone);
+    }catch(error){setStatus(error?.message||String(error),'error');}
+    finally{setBusy(false);}
+  }
+
   function browserCompatibilityAudit(entries){
     const localOverrides=safeJsonLocal(LOCAL_OVERRIDE_KEY,{}),localDrafts=safeJsonLocal(LOCAL_DRAFT_KEY,[]);
     const overrideObject=localOverrides&&typeof localOverrides==='object'&&!Array.isArray(localOverrides)?localOverrides:{};
@@ -832,13 +890,18 @@
     setStatus(`${label} ready · ${library.summary.officialCardCount} official cards · cursor ${library.highWaterChangeSeq}${warningText}.`,warnings.length?'warning':'success');
   }
 
+  function assertOfficialTsvCompatibility(library,label){
+    const a=library.compatibilityAudit||{},browserOnly=Number(a.browserOnlyLocalOverrideCount||0),mismatches=Number(a.sharedOverrideContentMismatchCount||0);
+    if(browserOnly||mismatches)throw new Error(`${label} blocked: ${browserOnly} browser-only Local Edit${browserOnly===1?'':'s'} and ${mismatches} Canonical/browser content mismatch${mismatches===1?'':'es'} remain. Run Legacy Local Edit Migration Preview first.`);
+  }
+
   async function exportCanonicalMasterTsv(){
     setBusy(true);
-    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api),rows=library.officialCards.map(masterRow),filename=`wlp-canonical-full-master-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,MASTER_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Full Master TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api);assertOfficialTsvCompatibility(library,'Canonical Full Master TSV');const rows=library.officialCards.map(masterRow),filename=`wlp-canonical-full-master-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,MASTER_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Full Master TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
   }
   async function exportCanonicalAnkiTsv(){
     setBusy(true);
-    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api),rows=library.officialCards.map(ankiRow),filename=`wlp-canonical-anki-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,ANKI_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Anki TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
+    try{const api=await cloudContext(),library=await buildCanonicalLibrary(api);assertOfficialTsvCompatibility(library,'Canonical Anki TSV');const rows=library.officialCards.map(ankiRow),filename=`wlp-canonical-anki-${stamp(new Date(library.exportedAt))}.tsv`;downloadTsv(rows,ANKI_COLUMNS,filename);updateCanonicalLibrarySummary(library,`Canonical Anki TSV: ${filename}`);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}
   }
   async function exportCanonicalLibraryJson(){
     setBusy(true);
@@ -900,6 +963,7 @@
     $('canonical-library-master-export')?.addEventListener('click',()=>{void exportCanonicalMasterTsv();});
     $('canonical-library-anki-export')?.addEventListener('click',()=>{void exportCanonicalAnkiTsv();});
     $('canonical-library-json-export')?.addEventListener('click',()=>{void exportCanonicalLibraryJson();});
+    $('canonical-legacy-local-edit-preview')?.addEventListener('click',()=>{void previewLegacyLocalEdits();});
     $('canonical-restore-list')?.addEventListener('click',event=>{
       const button=event.target.closest?.('.canonical-restore-preview-button');if(!button)return;
       setBusy(true);clearRestorePreview();

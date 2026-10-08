@@ -247,7 +247,18 @@
                 <button class="backup-secondary-action" id="canonical-library-json-export" type="button">Library <span>.json</span></button>
               </div>
               <small id="canonical-library-export-summary">Cloud Canonical only · browser-local legacy Draft / Local Edit data is audited and reported, never silently folded into these exports.</small>
+              <button class="backup-secondary-action canonical-legacy-local-edit-preview-button" id="canonical-legacy-local-edit-preview" type="button">Preview Legacy Local Edit Migration <span>NO WRITE</span></button>
+              <small>Compares browser-only Local Edits against the current Canonical base. It does not upload, delete, or rewrite any Local Edit.</small>
             </article>
+
+            <section class="canonical-legacy-local-edit-preview-panel" id="canonical-legacy-local-edit-preview-panel" hidden aria-live="polite">
+              <div class="canonical-legacy-local-edit-preview-head">
+                <div><span class="editor-tool-kicker">Legacy Local Edit Migration Preview · no write</span><h3>Browser local → Canonical comparison</h3></div>
+              </div>
+              <div class="canonical-legacy-local-edit-preview-counts" id="canonical-legacy-local-edit-preview-counts"></div>
+              <p class="canonical-restore-preview-summary" id="canonical-legacy-local-edit-preview-summary">Preview not run yet.</p>
+              <div class="canonical-legacy-local-edit-preview-list" id="canonical-legacy-local-edit-preview-list"></div>
+            </section>
           </div>
 
           <div class="canonical-restore-points">
@@ -764,7 +775,7 @@
   <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186145"></script>
   <script src="./local-data-safety.js?v=20260927-s7-backup-change-counts-v186151"></script>
   <script src="./canonical-auto-sync-canary.js?v=20261008-s7-account-restore-receiver-v186400"></script>
-  <script src="./canonical-account-backup.js?v=1.8.6.405"></script>
+  <script src="./canonical-account-backup.js?v=1.8.6.406"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>
