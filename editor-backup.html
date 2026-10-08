@@ -205,7 +205,7 @@
             <div>
               <span class="editor-tool-kicker">Account Safety · Canonical</span>
               <h2>Canonical Account Backup</h2>
-              <p>Create a Cloud Restore Point and download a self-contained snapshot of the signed-in WLP account before the Official Library read cutover.</p>
+              <p>Create a Cloud Restore Point, export the effective account snapshot, and preserve the Canonical history/audit archive before the Official Library read cutover.</p>
             </div>
           </div>
 
@@ -221,7 +221,7 @@
               <p>Stores an immutable account checkpoint as ACTIVE Authority + Canonical change-sequence high-water. It does not alter cards or learning data.</p>
               <label class="canonical-restore-label"><span>Label <small>optional</small></span><input id="canonical-restore-label" type="text" maxlength="160" placeholder="Before Official Library cutover"></label>
               <button class="backup-primary" id="canonical-restore-create" type="button">Create Restore Point</button>
-              <small>v400 can Preview and then execute this Cloud Restore Point only after exact confirmation and server-side revalidation. Restore appends new restoring actions; history is retained.</small>
+              <small>v402 keeps the proven v400/v401 Preview + confirmed execution path. Restore appends new restoring actions; history is retained.</small>
             </article>
 
             <article class="authoring-transfer-card canonical-account-card">
@@ -229,6 +229,13 @@
               <p>Downloads the effective account state: Authority records plus every accepted Canonical overlay through one fixed change cursor, including tombstones and stable UUID/card IDs.</p>
               <button class="backup-primary" id="canonical-account-export" type="button">Export Canonical Account <span>.json</span></button>
               <small id="canonical-account-export-summary">Ready to build a self-contained account snapshot.</small>
+            </article>
+
+            <article class="authoring-transfer-card canonical-account-card canonical-account-archive-card">
+              <h3>Export Canonical Safety Archive</h3>
+              <p>Downloads one integrity-manifested ZIP containing the effective account snapshot, ACTIVE Authority base, raw change feed, mutation/ACK/receipt/conflict ledgers, Cloud Restore Points, and Restore execution audit runs.</p>
+              <button class="backup-primary" id="canonical-account-archive" type="button">Export Canonical Safety Archive <span>.zip</span></button>
+              <small id="canonical-account-archive-summary">Read-only export · fixed Canonical boundary · no access/refresh token or Supabase session/config included.</small>
             </article>
           </div>
 
@@ -246,7 +253,7 @@
               <input id="canonical-restore-file" type="file" accept=".json,application/json" hidden>
               <button class="backup-import-button" id="canonical-restore-file-choose" type="button">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 20h14"/></svg>
-                <span><strong>Choose Canonical Backup</strong><small>Preview-only in v400 · .json</small></span>
+                <span><strong>Choose Canonical Backup</strong><small>Preview-only · .json</small></span>
               </button>
             </article>
           </div>
@@ -275,7 +282,7 @@
               <div class="canonical-restore-preview-tables" id="canonical-restore-preview-tables"></div>
               <div class="canonical-restore-preview-samples" id="canonical-restore-preview-samples"></div>
             </details>
-            <p class="canonical-restore-preview-warning"><strong>Preview itself never writes Canonical data.</strong> v400 enables execution only for a Cloud Restore Point after exact confirmation. The server rechecks the frozen cursor, manifests, action count, and plan fingerprint under the account writer lock. Restore appends new restoring actions and retains history; it never rewrites the Authority Head. External Backup JSON remains Preview-only in v400.</p>
+            <p class="canonical-restore-preview-warning"><strong>Preview itself never writes Canonical data.</strong> Cloud Restore Point execution remains confirmation-gated and server-revalidated. The server rechecks the frozen cursor, manifests, action count, and plan fingerprint under the account writer lock. Restore appends new restoring actions and retains history; it never rewrites the Authority Head. External Backup JSON remains Preview-only.</p>
 
             <section class="canonical-restore-execute" id="canonical-restore-execute" hidden aria-live="polite">
               <div class="canonical-restore-execute-head">
@@ -746,7 +753,7 @@
   <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186145"></script>
   <script src="./local-data-safety.js?v=20260927-s7-backup-change-counts-v186151"></script>
   <script src="./canonical-auto-sync-canary.js?v=20261008-s7-account-restore-receiver-v186400"></script>
-  <script src="./canonical-account-backup.js?v=20261008-s7-canonical-restore-execution-v186400"></script>
+  <script src="./canonical-account-backup.js?v=1.8.6.402"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>

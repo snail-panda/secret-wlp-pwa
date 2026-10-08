@@ -25,3 +25,7 @@
 /* v1.8.6.400 — Confirmed Cloud Restore execution gate. */
 .canonical-restore-execute{margin-top:.85rem;padding:.8rem;border:1px solid rgba(139,87,79,.22);border-radius:14px;background:rgba(253,248,247,.82)}
 .canonical-restore-execute[hidden]{display:none}.canonical-restore-execute-head h3{margin:.16rem 0 0;color:#62443f;font-size:.96rem}.canonical-restore-execute>p{margin:.6rem 0;color:#6e5a55;font-size:.8rem;line-height:1.45}.canonical-restore-confirm{display:grid;gap:.38rem;margin-top:.7rem}.canonical-restore-confirm span{font-size:.76rem;color:#705f5b}.canonical-restore-confirm code{padding:.16rem .3rem;border-radius:6px;background:#fff;color:#70473f;font-size:.72rem}.canonical-restore-confirm input{width:100%;box-sizing:border-box;border:1px solid rgba(139,87,79,.28);border-radius:10px;background:#fff;padding:.58rem .65rem;font:inherit;color:var(--ink,#26342c)}.canonical-restore-execute-button{width:100%;margin-top:.65rem;border:1px solid rgba(126,61,51,.35);border-radius:10px;background:#7b3f37;color:#fff;padding:.62rem .72rem;font:inherit;font-weight:700;cursor:pointer}.canonical-restore-execute-button:disabled{opacity:.42;cursor:not-allowed}.canonical-restore-execute>small{display:block;margin-top:.48rem;color:#7c6b66;font-size:.72rem;line-height:1.4}
+
+/* v1.8.6.402 — Canonical Safety Archive export card. */
+.canonical-account-archive-card{grid-column:1/-1}
+@media(max-width:700px){.canonical-account-archive-card{grid-column:auto}}

@@ -1,11 +1,11 @@
-/* WLP v1.8.6.400 — Canonical Account Restore execution safety layer.
-   Cloud Restore Points require Preview + exact confirmation + server-side revalidation.
-   Restore appends new Canonical restoring actions; history and Authority remain immutable.
-   External Canonical Backup JSON remains Preview-only in v400. */
+/* WLP v1.8.6.402 — Canonical Safety Archive export + proven Restore execution layer.
+   Adds a read-only external ZIP archive containing the effective account snapshot,
+   ACTIVE Authority base, raw sync history, mutation/ACK/conflict ledgers, and restore audit.
+   Restore behavior remains the proven v400/v401 path; no restore semantics change here. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.400-canonical-account-restore-execution-v1';
+  const APP_VERSION='1.8.6.402-canonical-safety-archive-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
@@ -14,6 +14,11 @@
   const AUTHORITY_HEAD='wlp_canonical_authority_heads';
   const AUTHORITY_RECORDS='wlp_canonical_authority_candidate_records';
   const CHANGE_TABLE='wlp_sync_changes_v1';
+  const MUTATION_TABLE='wlp_sync_mutations_v1';
+  const ACK_TABLE='wlp_sync_action_acknowledgements_v1';
+  const RECEIPT_TABLE='wlp_sync_mutation_receipts_v1';
+  const CONFLICT_TABLE='wlp_sync_conflicts_v1';
+  const RESTORE_RUN_TABLE='wlp_account_restore_runs_v1';
   const $=id=>document.getElementById(id);
   const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
   const state={restorePoints:[],preview:null,executing:false};
@@ -40,9 +45,28 @@
     if(!Number.isFinite(d.getTime()))return'—';
     try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(d);}catch{return d.toLocaleString();}
   }
-  function downloadJson(data,filename){
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+  function downloadBlob(blob,filename){
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }
+  function downloadJson(data,filename){downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),filename);}
+  function jsonText(value){return `${JSON.stringify(value,null,2)}\n`;}
+  function u16(value){const a=new Uint8Array(2);new DataView(a.buffer).setUint16(0,value,true);return a;}
+  function u32(value){const a=new Uint8Array(4);new DataView(a.buffer).setUint32(0,value>>>0,true);return a;}
+  const CRC_TABLE=(()=>{const table=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);table[n]=c>>>0;}return table;})();
+  function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=CRC_TABLE[(c^b)&0xff]^(c>>>8);return (c^0xffffffff)>>>0;}
+  function zipDosDateTime(date){const d=date instanceof Date?date:new Date(date);const year=Math.max(1980,d.getFullYear());return{time:((d.getHours()&31)<<11)|((d.getMinutes()&63)<<5)|((Math.floor(d.getSeconds()/2))&31),date:(((year-1980)&127)<<9)|(((d.getMonth()+1)&15)<<5)|(d.getDate()&31)};}
+  function buildStoreZip(entries,createdAt=new Date()){
+    const encoder=new TextEncoder(),locals=[],centrals=[];let offset=0;const dt=zipDosDateTime(createdAt);
+    for(const entry of entries){
+      const nameBytes=encoder.encode(String(entry.name)),dataBytes=entry.bytes instanceof Uint8Array?entry.bytes:encoder.encode(String(entry.text??'')),crc=crc32(dataBytes),flags=0x0800;
+      const local=new Blob([u32(0x04034b50),u16(20),u16(flags),u16(0),u16(dt.time),u16(dt.date),u32(crc),u32(dataBytes.length),u32(dataBytes.length),u16(nameBytes.length),u16(0),nameBytes,dataBytes]);
+      locals.push(local);
+      const central=new Blob([u32(0x02014b50),u16(20),u16(20),u16(flags),u16(0),u16(dt.time),u16(dt.date),u32(crc),u32(dataBytes.length),u32(dataBytes.length),u16(nameBytes.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),nameBytes]);
+      centrals.push(central);offset+=local.size;
+    }
+    const centralOffset=offset,centralSize=centrals.reduce((sum,b)=>sum+b.size,0),end=new Blob([u32(0x06054b50),u16(0),u16(0),u16(entries.length),u16(entries.length),u32(centralSize),u32(centralOffset),u16(0)]);
+    return new Blob([...locals,...centrals,end],{type:'application/zip'});
   }
   function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 
@@ -52,7 +76,7 @@
     node.hidden=false;node.textContent=text;node.dataset.tone=tone;
   }
   function setBusy(busy){
-    ['canonical-account-export','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
+    ['canonical-account-export','canonical-account-archive','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
     const confirm=$('canonical-restore-confirm-input');if(confirm)confirm.disabled=Boolean(busy);
     document.querySelectorAll('.canonical-restore-preview-button').forEach(b=>{b.disabled=Boolean(busy);});
     updateExecutionButton();
@@ -194,17 +218,90 @@
     return{head,highWater,dataset,current};
   }
 
-  async function buildCanonicalSnapshot(api){
-    const {head,highWater,current}=await readCurrentCanonical(api),restorePoints=await fetchRestorePoints(api,20),exportedAt=new Date().toISOString();
+  function canonicalSnapshotObject(api,head,highWater,current,restorePoints,exportedAt=new Date().toISOString()){
     return{
       format:FORMAT,version:VERSION,appVersion:APP_VERSION,exportedAt,
       account:{userId:String(api.session.userId||''),email:String(api.session.email||'')},
       authority:{candidateKey:String(head.candidate_key),headVersion:Number(head.head_version),snapshotManifestHash:String(head.snapshot_manifest_hash),canonicalRowCount:Number(head.canonical_row_count||0),migrationVersion:head.migration_version??null,promotedAt:head.promoted_at||null},
       highWaterChangeSeq:highWater,
       summary:{recordCount:current.recordCount,activeCount:current.activeCount,tombstoneCount:current.tombstoneCount,overlayChangeRows:current.overlayChangeRows,tableCounts:current.tableCounts,manifestHash:current.manifestHash},
-      restorePoints:restorePoints.map(clone),
+      restorePoints:(restorePoints||[]).map(clone),
       records:current.records
     };
+  }
+
+  async function buildCanonicalSnapshot(api){
+    const {head,highWater,current}=await readCurrentCanonical(api),restorePoints=await fetchRestorePoints(api,20);
+    return canonicalSnapshotObject(api,head,highWater,current,restorePoints);
+  }
+
+  async function verifyRawChangePayloads(rows){
+    let checked=0;
+    for(const row of rows){
+      if(row?.payload!=null)await verifyPayloadBytes(row.payload,String(row.payload_hash||''),`Raw change ${Number(row.change_seq||0)} ${String(row.table_name||'')}/${String(row.row_key||'')}`);
+      checked+=1;if(checked%500===0)setStatus(`Checking raw Canonical change payloads… ${checked.toLocaleString()} / ${rows.length.toLocaleString()}`,'working');
+    }
+  }
+
+  function projectRows(rows,fields){return (rows||[]).map(row=>{const out={};for(const field of fields)out[field]=row?.[field]??null;return out;});}
+  async function fingerprint(value){return sha256(stableStringify(value));}
+  async function verifyArchiveBoundary(api,start,raw){
+    const endHead=await fetchHead(api),endHigh=await fetchHighWater(api,endHead);
+    if(!headMatches(start.head,endHead)||Number(endHigh)!==Number(start.highWater))throw new Error('Canonical Safety Archive blocked: ACTIVE Authority or change cursor moved during export. Retry when authoring/sync is idle.');
+    const checks=[
+      [MUTATION_TABLE,'mutation_id,status,result,received_at,applied_at','order=received_at.asc,mutation_id.asc',projectRows(raw.mutations,['mutation_id','status','result','received_at','applied_at'])],
+      [ACK_TABLE,'action_id,status,result,acknowledged_at,mutation_ids','order=acknowledged_at.asc,action_id.asc',projectRows(raw.acknowledgements,['action_id','status','result','acknowledged_at','mutation_ids'])],
+      [RECEIPT_TABLE,'mutation_id,status,mutation_hash,received_at','order=received_at.asc,mutation_id.asc',projectRows(raw.receipts,['mutation_id','status','mutation_hash','received_at'])],
+      [CONFLICT_TABLE,'conflict_id,status,resolution_value,detected_at,resolved_at','order=detected_at.asc,conflict_id.asc',projectRows(raw.conflicts,['conflict_id','status','resolution_value','detected_at','resolved_at'])],
+      [RESTORE_TABLE,'restore_point_id,restore_point_hash,change_seq_high_water,created_at','order=created_at.asc,restore_point_id.asc',projectRows(raw.restorePoints,['restore_point_id','restore_point_hash','change_seq_high_water','created_at'])],
+      [RESTORE_RUN_TABLE,'restore_run_id,status,planned_action_count,applied_action_count,post_change_seq,created_at,completed_at','order=created_at.asc,restore_run_id.asc',projectRows(raw.restoreRuns,['restore_run_id','status','planned_action_count','applied_action_count','post_change_seq','created_at','completed_at'])]
+    ];
+    for(const [table,select,extra,before] of checks){
+      const after=await api.fetchPaged(table,select,extra);
+      if(await fingerprint(before)!==await fingerprint(after))throw new Error(`Canonical Safety Archive blocked: ${table} changed during export. Retry when Canonical activity is idle.`);
+    }
+  }
+
+  async function buildSafetyArchive(api){
+    setStatus('Building Canonical Safety Archive · fixing one account boundary…','working');
+    const start=await readCurrentCanonical(api),exportedAt=new Date().toISOString();
+    const [restorePoints,mutations,acknowledgements,receipts,conflicts,restoreRuns,rawChanges]=await Promise.all([
+      api.fetchPaged(RESTORE_TABLE,'*','order=created_at.asc,restore_point_id.asc'),
+      api.fetchPaged(MUTATION_TABLE,'*','order=received_at.asc,mutation_id.asc'),
+      api.fetchPaged(ACK_TABLE,'*','order=acknowledged_at.asc,action_id.asc'),
+      api.fetchPaged(RECEIPT_TABLE,'*','order=received_at.asc,mutation_id.asc'),
+      api.fetchPaged(CONFLICT_TABLE,'*','order=detected_at.asc,conflict_id.asc'),
+      api.fetchPaged(RESTORE_RUN_TABLE,'*','order=created_at.asc,restore_run_id.asc'),
+      start.highWater?api.fetchPaged(CHANGE_TABLE,'*',`change_seq=lte.${start.highWater}&order=change_seq.asc`):Promise.resolve([])
+    ]);
+    await verifyRawChangePayloads(rawChanges);
+    if(start.highWater&&Number(rawChanges.at(-1)?.change_seq||0)!==Number(start.highWater))throw new Error('Canonical Safety Archive blocked: raw change history does not reach the fixed high-water cursor.');
+    const raw={restorePoints,mutations,acknowledgements,receipts,conflicts,restoreRuns,rawChanges};
+    await verifyArchiveBoundary(api,start,raw);
+    const effective=canonicalSnapshotObject(api,start.head,start.highWater,start.current,restorePoints,exportedAt);
+    const files=[
+      {name:'effective-account.json',text:jsonText(effective)},
+      {name:'authority/active-head.json',text:jsonText(start.head)},
+      {name:'authority/active-base-records.json',text:jsonText(start.dataset.baseRows)},
+      {name:'history/sync-changes.json',text:jsonText(rawChanges)},
+      {name:'history/sync-mutations.json',text:jsonText(mutations)},
+      {name:'history/action-acknowledgements.json',text:jsonText(acknowledgements)},
+      {name:'history/mutation-receipts.json',text:jsonText(receipts)},
+      {name:'history/conflicts.json',text:jsonText(conflicts)},
+      {name:'safety/restore-points.json',text:jsonText(restorePoints)},
+      {name:'safety/restore-runs.json',text:jsonText(restoreRuns)}
+    ];
+    const schema={format:'WLP_CANONICAL_SAFETY_ARCHIVE',version:1,appVersion:APP_VERSION,semantics:{'effective-account.json':'Self-contained effective Canonical Account Backup v1, restorable through the existing preview/restore design.','authority/active-base-records.json':'Immutable ACTIVE Authority base rows at export boundary.','history/sync-changes.json':'Raw ordered Canonical change feed through the fixed high-water cursor.','history/sync-mutations.json':'Raw steady-state mutation ledger, including envelopes/results.','history/action-acknowledgements.json':'Raw action acknowledgement ledger.','history/mutation-receipts.json':'Historical quarantined mutation receipts used during the v3 cutover.','history/conflicts.json':'Raw conflict ledger.','safety/restore-points.json':'Cloud Restore Point checkpoints.','safety/restore-runs.json':'Durable Restore execution audit runs.'},restoreNote:'History files are audit/disaster-recovery material. Restore must append new restoring actions; historical rows are never deleted or rewritten.'};
+    files.push({name:'schema.json',text:jsonText(schema)});
+    const readme=`WLP Canonical Safety Archive v1\nExported: ${exportedAt}\nAuthority: ${start.head.candidate_key} / head ${start.head.head_version}\nFixed Canonical cursor: ${start.highWater}\nEffective records: ${start.current.recordCount}\nRaw changes: ${rawChanges.length}\nMutations: ${mutations.length}\nACKs: ${acknowledgements.length}\nConflicts: ${conflicts.length}\nRestore Points: ${restorePoints.length}\nRestore Runs: ${restoreRuns.length}\n\nThis ZIP intentionally contains no Supabase access/refresh token, API key, or browser session/config object.\nThe effective account snapshot is in effective-account.json. Raw history is retained for audit/disaster recovery.\nRestore history must remain append-only; do not erase historical Canonical rows.\n`;
+    files.unshift({name:'README.txt',text:readme});
+    const encoder=new TextEncoder(),manifestFiles=[];
+    for(const file of files){const bytes=encoder.encode(file.text);file.bytes=bytes;manifestFiles.push({name:file.name,bytes:bytes.length,sha256:await sha256(file.text)});delete file.text;}
+    const manifest={format:'WLP_CANONICAL_SAFETY_ARCHIVE',version:1,appVersion:APP_VERSION,exportedAt,account:{userId:String(api.session.userId||''),email:String(api.session.email||'')},authority:{candidateKey:String(start.head.candidate_key),headVersion:Number(start.head.head_version),snapshotManifestHash:String(start.head.snapshot_manifest_hash),canonicalRowCount:Number(start.head.canonical_row_count||0)},highWaterChangeSeq:Number(start.highWater),effectiveManifestHash:start.current.manifestHash,counts:{effectiveRecords:start.current.recordCount,authorityBaseRows:start.dataset.baseRows.length,rawChanges:rawChanges.length,mutations:mutations.length,acknowledgements:acknowledgements.length,mutationReceipts:receipts.length,conflicts:conflicts.length,restorePoints:restorePoints.length,restoreRuns:restoreRuns.length},security:{containsAuthTokens:false,containsSupabaseConfig:false,containsSessionSecrets:false},files:manifestFiles};
+    const manifestText=jsonText(manifest),secretNeedles=['\"accessToken\":','\"refreshToken\":','\"access_token\":','\"refresh_token\":','\"publishableKey\":','\"apikey\":'];
+    for(const file of files){const text=new TextDecoder().decode(file.bytes);for(const needle of secretNeedles){if(text.includes(needle))throw new Error(`Canonical Safety Archive blocked: secret-like key ${needle.replaceAll('\"','')} found in ${file.name}.`);}}
+    files.unshift({name:'manifest.json',bytes:encoder.encode(manifestText)});
+    return{blob:buildStoreZip(files,new Date(exportedAt)),manifest};
   }
 
   async function validateBackupFile(backup,api){
@@ -451,10 +548,23 @@
     finally{setBusy(false);}
   }
 
+  async function exportCanonicalSafetyArchive(){
+    setBusy(true);
+    try{
+      const api=await cloudContext(),archive=await buildSafetyArchive(api),filename=`wlp-canonical-safety-archive-${stamp(new Date(archive.manifest.exportedAt))}.zip`;
+      downloadBlob(archive.blob,filename);
+      const c=archive.manifest.counts;
+      $('canonical-account-archive-summary').textContent=`cursor ${archive.manifest.highWaterChangeSeq} · ${c.effectiveRecords} effective · ${c.rawChanges} changes · ${c.mutations} mutations · ${c.acknowledgements} ACKs · ${c.restoreRuns} restore runs`;
+      setStatus(`Canonical Safety Archive ready: ${filename} · fixed cursor ${archive.manifest.highWaterChangeSeq} · history + restore audit included.`,'success');
+    }catch(error){setStatus(error?.message||String(error),'error');}
+    finally{setBusy(false);}
+  }
+
   function bind(){
     $('canonical-account-refresh')?.addEventListener('click',()=>{void refreshSummary();});
     $('canonical-restore-create')?.addEventListener('click',()=>{void createRestorePoint();});
     $('canonical-account-export')?.addEventListener('click',()=>{void exportCanonicalAccount();});
+    $('canonical-account-archive')?.addEventListener('click',()=>{void exportCanonicalSafetyArchive();});
     $('canonical-restore-list')?.addEventListener('click',event=>{
       const button=event.target.closest?.('.canonical-restore-preview-button');if(!button)return;
       setBusy(true);clearRestorePreview();
