@@ -3,7 +3,7 @@
   const LOCAL_ADDITIONS_KEY = 'wlp:local-additions:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
   const WLP_UI_SESSION_ADMIN_KEY = 'wlp:session-admin:v1';
-  const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260916-s7-editor-local-edits-v1-4-6';
+  const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20261008-v394-local-edit-master-refresh';
   const FIELDS = ['Word','IPA','Part of Speech','Definition','Synonym(s)','Example Sentence','Note(s)','Category','Source'];
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
