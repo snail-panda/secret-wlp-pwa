@@ -90,6 +90,7 @@
   let toastTimer=0;
   function showToast(message){const toast=$('editor-toast');if(!toast)return;toast.textContent=String(message||'');toast.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{toast.hidden=true;},4200);}
   function requestCanonicalDelete(localId,button){const id=String(localId||'').trim();if(!id)return;if(button){button.disabled=true;button.setAttribute('aria-disabled','true');button.dataset.originalLabel=button.textContent||'Delete';button.textContent='Deleting…';}showToast('Deleting Draft from your WLP account…');window.dispatchEvent(new CustomEvent('wlp-draft-core-changed',{detail:{kind:'delete',localId:id}}));}
+  function requestCanonicalPromote(localId,button){const id=String(localId||'').trim();if(!id)return;if(button){button.disabled=true;button.setAttribute('aria-disabled','true');button.dataset.originalLabel=button.textContent||'Promote';button.textContent='Promoting…';}showToast('Promoting Draft to the next official WID…');window.dispatchEvent(new CustomEvent('wlp-draft-core-changed',{detail:{kind:'promote',localId:id}}));}
 
   function syncCountPill(drafts = readDrafts()) {
     const pill=$('editor-count-pill'); if(!pill) return;
@@ -107,8 +108,19 @@
       const date=formatDate(d.updatedAt||d.createdAt);
       const meta=[`Draft ${String(i+1).padStart(3,'0')}`,pos,date?`Updated ${date}`:''].filter(Boolean).join(' · ');
       const detail=String(d.Definition||d['Example Sentence']||d['Note(s)']||'No definition yet.').trim();
-      return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}&return=${encodeURIComponent('editor-drafts.html')}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}">Delete</button></div></article>`;
+      return `<article class="draft-manage-card" data-local-id="${esc(d.localId)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(d.Word||'Untitled Draft')}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div></div><div class="draft-manage-actions"><button class="draft-manage-promote" type="button" data-promote-draft="${esc(d.localId)}">Promote</button><a class="draft-manage-edit" href="./editor-draft-edit.html?id=${encodeURIComponent(String(d.localId||''))}&return=${encodeURIComponent('editor-drafts.html')}">Edit</a><button class="draft-manage-delete" type="button" data-delete-draft="${esc(d.localId)}">Delete</button></div></article>`;
     }).join('');
+    list.querySelectorAll('[data-promote-draft]').forEach(btn=>btn.addEventListener('click',async()=>{
+      if(!isAdmin()) return; const id=String(btn.dataset.promoteDraft||'').trim(),target=drafts.find(d=>String(d.localId||'')===id); if(!target) return;
+      const ok=await openWlpConfirm({
+        title:'Promote to Official?',
+        message:'Assign the next official WordID while keeping this Draft’s existing card_id / UUID. This writes the account Canonical Cloud. The static Master TSV is NOT updated in this canary, so the promoted card may not appear in current Master-based study/search until the Canonical Official Library cutover. There is no Demote action yet.',
+        detail:`${target.Word||'Untitled Draft'}`,
+        confirmLabel:'Promote'
+      });
+      if(!ok) return;
+      requestCanonicalPromote(id,btn);
+    }));
     list.querySelectorAll('[data-delete-draft]').forEach(btn=>btn.addEventListener('click',async()=>{
       if(!isAdmin()) return;
       const id=String(btn.dataset.deleteDraft||''); const rows=readDrafts(); const target=rows.find(d=>String(d.localId||'')===id); if(!target) return;
@@ -158,6 +170,8 @@
       requestCanonicalDelete(id,$('draft-edit-delete'));
     });
   }
+
+  window.addEventListener('wlp-draft-promote-complete',event=>{const d=event?.detail||{},id=String(d.localId||''),pass=d.pass===true,wid=String(d.wordId||'');if(pass){showToast(`Promoted to Official · WID${wid}.`);renderManage();return;}showToast(`Draft promotion CHECK: ${String(d.error||'Canonical promotion did not complete.')}`);renderManage();const btn=[...document.querySelectorAll('[data-promote-draft]')].find(x=>String(x.dataset.promoteDraft||'')===id);if(btn){btn.disabled=false;btn.removeAttribute('aria-disabled');btn.textContent=btn.dataset.originalLabel||'Promote';}});
 
   window.addEventListener('wlp-draft-delete-complete',event=>{const d=event?.detail||{},id=String(d.localId||''),pass=d.pass===true;if(pass){showToast('Draft deleted from your WLP account.');const currentId=String(new URLSearchParams(location.search).get('id')||'');if(document.getElementById('draft-edit-form')&&currentId===id){location.href='./editor-drafts.html';return;}renderManage();return;}showToast(`Draft delete CHECK: ${String(d.error||'Canonical delete did not complete.')}`);renderManage();const editDelete=$('draft-edit-delete');if(editDelete){editDelete.disabled=false;editDelete.removeAttribute('aria-disabled');editDelete.textContent='Delete Draft';}});
 

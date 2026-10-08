@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./editor.css">
   <link rel="stylesheet" href="./editor-new-card.css">
-  <link rel="stylesheet" href="./editor-drafts.css?v=20261008-v395-drafts-desktop-layout">
+  <link rel="stylesheet" href="./editor-drafts.css?v=20261008-v396-draft-promote-canary">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
   <style id="stage7-bottom-nav-critical-lock">
@@ -65,14 +65,14 @@
         <div>
           <span class="section-kicker">Editor · Drafts</span>
           <h1>Manage Drafts</h1>
-          <p>Manage account-owned Drafts before they are promoted into the official Master.</p>
+          <p>Manage account-owned Drafts and, in this transition canary, promote one Draft into the Canonical official library while keeping its stable card_id.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
       </section>
 
       <section class="editor-note" aria-label="Draft management note">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><path d="m16 16 2 2 4-4"/></svg>
-        <div><strong>Manage here, study in Drafts</strong><span>Changes sync through your WLP account and appear in Draft Decks and Global Search on this browser.</span></div>
+        <div><strong>Promote canary is transitional</strong><span>Promotion assigns the next official WID in Canonical Cloud and removes the Draft projection. The static Master TSV is not updated yet, so promoted cards may not appear in current Master-based study/search until the next Canonical Official Library cutover.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
@@ -160,10 +160,10 @@
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./learning-hooks.js?v=20260918-s7-learning-meta-v2-v18631"></script>
-  <script src="./canonical-auto-sync-canary.js?v=20261007-v393-local-edit-canonical"></script>
-  <script src="./canonical-draft-write.js?v=20261007-v392-draft-delete"></script>
+  <script src="./canonical-auto-sync-canary.js?v=20261008-v396-draft-promote-canary"></script>
+  <script src="./canonical-draft-write.js?v=20261008-v396-draft-promote-canary"></script>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-drafts.js?v=20261007-v392-draft-delete"></script>
+  <script src="./editor-drafts.js?v=20261008-v396-draft-promote-canary"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>

@@ -16,6 +16,7 @@
 .draft-manage-detail{margin-top:5px;color:#596d61;font-size:.75rem;line-height:1.38;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .draft-manage-actions{display:flex;align-items:center;gap:7px}
 .draft-manage-actions a,.draft-manage-actions button{min-height:36px;padding:7px 10px;border-radius:999px;font:800 .68rem/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer}
+.draft-manage-promote{border:1px solid rgba(73,118,86,.24);background:#e5f1e5;color:#42644f}
 .draft-manage-edit{border:1px solid rgba(69,102,82,.22);background:#eef5ea;color:#4d6959;text-decoration:none;display:inline-flex;align-items:center}
 .draft-manage-delete{border:1px solid rgba(145,95,88,.17);background:#faf0ee;color:#8c655f}
 .draft-manage-empty{padding:28px 18px;text-align:center;border:1px dashed rgba(85,114,100,.2);border-radius:18px;background:rgba(255,255,255,.55)}
