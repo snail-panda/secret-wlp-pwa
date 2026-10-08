@@ -1,4 +1,4 @@
-/* WLP P1-C2 · Read-only source comparison and field merge policy: live Master TSV + protected Legacy Local Edits
+/* WLP P1-C3 · Read-only source comparison and field merge policy: live Master TSV + protected Legacy Local Edits
    versus isolated P1-B Canonical Official IndexedDB projection. No live source
    cutover, Cloud request, IndexedDB/localStorage write or SW registration. */
 (() => {
@@ -127,9 +127,99 @@
   if(typeof document==='undefined')return;
   const $=id=>document.getElementById(id);
   let state=null,busy=false;
+  const REVIEW_TTL_MS=5*60*1000;
+  const decisionKey=(wid,field)=>`${wid}::${field}`;
   const req=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IndexedDB request error'));});
   const show=(id,value)=>{$(id).textContent=String(value);};
-  function setBusy(value){busy=value;$('compare').disabled=value;$('show-card').disabled=value||!state;$('audit').disabled=value||!state;}
+  function setBusy(value){
+    busy=value;
+    $('compare').disabled=value;
+    $('show-card').disabled=value||!state;
+    $('audit').disabled=value||!state;
+    $('verify-account').disabled=value||!state||state.result.status!=='PASS';
+    $('review-held').disabled=value||!state?.ownership||!state?.policy?.held?.length;
+  }
+  function clearReview(){
+    $('ownership').textContent='Not verified. Run Step 1, then verify the currently authenticated Cloud account.';
+    $('held-review').replaceChildren();
+    $('held-review').textContent='No values displayed. Verify account ownership before reviewing held fields.';
+    $('review-held').disabled=true;
+  }
+  async function activeMetaOnly(){
+    const db=await openExistingDb();
+    try{const tx=db.transaction('meta','readonly'),r=await req(tx.objectStore('meta').get('active'));return r?.value||null;}
+    finally{db.close();}
+  }
+  function assertStillSame(snapshot){
+    assert(state&&snapshot&&state.activeGeneration===snapshot.generation,'Projection generation changed — run Step 1 again.');
+    assert(state.activeAccountKey===snapshot.accountKey&&state.activeCursor===snapshot.cursor&&state.activeManifest===snapshot.libraryManifestHash,'Projection account/cursor/manifest changed — run Step 1 again.');
+    assert(localStorage.getItem(OVERRIDE_KEY)===state.localRaw,'Legacy Local Edits changed — run Step 1 again.');
+  }
+  async function verifyAccount(){
+    assert(!busy,'Another check is running');
+    if(!state||state.result.status!=='PASS'){show('ownership','BLOCKED · Run Step 1 successfully first.');return;}
+    state.ownership=null;state.previewChoices={};clearReview();renderPolicy(state.policy);setBusy(true);
+    try{
+      show('ownership','CHECKING · contacting Supabase Auth /auth/v1/user, read-only…');
+      const before=await activeMetaOnly();assertStillSame(before);
+      assert(window.WLPP1C3Review?.verifyLiveAccount,'P1-C3 identity verification module is missing. BLOCKED.');
+      const verified=await window.WLPP1C3Review.verifyLiveAccount(before);
+      const after=await activeMetaOnly();assertStillSame(after);
+      assert(verified.generation===after.generation&&verified.cursor===after.cursor,'Projection generation changed during verification.');
+      state.ownership={at:Date.now(),generation:after.generation,cursor:after.cursor};
+      renderPolicy(state.policy);
+      show('ownership',`PASS · Supabase authenticated user matches the account bound to Local Projection.
+Local generation unchanged · cursor ${after.cursor} · ${state.policy.summary.heldFields} field(s) still on HOLD.
+This is a point-in-time identity check only. No edits were written and no cutover is authorized.`);
+    }catch(e){state.ownership=null;show('ownership',`BLOCKED · ${e?.message||String(e)}. No edits changed.`);}
+    finally{setBusy(false);}
+  }
+  function renderHeldRows(rows){
+    const output=$('held-review');output.replaceChildren();
+    const intro=document.createElement('p');intro.className='p1c-note';intro.textContent='Compare actual field text on THIS device only. Any preview preference stays in memory until reload and does not resolve or delete a Local Edit.';output.append(intro);
+    for(const item of rows){
+      const panel=document.createElement('div');panel.className='p1c3-held';
+      const heading=document.createElement('h3');heading.textContent=`WID${item.wid} · ${item.field} · HOLD`;
+      panel.append(heading);
+      const grid=document.createElement('div');grid.className='p1c3-cols';
+      for(const [label,value] of [['Canonical in Local Projection',item.canonical],['Protected Legacy Local Edit',item.local]]){
+        const box=document.createElement('div'),title=document.createElement('b'),pre=document.createElement('pre');
+        title.textContent=label;pre.className='p1c3-value';pre.textContent=value;
+        box.append(title,pre);grid.append(box);
+      }
+      panel.append(grid);
+      const label=document.createElement('label');label.className='p1c3-label';label.textContent='Preview preference (not saved): ';
+      const select=document.createElement('select');select.className='p1c3-select';
+      for(const [value,title] of [['hold','Hold — no decision (default)'],['canonical','Preview Canonical text'],['local','Preview protected Local Edit text']]){
+        const option=document.createElement('option');option.value=value;option.textContent=title;select.append(option);
+      }
+      const k=decisionKey(item.wid,item.field);state.previewChoices[k]='hold';
+      select.addEventListener('change',()=>{if(state)state.previewChoices[k]=select.value;});
+      label.append(select);panel.append(label);output.append(panel);
+    }
+    const tail=document.createElement('p');tail.className='p1c-note';tail.textContent='HOLD remains unresolved regardless of the selection. No Cloud write, no device write, no Local Edit migration, no source cutover.';output.append(tail);
+  }
+  async function reviewHeld(){
+    assert(!busy,'Another check is running');
+    if(!state?.ownership){show('held-review','BLOCKED · Verify the Cloud account first.');return;}
+    $('held-review').textContent='CHECKING · re-verifying the authenticated account before revealing local values…';
+    setBusy(true);
+    try{
+      assert(Date.now()-state.ownership.at<REVIEW_TTL_MS,'Identity check expired (5 minutes). Verify the account again.');
+      const before=await activeMetaOnly();assertStillSame(before);
+      await window.WLPP1C3Review.verifyLiveAccount(before);
+      const after=await activeMetaOnly();assertStillSame(after);
+      const rows=window.WLPP1C3Review.heldComparisons(state.master,state.byWid,state.overrides,state.policy);
+      assert(rows.length===state.policy.summary.heldFields,'HOLD field count changed — retry Step 1.');
+      state.previewChoices={};renderHeldRows(rows);
+    }catch(e){
+      state.previewChoices={};state.ownership=null;renderPolicy(state.policy);
+      show('ownership','BLOCKED · Identity check is no longer valid. Verify the account again.');
+      $('held-review').textContent=`BLOCKED · ${e?.message||String(e)}. No values revealed or changed.`;
+    }
+    finally{setBusy(false);}
+  }
+
   async function openExistingDb(){
     assert(typeof indexedDB.databases==='function','This Chrome version cannot safely check the existing projection DB');
     const dbs=await indexedDB.databases();
@@ -176,7 +266,7 @@
       ['Matches Canonical',c.matchesCanonical],['Canonical advanced',c.canonicalAdvanced],
       ['Fields on HOLD',c.heldFields],['Cards on HOLD',c.heldCards]
     ])box.append(stat(label,n));box.hidden=false;
-    show('policy-summary',`${policy.status} · ${policy.statement}\n${c.matchesCanonical} matching fields · ${c.canonicalAdvanced} Canonical-forward fields · ${c.formatReview} formatting reviews\n${c.localUnknownHold} local-origin unknown · ${c.divergentHold} divergent · ${c.missingHold} incomplete.\nNo live cutover. Legacy copies retained. Account ownership NOT reverified.`);
+    show('policy-summary',`${policy.status} · ${policy.statement}\n${c.matchesCanonical} matching fields · ${c.canonicalAdvanced} Canonical-forward fields · ${c.formatReview} formatting reviews\n${c.localUnknownHold} local-origin unknown · ${c.divergentHold} divergent · ${c.missingHold} incomplete.\nNo live cutover. Legacy copies retained. Account ownership ${state?.ownership?"VERIFIED at Step 4 (point-in-time)":"NOT verified yet (run Step 4)"}.`);
     const wrapper=$('policy-held');wrapper.replaceChildren();
     if(!policy.held.length){
       const note=document.createElement('p');note.className='p1c-note';note.textContent='No individual held fields found. This is still a shadow-only policy and not a cutover approval.';wrapper.append(note);
@@ -218,7 +308,7 @@
     const note=document.createElement('p');note.className='p1c-note';note.textContent='Comparison labels only. Local/Edit values are not exported. A discrepancy may be expected; do not delete or migrate any Local Edit based on this panel.';target.append(note);
   }
   async function compare(){
-    assert(!busy,'Comparison already running');state=null;setBusy(true);$('stats').hidden=true;clearPolicy();show('card','Run Step 1 first.');
+    assert(!busy,'Comparison already running');state=null;setBusy(true);$('stats').hidden=true;clearPolicy();clearReview();show('card','Run Step 1 first.');
     try{
       show('summary','READING · existing P1-B IndexedDB, current Static Master TSV and Legacy Local Edits. Read-only…');
       const [local,response]=await Promise.all([snapshot(),fetch(MASTER_URL,{cache:'no-store'})]);
@@ -236,7 +326,7 @@
       const policy=window.WLPP1C2Policy.evaluate(master,byWid,overrides,result);
       const currentRaw=localStorage.getItem(OVERRIDE_KEY);
       assert(currentRaw===raw,'Legacy Local Edits changed during comparison; retry to avoid stale policy results');
-      state={result,master,byWid,overrides,policy,localRaw:raw};
+      state={result,master,byWid,overrides,policy,localRaw:raw,ownership:null,previewChoices:{},activeGeneration:local.active.generation,activeAccountKey:local.active.accountKey,activeCursor:local.active.cursor,activeManifest:local.active.libraryManifestHash};
       renderStats(result);renderPolicy(policy);
       const c=result.counts;
       show('summary',`${result.status} · ${result.statement}\nCursor ${result.active.cursor} · ${c.compared} shared WIDs · ${c.projectionOnly} Canonical-only · ${c.staticOnly} Static-only\n${c.baselineDifferentCards} Master/Canonical difference cards (${c.baselineDifferentFields} fields) · ${c.lineEndingOnlyFields} line-ending/edge-space-only fields\n${c.legacyOverrideCopies} Legacy Local Edits · ${c.effectiveDifferentCards} Local-effective difference cards (${c.effectiveDifferentFields} fields)\nKnown baseline WID differences: ${result.expectedBaseline.knownDifferenceWidsMatch?'MATCH':'CHECK'} · WID7111/7112: ${result.expectedBaseline.cloudOnlyCanariesMatch?'MATCH':'CHECK'}\nNo live source switched; no data written.`);
@@ -248,11 +338,19 @@
   function exportAudit(){
     if(!state?.policy)return;
     if(localStorage.getItem(OVERRIDE_KEY)!==state.localRaw){show('status','STALE · Local Edits changed after comparison. Repeat Step 1 before exporting.');return;}
-    const report={format:'WLP_P1C2_SHADOW_MERGE_POLICY_AUDIT',version:1,createdAt:new Date().toISOString(),...state.result,policy:state.policy};
+    const decisions=state.previewChoices||{};
+    const reviewChoices=state.policy.held.map(row=>({wid:row.wid,field:row.field,previewChoice:decisions[decisionKey(row.wid,row.field)]||'not-reviewed',resolutionSaved:false}));
+    const report={format:'WLP_P1C3_READ_ONLY_HOLD_REVIEW_AUDIT',version:1,createdAt:new Date().toISOString(),
+      ...state.result,policy:state.policy,
+      ownership:{verifiedThisSession:!!state.ownership,verifiedAt:state.ownership?new Date(state.ownership.at).toISOString():null,accountKeyExcluded:true,liveRecheckBeforeReview:true},
+      previewChoices:reviewChoices,
+      p1c3Constraints:{readOnly:true,valuesNeverExported:true,previewChoicesNotPersisted:true,holdsUnresolved:true,accountVerificationNotPermanent:true,noLocalWrites:true,noCloudMutations:true,readSourceCutover:false}};
     const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)+'\n'],{type:'application/json'}));
-    const link=document.createElement('a');link.href=url;link.download='p1c2-audit.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    const link=document.createElement('a');link.href=url;link.download='p1c3-audit.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
   $('compare').addEventListener('click',compare);
+  $('verify-account').addEventListener('click',verifyAccount);
+  $('review-held').addEventListener('click',reviewHeld);
   $('show-card').addEventListener('click',()=>{if(state){const wid=Number($('wid').value);if(Number.isSafeInteger(wid)&&wid>0)detail(wid);else show('card','Enter a valid WordID');}});
   $('audit').addEventListener('click',exportAudit);
 })();
