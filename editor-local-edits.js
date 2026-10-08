@@ -73,7 +73,7 @@
     return overlay;
   }
 
-  function openWlpConfirm({title='Revert local edit?',message='Restore the Master version? This removes only the local edit on this device.',detail='',confirmLabel='Revert'}={}){
+  function openWlpConfirm({title='Revert local edit?',message='Restore the canonical Master version? This removes the account Local Edit after Canonical sync succeeds.',detail='',confirmLabel='Revert'}={}){
     const overlay=ensureConfirmDialog();
     const titleEl=$('wlp-confirm-title'), messageEl=$('wlp-confirm-message'), detailEl=$('wlp-confirm-detail');
     const cancel=$('wlp-confirm-cancel'), confirm=$('wlp-confirm-do');
@@ -176,7 +176,7 @@
       const pos=String(edit['Part of Speech']||master['Part of Speech']||'').trim();
       const date=formatDate(edit.updatedAt);
       const meta=[`WID${wid}`,pos,date?`Updated ${date}`:''].filter(Boolean).join(' · ');
-      const detail=String(edit.Definition||edit['Example Sentence']||edit['Note(s)']||master.Definition||'Local changes saved on this browser.').trim();
+      const detail=String(edit.Definition||edit['Example Sentence']||edit['Note(s)']||master.Definition||'Local Edit saved to your WLP account.').trim();
       return `<article class="draft-manage-card local-edit-card" data-word-id="${esc(wid)}"><div class="draft-manage-main"><div class="draft-manage-word">${esc(word)}</div><div class="draft-manage-meta">${esc(meta)}</div><div class="draft-manage-detail">${esc(detail)}</div><div class="local-edit-master-note"><span class="local-edit-state">Local Edit active</span></div></div><div class="draft-manage-actions"><a class="draft-manage-edit" href="./editor-local-edit.html?wid=${encodeURIComponent(wid)}&return=${encodeURIComponent('editor-local-edits.html')}">Edit</a><button class="draft-manage-delete" type="button" data-revert-local-edit="${esc(wid)}">Revert</button></div></article>`;
     }).join('');
     list.querySelectorAll('[data-revert-local-edit]').forEach(btn=>btn.addEventListener('click',async()=>{
@@ -184,7 +184,7 @@
       const word=String(current[wid].Word||masterMap.get(wid)?.Word||`WID${wid}`).trim();
       const ok=await openWlpConfirm({detail:`${word} · WID${wid}`});
       if(!ok)return;
-      delete current[wid]; writeOverrides(current); renderManage();
+      window.dispatchEvent(new CustomEvent('wlp-local-edit-core-changed',{detail:{kind:'revert',wid,source:'manage'}}));
     }));
   }
 
@@ -212,20 +212,34 @@
       const fd=new FormData(form), word=String(fd.get('Word')||'').trim(); if(!word){$('local-edit-word')?.focus();return;}
       const latest=readOverrides(), previous=latest[wid]&&typeof latest[wid]==='object'?latest[wid]:null, next={updatedAt:new Date().toISOString()}; FIELDS.forEach(field=>{next[field]=String(fd.get(field)||'').trim();}); next.__noteLineBreaks=noteEditedByUser?/[\r\n]/.test(next['Note(s)']||''):Boolean(previous?.__noteLineBreaks);
       const hasCanonicalDiff=FIELDS.some(field=>String(next[field]||'').trim()!==String(masterRow[field]||'').trim());
-      if(hasCanonicalDiff) latest[wid]=next; else delete latest[wid];
-      writeOverrides(latest);
+      if(hasCanonicalDiff){
+        latest[wid]=next; writeOverrides(latest);
+      }
       if(window.WLPLearningHooks) window.WLPLearningHooks.saveForMaster(wid, window.WLPLearningHooks.fromForm(form));
-      if(revert)revert.hidden=!hasCanonicalDiff; const success=$('local-edit-success'); if(success)success.hidden=false; syncEditNavigation(masterRow);
+      if(revert)revert.hidden=!hasCanonicalDiff;
+      const success=$('local-edit-success'); if(success)success.hidden=false; syncEditNavigation(masterRow);
+      const copy=$('local-edit-success-copy')||success?.querySelector('span');
+      if(hasCanonicalDiff){
+        if(copy)copy.textContent='Local Edit saved locally · syncing to your WLP account…';
+        window.dispatchEvent(new CustomEvent('wlp-local-edit-core-changed',{detail:{kind:'upsert',wid,source:'edit'}}));
+      } else if(previous){
+        if(copy)copy.textContent='Reverting Local Edit to the canonical Master in your WLP account…';
+        window.dispatchEvent(new CustomEvent('wlp-local-edit-core-changed',{detail:{kind:'revert',wid,source:'edit',returnHref:safeReturnContext().href}}));
+      } else if(copy){
+        copy.textContent='No Local Edit changes to sync. Learning Metadata changes, if any, are handled separately.';
+      }
     });
     revert?.addEventListener('click',async()=>{
       if(!isAdmin())return; const latest=readOverrides(); if(!latest[wid])return;
       const word=String(latest[wid].Word||masterRow.Word||`WID${wid}`).trim();
       const ok=await openWlpConfirm({detail:`${word} · WID${wid}`});
       if(!ok)return;
-      delete latest[wid]; writeOverrides(latest); location.href=safeReturnContext().href;
+      window.dispatchEvent(new CustomEvent('wlp-local-edit-core-changed',{detail:{kind:'revert',wid,source:'edit',returnHref:safeReturnContext().href}}));
     });
   }
 
+  window.addEventListener('wlp-local-edits-canonical-changed',()=>{renderManage();});
+  window.addEventListener('storage',event=>{if(event.key===LOCAL_OVERRIDES_KEY)renderManage();});
   renderManage(); fillEditForm();
   window.addEventListener('pageshow',renderManage); window.addEventListener('focus',renderManage);
 })();

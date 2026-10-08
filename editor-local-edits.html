@@ -66,14 +66,14 @@
         <div>
           <span class="section-kicker">Editor · Local Edits</span>
           <h1>Manage Local Edits</h1>
-          <p>Review browser-local changes to existing Master cards. Edit them here, or revert a card to its canonical Master version.</p>
+          <p>Review changes to existing Master cards. New or re-saved Local Edits sync to your WLP account; legacy browser-local edits will be migrated separately.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">0 Drafts · 0 Local Edits</span>
       </section>
 
       <section class="editor-note" aria-label="Local edits note">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg>
-        <div><strong>Local, reversible changes</strong><span>A Local Edit overrides the Master card only on this browser. Revert removes the Local Edit and restores the canonical Master card.</span></div>
+        <div><strong>Account-owned, reversible changes</strong><span>Canonical Local Edits are projected over the unchanged Master on each device. Revert tombstones the account overlay; legacy browser-local Local Edits remain local until migration.</span></div>
       </section>
 
       <section class="editor-locked" id="editor-locked" hidden>
@@ -87,7 +87,7 @@
         <section class="draft-manage-empty" id="local-edit-manage-empty" hidden>
           <span class="draft-manage-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h10"/><path d="m15 16 4.8-4.8a1.4 1.4 0 0 1 2 2L17 18l-3 1 1-3Z"/></svg></span>
           <h2>No Local Edits</h2>
-          <p>Use Edit Card on a Master card to create a browser-local change.</p>
+          <p>Use Edit Card on a Master card to create a Local Edit; newly saved edits sync to your WLP account.</p>
           <a href="./deck-browser.html">Choose a Deck</a>
         </section>
         <section class="draft-manage-list" id="local-edit-manage-list" aria-live="polite"></section>
@@ -157,7 +157,9 @@
 
   <div class="toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   <script src="./editor.js?v=20260915-s7-editor-v1-2"></script>
-  <script src="./editor-local-edits.js?v=20260918-s7-localdiff-v18616"></script>
+  <script src="./editor-local-edits.js?v=20261007-v393-local-edit-canonical"></script>
+  <script src="./canonical-auto-sync-canary.js?v=20261007-v393-local-edit-canonical"></script>
+  <script src="./canonical-local-edit-write.js?v=20261007-v393-local-edit-canonical"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script>
