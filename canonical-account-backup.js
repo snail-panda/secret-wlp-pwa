@@ -1,20 +1,22 @@
-/* WLP v1.8.6.399 — Canonical Account Restore Preview.
-   Adds read-only Restore Preview for Cloud Restore Points and Canonical Account Backup JSON.
-   Restore execution remains intentionally disabled. No Canonical/cloud data is modified. */
+/* WLP v1.8.6.400 — Canonical Account Restore execution safety layer.
+   Cloud Restore Points require Preview + exact confirmation + server-side revalidation.
+   Restore appends new Canonical restoring actions; history and Authority remain immutable.
+   External Canonical Backup JSON remains Preview-only in v400. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.399-canonical-account-restore-preview-v1';
+  const APP_VERSION='1.8.6.400-canonical-account-restore-execution-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
   const RESTORE_RPC='wlp_create_account_restore_point_v1';
+  const EXECUTE_RESTORE_RPC='wlp_execute_account_restore_point_v1';
   const AUTHORITY_HEAD='wlp_canonical_authority_heads';
   const AUTHORITY_RECORDS='wlp_canonical_authority_candidate_records';
   const CHANGE_TABLE='wlp_sync_changes_v1';
   const $=id=>document.getElementById(id);
   const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
-  const state={restorePoints:[],preview:null};
+  const state={restorePoints:[],preview:null,executing:false};
 
   function stableValue(value){
     if(Array.isArray(value))return value.map(stableValue);
@@ -51,7 +53,9 @@
   }
   function setBusy(busy){
     ['canonical-account-export','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
+    const confirm=$('canonical-restore-confirm-input');if(confirm)confirm.disabled=Boolean(busy);
     document.querySelectorAll('.canonical-restore-preview-button').forEach(b=>{b.disabled=Boolean(busy);});
+    updateExecutionButton();
   }
 
   function openShadowDb(){
@@ -253,6 +257,35 @@
     return{changes,byTable,unchanged,historyOnlyExtra,...totals};
   }
 
+  async function restorePlanHash(diff){
+    const rows=(diff?.changes||[]).map(item=>({
+      kind:String(item.kind||''),tableName:String(item.tableName||''),rowKey:String(item.rowKey||''),
+      currentPayloadHash:String(item.current?.payloadHash||''),currentTombstone:Boolean(item.current?.tombstone),
+      targetPayloadHash:String(item.target?.payloadHash||''),targetTombstone:Boolean(item.target?.tombstone)
+    })).sort((a,b)=>a.tableName<b.tableName?-1:a.tableName>b.tableName?1:a.rowKey<b.rowKey?-1:a.rowKey>b.rowKey?1:0);
+    return sha256(stableStringify(rows));
+  }
+  function confirmationPhrase(report){return report?.restorePointId?`RESTORE ${String(report.restorePointId).slice(0,8)}`:'';}
+  function updateExecutionButton(){
+    const button=$('canonical-restore-execute-button'),input=$('canonical-restore-confirm-input');if(!button)return;
+    const report=state.preview,phrase=confirmationPhrase(report),eligible=Boolean(report&&report.targetSource==='Cloud Restore Point'&&report.restorePointId);
+    button.disabled=state.executing||!eligible||!input||String(input.value||'')!==phrase;
+  }
+  function renderExecutionGate(report){
+    const box=$('canonical-restore-execute');if(!box)return;
+    const eligible=Boolean(report&&report.targetSource==='Cloud Restore Point'&&report.restorePointId);
+    box.hidden=!eligible;
+    if(!eligible){const input=$('canonical-restore-confirm-input');if(input)input.value='';updateExecutionButton();return;}
+    const phrase=confirmationPhrase(report),count=Number(report.diff?.totalActions||0);
+    $('canonical-restore-confirm-phrase').textContent=phrase;
+    $('canonical-restore-execute-copy').textContent=count===0
+      ? 'This preview is already an exact match. Confirming now exercises the locked server execution gate as a true NOOP: zero Canonical restore changes, with only a durable restore-run audit marker.'
+      : `${count.toLocaleString()} restoring action(s) are locked by this Preview. Execution will append new Canonical restore changes; it will not delete historical rows or rewrite the Authority snapshot.`;
+    const input=$('canonical-restore-confirm-input');if(input)input.value='';
+    const result=$('canonical-restore-execute-result');if(result)result.textContent='Preview is frozen until the Canonical cursor or plan changes. Any drift blocks execution.';
+    updateExecutionButton();
+  }
+
   function renderRestorePoints(rows){
     state.restorePoints=Array.isArray(rows)?rows.map(clone):[];
     const wrap=$('canonical-restore-list');if(!wrap)return;
@@ -266,6 +299,9 @@
     const input=$('canonical-restore-file');if(input)input.value='';
     if($('canonical-restore-preview-tables'))$('canonical-restore-preview-tables').innerHTML='';
     if($('canonical-restore-preview-samples'))$('canonical-restore-preview-samples').innerHTML='';
+    const execute=$('canonical-restore-execute');if(execute)execute.hidden=true;
+    const confirm=$('canonical-restore-confirm-input');if(confirm)confirm.value='';
+    updateExecutionButton();
   }
 
   function renderRestorePreview(report){
@@ -284,16 +320,17 @@
     $('canonical-restore-preview-history-only').textContent=String(report.diff.historyOnlyExtra);
     $('canonical-restore-preview-summary').textContent=report.diff.totalActions===0
       ? `No restoring actions are needed. Current Canonical effective state already matches this target. ${report.diff.historyOnlyExtra?`${report.diff.historyOnlyExtra} history-only tombstone row(s) are retained for audit continuity.`:''}`
-      : `${report.diff.totalActions.toLocaleString()} restoring action(s) would be needed to make the effective account state match this target. v399 does not execute any of them.`;
+      : `${report.diff.totalActions.toLocaleString()} restoring action(s) would be needed to make the effective account state match this target. For a Cloud Restore Point, v400 can execute only after this exact Preview is confirmed and revalidated.`;
     const tables=Object.entries(report.diff.byTable).filter(([,b])=>b.totalActions||b.historyOnlyExtra).sort((a,b)=>a[0].localeCompare(b[0]));
     $('canonical-restore-preview-tables').innerHTML=tables.length?tables.map(([table,b])=>`<div class="canonical-preview-table-row"><strong>${escapeHtml(table)}</strong><span>${b.totalActions} action${b.totalActions===1?'':'s'}${b.create?` · +${b.create} create`:''}${b.update?` · ${b.update} update`:''}${b.resurrect?` · ${b.resurrect} resurrect`:''}${b.tombstone?` · ${b.tombstone} tombstone`:''}${b.historyOnlyExtra?` · ${b.historyOnlyExtra} audit-only`:''}</span></div>`).join(''):'<p class="canonical-preview-empty">No table changes.</p>';
     const samples=report.diff.changes.slice(0,40);
     $('canonical-restore-preview-samples').innerHTML=samples.length?samples.map(item=>`<div class="canonical-preview-sample"><span class="canonical-preview-kind is-${escapeHtml(item.kind)}">${escapeHtml(item.kind)}</span><strong>${escapeHtml(item.tableName)}</strong><code>${escapeHtml(item.rowKey)}</code></div>`).join(''):'<p class="canonical-preview-empty">No restoring changes to show.</p>';
     const details=$('canonical-restore-preview-details');if(details)details.open=report.diff.totalActions>0;
+    renderExecutionGate(report);
     section.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
 
-  async function previewRestorePoint(restorePointId){
+  async function computeRestorePointPreview(restorePointId){
     const point=state.restorePoints.find(row=>String(row.restore_point_id||'')===String(restorePointId||''));
     if(!point)throw new Error('Selected Cloud Restore Point is no longer in the current list. Refresh and try again.');
     const api=await cloudContext(),head=await fetchHead(api),currentHighWater=await fetchHighWater(api,head);
@@ -306,9 +343,15 @@
     const headCheck=await fetchHead(api),highWaterCheck=await fetchHighWater(api,headCheck);
     if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed during Restore Preview. Retry.');
     if(highWaterCheck!==currentHighWater)throw new Error(`Canonical change cursor advanced during Restore Preview (${currentHighWater} → ${highWaterCheck}). Retry.`);
-    const diff=compareEffectiveStates(current,target);
-    renderRestorePreview({targetSource:'Cloud Restore Point',targetLabel:String(point.label||'Manual checkpoint'),targetCursor,currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,diff});
-    setStatus(diff.totalActions?`Restore Preview ready · ${diff.totalActions.toLocaleString()} restoring action(s) would be required · NO DATA WRITTEN.`:`Restore Preview PASS · current state already matches the selected Cloud Restore Point · NO DATA WRITTEN.`,'success');
+    const diff=compareEffectiveStates(current,target),planHash=await restorePlanHash(diff);
+    return{targetSource:'Cloud Restore Point',targetLabel:String(point.label||'Manual checkpoint'),restorePointId:String(point.restore_point_id||''),restorePointHash:String(point.restore_point_hash||''),targetCursor,currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,planHash,diff};
+  }
+
+  async function previewRestorePoint(restorePointId){
+    const report=await computeRestorePointPreview(restorePointId);
+    renderRestorePreview(report);
+    setStatus(report.diff.totalActions?`Restore Preview ready · ${report.diff.totalActions.toLocaleString()} restoring action(s) locked for confirmation · NO DATA WRITTEN.`:`Restore Preview PASS · current state already matches the selected Cloud Restore Point · execution gate can be tested as a server-checked NOOP.`,'success');
+    return report;
   }
 
   async function previewBackupFile(file){
@@ -323,9 +366,54 @@
     const headCheck=await fetchHead(api),highWaterCheck=await fetchHighWater(api,headCheck);
     if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed during Restore Preview. Retry.');
     if(highWaterCheck!==currentHighWater)throw new Error(`Canonical change cursor advanced during Restore Preview (${currentHighWater} → ${highWaterCheck}). Retry.`);
-    const diff=compareEffectiveStates(current,target);
-    renderRestorePreview({targetSource:'Canonical Account Backup JSON',targetLabel:file.name,targetCursor:Number(backup.highWaterChangeSeq||0),currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,diff});
-    setStatus(diff.totalActions?`Backup Restore Preview ready · ${diff.totalActions.toLocaleString()} restoring action(s) would be required · NO DATA WRITTEN.`:`Backup Restore Preview PASS · current state already matches the selected backup · NO DATA WRITTEN.`,'success');
+    const diff=compareEffectiveStates(current,target),planHash=await restorePlanHash(diff);
+    renderRestorePreview({targetSource:'Canonical Account Backup JSON',targetLabel:file.name,targetCursor:Number(backup.highWaterChangeSeq||0),currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,planHash,diff});
+    setStatus(diff.totalActions?`Backup Restore Preview ready · ${diff.totalActions.toLocaleString()} restoring action(s) would be required · JSON execution remains disabled in v400.`:`Backup Restore Preview PASS · current state already matches the selected backup · JSON execution remains disabled in v400.`,'success');
+  }
+
+  async function executeRestorePoint(){
+    const frozen=clone(state.preview);
+    if(!frozen||frozen.targetSource!=='Cloud Restore Point'||!frozen.restorePointId)throw new Error('Run Preview on a Cloud Restore Point before execution.');
+    const phrase=confirmationPhrase(frozen),input=String($('canonical-restore-confirm-input')?.value||'');
+    if(input!==phrase)throw new Error(`Type the exact confirmation phrase: ${phrase}`);
+    state.executing=true;setBusy(true);
+    const resultNode=$('canonical-restore-execute-result');if(resultNode)resultNode.textContent='Revalidating the frozen Preview against the locked Canonical account…';
+    try{
+      const fresh=await computeRestorePointPreview(frozen.restorePointId);
+      const same=Number(fresh.currentCursor)===Number(frozen.currentCursor)&&String(fresh.currentManifestHash||'')===String(frozen.currentManifestHash||'')&&String(fresh.targetManifestHash||'')===String(frozen.targetManifestHash||'')&&Number(fresh.diff.totalActions||0)===Number(frozen.diff?.totalActions||0)&&String(fresh.planHash||'')===String(frozen.planHash||'');
+      if(!same)throw new Error('Restore execution blocked: Canonical state or restore plan changed after Preview. Run Preview again.');
+      const api=await cloudContext(),deviceKey=String(localStorage.getItem('wlp:device-id:v1')||'').trim();
+      if(!deviceKey)throw new Error("Restore execution requires this browser's registered WLP device key.");
+      if(resultNode)resultNode.textContent='Calling the locked restore RPC. Historical Canonical rows will not be deleted.';
+      const r=await api.rest(`rpc/${EXECUTE_RESTORE_RPC}`,{method:'POST',body:{
+        p_restore_point_id:fresh.restorePointId,
+        p_device_key:deviceKey,
+        p_expected_current_change_seq:Number(fresh.currentCursor),
+        p_expected_current_manifest_hash:String(fresh.currentManifestHash),
+        p_expected_target_manifest_hash:String(fresh.targetManifestHash),
+        p_expected_action_count:Number(fresh.diff.totalActions||0),
+        p_expected_plan_hash:String(fresh.planHash),
+        p_confirmation:phrase
+      }}),server=Array.isArray(r.data)?r.data[0]:r.data;
+      if(!server||!['noop','applied'].includes(String(server.status||'')))throw new Error(`Restore RPC returned unexpected status ${String(server?.status||'missing')}.`);
+      if(String(server.status)==='applied'){
+        if(Number(server.appliedActionCount||0)!==Number(fresh.diff.totalActions||0)||!server.actionId||!Number(server.lastChangeSeq||0))throw new Error('Restore RPC applied result is incomplete.');
+        const sync=window.WLPCanonicalForegroundSync;if(!sync?.runSync)throw new Error('Restore was accepted by Cloud, but the local Canonical receiver is unavailable on this page. Do not perform another write; reload this page so the receiver can be retried.');
+        if(resultNode)resultNode.textContent=`Cloud appended ${Number(server.appliedActionCount||0).toLocaleString()} restoring action(s). Applying the one restore action to this browser…`;
+        const receipt=await sync.runSync({trigger:'account-restore-execution',receiverOnly:true});
+        if(!receipt?.summary?.pass||Number(receipt.summary.cursorAfter||0)<Number(server.lastChangeSeq||0))throw new Error('Cloud restore succeeded, but local receiver verification did not reach the restore cursor. Do not execute again; retry receiver sync.');
+      }else if(Number(server.changeWrites||0)!==0){throw new Error('Restore NOOP unexpectedly reported Canonical change writes.');}
+      const post=await computeRestorePointPreview(fresh.restorePointId);
+      if(Number(post.diff.totalActions||0)!==0)throw new Error(`Restore post-check failed: ${Number(post.diff.totalActions||0)} restoring action(s) still remain.`);
+      renderRestorePreview(post);
+      if(String(server.status)==='noop'){
+        if(resultNode)resultNode.textContent=`PASS · Server-checked NOOP · 0 Canonical changes written · restore-run ${String(server.restoreRunId||'').slice(0,8)}… recorded for audit.`;
+        setStatus('Restore execution gate PASS · server-checked NOOP · 0 Canonical changes written · durable audit marker recorded.','success');
+      }else{
+        if(resultNode)resultNode.textContent=`PASS · ${Number(server.appliedActionCount||0).toLocaleString()} append-only restoring change(s) applied · history retained · post-restore Preview is 0.`;
+        setStatus(`Restore PASS · ${Number(server.appliedActionCount||0).toLocaleString()} restoring action(s) appended · browser receiver committed · post-restore Preview 0.`,'success');
+      }
+    }finally{state.executing=false;setBusy(false);updateExecutionButton();}
   }
 
   async function refreshSummary(){
@@ -379,6 +467,8 @@
       void previewBackupFile(file).catch(error=>setStatus(error?.message||String(error),'error')).finally(()=>setBusy(false));
     });
     $('canonical-restore-preview-clear')?.addEventListener('click',clearRestorePreview);
+    $('canonical-restore-confirm-input')?.addEventListener('input',updateExecutionButton);
+    $('canonical-restore-execute-button')?.addEventListener('click',()=>{void executeRestorePoint().catch(error=>setStatus(error?.message||String(error),'error'));});
     void refreshSummary();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();
