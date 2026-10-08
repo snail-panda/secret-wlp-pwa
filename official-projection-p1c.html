@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#edf4ed">
-  <title>WLP · P1-C Read-Only Source Comparison</title>
+  <title>WLP · P1-C2 Read-Only Merge Policy</title>
   <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
   <style>
     .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px;margin:14px 0}
@@ -19,22 +19,26 @@
     .p1c-note{font-size:.88rem;color:#405f4b;line-height:1.55}
     .p1c-buttons{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .p1c-buttons input{max-width:120px}
+    .p1c-hold{color:#8b4d09;font-weight:700}
+    .p1c2-table{width:100%;border-collapse:collapse;font-size:.86rem}
+    .p1c2-table td,.p1c2-table th{padding:9px 7px;text-align:left;border-bottom:1px solid #d9e4dc;overflow-wrap:anywhere}
   </style>
-  <script src="./official-projection-p1c.js?v=20261008-p1c" defer></script>
+  <script src="./official-projection-policy-p1c2.js?v=20261008-p1c2" defer></script>
+  <script src="./official-projection-p1c.js?v=20261008-p1c2" defer></script>
 </head>
 <body>
   <main>
     <header>
-      <p class="eyebrow">WORD LIST GARDEN · P1-C</p>
-      <h1>Read-Only Source Comparison</h1>
-      <p class="intro">Compare the <strong>current Static Master + this device's Legacy Local Edits</strong> against the installed <strong>Canonical Official Local Projection</strong>. No Cloud calls, no data writes, and no live page read-source cutover.</p>
+      <p class="eyebrow">WORD LIST GARDEN · P1-C2</p>
+      <h1>Read-Only Local Edit Merge Policy</h1>
+      <p class="intro">Compare the <strong>Static Master, protected Legacy Local Edits, and Canonical Local Projection</strong>, then preview which fields can be reconciled safely and which must remain unresolved. No Cloud calls, no writes, and no live read-source cutover.</p>
       <div class="pill">Same browser profile as P1-B · independent diagnostic · no Service Worker change</div>
     </header>
 
     <section class="panel">
-      <h2>1. Compare both card sources</h2>
+      <h2>1. Compare sources and evaluate merge policy</h2>
       <p>Reads the actual Master TSV used by current WLP pages and the active generation of <code>wlp-official-shadow-p1-v1</code>. Legacy Local Edit copies are read, <strong>never changed</strong>.</p>
-      <button id="compare" type="button">Compare Static + Local Edits with Projection</button>
+      <button id="compare" type="button">Compare sources + preview safe field policy</button>
       <div id="summary" class="result" aria-live="polite">Not started. Click Compare once; this does not install or modify any data.</div>
       <div class="statgrid" id="stats" hidden></div>
       <p class="p1c-note">A difference is <em>not automatically a failure</em>. The 2 promoted Official cards, approved Canonical enrichments and protected device-local edits are reported separately. Line-ending-only differences are also separate.</p>
@@ -48,13 +52,22 @@
     </section>
 
     <section class="panel">
-      <h2>3. Export diagnostic</h2>
-      <p>Exports counts, hashes, IDs and names of differing fields only. It does <strong>not</strong> export vocabulary contents, stored Local Edit values or account credentials.</p>
-      <button id="audit" type="button" disabled>Export P1-C Audit JSON</button>
+      <h2>3. Shadow field policy (automatic after Step 1)</h2>
+      <p>Legacy Local Edits store a complete nine-field snapshot, not an edit-by-edit history. A mismatch is <strong>not enough</strong> to decide which edit is newer. Ambiguous fields are marked <strong>HOLD</strong> and are never silently merged.</p>
+      <div id="policy-summary" class="result" aria-live="polite">Run Step 1 first. No policy decision has been made.</div>
+      <div id="policy-stats" class="statgrid" hidden></div>
+      <div id="policy-held" class="p1c-scroll" hidden></div>
+      <p class="p1c-note">Canonical values are the <strong>shadow preview</strong> only. HOLD does not discard the Local Edit; live cutover remains prohibited until provenance, conflict resolution and account ownership are verified.</p>
+    </section>
+
+    <section class="panel">
+      <h2>4. Export diagnostic</h2>
+      <p>Exports source counts, merge-policy classifications and held WID/field names only. It does <strong>not</strong> export vocabulary text, Local Edit values, account keys or credentials.</p>
+      <button id="audit" type="button" disabled>Export P1-C2 Policy Audit JSON</button>
       <div id="status" class="result" aria-live="polite">READY · waiting for Step 1.</div>
     </section>
 
-    <footer>This is a comparator, not a Cutover switch. Existing Study, Review, Search, Editor, Cloud and Legacy Local Edits remain unchanged. P1-C does not verify current Cloud account ownership or authorize changing the live read source.</footer>
+    <footer>This is a comparator, not a Cutover switch. Existing Study, Review, Search, Editor, Cloud and Legacy Local Edits remain unchanged. P1-C2 does not verify current Cloud account ownership or authorize changing the live read source.</footer>
   </main>
 </body>
 </html>

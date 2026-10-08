@@ -1,4 +1,4 @@
-/* WLP P1-C · Read-only comparison: live Master TSV + protected Legacy Local Edits
+/* WLP P1-C2 · Read-only source comparison and field merge policy: live Master TSV + protected Legacy Local Edits
    versus isolated P1-B Canonical Official IndexedDB projection. No live source
    cutover, Cloud request, IndexedDB/localStorage write or SW registration. */
 (() => {
@@ -169,6 +169,36 @@
     const c=a.counts,box=$('stats');box.replaceChildren();
     for(const [k,v] of [['Static Master',c.staticMaster],['Local Projection Official',c.projectionOfficial],['WIDs compared',c.compared],['Cloud-only cards',c.projectionOnly],['Legacy Local Edits',c.legacyOverrideCopies],['Canonical vs Master difference cards',c.baselineDifferentCards],['After-Local-Edit difference cards',c.effectiveDifferentCards],['Line-ending-only fields',c.lineEndingOnlyFields]])box.append(stat(k,v));box.hidden=false;
   }
+  function renderPolicy(policy){
+    const c=policy.summary,box=$('policy-stats');box.replaceChildren();
+    for(const [label,n] of [
+      ['Protected Local Edits',c.legacyCopies],['Legacy field snapshots',c.fieldSnapshots],
+      ['Matches Canonical',c.matchesCanonical],['Canonical advanced',c.canonicalAdvanced],
+      ['Fields on HOLD',c.heldFields],['Cards on HOLD',c.heldCards]
+    ])box.append(stat(label,n));box.hidden=false;
+    show('policy-summary',`${policy.status} · ${policy.statement}\n${c.matchesCanonical} matching fields · ${c.canonicalAdvanced} Canonical-forward fields · ${c.formatReview} formatting reviews\n${c.localUnknownHold} local-origin unknown · ${c.divergentHold} divergent · ${c.missingHold} incomplete.\nNo live cutover. Legacy copies retained. Account ownership NOT reverified.`);
+    const wrapper=$('policy-held');wrapper.replaceChildren();
+    if(!policy.held.length){
+      const note=document.createElement('p');note.className='p1c-note';note.textContent='No individual held fields found. This is still a shadow-only policy and not a cutover approval.';wrapper.append(note);
+    }else{
+      const table=document.createElement('table');table.className='p1c2-table';
+      const th=document.createElement('thead'),heading=document.createElement('tr');
+      for(const label of ['WordID','Field','Safe decision']){const cell=document.createElement('th');cell.textContent=label;heading.append(cell);}th.append(heading);table.append(th);
+      const body=document.createElement('tbody');
+      for(const item of policy.held){const tr=document.createElement('tr');
+        for(const value of [`WID${item.wid}`,item.field,window.WLPP1C2Policy.publicLabels[item.classification]||'HOLD']){
+          const td=document.createElement('td');td.textContent=value;tr.append(td);
+        }
+        body.append(tr);
+      }
+      table.append(body);wrapper.append(table);
+    }
+    wrapper.hidden=false;
+  }
+  function clearPolicy(){
+    $('policy-stats').hidden=true;$('policy-held').hidden=true;
+    $('policy-held').replaceChildren();show('policy-summary','Not evaluated. Run Step 1 again. No data written.');
+  }
   function entryFor(wid){return state.byWid.get(wid)||null;}
   function detail(wid){
     const target=$('card');target.replaceChildren();
@@ -188,7 +218,7 @@
     const note=document.createElement('p');note.className='p1c-note';note.textContent='Comparison labels only. Local/Edit values are not exported. A discrepancy may be expected; do not delete or migrate any Local Edit based on this panel.';target.append(note);
   }
   async function compare(){
-    assert(!busy,'Comparison already running');state=null;setBusy(true);$('stats').hidden=true;show('card','Run Step 1 first.');
+    assert(!busy,'Comparison already running');state=null;setBusy(true);$('stats').hidden=true;clearPolicy();show('card','Run Step 1 first.');
     try{
       show('summary','READING · existing P1-B IndexedDB, current Static Master TSV and Legacy Local Edits. Read-only…');
       const [local,response]=await Promise.all([snapshot(),fetch(MASTER_URL,{cache:'no-store'})]);
@@ -202,20 +232,25 @@
       const result=analyze(masterRows,local.official,overrides,{...local.active,masterSha256});
       const master=new Map(masterRows.map(row=>[Number(row.WordID),row]));
       const byWid=new Map(local.official.map(r=>[Number(r.wordId),r.entry]));
-      state={result,master,byWid,overrides};
-      renderStats(result);
+      assert(window.WLPP1C2Policy?.evaluate,'Missing P1-C2 policy engine; do not accept an incomplete deployment');
+      const policy=window.WLPP1C2Policy.evaluate(master,byWid,overrides,result);
+      const currentRaw=localStorage.getItem(OVERRIDE_KEY);
+      assert(currentRaw===raw,'Legacy Local Edits changed during comparison; retry to avoid stale policy results');
+      state={result,master,byWid,overrides,policy,localRaw:raw};
+      renderStats(result);renderPolicy(policy);
       const c=result.counts;
       show('summary',`${result.status} · ${result.statement}\nCursor ${result.active.cursor} · ${c.compared} shared WIDs · ${c.projectionOnly} Canonical-only · ${c.staticOnly} Static-only\n${c.baselineDifferentCards} Master/Canonical difference cards (${c.baselineDifferentFields} fields) · ${c.lineEndingOnlyFields} line-ending/edge-space-only fields\n${c.legacyOverrideCopies} Legacy Local Edits · ${c.effectiveDifferentCards} Local-effective difference cards (${c.effectiveDifferentFields} fields)\nKnown baseline WID differences: ${result.expectedBaseline.knownDifferenceWidsMatch?'MATCH':'CHECK'} · WID7111/7112: ${result.expectedBaseline.cloudOnlyCanariesMatch?'MATCH':'CHECK'}\nNo live source switched; no data written.`);
       detail(Number($('wid').value)||4120);
-      show('status',`${result.status} · comparison finished (read only). Live WLP is unchanged; read-source cutover NOT approved.`);
-    }catch(e){show('summary',`BLOCKED · ${e?.message||String(e)}. No data written.`);show('status',`BLOCKED · ${e?.message||String(e)}`);}
+      show('status',`${result.status} · Source comparison complete. P1-C2 ${policy.status} (${policy.summary.heldFields} held fields). Read-only; LIVE CUTOVER NOT AUTHORIZED.`);
+    }catch(e){state=null;clearPolicy();show('summary',`BLOCKED · ${e?.message||String(e)}. No data written.`);show('status',`BLOCKED · ${e?.message||String(e)}`);}
     finally{setBusy(false);}
   }
   function exportAudit(){
-    if(!state)return;
-    const report={format:'WLP_P1C_READ_ONLY_SOURCE_COMPARISON_AUDIT',version:1,createdAt:new Date().toISOString(),...state.result};
+    if(!state?.policy)return;
+    if(localStorage.getItem(OVERRIDE_KEY)!==state.localRaw){show('status','STALE · Local Edits changed after comparison. Repeat Step 1 before exporting.');return;}
+    const report={format:'WLP_P1C2_SHADOW_MERGE_POLICY_AUDIT',version:1,createdAt:new Date().toISOString(),...state.result,policy:state.policy};
     const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)+'\n'],{type:'application/json'}));
-    const link=document.createElement('a');link.href=url;link.download='p1c-audit.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    const link=document.createElement('a');link.href=url;link.download='p1c2-audit.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
   $('compare').addEventListener('click',compare);
   $('show-card').addEventListener('click',()=>{if(state){const wid=Number($('wid').value);if(Number.isSafeInteger(wid)&&wid>0)detail(wid);else show('card','Enter a valid WordID');}});
