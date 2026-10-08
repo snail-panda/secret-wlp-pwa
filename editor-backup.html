@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="./editor-new-card.css">
   <link rel="stylesheet" href="./editor-drafts.css">
   <link rel="stylesheet" href="./editor-local-edits.css">
-  <link rel="stylesheet" href="./editor-backup.css">
+  <link rel="stylesheet" href="./editor-backup.css?v=20261008-s7-canonical-restore-preview-v186399">
   <link rel="stylesheet" href="./study-options.css?v=20260918-s7-options-v18624">
   <link rel="stylesheet" href="./local-data-safety.css?v=20260917-s7-local-data-restore-v1-8-5">
   <link rel="stylesheet" href="./page-bottom-nav.css?v=20260918-s7-v18627">
@@ -221,7 +221,7 @@
               <p>Stores an immutable account checkpoint as ACTIVE Authority + Canonical change-sequence high-water. It does not alter cards or learning data.</p>
               <label class="canonical-restore-label"><span>Label <small>optional</small></span><input id="canonical-restore-label" type="text" maxlength="160" placeholder="Before Official Library cutover"></label>
               <button class="backup-primary" id="canonical-restore-create" type="button">Create Restore Point</button>
-              <small>Restore execution is intentionally not enabled yet; v397 creates a durable point that later Restore Preview can target.</small>
+              <small>Restore execution is intentionally not enabled yet; v399 can read this durable point and show a no-write Restore Preview.</small>
             </article>
 
             <article class="authoring-transfer-card canonical-account-card">
@@ -233,9 +233,50 @@
           </div>
 
           <div class="canonical-restore-points">
-            <div class="canonical-restore-points-head"><strong>Recent Cloud Restore Points</strong><span>Newest first</span></div>
+            <div class="canonical-restore-points-head"><strong>Recent Cloud Restore Points</strong><span>Newest first · Preview is read-only</span></div>
             <div id="canonical-restore-list"><p class="canonical-restore-empty">Checking restore points…</p></div>
           </div>
+
+          <div class="canonical-restore-preview-tools">
+            <article class="authoring-transfer-card canonical-restore-file-card">
+              <div>
+                <h3>Restore Preview · Backup JSON</h3>
+                <p>Choose a Canonical Account Backup JSON to verify its hashes and compare it with the current Cloud account. The file is read locally in this browser.</p>
+              </div>
+              <input id="canonical-restore-file" type="file" accept=".json,application/json" hidden>
+              <button class="backup-import-button" id="canonical-restore-file-choose" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 20h14"/></svg>
+                <span><strong>Choose Canonical Backup</strong><small>Read-only Restore Preview · .json</small></span>
+              </button>
+            </article>
+          </div>
+
+          <section class="canonical-restore-preview" id="canonical-restore-preview" hidden aria-live="polite">
+            <div class="canonical-restore-preview-head">
+              <div><span class="editor-tool-kicker">Restore Preview · NO WRITE</span><h3 id="canonical-restore-preview-title">Selected restore target</h3></div>
+              <button type="button" class="canonical-account-refresh" id="canonical-restore-preview-clear">Clear</button>
+            </div>
+            <div class="canonical-restore-preview-meta">
+              <span>Source <strong id="canonical-restore-preview-source">—</strong></span>
+              <span>Target cursor <strong id="canonical-restore-preview-target-cursor">—</strong></span>
+              <span>Current cursor <strong id="canonical-restore-preview-current-cursor">—</strong></span>
+            </div>
+            <div class="canonical-restore-preview-counts">
+              <div><strong id="canonical-restore-preview-writes">0</strong><span>Restoring actions</span></div>
+              <div><strong id="canonical-restore-preview-updates">0</strong><span>Update / resurrect</span></div>
+              <div><strong id="canonical-restore-preview-tombstones">0</strong><span>Tombstone</span></div>
+              <div><strong id="canonical-restore-preview-creates">0</strong><span>Create</span></div>
+              <div><strong id="canonical-restore-preview-unchanged">0</strong><span>Exact unchanged</span></div>
+              <div><strong id="canonical-restore-preview-history-only">0</strong><span>Audit-only extras</span></div>
+            </div>
+            <p class="canonical-restore-preview-summary" id="canonical-restore-preview-summary">Preview ready.</p>
+            <details class="canonical-restore-preview-details" id="canonical-restore-preview-details">
+              <summary>View table-level restore plan</summary>
+              <div class="canonical-restore-preview-tables" id="canonical-restore-preview-tables"></div>
+              <div class="canonical-restore-preview-samples" id="canonical-restore-preview-samples"></div>
+            </details>
+            <p class="canonical-restore-preview-warning"><strong>v399 is preview-only.</strong> It does not call a restore RPC, does not create Canonical changes, and does not modify cards, learning data, cursors, or the Authority Head. A later restore implementation will append new restoring actions and retain historical audit rows rather than deleting history.</p>
+          </section>
 
           <p class="canonical-account-scope-note"><strong>Safety scope:</strong> Canonical Account Backup covers the cloud account state. Full Local Backup above remains the safety copy for browser-only/local settings during this transition. Keep both PC and iPhone local backups until account-first cutover is complete.</p>
           <section class="backup-status canonical-account-status" id="canonical-account-status" hidden aria-live="polite"></section>
@@ -691,7 +732,7 @@
   <script src="./learning-sync.js?v=20260927-s7-learning-sync-v186146"></script>
   <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186145"></script>
   <script src="./local-data-safety.js?v=20260927-s7-backup-change-counts-v186151"></script>
-  <script src="./canonical-account-backup.js?v=20261008-s7-canonical-account-backup-v186398"></script>
+  <script src="./canonical-account-backup.js?v=20261008-s7-canonical-restore-preview-v186399"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>

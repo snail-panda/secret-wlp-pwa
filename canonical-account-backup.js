@@ -1,9 +1,10 @@
-/* WLP v1.8.6.398 — Canonical Account Backup sparse-overlay integrity hardening.
-   Read-only Canonical export. Restore execution remains intentionally disabled. */
+/* WLP v1.8.6.399 — Canonical Account Restore Preview.
+   Adds read-only Restore Preview for Cloud Restore Points and Canonical Account Backup JSON.
+   Restore execution remains intentionally disabled. No Canonical/cloud data is modified. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.398-canonical-account-backup-integrity-v1';
+  const APP_VERSION='1.8.6.399-canonical-account-restore-preview-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
@@ -13,26 +14,45 @@
   const CHANGE_TABLE='wlp_sync_changes_v1';
   const $=id=>document.getElementById(id);
   const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
+  const state={restorePoints:[],preview:null};
 
   function stableValue(value){
     if(Array.isArray(value))return value.map(stableValue);
     if(value&&typeof value==='object'){
-      const out={};Object.keys(value).sort().forEach(key=>{if(value[key]!==undefined)out[key]=stableValue(value[key]);});return out;
+      const out={};
+      Object.keys(value).sort().forEach(key=>{if(value[key]!==undefined)out[key]=stableValue(value[key]);});
+      return out;
     }
     return value;
   }
   const stableStringify=value=>JSON.stringify(stableValue(value));
-  async function sha256(text){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(text)));return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+  async function sha256(text){
+    const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(text)));
+    return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
   function identity(tableName,rowKey){return `${String(tableName||'')}\u0000${String(rowKey||'')}`;}
   function pad(n){return String(n).padStart(2,'0');}
   function stamp(date){return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}`;}
-  function formatDate(value){const d=new Date(value);if(!Number.isFinite(d.getTime()))return'—';try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(d);}catch{return d.toLocaleString();}}
-  function downloadJson(data,filename){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}
+  function formatDate(value){
+    const d=new Date(value);
+    if(!Number.isFinite(d.getTime()))return'—';
+    try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(d);}catch{return d.toLocaleString();}
+  }
+  function downloadJson(data,filename){
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+  }
+  function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 
   function setStatus(text,tone=''){
-    const node=$('canonical-account-status');if(!node)return;node.hidden=false;node.textContent=text;node.dataset.tone=tone;
+    const node=$('canonical-account-status');
+    if(!node)return;
+    node.hidden=false;node.textContent=text;node.dataset.tone=tone;
   }
-  function setBusy(busy){['canonical-account-export','canonical-restore-create','canonical-account-refresh'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});}
+  function setBusy(busy){
+    ['canonical-account-export','canonical-restore-create','canonical-account-refresh','canonical-restore-file-choose'].forEach(id=>{const b=$(id);if(b)b.disabled=Boolean(busy);});
+    document.querySelectorAll('.canonical-restore-preview-button').forEach(b=>{b.disabled=Boolean(busy);});
+  }
 
   function openShadowDb(){
     return new Promise((resolve,reject)=>{
@@ -63,101 +83,302 @@
     if(Number(session.expiresAt||0)<=Date.now()+60000)await authRefresh();
 
     async function rest(path,options={}){
-      const headers={apikey:config.publishableKey,Authorization:`Bearer ${session.accessToken}`,...(options.headers||{})};if(options.body!=null)headers['Content-Type']='application/json';
-      const response=await fetch(`${String(config.url).replace(/\/+$/,'')}/rest/v1/${path}`,{method:options.method||'GET',headers,body:options.body==null?undefined:JSON.stringify(options.body)}),text=await response.text();let data=null;try{data=text?JSON.parse(text):null;}catch{data=text;}
-      if(!response.ok)throw new Error(data?.message||data?.details||data?.hint||`Supabase Data API request failed (${response.status}).`);return{data,response};
+      const headers={apikey:config.publishableKey,Authorization:`Bearer ${session.accessToken}`,...(options.headers||{})};
+      if(options.body!=null)headers['Content-Type']='application/json';
+      const response=await fetch(`${String(config.url).replace(/\/+$/,'')}/rest/v1/${path}`,{method:options.method||'GET',headers,body:options.body==null?undefined:JSON.stringify(options.body)}),text=await response.text();let data=null;
+      try{data=text?JSON.parse(text):null;}catch{data=text;}
+      if(!response.ok)throw new Error(data?.message||data?.details||data?.hint||`Supabase Data API request failed (${response.status}).`);
+      return{data,response};
     }
     async function fetchPaged(table,select,extra=''){
-      const size=1000,out=[];for(let from=0;;from+=size){const to=from+size-1,suffix=extra?`&${extra}`:'',r=await rest(`${table}?select=${encodeURIComponent(select)}${suffix}`,{headers:{Range:`${from}-${to}`,Prefer:'count=exact'}}),rows=Array.isArray(r.data)?r.data:[];out.push(...rows);if(rows.length<size)break;const total=Number((r.response.headers.get('content-range')||'').split('/')[1]);if(Number.isFinite(total)&&out.length>=total)break;}return out;
+      const size=1000,out=[];
+      for(let from=0;;from+=size){
+        const to=from+size-1,suffix=extra?`&${extra}`:'',r=await rest(`${table}?select=${encodeURIComponent(select)}${suffix}`,{headers:{Range:`${from}-${to}`,Prefer:'count=exact'}}),rows=Array.isArray(r.data)?r.data:[];
+        out.push(...rows);
+        if(rows.length<size)break;
+        const total=Number((r.response.headers.get('content-range')||'').split('/')[1]);
+        if(Number.isFinite(total)&&out.length>=total)break;
+      }
+      return out;
     }
     return{config,session,rest,fetchPaged};
   }
 
   async function fetchHead(api){
     const rows=await api.fetchPaged(AUTHORITY_HEAD,'candidate_key,head_version,snapshot_manifest_hash,canonical_row_count,migration_version,promoted_at','order=promoted_at.desc');
-    if(rows.length!==1)throw new Error(`Canonical Account Backup expected one ACTIVE Authority Head, found ${rows.length}.`);return rows[0];
+    if(rows.length!==1)throw new Error(`Canonical Account Safety expected one ACTIVE Authority Head, found ${rows.length}.`);
+    return rows[0];
   }
   async function fetchHighWater(api,head){
-    const r=await api.rest(`${CHANGE_TABLE}?select=change_seq&candidate_key=eq.${encodeURIComponent(head.candidate_key)}&head_version=eq.${encodeURIComponent(head.head_version)}&order=change_seq.desc&limit=1`),rows=Array.isArray(r.data)?r.data:[];return Number(rows[0]?.change_seq||0);
+    const r=await api.rest(`${CHANGE_TABLE}?select=change_seq&candidate_key=eq.${encodeURIComponent(head.candidate_key)}&head_version=eq.${encodeURIComponent(head.head_version)}&order=change_seq.desc&limit=1`),rows=Array.isArray(r.data)?r.data:[];
+    return Number(rows[0]?.change_seq||0);
   }
   async function fetchRestorePoints(api,limit=8){
     try{return await api.fetchPaged(RESTORE_TABLE,'restore_point_id,label,candidate_key,head_version,snapshot_manifest_hash,authority_row_count,change_seq_high_water,overlay_change_count,restore_point_hash,created_by_device,created_at',`order=created_at.desc&limit=${Math.max(1,Math.min(20,Number(limit)||8))}`);}catch(error){if(String(error?.message||'').toLowerCase().includes('does not exist'))return[];throw error;}
   }
 
-  async function buildCanonicalSnapshot(api){
-    setStatus('Reading ACTIVE Authority and Canonical change overlay…','working');
-    const head=await fetchHead(api),highWater=await fetchHighWater(api,head);
-    const [baseRows,changeRows,restorePoints]=await Promise.all([
-      api.fetchPaged(AUTHORITY_RECORDS,'table_name,row_key,payload_hash,payload,tombstone',`candidate_key=eq.${encodeURIComponent(head.candidate_key)}&order=table_name.asc,row_key.asc`),
-      highWater?api.fetchPaged(CHANGE_TABLE,'change_seq,table_name,row_key,operation,payload_hash,payload,tombstone,server_at,action_id,mutation_id,device_key',`candidate_key=eq.${encodeURIComponent(head.candidate_key)}&head_version=eq.${encodeURIComponent(head.head_version)}&change_seq=lte.${highWater}&order=change_seq.asc`):Promise.resolve([]),
-      fetchRestorePoints(api,20)
-    ]);
+  function headMatches(left,right){
+    return String(left?.candidate_key??left?.candidateKey??'')===String(right?.candidate_key??right?.candidateKey??'')&&
+      Number(left?.head_version??left?.headVersion??0)===Number(right?.head_version??right?.headVersion??0)&&
+      String(left?.snapshot_manifest_hash??left?.snapshotManifestHash??'')===String(right?.snapshot_manifest_hash??right?.snapshotManifestHash??'');
+  }
 
-    const map=new Map();
-    for(const row of baseRows){const tableName=String(row.table_name||''),rowKey=String(row.row_key||'');if(!tableName||!rowKey)continue;map.set(identity(tableName,rowKey),{tableName,rowKey,payloadHash:String(row.payload_hash||''),payload:clone(row.payload),tombstone:Boolean(row.tombstone),source:'authority',lastChangeSeq:null,lastOperation:'bootstrap',lastServerAt:null});}
+  async function verifyPayloadBytes(payload,payloadHash,label){
+    if(payload==null)return;
+    if(!payloadHash)throw new Error(`${label} has payload bytes but no payload hash.`);
+    const computed=await sha256(stableStringify(payload));
+    if(computed!==String(payloadHash))throw new Error(`${label} payload hash mismatch.`);
+  }
+
+  async function fetchCanonicalDataset(api,head,highWater){
+    setStatus('Reading ACTIVE Authority and Canonical change history…','working');
+    const [baseRows,changeRows]=await Promise.all([
+      api.fetchPaged(AUTHORITY_RECORDS,'table_name,row_key,payload_hash,payload,tombstone',`candidate_key=eq.${encodeURIComponent(head.candidate_key)}&order=table_name.asc,row_key.asc`),
+      highWater?api.fetchPaged(CHANGE_TABLE,'change_seq,table_name,row_key,operation,payload_hash,payload,tombstone,server_at,action_id,mutation_id,device_key',`candidate_key=eq.${encodeURIComponent(head.candidate_key)}&head_version=eq.${encodeURIComponent(head.head_version)}&change_seq=lte.${highWater}&order=change_seq.asc`):Promise.resolve([])
+    ]);
+    if(baseRows.length!==Number(head.canonical_row_count||0))throw new Error(`Canonical Authority base count mismatch: expected ${Number(head.canonical_row_count||0)}, read ${baseRows.length}.`);
+    let checked=0;
+    for(const row of baseRows){
+      await verifyPayloadBytes(row.payload,String(row.payload_hash||''),`Authority ${String(row.table_name||'')}/${String(row.row_key||'')}`);
+      checked+=1;if(checked%1500===0)setStatus(`Checking Canonical payload integrity… ${checked.toLocaleString()} rows`,'working');
+    }
     for(const row of changeRows){
+      if(row.payload!=null)await verifyPayloadBytes(row.payload,String(row.payload_hash||''),`Change ${Number(row.change_seq||0)} ${String(row.table_name||'')}/${String(row.row_key||'')}`);
+      checked+=1;if(checked%1500===0)setStatus(`Checking Canonical payload integrity… ${checked.toLocaleString()} rows`,'working');
+    }
+    return{baseRows,changeRows};
+  }
+
+  async function materializeRecords(baseRows,changeRows,maxChangeSeq,label='Canonical state'){
+    const map=new Map();
+    for(const row of baseRows){
       const tableName=String(row.table_name||''),rowKey=String(row.row_key||'');if(!tableName||!rowKey)continue;
+      map.set(identity(tableName,rowKey),{tableName,rowKey,payloadHash:String(row.payload_hash||''),payload:clone(row.payload),tombstone:Boolean(row.tombstone),source:'authority',lastChangeSeq:null,lastOperation:'bootstrap',lastServerAt:null});
+    }
+    let overlayChangeRows=0;
+    for(const row of changeRows){
+      const changeSeq=Number(row.change_seq||0);if(changeSeq>Number(maxChangeSeq||0))break;
+      const tableName=String(row.table_name||''),rowKey=String(row.row_key||'');if(!tableName||!rowKey)continue;
+      overlayChangeRows+=1;
       const key=identity(tableName,rowKey),payloadHash=String(row.payload_hash||''),tombstone=Boolean(row.tombstone),prior=map.get(key)||null;
       let payload=clone(row.payload);
-      // Some historical Canonical change rows are sparse: they carry the accepted payload hash
-      // but not the payload bytes. A non-tombstone sparse row must never erase a complete
-      // Authority/prior-effective payload in an external backup. Reuse it only when the hashes
-      // prove that it is exactly the same payload; otherwise fail closed.
       if(!tombstone&&payload==null){
-        if(!payloadHash)throw new Error(`Canonical Account Backup blocked: active sparse change ${tableName}/${rowKey} has no payload hash.`);
-        if(!prior||prior.payload==null)throw new Error(`Canonical Account Backup blocked: active sparse change ${tableName}/${rowKey} has no prior payload to recover.`);
-        if(String(prior.payloadHash||'')!==payloadHash)throw new Error(`Canonical Account Backup blocked: active sparse change ${tableName}/${rowKey} payload hash does not match the prior effective payload.`);
+        if(!payloadHash)throw new Error(`${label} blocked: active sparse change ${tableName}/${rowKey} has no payload hash.`);
+        if(!prior||prior.payload==null)throw new Error(`${label} blocked: active sparse change ${tableName}/${rowKey} has no prior payload to recover.`);
+        if(String(prior.payloadHash||'')!==payloadHash)throw new Error(`${label} blocked: active sparse change ${tableName}/${rowKey} payload hash does not match the prior effective payload.`);
         payload=clone(prior.payload);
       }
-      map.set(key,{tableName,rowKey,payloadHash,payload,tombstone,source:'change',lastChangeSeq:Number(row.change_seq||0),lastOperation:String(row.operation||''),lastServerAt:row.server_at||null});
+      map.set(key,{tableName,rowKey,payloadHash,payload,tombstone,source:'change',lastChangeSeq:changeSeq,lastOperation:String(row.operation||''),lastServerAt:row.server_at||null});
     }
     const records=[...map.values()].sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
     const tableCounts={};let activeCount=0,tombstoneCount=0;
     for(const row of records){
-      if(!row.tombstone&&row.payload==null)throw new Error(`Canonical Account Backup blocked: active record ${row.tableName}/${row.rowKey} has no payload.`);
-      if(row.payload!=null){
-        if(!row.payloadHash)throw new Error(`Canonical Account Backup blocked: record ${row.tableName}/${row.rowKey} has payload bytes but no payload hash.`);
-        const computedPayloadHash=await sha256(stableStringify(row.payload));
-        if(computedPayloadHash!==row.payloadHash)throw new Error(`Canonical Account Backup blocked: payload hash mismatch for ${row.tableName}/${row.rowKey}.`);
-      }
-      const block=tableCounts[row.tableName]||(tableCounts[row.tableName]={total:0,active:0,tombstone:0});block.total+=1;if(row.tombstone){block.tombstone+=1;tombstoneCount+=1;}else{block.active+=1;activeCount+=1;}
+      if(!row.tombstone&&row.payload==null)throw new Error(`${label} blocked: active record ${row.tableName}/${row.rowKey} has no payload.`);
+      const block=tableCounts[row.tableName]||(tableCounts[row.tableName]={total:0,active:0,tombstone:0});
+      block.total+=1;
+      if(row.tombstone){block.tombstone+=1;tombstoneCount+=1;}else{block.active+=1;activeCount+=1;}
     }
     const manifestRows=records.map(row=>({tableName:row.tableName,rowKey:row.rowKey,payloadHash:row.payloadHash,tombstone:row.tombstone}));
     const manifestHash=await sha256(stableStringify(manifestRows));
-    const headCheck=await fetchHead(api);if(String(headCheck.candidate_key)!==String(head.candidate_key)||Number(headCheck.head_version)!==Number(head.head_version)||String(headCheck.snapshot_manifest_hash)!==String(head.snapshot_manifest_hash))throw new Error('ACTIVE Authority Head changed during Canonical Account Backup. Retry the export.');
+    return{records,map,recordCount:records.length,activeCount,tombstoneCount,overlayChangeRows,tableCounts,manifestHash,highWaterChangeSeq:Number(maxChangeSeq||0)};
+  }
 
-    const exportedAt=new Date().toISOString();
+  async function readCurrentCanonical(api){
+    const head=await fetchHead(api),highWater=await fetchHighWater(api,head),dataset=await fetchCanonicalDataset(api,head,highWater),current=await materializeRecords(dataset.baseRows,dataset.changeRows,highWater,'Current Canonical state');
+    const headCheck=await fetchHead(api);
+    if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed while reading current Canonical state. Retry.');
+    return{head,highWater,dataset,current};
+  }
+
+  async function buildCanonicalSnapshot(api){
+    const {head,highWater,current}=await readCurrentCanonical(api),restorePoints=await fetchRestorePoints(api,20),exportedAt=new Date().toISOString();
     return{
       format:FORMAT,version:VERSION,appVersion:APP_VERSION,exportedAt,
       account:{userId:String(api.session.userId||''),email:String(api.session.email||'')},
       authority:{candidateKey:String(head.candidate_key),headVersion:Number(head.head_version),snapshotManifestHash:String(head.snapshot_manifest_hash),canonicalRowCount:Number(head.canonical_row_count||0),migrationVersion:head.migration_version??null,promotedAt:head.promoted_at||null},
       highWaterChangeSeq:highWater,
-      summary:{recordCount:records.length,activeCount,tombstoneCount,overlayChangeRows:changeRows.length,tableCounts,manifestHash},
+      summary:{recordCount:current.recordCount,activeCount:current.activeCount,tombstoneCount:current.tombstoneCount,overlayChangeRows:current.overlayChangeRows,tableCounts:current.tableCounts,manifestHash:current.manifestHash},
       restorePoints:restorePoints.map(clone),
-      records
+      records:current.records
     };
   }
 
-  function renderRestorePoints(rows){
-    const wrap=$('canonical-restore-list');if(!wrap)return;
-    if(!Array.isArray(rows)||!rows.length){wrap.innerHTML='<p class="canonical-restore-empty">No Cloud Restore Points yet.</p>';return;}
-    wrap.innerHTML=rows.slice(0,8).map(row=>`<article class="canonical-restore-row"><div><strong>${escapeHtml(row.label||'Manual checkpoint')}</strong><span>${escapeHtml(formatDate(row.created_at))}</span></div><small>cursor ${Number(row.change_seq_high_water||0)} · base ${Number(row.authority_row_count||0)} · overlay ${Number(row.overlay_change_count||0)} · ${escapeHtml(String(row.restore_point_hash||'').slice(0,12))}…</small></article>`).join('');
+  async function validateBackupFile(backup,api){
+    if(!backup||typeof backup!=='object')throw new Error('Selected file is not a Canonical Account Backup object.');
+    if(String(backup.format||'')!==FORMAT||Number(backup.version)!==VERSION)throw new Error('Selected file is not a supported WLP Canonical Account Backup v1 file.');
+    if(String(backup.account?.userId||'')!==String(api.session.userId||''))throw new Error('Selected Canonical Account Backup belongs to a different WLP account.');
+    if(!Array.isArray(backup.records)||!backup.records.length)throw new Error('Selected Canonical Account Backup contains no records.');
+    const map=new Map(),records=[];let checked=0,activeCount=0,tombstoneCount=0;
+    for(const raw of backup.records){
+      const tableName=String(raw?.tableName||''),rowKey=String(raw?.rowKey||''),payloadHash=String(raw?.payloadHash||''),tombstone=Boolean(raw?.tombstone),payload=clone(raw?.payload);
+      if(!tableName||!rowKey)throw new Error('Selected Canonical Account Backup contains a record without tableName/rowKey.');
+      const key=identity(tableName,rowKey);if(map.has(key))throw new Error(`Selected Canonical Account Backup contains duplicate record ${tableName}/${rowKey}.`);
+      if(!tombstone&&payload==null)throw new Error(`Selected Canonical Account Backup contains active record ${tableName}/${rowKey} without payload.`);
+      if(payload!=null)await verifyPayloadBytes(payload,payloadHash,`Backup ${tableName}/${rowKey}`);
+      const row={tableName,rowKey,payloadHash,payload,tombstone,source:String(raw?.source||'backup'),lastChangeSeq:raw?.lastChangeSeq==null?null:Number(raw.lastChangeSeq),lastOperation:String(raw?.lastOperation||''),lastServerAt:raw?.lastServerAt||null};
+      map.set(key,row);records.push(row);if(tombstone)tombstoneCount+=1;else activeCount+=1;
+      checked+=1;if(checked%1500===0)setStatus(`Checking selected backup integrity… ${checked.toLocaleString()} / ${backup.records.length.toLocaleString()} records`,'working');
+    }
+    records.sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
+    const manifestRows=records.map(row=>({tableName:row.tableName,rowKey:row.rowKey,payloadHash:row.payloadHash,tombstone:row.tombstone})),manifestHash=await sha256(stableStringify(manifestRows));
+    if(String(backup.summary?.manifestHash||'')!==manifestHash)throw new Error('Selected Canonical Account Backup manifest hash does not match its records.');
+    if(Number(backup.summary?.recordCount||0)!==records.length||Number(backup.summary?.activeCount||0)!==activeCount||Number(backup.summary?.tombstoneCount||0)!==tombstoneCount)throw new Error('Selected Canonical Account Backup summary counts do not match its records.');
+    return{backup,records,map,recordCount:records.length,activeCount,tombstoneCount,manifestHash,highWaterChangeSeq:Number(backup.highWaterChangeSeq||0)};
   }
-  function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+
+  function compareEffectiveStates(current,target){
+    const keys=new Set([...current.map.keys(),...target.map.keys()]);
+    const changes=[],byTable={};let unchanged=0,historyOnlyExtra=0;
+    function bucket(table){return byTable[table]||(byTable[table]={create:0,update:0,resurrect:0,tombstone:0,unchanged:0,historyOnlyExtra:0,totalActions:0});}
+    for(const key of keys){
+      const cur=current.map.get(key)||null,tgt=target.map.get(key)||null,table=tgt?.tableName||cur?.tableName||'unknown',rowKey=tgt?.rowKey||cur?.rowKey||'',b=bucket(table);
+      if(!cur&&tgt){
+        const kind=tgt.tombstone?'history-only-target-tombstone':'create';
+        if(kind==='create'){b.create+=1;b.totalActions+=1;changes.push({kind,tableName:table,rowKey,current:null,target:tgt});}else{b.historyOnlyExtra+=1;historyOnlyExtra+=1;}
+        continue;
+      }
+      if(cur&&!tgt){
+        if(cur.tombstone){b.historyOnlyExtra+=1;historyOnlyExtra+=1;}else{b.tombstone+=1;b.totalActions+=1;changes.push({kind:'tombstone',tableName:table,rowKey,current:cur,target:null});}
+        continue;
+      }
+      const exact=Boolean(cur&&tgt&&cur.tombstone===tgt.tombstone&&String(cur.payloadHash||'')===String(tgt.payloadHash||''));
+      if(exact){unchanged+=1;b.unchanged+=1;continue;}
+      if(cur.tombstone&&!tgt.tombstone){b.resurrect+=1;b.totalActions+=1;changes.push({kind:'resurrect',tableName:table,rowKey,current:cur,target:tgt});continue;}
+      if(!cur.tombstone&&tgt.tombstone){b.tombstone+=1;b.totalActions+=1;changes.push({kind:'tombstone',tableName:table,rowKey,current:cur,target:tgt});continue;}
+      if(cur.tombstone&&tgt.tombstone){b.historyOnlyExtra+=1;historyOnlyExtra+=1;continue;}
+      b.update+=1;b.totalActions+=1;changes.push({kind:'update',tableName:table,rowKey,current:cur,target:tgt});
+    }
+    const totals=Object.values(byTable).reduce((acc,b)=>{acc.create+=b.create;acc.update+=b.update;acc.resurrect+=b.resurrect;acc.tombstone+=b.tombstone;acc.totalActions+=b.totalActions;return acc;},{create:0,update:0,resurrect:0,tombstone:0,totalActions:0});
+    changes.sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
+    return{changes,byTable,unchanged,historyOnlyExtra,...totals};
+  }
+
+  function renderRestorePoints(rows){
+    state.restorePoints=Array.isArray(rows)?rows.map(clone):[];
+    const wrap=$('canonical-restore-list');if(!wrap)return;
+    if(!state.restorePoints.length){wrap.innerHTML='<p class="canonical-restore-empty">No Cloud Restore Points yet.</p>';return;}
+    wrap.innerHTML=state.restorePoints.slice(0,8).map(row=>`<article class="canonical-restore-row"><div><strong>${escapeHtml(row.label||'Manual checkpoint')}</strong><span>${escapeHtml(formatDate(row.created_at))}</span></div><div class="canonical-restore-row-side"><small>cursor ${Number(row.change_seq_high_water||0)} · base ${Number(row.authority_row_count||0)} · overlay ${Number(row.overlay_change_count||0)} · ${escapeHtml(String(row.restore_point_hash||'').slice(0,12))}…</small><button type="button" class="canonical-restore-preview-button" data-restore-id="${escapeHtml(String(row.restore_point_id||''))}">Preview</button></div></article>`).join('');
+  }
+
+  function clearRestorePreview(){
+    state.preview=null;
+    const section=$('canonical-restore-preview');if(section)section.hidden=true;
+    const input=$('canonical-restore-file');if(input)input.value='';
+    if($('canonical-restore-preview-tables'))$('canonical-restore-preview-tables').innerHTML='';
+    if($('canonical-restore-preview-samples'))$('canonical-restore-preview-samples').innerHTML='';
+  }
+
+  function renderRestorePreview(report){
+    state.preview=report;
+    const section=$('canonical-restore-preview');if(!section)return;
+    section.hidden=false;
+    $('canonical-restore-preview-title').textContent=report.targetLabel;
+    $('canonical-restore-preview-source').textContent=report.targetSource;
+    $('canonical-restore-preview-target-cursor').textContent=Number.isFinite(report.targetCursor)?String(report.targetCursor):'file snapshot';
+    $('canonical-restore-preview-current-cursor').textContent=String(report.currentCursor);
+    $('canonical-restore-preview-writes').textContent=String(report.diff.totalActions);
+    $('canonical-restore-preview-updates').textContent=String(report.diff.update+report.diff.resurrect);
+    $('canonical-restore-preview-tombstones').textContent=String(report.diff.tombstone);
+    $('canonical-restore-preview-creates').textContent=String(report.diff.create);
+    $('canonical-restore-preview-unchanged').textContent=String(report.diff.unchanged);
+    $('canonical-restore-preview-history-only').textContent=String(report.diff.historyOnlyExtra);
+    $('canonical-restore-preview-summary').textContent=report.diff.totalActions===0
+      ? `No restoring actions are needed. Current Canonical effective state already matches this target. ${report.diff.historyOnlyExtra?`${report.diff.historyOnlyExtra} history-only tombstone row(s) are retained for audit continuity.`:''}`
+      : `${report.diff.totalActions.toLocaleString()} restoring action(s) would be needed to make the effective account state match this target. v399 does not execute any of them.`;
+    const tables=Object.entries(report.diff.byTable).filter(([,b])=>b.totalActions||b.historyOnlyExtra).sort((a,b)=>a[0].localeCompare(b[0]));
+    $('canonical-restore-preview-tables').innerHTML=tables.length?tables.map(([table,b])=>`<div class="canonical-preview-table-row"><strong>${escapeHtml(table)}</strong><span>${b.totalActions} action${b.totalActions===1?'':'s'}${b.create?` · +${b.create} create`:''}${b.update?` · ${b.update} update`:''}${b.resurrect?` · ${b.resurrect} resurrect`:''}${b.tombstone?` · ${b.tombstone} tombstone`:''}${b.historyOnlyExtra?` · ${b.historyOnlyExtra} audit-only`:''}</span></div>`).join(''):'<p class="canonical-preview-empty">No table changes.</p>';
+    const samples=report.diff.changes.slice(0,40);
+    $('canonical-restore-preview-samples').innerHTML=samples.length?samples.map(item=>`<div class="canonical-preview-sample"><span class="canonical-preview-kind is-${escapeHtml(item.kind)}">${escapeHtml(item.kind)}</span><strong>${escapeHtml(item.tableName)}</strong><code>${escapeHtml(item.rowKey)}</code></div>`).join(''):'<p class="canonical-preview-empty">No restoring changes to show.</p>';
+    const details=$('canonical-restore-preview-details');if(details)details.open=report.diff.totalActions>0;
+    section.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  async function previewRestorePoint(restorePointId){
+    const point=state.restorePoints.find(row=>String(row.restore_point_id||'')===String(restorePointId||''));
+    if(!point)throw new Error('Selected Cloud Restore Point is no longer in the current list. Refresh and try again.');
+    const api=await cloudContext(),head=await fetchHead(api),currentHighWater=await fetchHighWater(api,head);
+    if(!headMatches(point,head))throw new Error('Restore Preview blocked: selected Cloud Restore Point belongs to a different Authority Head.');
+    if(Number(point.authority_row_count||0)!==Number(head.canonical_row_count||0))throw new Error('Restore Preview blocked: selected Cloud Restore Point Authority row count does not match the ACTIVE Authority.');
+    const targetCursor=Number(point.change_seq_high_water||0);
+    if(targetCursor>currentHighWater)throw new Error(`Restore Preview blocked: restore-point cursor ${targetCursor} is ahead of current cursor ${currentHighWater}.`);
+    const dataset=await fetchCanonicalDataset(api,head,currentHighWater),current=await materializeRecords(dataset.baseRows,dataset.changeRows,currentHighWater,'Current Canonical state'),target=await materializeRecords(dataset.baseRows,dataset.changeRows,targetCursor,'Restore Point target');
+    if(target.overlayChangeRows!==Number(point.overlay_change_count||0))throw new Error(`Restore Preview blocked: restore-point overlay count expected ${Number(point.overlay_change_count||0)}, reconstructed ${target.overlayChangeRows}.`);
+    const headCheck=await fetchHead(api),highWaterCheck=await fetchHighWater(api,headCheck);
+    if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed during Restore Preview. Retry.');
+    if(highWaterCheck!==currentHighWater)throw new Error(`Canonical change cursor advanced during Restore Preview (${currentHighWater} → ${highWaterCheck}). Retry.`);
+    const diff=compareEffectiveStates(current,target);
+    renderRestorePreview({targetSource:'Cloud Restore Point',targetLabel:String(point.label||'Manual checkpoint'),targetCursor,currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,diff});
+    setStatus(diff.totalActions?`Restore Preview ready · ${diff.totalActions.toLocaleString()} restoring action(s) would be required · NO DATA WRITTEN.`:`Restore Preview PASS · current state already matches the selected Cloud Restore Point · NO DATA WRITTEN.`,'success');
+  }
+
+  async function previewBackupFile(file){
+    if(!file)return;
+    const api=await cloudContext();
+    setStatus(`Reading ${file.name}…`,'working');
+    let backup;try{backup=JSON.parse(await file.text());}catch{throw new Error('Selected file is not valid JSON.');}
+    const target=await validateBackupFile(backup,api),head=await fetchHead(api);
+    if(!headMatches(backup.authority,head))throw new Error('Restore Preview blocked: selected backup belongs to a different Authority Head.');
+    if(Number(backup.authority?.canonicalRowCount||0)!==Number(head.canonical_row_count||0))throw new Error('Restore Preview blocked: selected backup Authority row count does not match the ACTIVE Authority.');
+    const currentHighWater=await fetchHighWater(api,head),dataset=await fetchCanonicalDataset(api,head,currentHighWater),current=await materializeRecords(dataset.baseRows,dataset.changeRows,currentHighWater,'Current Canonical state');
+    const headCheck=await fetchHead(api),highWaterCheck=await fetchHighWater(api,headCheck);
+    if(!headMatches(headCheck,head))throw new Error('ACTIVE Authority Head changed during Restore Preview. Retry.');
+    if(highWaterCheck!==currentHighWater)throw new Error(`Canonical change cursor advanced during Restore Preview (${currentHighWater} → ${highWaterCheck}). Retry.`);
+    const diff=compareEffectiveStates(current,target);
+    renderRestorePreview({targetSource:'Canonical Account Backup JSON',targetLabel:file.name,targetCursor:Number(backup.highWaterChangeSeq||0),currentCursor:currentHighWater,targetManifestHash:target.manifestHash,currentManifestHash:current.manifestHash,diff});
+    setStatus(diff.totalActions?`Backup Restore Preview ready · ${diff.totalActions.toLocaleString()} restoring action(s) would be required · NO DATA WRITTEN.`:`Backup Restore Preview PASS · current state already matches the selected backup · NO DATA WRITTEN.`,'success');
+  }
 
   async function refreshSummary(){
-    setBusy(true);try{const api=await cloudContext(),head=await fetchHead(api),highWater=await fetchHighWater(api,head),points=await fetchRestorePoints(api,8);$('canonical-account-head').textContent=`Authority v${Number(head.head_version||0)} · cursor ${highWater}`;$('canonical-account-user').textContent=api.session.email||'Signed-in WLP account';renderRestorePoints(points);setStatus(`Canonical account ready · Authority v${Number(head.head_version||0)} · cursor ${highWater} · ${points.length} recent restore point${points.length===1?'':'s'}.`,'success');}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}}
+    setBusy(true);
+    try{
+      const api=await cloudContext(),head=await fetchHead(api),highWater=await fetchHighWater(api,head),points=await fetchRestorePoints(api,8);
+      $('canonical-account-head').textContent=`Authority v${Number(head.head_version||0)} · cursor ${highWater}`;
+      $('canonical-account-user').textContent=api.session.email||'Signed-in WLP account';
+      renderRestorePoints(points);
+      setStatus(`Canonical account ready · Authority v${Number(head.head_version||0)} · cursor ${highWater} · ${points.length} recent restore point${points.length===1?'':'s'}.`,'success');
+    }catch(error){setStatus(error?.message||String(error),'error');}
+    finally{setBusy(false);}
+  }
 
   async function createRestorePoint(){
-    setBusy(true);try{const api=await cloudContext(),label=String($('canonical-restore-label')?.value||'').trim(),deviceKey=String(localStorage.getItem('wlp:device-id:v1')||'').trim(),r=await api.rest(`rpc/${RESTORE_RPC}`,{method:'POST',body:{p_label:label||null,p_device_key:deviceKey||null}}),point=Array.isArray(r.data)?r.data[0]:r.data;if(!point?.restorePointId)throw new Error('Cloud Restore Point RPC did not return a restore point.');if($('canonical-restore-label'))$('canonical-restore-label').value='';setStatus(`Cloud Restore Point created · cursor ${Number(point.changeSeqHighWater||0)} · ${String(point.restorePointHash||'').slice(0,12)}…`,'success');const points=await fetchRestorePoints(api,8);renderRestorePoints(points);}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}}
+    setBusy(true);
+    try{
+      const api=await cloudContext(),label=String($('canonical-restore-label')?.value||'').trim(),deviceKey=String(localStorage.getItem('wlp:device-id:v1')||'').trim(),r=await api.rest(`rpc/${RESTORE_RPC}`,{method:'POST',body:{p_label:label||null,p_device_key:deviceKey||null}}),point=Array.isArray(r.data)?r.data[0]:r.data;
+      if(!point?.restorePointId)throw new Error('Cloud Restore Point RPC did not return a restore point.');
+      if($('canonical-restore-label'))$('canonical-restore-label').value='';
+      setStatus(`Cloud Restore Point created · cursor ${Number(point.changeSeqHighWater||0)} · ${String(point.restorePointHash||'').slice(0,12)}…`,'success');
+      const points=await fetchRestorePoints(api,8);renderRestorePoints(points);
+    }catch(error){setStatus(error?.message||String(error),'error');}
+    finally{setBusy(false);}
+  }
 
   async function exportCanonicalAccount(){
-    setBusy(true);try{const api=await cloudContext(),backup=await buildCanonicalSnapshot(api),filename=`wlp-canonical-account-backup-${stamp(new Date(backup.exportedAt))}.json`;downloadJson(backup,filename);$('canonical-account-export-summary').textContent=`${backup.summary.recordCount} records · ${backup.summary.activeCount} active · ${backup.summary.tombstoneCount} tombstones · cursor ${backup.highWaterChangeSeq}`;setStatus(`Canonical Account Backup ready: ${filename} · manifest ${backup.summary.manifestHash.slice(0,16)}…`,'success');}catch(error){setStatus(error?.message||String(error),'error');}finally{setBusy(false);}}
+    setBusy(true);
+    try{
+      const api=await cloudContext(),backup=await buildCanonicalSnapshot(api),filename=`wlp-canonical-account-backup-${stamp(new Date(backup.exportedAt))}.json`;
+      downloadJson(backup,filename);
+      $('canonical-account-export-summary').textContent=`${backup.summary.recordCount} records · ${backup.summary.activeCount} active · ${backup.summary.tombstoneCount} tombstones · cursor ${backup.highWaterChangeSeq}`;
+      setStatus(`Canonical Account Backup ready: ${filename} · manifest ${backup.summary.manifestHash.slice(0,16)}…`,'success');
+    }catch(error){setStatus(error?.message||String(error),'error');}
+    finally{setBusy(false);}
+  }
 
   function bind(){
     $('canonical-account-refresh')?.addEventListener('click',()=>{void refreshSummary();});
     $('canonical-restore-create')?.addEventListener('click',()=>{void createRestorePoint();});
     $('canonical-account-export')?.addEventListener('click',()=>{void exportCanonicalAccount();});
+    $('canonical-restore-list')?.addEventListener('click',event=>{
+      const button=event.target.closest?.('.canonical-restore-preview-button');if(!button)return;
+      setBusy(true);clearRestorePreview();
+      void previewRestorePoint(button.dataset.restoreId).catch(error=>setStatus(error?.message||String(error),'error')).finally(()=>setBusy(false));
+    });
+    $('canonical-restore-file-choose')?.addEventListener('click',()=>{$('canonical-restore-file')?.click();});
+    $('canonical-restore-file')?.addEventListener('change',event=>{
+      const file=event.target.files?.[0];if(!file)return;
+      setBusy(true);clearRestorePreview();
+      void previewBackupFile(file).catch(error=>setStatus(error?.message||String(error),'error')).finally(()=>setBusy(false));
+    });
+    $('canonical-restore-preview-clear')?.addEventListener('click',clearRestorePreview);
     void refreshSummary();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();
