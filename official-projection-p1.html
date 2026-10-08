@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#edf4ed">
+  <title>WLP · P1 Isolated Local Projection</title>
+  <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1a">
+  <script src="./official-projection-p1.js?v=20261008-p1a" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">WORD LIST GARDEN · P1-A</p>
+      <h1>Isolated Local Projection</h1>
+      <p class="intro">Safety-gated local snapshot test. It does <strong>not</strong> change the WLP study, review, search, editor, Cloud or Local Edit data paths.</p>
+      <div class="pill">Independent IndexedDB · no Cloud calls · no automatic sync · no Service Worker</div>
+    </header>
+
+    <section class="panel">
+      <h2>1. Check installed projection</h2>
+      <p>Read the isolated projection currently saved on <strong>this device</strong>.</p>
+      <button id="check" type="button">Check local projection</button>
+      <div id="installed" class="result" aria-live="polite">Not checked</div>
+    </section>
+
+    <section class="panel">
+      <h2>2. Inspect a Canonical Library JSON</h2>
+      <p>Use the <strong>post-Restore, cursor 614</strong> Canonical Library export, for example <code>wlp-canonical-library-2026-10-08_16-19.json</code>. No data is written during inspection.</p>
+      <label class="filelabel" for="snapshot">Choose Canonical Library JSON</label>
+      <input id="snapshot" type="file" accept=".json,application/json">
+      <div id="preview" class="result" aria-live="polite">Choose the post-Restore export to begin.</div>
+      <button id="install" class="primary" type="button" disabled>Install in ISOLATED shadow projection</button>
+      <p class="small warn">This action writes only to <code>wlp-official-shadow-p1-v1</code>. Old generations are retained. It never clears or updates the live WLP data, legacy Local Edits, Cloud Mirror or Outbox.</p>
+    </section>
+
+    <section class="panel">
+      <h2>3. Verify offline read</h2>
+      <p>Once installed, you can disconnect the network <em>without closing this page</em> and read back a card from the isolated IndexedDB.</p>
+      <div class="row"><label for="wid">WordID</label><input id="wid" type="number" min="1" step="1" value="4120"><button id="lookup" type="button">Read card from local DB</button></div>
+      <pre id="card" class="result card" aria-live="polite">Nothing read yet.</pre>
+    </section>
+
+    <section class="panel">
+      <h2>4. Export diagnostic</h2>
+      <p>Exports only local verification results, names, counts, hashes and WID4120 safety status—not the full vocabulary or Cloud credentials.</p>
+      <button id="audit" type="button">Export Audit JSON</button>
+      <div id="status" class="result" aria-live="polite">READY · waiting for your choice.</div>
+    </section>
+
+    <footer>Do not remove legacy Local Edit copies. This is P1-A shadow verification only: no read-source cutover, no automatic sync, no multi-device merge and no full offline-PWA claim.</footer>
+  </main>
+</body>
+</html>
