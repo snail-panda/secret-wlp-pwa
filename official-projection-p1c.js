@@ -1,4 +1,4 @@
-/* WLP P1-C3 · Read-only source comparison and field merge policy: live Master TSV + protected Legacy Local Edits
+/* WLP P1-C4 · Shadow source comparison and field merge policy: live Master TSV + protected Legacy Local Edits
    versus isolated P1-B Canonical Official IndexedDB projection. No live source
    cutover, Cloud request, IndexedDB/localStorage write or SW registration. */
 (() => {
@@ -138,12 +138,21 @@
     $('audit').disabled=value||!state;
     $('verify-account').disabled=value||!state||state.result.status!=='PASS';
     $('review-held').disabled=value||!state?.ownership||!state?.policy?.held?.length;
+    $('save-decisions').disabled=value||!state?.reviewedRows?.length||!$('approval-check').checked;
+    $('verify-decisions').disabled=value||!state?.ownership||!state?.reviewedRows?.length;
+    $('approval-check').disabled=value||!state?.reviewedRows?.length;
   }
   function clearReview(){
     $('ownership').textContent='Not verified. Run Step 1, then verify the currently authenticated Cloud account.';
     $('held-review').replaceChildren();
     $('held-review').textContent='No values displayed. Verify account ownership before reviewing held fields.';
     $('review-held').disabled=true;
+    $('approval-check').checked=false;
+    $('approval-check').disabled=true;
+    $('save-decisions').disabled=true;
+    $('verify-decisions').disabled=true;
+    show('decision-status','No decision receipts recorded in this session. HOLD remains active.');
+    if(state){state.reviewedRows=null;state.savedCount=0;}
   }
   async function activeMetaOnly(){
     const db=await openExistingDb();
@@ -188,16 +197,16 @@ This is a point-in-time identity check only. No edits were written and no cutove
         box.append(title,pre);grid.append(box);
       }
       panel.append(grid);
-      const label=document.createElement('label');label.className='p1c3-label';label.textContent='Preview preference (not saved): ';
+      const label=document.createElement('label');label.className='p1c3-label';label.textContent='Review decision (not saved until Step 6): ';
       const select=document.createElement('select');select.className='p1c3-select';
-      for(const [value,title] of [['hold','Hold — no decision (default)'],['canonical','Preview Canonical text'],['local','Preview protected Local Edit text']]){
+      for(const [value,title] of [['hold','Hold — no decision (default)'],['canonical','Approve Canonical for a future cutover'],['local','Approve protected Local Edit for a future cutover']]){
         const option=document.createElement('option');option.value=value;option.textContent=title;select.append(option);
       }
       const k=decisionKey(item.wid,item.field);state.previewChoices[k]='hold';
-      select.addEventListener('change',()=>{if(state)state.previewChoices[k]=select.value;});
+      select.addEventListener('change',()=>{if(state){state.previewChoices[k]=select.value;state.savedCount=0;$('approval-check').checked=false;show('decision-status','Selection changed. No new decision receipts saved. Reconfirm in Step 6.');setBusy(false);}});
       label.append(select);panel.append(label);output.append(panel);
     }
-    const tail=document.createElement('p');tail.className='p1c-note';tail.textContent='HOLD remains unresolved regardless of the selection. No Cloud write, no device write, no Local Edit migration, no source cutover.';output.append(tail);
+    const tail=document.createElement('p');tail.className='p1c-note';tail.textContent='Selections only prepare a later explicit Step 6 receipt. Even after saving a receipt, live HOLD remains unresolved and no WLP data is changed.';output.append(tail);
   }
   async function reviewHeld(){
     assert(!busy,'Another check is running');
@@ -211,15 +220,75 @@ This is a point-in-time identity check only. No edits were written and no cutove
       const after=await activeMetaOnly();assertStillSame(after);
       const rows=window.WLPP1C3Review.heldComparisons(state.master,state.byWid,state.overrides,state.policy);
       assert(rows.length===state.policy.summary.heldFields,'HOLD field count changed — retry Step 1.');
-      state.previewChoices={};renderHeldRows(rows);
+      state.previewChoices={};state.reviewedRows=rows.map(row=>({...row,cardId:state.byWid.get(row.wid)?.card?.card_id}));state.savedCount=0;renderHeldRows(rows);$('approval-check').checked=false;setBusy(false);
     }catch(e){
-      state.previewChoices={};state.ownership=null;renderPolicy(state.policy);
+      state.previewChoices={};state.ownership=null;state.reviewedRows=null;renderPolicy(state.policy);
       show('ownership','BLOCKED · Identity check is no longer valid. Verify the account again.');
       $('held-review').textContent=`BLOCKED · ${e?.message||String(e)}. No values revealed or changed.`;
     }
     finally{setBusy(false);}
   }
 
+  async function recheckDecisionContext(){
+    assert(state?.ownership&&state?.reviewedRows?.length,'Compare, verify Cloud account and review values first.');
+    assert(Date.now()-state.ownership.at<REVIEW_TTL_MS,'Identity verification is older than 5 minutes. Repeat Step 4.');
+    const before=await activeMetaOnly();assertStillSame(before);
+    assert(window.WLPP1C4Decisions?.createReceipt,'P1-C4 decision module missing. Do not save.');
+    await window.WLPP1C3Review.verifyLiveAccount(before);
+    const after=await activeMetaOnly();assertStillSame(after);
+    const liveRows=window.WLPP1C3Review.heldComparisons(state.master,state.byWid,state.overrides,state.policy);
+    assert(liveRows.length===state.reviewedRows.length,'Held field set changed');
+    for(let i=0;i<liveRows.length;i++){
+      const a=liveRows[i],b=state.reviewedRows[i];
+      assert(a.wid===b.wid&&a.field===b.field&&a.canonical===b.canonical&&a.local===b.local,'Held content changed. Review again.');
+      assert(state.byWid.get(a.wid)?.card?.card_id===b.cardId,'Stable card ID changed. Review again.');
+    }
+    return after;
+  }
+  async function saveDecisions(){
+    if(busy)return;
+    if(!$('approval-check').checked){show('decision-status','BLOCKED · Explicit review confirmation is required.');return;}
+    setBusy(true);
+    try{
+      const approved=state.reviewedRows.filter(row=>['canonical','local'].includes(state.previewChoices[decisionKey(row.wid,row.field)]));
+      assert(approved.length>0,'All reviewed fields are still HOLD; select Canonical or Local Edit in Step 5.');
+      assert(approved.length===state.policy.summary.heldFields,'Not all held fields have a decision. Review each field before saving.');
+      show('decision-status','CHECKING · refreshing account ownership and verifying the exact source values before local-only storage…');
+      const meta=await recheckDecisionContext();
+      const api=window.WLPP1C4Decisions;
+      const receipts=[];
+      for(const row of approved)receipts.push(await api.createReceipt(meta,row,state.previewChoices[decisionKey(row.wid,row.field)]));
+      // Recheck after asynchronous SHA-256 calculations, before the atomic write.
+      await recheckDecisionContext();
+      await api.saveReceipts(receipts);
+      const saved=await api.readReceipts(meta.accountKey);
+      for(const receipt of receipts){
+        const found=saved.find(r=>r.id===receipt.id);
+        const row=approved.find(r=>r.wid===receipt.wordId&&r.field===receipt.field);
+        assert((await api.assessReceipt(found,meta,row))==='MATCH','Saved receipt failed read-back verification');
+      }
+      state.savedCount=receipts.length;
+      show('decision-status',`SAVED AND VERIFIED · ${receipts.length} account-bound field decision receipt(s) in independent local IndexedDB. Canonical/Local values were NOT stored or changed. HOLD stays active; no cutover.`);
+    }catch(e){state.savedCount=0;show('decision-status',`BLOCKED · ${e?.message||String(e)}. No live WLP data changed. Check any stored receipts before retrying.`);}
+    finally{$('approval-check').checked=false;setBusy(false);}
+  }
+  async function verifySavedDecisions(){
+    if(busy)return;setBusy(true);
+    try{
+      show('decision-status','CHECKING · re-verifying account and stored receipt content bindings…');
+      const meta=await recheckDecisionContext(),api=window.WLPP1C4Decisions;
+      const all=await api.readReceipts(meta.accountKey);
+      let matched=0,stale=0,missing=0;
+      for(const row of state.reviewedRows){
+        const related=all.filter(r=>r.wordId===row.wid&&r.field===row.field).sort((a,b)=>String(b.recordedAt).localeCompare(String(a.recordedAt)));
+        if(!related.length){missing++;continue;}
+        const status=await api.assessReceipt(related[0],meta,row);
+        if(status==='MATCH')matched++;else stale++;
+      }
+      show('decision-status',`RECEIPT AUDIT · ${matched} current matching approval(s) · ${stale} stale/invalid · ${missing} missing. ${all.length} historical receipt(s) retained for this account. LIVE CUTOVER NOT AUTHORIZED.`);
+    }catch(e){show('decision-status',`BLOCKED · ${e?.message||String(e)}. No live WLP data changed.`);}
+    finally{setBusy(false);}
+  }
   async function openExistingDb(){
     assert(typeof indexedDB.databases==='function','This Chrome version cannot safely check the existing projection DB');
     const dbs=await indexedDB.databases();
@@ -326,7 +395,7 @@ This is a point-in-time identity check only. No edits were written and no cutove
       const policy=window.WLPP1C2Policy.evaluate(master,byWid,overrides,result);
       const currentRaw=localStorage.getItem(OVERRIDE_KEY);
       assert(currentRaw===raw,'Legacy Local Edits changed during comparison; retry to avoid stale policy results');
-      state={result,master,byWid,overrides,policy,localRaw:raw,ownership:null,previewChoices:{},activeGeneration:local.active.generation,activeAccountKey:local.active.accountKey,activeCursor:local.active.cursor,activeManifest:local.active.libraryManifestHash};
+      state={result,master,byWid,overrides,policy,localRaw:raw,ownership:null,previewChoices:{},reviewedRows:null,savedCount:0,activeGeneration:local.active.generation,activeAccountKey:local.active.accountKey,activeCursor:local.active.cursor,activeManifest:local.active.libraryManifestHash};
       renderStats(result);renderPolicy(policy);
       const c=result.counts;
       show('summary',`${result.status} · ${result.statement}\nCursor ${result.active.cursor} · ${c.compared} shared WIDs · ${c.projectionOnly} Canonical-only · ${c.staticOnly} Static-only\n${c.baselineDifferentCards} Master/Canonical difference cards (${c.baselineDifferentFields} fields) · ${c.lineEndingOnlyFields} line-ending/edge-space-only fields\n${c.legacyOverrideCopies} Legacy Local Edits · ${c.effectiveDifferentCards} Local-effective difference cards (${c.effectiveDifferentFields} fields)\nKnown baseline WID differences: ${result.expectedBaseline.knownDifferenceWidsMatch?'MATCH':'CHECK'} · WID7111/7112: ${result.expectedBaseline.cloudOnlyCanariesMatch?'MATCH':'CHECK'}\nNo live source switched; no data written.`);
@@ -339,18 +408,22 @@ This is a point-in-time identity check only. No edits were written and no cutove
     if(!state?.policy)return;
     if(localStorage.getItem(OVERRIDE_KEY)!==state.localRaw){show('status','STALE · Local Edits changed after comparison. Repeat Step 1 before exporting.');return;}
     const decisions=state.previewChoices||{};
-    const reviewChoices=state.policy.held.map(row=>({wid:row.wid,field:row.field,previewChoice:decisions[decisionKey(row.wid,row.field)]||'not-reviewed',resolutionSaved:false}));
-    const report={format:'WLP_P1C3_READ_ONLY_HOLD_REVIEW_AUDIT',version:1,createdAt:new Date().toISOString(),
+    const reviewChoices=state.policy.held.map(row=>({wid:row.wid,field:row.field,previewChoice:decisions[decisionKey(row.wid,row.field)]||'not-reviewed',resolutionSavedInThisSession:state.savedCount>0}));
+    const report={format:'WLP_P1C4_LOCAL_DECISION_RECEIPTS_AUDIT',version:1,createdAt:new Date().toISOString(),
       ...state.result,policy:state.policy,
       ownership:{verifiedThisSession:!!state.ownership,verifiedAt:state.ownership?new Date(state.ownership.at).toISOString():null,accountKeyExcluded:true,liveRecheckBeforeReview:true},
       previewChoices:reviewChoices,
-      p1c3Constraints:{readOnly:true,valuesNeverExported:true,previewChoicesNotPersisted:true,holdsUnresolved:true,accountVerificationNotPermanent:true,noLocalWrites:true,noCloudMutations:true,readSourceCutover:false}};
+      decisionReceipts:{savedThisSession:state.savedCount||0,noRawValuesInReceipts:true,notAppliedToLiveWlp:true},
+      p1c4Constraints:{sourceComparisonReadOnly:true,valuesNeverExported:true,optionalIsolatedDecisionReceiptWrites:true,holdsNotAppliedToLiveWlp:true,accountVerificationNotPermanent:true,noOfficialCardWrites:true,noLegacyLocalEditWrites:true,noCloudMutations:true,readSourceCutover:false}};
     const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)+'\n'],{type:'application/json'}));
-    const link=document.createElement('a');link.href=url;link.download='p1c3-audit.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    const link=document.createElement('a');link.href=url;link.download='p1c4-audit.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
   $('compare').addEventListener('click',compare);
   $('verify-account').addEventListener('click',verifyAccount);
   $('review-held').addEventListener('click',reviewHeld);
   $('show-card').addEventListener('click',()=>{if(state){const wid=Number($('wid').value);if(Number.isSafeInteger(wid)&&wid>0)detail(wid);else show('card','Enter a valid WordID');}});
+  $('approval-check').addEventListener('change',()=>setBusy(false));
+  $('save-decisions').addEventListener('click',saveDecisions);
+  $('verify-decisions').addEventListener('click',verifySavedDecisions);
   $('audit').addEventListener('click',exportAudit);
 })();

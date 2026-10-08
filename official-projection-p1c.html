@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#edf4ed">
-  <title>WLP · P1-C3 Read-Only Hold Review</title>
+  <title>WLP · P1-C4 Local Decision Receipts</title>
   <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
   <style>
     .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px;margin:14px 0}
@@ -31,14 +31,15 @@
   </style>
   <script src="./official-projection-policy-p1c2.js?v=20261008-p1c2" defer></script>
   <script src="./official-projection-review-p1c3.js?v=20261008-p1c3" defer></script>
-  <script src="./official-projection-p1c.js?v=20261008-p1c3" defer></script>
+  <script src="./official-projection-decisions-p1c4.js?v=20261008-p1c4" defer></script>
+  <script src="./official-projection-p1c.js?v=20261008-p1c4" defer></script>
 </head>
 <body>
   <main>
     <header>
-      <p class="eyebrow">WORD LIST GARDEN · P1-C3</p>
-      <h1>Read-Only Local Edit Review</h1>
-      <p class="intro">Compare the <strong>Static Master, protected Legacy Local Edits, and Canonical Local Projection</strong>, then preview which fields can be reconciled safely and which must remain unresolved. One explicit Supabase identity read for account verification; no Canonical writes and no live read-source cutover.</p>
+      <p class="eyebrow">WORD LIST GARDEN · P1-C4</p>
+      <h1>Local Edit Review &amp; Decision Receipts</h1>
+      <p class="intro">Compare the <strong>Static Master, protected Legacy Local Edits, and Canonical Local Projection</strong>, then preview which fields can be reconciled safely and which must remain unresolved. Explicit Supabase identity verification before viewing or saving review receipts; no Canonical writes, no Legacy Local Edit changes, and no live read-source cutover.</p>
       <div class="pill">Same browser profile as P1-B · independent diagnostic · no Service Worker change</div>
     </header>
 
@@ -76,19 +77,28 @@
 
     <section class="panel">
       <h2>5. Review held WID4120 values (on this PC only)</h2>
-      <p>After account verification, show the <strong>actual Canonical and protected Legacy Local Edit text</strong> side-by-side for held fields. You can choose a <strong>preview preference</strong>, but nothing is applied, saved, merged or deleted.</p>
+      <p>After account verification, show the <strong>actual Canonical and protected Legacy Local Edit text</strong> side-by-side for held fields. You can choose a <strong>review preference</strong>; it is NOT saved until the explicit Step 6 action. Neither choosing nor saving applies, merges, or deletes any WLP data.</p>
       <button id="review-held" type="button" disabled>Show held field values (read only)</button>
       <div id="held-review" class="result" aria-live="polite">No values displayed. Verify account ownership first.</div>
     </section>
 
     <section class="panel">
-      <h2>6. Export diagnostic</h2>
-      <p>Exports source counts, HOLD classifications, verification status and any preview preferences only. It does <strong>not</strong> export vocabulary text, Local Edit values, account IDs, account fingerprints or credentials.</p>
-      <button id="audit" type="button" disabled>Export P1-C3 Review Audit JSON</button>
+      <h2>6. Record reviewed decisions (local-only receipts)</h2>
+      <p>After reviewing held values, select <strong>Canonical</strong> or <strong>Local Edit</strong> in Step 5 for each field you want to approve. The default HOLD is never recorded as approval. Decisions are written to an <strong>independent IndexedDB receipt store</strong>, bound to the authenticated account, Canonical generation, card ID and hashes of both field values. No vocabulary text or credentials are stored in receipts. They cannot change live WLP.</p>
+      <label class="p1c-note" for="approval-check"><input id="approval-check" type="checkbox" disabled> I reviewed the selected fields and authorize saving <strong>decision receipts only</strong> on this PC. I understand that neither Official cards nor Local Edits will be changed.</label>
+      <div class="p1c-buttons" style="margin-top:12px"><button id="save-decisions" type="button" disabled>Save approved decisions locally (NO cutover)</button><button id="verify-decisions" type="button" disabled>Verify saved local receipts</button></div>
+      <div id="decision-status" class="result" aria-live="polite">No decision receipts recorded in this session. HOLD remains active.</div>
+      <p class="p1c-note">This step is optional. Every saved receipt must be rechecked before any future read-source cutover. Older receipts are preserved, but become STALE if the source values, account or Canonical generation changes.</p>
+    </section>
+
+    <section class="panel">
+      <h2>7. Export diagnostic</h2>
+      <p>Exports source counts, HOLD classifications, verification status, receipt counts and preview preferences only. It does <strong>not</strong> export vocabulary text, Local Edit values, account IDs, account fingerprints or credentials.</p>
+      <button id="audit" type="button" disabled>Export P1-C4 Decision Audit JSON</button>
       <div id="status" class="result" aria-live="polite">READY · waiting for Step 1.</div>
     </section>
 
-    <footer>This is a comparator, not a Cutover switch. Existing Study, Review, Search, Editor, Cloud and Legacy Local Edits remain unchanged. P1-C3 verifies the signed-in account at a point in time and previews held values locally. It does not save decisions or authorize changing the live read source.</footer>
+    <footer>This is a comparator, not a Cutover switch. Existing Study, Review, Search, Editor, Cloud and Legacy Local Edits remain unchanged. P1-C4 can save separately stored, account-bound, content-hash-bound decision receipts on this device. It does not resolve live HOLD status, change any WLP card, or authorize read-source cutover.</footer>
   </main>
 </body>
 </html>
