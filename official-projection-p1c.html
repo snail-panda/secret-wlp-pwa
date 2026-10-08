@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en" data-wlp-p1-shadow="1">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#edf4ed">
+  <title>WLP · P1-C Read-Only Source Comparison</title>
+  <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
+  <style>
+    .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px;margin:14px 0}
+    .stat{background:#f1f6f1;border:1px solid #d5e5d8;border-radius:12px;padding:12px}
+    .stat b{display:block;font-size:1.35rem;color:#194b38}.stat span{font-size:.85rem;color:#466354}
+    .p1c-table{width:100%;border-collapse:collapse;font-size:.87rem;table-layout:fixed}
+    .p1c-table td,.p1c-table th{border-bottom:1px solid #d9e4dc;text-align:left;vertical-align:top;padding:8px 5px;overflow-wrap:anywhere}
+    .p1c-table th:first-child{width:27%}.p1c-table td:nth-child(2){width:32%}
+    .p1c-table code{white-space:pre-wrap;word-break:break-word;font-size:.79rem}
+    .p1c-scroll{overflow:auto;max-height:480px}
+    .p1c-pass{color:#176342}.p1c-check{color:#8b4d09}
+    .p1c-note{font-size:.88rem;color:#405f4b;line-height:1.55}
+    .p1c-buttons{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .p1c-buttons input{max-width:120px}
+  </style>
+  <script src="./official-projection-p1c.js?v=20261008-p1c" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">WORD LIST GARDEN · P1-C</p>
+      <h1>Read-Only Source Comparison</h1>
+      <p class="intro">Compare the <strong>current Static Master + this device's Legacy Local Edits</strong> against the installed <strong>Canonical Official Local Projection</strong>. No Cloud calls, no data writes, and no live page read-source cutover.</p>
+      <div class="pill">Same browser profile as P1-B · independent diagnostic · no Service Worker change</div>
+    </header>
+
+    <section class="panel">
+      <h2>1. Compare both card sources</h2>
+      <p>Reads the actual Master TSV used by current WLP pages and the active generation of <code>wlp-official-shadow-p1-v1</code>. Legacy Local Edit copies are read, <strong>never changed</strong>.</p>
+      <button id="compare" type="button">Compare Static + Local Edits with Projection</button>
+      <div id="summary" class="result" aria-live="polite">Not started. Click Compare once; this does not install or modify any data.</div>
+      <div class="statgrid" id="stats" hidden></div>
+      <p class="p1c-note">A difference is <em>not automatically a failure</em>. The 2 promoted Official cards, approved Canonical enrichments and protected device-local edits are reported separately. Line-ending-only differences are also separate.</p>
+    </section>
+
+    <section class="panel">
+      <h2>2. Inspect a specific WordID</h2>
+      <p>After Step 1, compare a card's Master values, the current Legacy Local Edit overlay, and the Canonical Local Projection. This does not open or modify the study card.</p>
+      <div class="p1c-buttons"><label for="wid">WordID</label><input id="wid" type="number" min="1" step="1" value="4120"><button id="show-card" type="button" disabled>Show field comparison</button></div>
+      <div id="card" class="result" aria-live="polite">Run Step 1 first.</div>
+    </section>
+
+    <section class="panel">
+      <h2>3. Export diagnostic</h2>
+      <p>Exports counts, hashes, IDs and names of differing fields only. It does <strong>not</strong> export vocabulary contents, stored Local Edit values or account credentials.</p>
+      <button id="audit" type="button" disabled>Export P1-C Audit JSON</button>
+      <div id="status" class="result" aria-live="polite">READY · waiting for Step 1.</div>
+    </section>
+
+    <footer>This is a comparator, not a Cutover switch. Existing Study, Review, Search, Editor, Cloud and Legacy Local Edits remain unchanged. P1-C does not verify current Cloud account ownership or authorize changing the live read source.</footer>
+  </main>
+</body>
+</html>
