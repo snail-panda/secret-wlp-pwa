@@ -1,9 +1,9 @@
-/* WLP v1.8.6.397 — Canonical Account Backup + immutable restore-point markers.
-   Read-only Canonical export. Restore execution is intentionally NOT enabled in v397. */
+/* WLP v1.8.6.398 — Canonical Account Backup sparse-overlay integrity hardening.
+   Read-only Canonical export. Restore execution remains intentionally disabled. */
 (() => {
   'use strict';
 
-  const APP_VERSION='1.8.6.397-canonical-account-backup-v1';
+  const APP_VERSION='1.8.6.398-canonical-account-backup-integrity-v1';
   const FORMAT='WLP_CANONICAL_ACCOUNT_BACKUP',VERSION=1;
   const SHADOW_DB='wlp-cloud-shadow-v0',SHADOW_META='meta',CONFIG_KEY='supabase_config',SESSION_KEY='supabase_session';
   const RESTORE_TABLE='wlp_account_restore_points_v1';
@@ -95,10 +95,33 @@
 
     const map=new Map();
     for(const row of baseRows){const tableName=String(row.table_name||''),rowKey=String(row.row_key||'');if(!tableName||!rowKey)continue;map.set(identity(tableName,rowKey),{tableName,rowKey,payloadHash:String(row.payload_hash||''),payload:clone(row.payload),tombstone:Boolean(row.tombstone),source:'authority',lastChangeSeq:null,lastOperation:'bootstrap',lastServerAt:null});}
-    for(const row of changeRows){const tableName=String(row.table_name||''),rowKey=String(row.row_key||'');if(!tableName||!rowKey)continue;map.set(identity(tableName,rowKey),{tableName,rowKey,payloadHash:String(row.payload_hash||''),payload:clone(row.payload),tombstone:Boolean(row.tombstone),source:'change',lastChangeSeq:Number(row.change_seq||0),lastOperation:String(row.operation||''),lastServerAt:row.server_at||null});}
+    for(const row of changeRows){
+      const tableName=String(row.table_name||''),rowKey=String(row.row_key||'');if(!tableName||!rowKey)continue;
+      const key=identity(tableName,rowKey),payloadHash=String(row.payload_hash||''),tombstone=Boolean(row.tombstone),prior=map.get(key)||null;
+      let payload=clone(row.payload);
+      // Some historical Canonical change rows are sparse: they carry the accepted payload hash
+      // but not the payload bytes. A non-tombstone sparse row must never erase a complete
+      // Authority/prior-effective payload in an external backup. Reuse it only when the hashes
+      // prove that it is exactly the same payload; otherwise fail closed.
+      if(!tombstone&&payload==null){
+        if(!payloadHash)throw new Error(`Canonical Account Backup blocked: active sparse change ${tableName}/${rowKey} has no payload hash.`);
+        if(!prior||prior.payload==null)throw new Error(`Canonical Account Backup blocked: active sparse change ${tableName}/${rowKey} has no prior payload to recover.`);
+        if(String(prior.payloadHash||'')!==payloadHash)throw new Error(`Canonical Account Backup blocked: active sparse change ${tableName}/${rowKey} payload hash does not match the prior effective payload.`);
+        payload=clone(prior.payload);
+      }
+      map.set(key,{tableName,rowKey,payloadHash,payload,tombstone,source:'change',lastChangeSeq:Number(row.change_seq||0),lastOperation:String(row.operation||''),lastServerAt:row.server_at||null});
+    }
     const records=[...map.values()].sort((a,b)=>a.tableName.localeCompare(b.tableName)||a.rowKey.localeCompare(b.rowKey));
     const tableCounts={};let activeCount=0,tombstoneCount=0;
-    for(const row of records){const block=tableCounts[row.tableName]||(tableCounts[row.tableName]={total:0,active:0,tombstone:0});block.total+=1;if(row.tombstone){block.tombstone+=1;tombstoneCount+=1;}else{block.active+=1;activeCount+=1;}}
+    for(const row of records){
+      if(!row.tombstone&&row.payload==null)throw new Error(`Canonical Account Backup blocked: active record ${row.tableName}/${row.rowKey} has no payload.`);
+      if(row.payload!=null){
+        if(!row.payloadHash)throw new Error(`Canonical Account Backup blocked: record ${row.tableName}/${row.rowKey} has payload bytes but no payload hash.`);
+        const computedPayloadHash=await sha256(stableStringify(row.payload));
+        if(computedPayloadHash!==row.payloadHash)throw new Error(`Canonical Account Backup blocked: payload hash mismatch for ${row.tableName}/${row.rowKey}.`);
+      }
+      const block=tableCounts[row.tableName]||(tableCounts[row.tableName]={total:0,active:0,tombstone:0});block.total+=1;if(row.tombstone){block.tombstone+=1;tombstoneCount+=1;}else{block.active+=1;activeCount+=1;}
+    }
     const manifestRows=records.map(row=>({tableName:row.tableName,rowKey:row.rowKey,payloadHash:row.payloadHash,tombstone:row.tombstone}));
     const manifestHash=await sha256(stableStringify(manifestRows));
     const headCheck=await fetchHead(api);if(String(headCheck.candidate_key)!==String(head.candidate_key)||Number(headCheck.head_version)!==Number(head.head_version)||String(headCheck.snapshot_manifest_hash)!==String(head.snapshot_manifest_hash))throw new Error('ACTIVE Authority Head changed during Canonical Account Backup. Retry the export.');
