@@ -1,20 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-wlp-p1-shadow="1">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#edf4ed">
   <title>WLP · P1 Isolated Local Projection</title>
-  <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1a">
-  <script src="./official-projection-p1.js?v=20261008-p1a" defer></script>
+  <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
+  <script src="./canonical-account-backup.js?v=20261008-p1b" defer></script>
+  <script src="./official-projection-p1.js?v=20261008-p1b" defer></script>
 </head>
 <body>
   <main>
     <header>
-      <p class="eyebrow">WORD LIST GARDEN · P1-A</p>
+      <p class="eyebrow">WORD LIST GARDEN · P1-B</p>
       <h1>Isolated Local Projection</h1>
-      <p class="intro">Safety-gated local snapshot test. It does <strong>not</strong> change the WLP study, review, search, editor, Cloud or Local Edit data paths.</p>
-      <div class="pill">Independent IndexedDB · no Cloud calls · no automatic sync · no Service Worker</div>
+      <p class="intro">Safety-gated local snapshot and explicit Cloud refresh test. It does <strong>not</strong> change the WLP study, review, search, editor, Cloud or Local Edit data paths.</p>
+      <div class="pill">Independent IndexedDB · explicit read-only Cloud check · no automatic sync · no Service Worker</div>
     </header>
 
     <section class="panel">
@@ -35,20 +36,29 @@
     </section>
 
     <section class="panel">
-      <h2>3. Verify offline read</h2>
+      <h2>3. Check current Canonical Cloud (read only)</h2>
+      <p>Run an authenticated read of the current account Canonical Library; this does not send local edits, create mutations, or update live WLP. A staged snapshot is kept separate until you approve it.</p>
+      <button id="cloud-check" type="button">Check Cloud and preview changes</button>
+      <div id="cloud-preview" class="result" aria-live="polite">No Cloud check yet.</div>
+      <button id="cloud-install" class="primary" type="button" disabled>Install VERIFIED Cloud snapshot in isolated DB</button>
+      <p class="small warn">Explicit installation only. If this browser has pending Canonical Outbox changes, another account is active, or a card was removed, installation is BLOCKED. The prior generation is retained.</p>
+    </section>
+
+    <section class="panel">
+      <h2>4. Verify local/offline read</h2>
       <p>Once installed, you can disconnect the network <em>without closing this page</em> and read back a card from the isolated IndexedDB.</p>
       <div class="row"><label for="wid">WordID</label><input id="wid" type="number" min="1" step="1" value="4120"><button id="lookup" type="button">Read card from local DB</button></div>
       <pre id="card" class="result card" aria-live="polite">Nothing read yet.</pre>
     </section>
 
     <section class="panel">
-      <h2>4. Export diagnostic</h2>
+      <h2>5. Export diagnostic</h2>
       <p>Exports only local verification results, names, counts, hashes and WID4120 safety status—not the full vocabulary or Cloud credentials.</p>
       <button id="audit" type="button">Export Audit JSON</button>
       <div id="status" class="result" aria-live="polite">READY · waiting for your choice.</div>
     </section>
 
-    <footer>Do not remove legacy Local Edit copies. This is P1-A shadow verification only: no read-source cutover, no automatic sync, no multi-device merge and no full offline-PWA claim.</footer>
+    <footer>Do not remove legacy Local Edit copies. This is P1-B shadow verification only: no read-source cutover, no automatic sync, no multi-device merge and no full offline-PWA claim.</footer>
   </main>
 </body>
 </html>

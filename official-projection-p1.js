@@ -1,6 +1,7 @@
-/* WLP P1-A · independent device-local Official read projection · diagnostic/test only.
-   This module MUST NOT read/write canonical Cloud configuration, live WLP outbox,
-   legacy Local Edits, live Cloud Mirror, Master TSV, Review or Study data. */
+/* WLP P1-B · P1-A preserved + explicit, authenticated Cloud-to-shadow read-only preview and guarded install.
+   P1-B may call the existing authenticated, read-only Canonical Library builder.
+   It does NOT write Canonical card data, change live WLP Outbox, Local Edits,
+   Cloud Mirror, Master TSV, Review or Study data. */
 (() => {
   'use strict';
   const DB_NAME='wlp-official-shadow-p1-v1', DB_VERSION=1;
@@ -16,7 +17,7 @@
     fileSha256:'f14e761c9d5ca5150fdcbe2ab23938b2130393437eea6af13b771848320f4ed1'
   });
   const $=id=>document.getElementById(id);
-  const state={inspected:null,active:null,busy:false,lastReport:null};
+  const state={inspected:null,cloudCandidate:null,active:null,busy:false,lastReport:null};
   const countLabel=(x)=>Number(x||0).toLocaleString('en-US');
   const assert=(yes,message)=>{if(!yes)throw new Error(message);};
   const sha=async data=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data))).map(v=>v.toString(16).padStart(2,'0')).join('');
@@ -24,7 +25,7 @@
   const done=tx=>new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||new Error('IndexedDB transaction aborted'));tx.onerror=()=>reject(tx.error||new Error('IndexedDB transaction failed'));});
   const show=(id,text)=>{$(id).textContent=String(text);};
   const status=text=>show('status',text);
-  const setBusy=busy=>{state.busy=busy;$('check').disabled=busy;$('snapshot').disabled=busy;$('lookup').disabled=busy;$('install').disabled=busy||!state.inspected;};
+  const setBusy=busy=>{state.busy=busy;$('check').disabled=busy;$('snapshot').disabled=busy;$('lookup').disabled=busy;$('install').disabled=busy||!state.inspected;$('cloud-check').disabled=busy;$('cloud-install').disabled=busy||!state.cloudCandidate;};
   function openDb(){return new Promise((resolve,reject)=>{
     const r=indexedDB.open(DB_NAME,DB_VERSION);
     r.onupgradeneeded=()=>{
@@ -81,6 +82,77 @@
     assert(data.officialCards.every(e=>e.baseContent&&e.effectiveContent),'Official content incomplete');
     return {count:wids.size,wordIds:wids,notes4120:String(w4120.effectiveContent.notes||'').length,source4120:String(w4120.effectiveContent.source||''),synonyms4120:String(w4120.effectiveContent.synonyms||'')};
   }
+  // The exact P0 baseline remains immutable, but later Cloud snapshots are allowed
+  // if they are authenticated, fully materialized at one verified server boundary,
+  // and belong to the same Authority and local account binding.
+  function inspectCloudLibrary(data){
+    assert(data?.format===FORMAT&&data.version===1,'Not a Canonical Library export');
+    assert(data.authority?.candidateKey===EXPECTED.candidateKey&&data.authority?.headVersion===EXPECTED.headVersion&&data.authority?.snapshotManifestHash===EXPECTED.snapshotManifestHash,'Different Authority; refusing Cloud projection');
+    const cursor=Number(data.highWaterChangeSeq);
+    assert(Number.isSafeInteger(cursor)&&cursor>=EXPECTED.cursor,'Cloud cursor is older than approved P0 baseline');
+    assert(/^[a-f0-9]{64}$/i.test(String(data.sourceCanonicalManifestHash||''))&&/^[a-f0-9]{64}$/i.test(String(data.libraryManifestHash||'')),'Missing verified Cloud manifests');
+    const official=data.officialCards||[],drafts=data.draftCards||[],ids=new Set(),wids=new Set();
+    assert(Array.isArray(official)&&official.length>=6660,'Canonical Official count dropped below 6,660; manual reconciliation required');
+    assert(Array.isArray(drafts)&&data.summary?.officialCardCount===official.length&&data.summary?.draftCardCount===drafts.length&&data.summary?.activeCardCount===official.length+drafts.length,'Cloud counts do not match entries');
+    assert(Number(data.summary?.activeCanonicalLocalEditCount)===0,'Active Canonical overrides need separate merge support; blocked');
+    for(const e of official)checkEntry(e,'official',ids,wids);
+    for(const e of drafts)checkEntry(e,'draft',ids,wids);
+    assert(wids.has(7111)&&wids.has(7112),'Promoted Official canary WIDs absent');
+    const w4120=official.find(x=>x.card.word_id===4120);
+    assert(w4120&&/voca_0123/.test(String(w4120.effectiveContent.source||''))&&String(w4120.effectiveContent.notes||'').length>100,'WID4120 merged data missing');
+    if(cursor===EXPECTED.cursor)assert(data.libraryManifestHash===EXPECTED.libraryManifestHash&&data.sourceCanonicalManifestHash===EXPECTED.sourceCanonicalManifestHash,'Cursor 614 manifest mismatch with approved P0');
+    return {count:official.length,cursor,checks:{wid4120:true},wids};
+  }
+  function openExistingOutbox(){return new Promise((resolve,reject)=>{
+    const r=indexedDB.open('wlp-cloud-v1',1);let newlyCreated=false;
+    r.onupgradeneeded=()=>{newlyCreated=true;try{r.transaction.abort();}catch(_){}};
+    r.onsuccess=()=>{
+      if(newlyCreated){r.result.close();reject(new Error('Canonical mirror not initialized; cannot check pending Outbox'));return;}
+      if(!r.result.objectStoreNames.contains('sync_outbox')){r.result.close();reject(new Error('Canonical Outbox store is absent'));return;}
+      resolve(r.result);
+    };
+    r.onerror=()=>reject(new Error('Cannot open existing Canonical Outbox safely'));
+    r.onblocked=()=>reject(new Error('Canonical Outbox is blocked by another tab'));
+  });}
+  async function pendingOutbox(){let db;try{db=await openExistingOutbox();return await req(db.transaction('sync_outbox','readonly').objectStore('sync_outbox').count());}finally{db?.close();}}
+  function assertAccountBinding(active,accountKey){
+    assert(/^[a-f0-9]{64}$/i.test(accountKey||''),'Authenticated account fingerprint missing');
+    if(!active)return;
+    assert(active.authorityKey===EXPECTED.candidateKey,'Different Authority installed locally');
+    if(active.accountKey)assert(active.accountKey===accountKey,'Different Cloud account than existing local projection; blocked');
+    else assert(active.cursor===614&&active.fileHash===EXPECTED.fileSha256&&active.libraryManifestHash===EXPECTED.libraryManifestHash,'Unbound local projection is not the verified P1-A baseline; blocked');
+  }
+  async function inspectCloud(){
+    const reader=window.WLPCanonicalLibraryShadowReader;
+    assert(reader?.read&&reader?.boundary,'Verified read-only Canonical Library bridge not available');
+    const {library,accountKey}=await reader.read();
+    const checked=inspectCloudLibrary(library);
+    let db;let before=null;
+    try{db=await openDb();before=await getActive(db);}finally{db?.close();}
+    assertAccountBinding(before,accountKey);
+    assert(!before||before.cursor<=checked.cursor,`Cloud cursor ${checked.cursor} is behind local cursor ${before.cursor}`);
+    const outbox=await pendingOutbox();
+    assert(outbox===0,`Pending live Canonical Outbox has ${outbox} change(s). Sync these safely before installing a Cloud shadow generation`);
+    const old=new Map();
+    if(before){
+      db=await openDb();
+      try{
+        await new Promise((resolve,reject)=>{
+          const tx=db.transaction(TABLE,'readonly'),range=IDBKeyRange.bound([before.generation,''],[before.generation,'\uffff']);
+          tx.objectStore(TABLE).openCursor(range).onsuccess=e=>{const c=e.target.result;if(c){old.set(c.value.cardId,c.value.entry);c.continue();}};
+          tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||new Error('Cannot compare local projection'));tx.onerror=()=>reject(tx.error||new Error('Cannot scan local projection'));
+        });
+        assert(old.size===before.count,'Current local projection count is inconsistent; blocked');
+      }finally{db.close();}
+    }
+    const newIds=new Set(library.officialCards.map(x=>x.cardId));
+    const removed=[...old.keys()].filter(x=>!newIds.has(x));
+    assert(removed.length===0,`${removed.length} Official card(s) removed remotely; tombstone/conflict handling not implemented. Blocked`);
+    let added=0,changed=0,unchanged=0;
+    for(const e of library.officialCards){const prior=old.get(e.cardId);if(!prior)added++;else if(JSON.stringify(prior)===JSON.stringify(e))unchanged++;else changed++;}
+    const fingerprint=await sha(new TextEncoder().encode(JSON.stringify({cursor:checked.cursor,libraryManifestHash:library.libraryManifestHash,sourceCanonicalManifestHash:library.sourceCanonicalManifestHash,accountKey})));
+    return{data:library,accountKey,checks:checked,baseGeneration:before?.generation||null,beforeCursor:before?.cursor??null,delta:{added,changed,unchanged,removed:0},fileHash:fingerprint,source:'cloud'};
+  }
   async function inspectFile(file){
     assert(file&&file.size>0&&file.size<100*1024*1024,'Choose a Canonical Library JSON under 100 MB');
     const bytes=await file.arrayBuffer();
@@ -135,7 +207,7 @@
         if((current?.generation||null)!==(prev?.generation||null)){
           failed=new Error('Another tab updated the active projection; nothing was activated');tx.abort();return;
         }
-        store.put({key:ACTIVE,value:{generation,count:6660,cursor:614,fileHash:inspected.fileHash,libraryManifestHash:EXPECTED.libraryManifestHash,sourceCanonicalManifestHash:EXPECTED.sourceCanonicalManifestHash,authorityKey:EXPECTED.candidateKey,installedAt:new Date().toISOString()}});
+        store.put({key:ACTIVE,value:{generation,count:inspected.data.officialCards.length,cursor:inspected.checks?.cursor??614,fileHash:inspected.fileHash,libraryManifestHash:inspected.data.libraryManifestHash,sourceCanonicalManifestHash:inspected.data.sourceCanonicalManifestHash,authorityKey:EXPECTED.candidateKey,accountKey:inspected.accountKey||prev?.accountKey||null,source:inspected.source||'manual-p1a',installedAt:new Date().toISOString()}});
       };
       tx.oncomplete=resolve;
       tx.onabort=()=>reject(failed||tx.error||new Error('Activation failed'));
@@ -147,10 +219,17 @@
     let db;
     try{
       db=await openDb();const prev=await getActive(db);
-      if(prev?.fileHash===inspected.fileHash){status('READY · this exact projection is already active. No write performed.');return;}
+      if(inspected.source==='cloud'){
+        assertAccountBinding(prev,inspected.accountKey);
+        assert((prev?.generation||null)===inspected.baseGeneration,'Active generation changed after preview; recheck Cloud first');
+        assert((await pendingOutbox())===0,'New pending Outbox changes found; abort installation');
+        const bound=await window.WLPCanonicalLibraryShadowReader.boundary();
+        assert(bound.accountKey===inspected.accountKey&&bound.cursor===inspected.checks.cursor&&bound.authority.candidateKey===EXPECTED.candidateKey&&bound.authority.headVersion===EXPECTED.headVersion&&bound.authority.snapshotManifestHash===EXPECTED.snapshotManifestHash,'Cloud boundary moved since preview; recheck Cloud first');
+      }
+      if(prev?.fileHash===inspected.fileHash&&(!inspected.accountKey||prev.accountKey===inspected.accountKey)){status('READY · this exact projection is already active. No write performed.');return;}
       assert(!prev||prev.authorityKey===EXPECTED.candidateKey,'Different account/Authority active. Refusing to replace it');
       assert(!prev||prev.cursor<=EXPECTED.cursor,'Active local cursor is newer. Import refused');
-      assert(!prev||prev.libraryManifestHash===EXPECTED.libraryManifestHash,'Different projection manifest already active. Refusing to replace it');
+      if(inspected.source!=='cloud')assert(!prev||prev.libraryManifestHash===EXPECTED.libraryManifestHash,'Different projection manifest already active. Refusing to replace it');
       const generation=crypto.randomUUID();
       const cards=inspected.data.officialCards;
       for(let i=0;i<cards.length;i+=150){
@@ -159,11 +238,16 @@
         await done(tx);
         if((i/150)%5===0||i+150>=cards.length)status(`STAGING · ${countLabel(Math.min(cards.length,i+150))} / ${countLabel(cards.length)} Official cards · live WLP unchanged.`);
       }
-      status('VERIFYING · readback of all 6,660 cards before activation…');
+      status(`VERIFYING · readback of all ${countLabel(cards.length)} Official cards before activation…`);
       const readback=await scanGeneration(db,generation,cards);
-      assert(readback===6660,'Projection is incomplete');
+      assert(readback===cards.length,'Projection is incomplete');
+      if(inspected.source==='cloud'){
+        const boundary=await window.WLPCanonicalLibraryShadowReader.boundary();
+        assert(boundary.accountKey===inspected.accountKey&&boundary.cursor===inspected.checks.cursor&&boundary.authority.candidateKey===EXPECTED.candidateKey&&boundary.authority.headVersion===EXPECTED.headVersion&&boundary.authority.snapshotManifestHash===EXPECTED.snapshotManifestHash,'Cloud changed during staging; old active projection retained');
+        assert((await pendingOutbox())===0,'Outbox became pending during staging; old projection retained');
+      }
       await activate(db,prev,generation,inspected);
-      state.lastReport={status:'PASS',generation,cursor:614,officialCount:6660,fileHash:inspected.fileHash,readback};
+      state.lastReport={status:'PASS',mode:inspected.source==='cloud'?'cloud-to-shadow':'manual-import',generation,cursor:inspected.checks?.cursor??614,officialCount:cards.length,fileHash:inspected.fileHash,delta:inspected.delta||null,readback};
       status(`PASS · ${countLabel(readback)} / ${countLabel(cards.length)} Official cards verified and activated in isolated IndexedDB. No live read-source cutover. Old generations retained.`);
     }finally{db?.close();await refresh();}
   }
@@ -181,9 +265,9 @@
     }finally{db?.close();}
   }
   function exportAudit(){
-    const record={format:'WLP_P1A_SHADOW_LOCAL_PROJECTION_AUDIT',version:1,createdAt:new Date().toISOString(),active:state.active,lastResult:state.lastReport,legacyLocalCompatibility:localCompatSummary(),constraints:{manualImportOnly:true,readSourceCutover:false,noCloudWrite:true,noLiveLocalChange:true,retainedWID4120:true,accountIsolationUnverified:true}};
+    const record={format:'WLP_P1B_SHADOW_LOCAL_PROJECTION_AUDIT',version:1,createdAt:new Date().toISOString(),active:state.active,lastResult:state.lastReport,legacyLocalCompatibility:localCompatSummary(),constraints:{explicitCloudCheckOnly:true,noBackgroundSync:true,readSourceCutover:false,noCanonicalWrites:true,noLiveLocalChange:true,retainedWID4120:true,accountBindingLocalGuardOnly:true}};
     const url=URL.createObjectURL(new Blob([JSON.stringify(record,null,2)+'\n'],{type:'application/json'}));
-    const a=document.createElement('a');a.href=url;a.download='p1a-audit.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+    const a=document.createElement('a');a.href=url;a.download='p1b-audit.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
   $('snapshot').addEventListener('change',async()=>{
     state.inspected=null;setBusy(true);
@@ -196,6 +280,30 @@
     }catch(e){show('preview',`BLOCKED · ${e.message}`);status(`BLOCKED · ${e.message}`);}
     finally{setBusy(false);}
   });
+  $('cloud-check').addEventListener('click',async()=>{
+    if(state.busy)return;state.cloudCandidate=null;setBusy(true);
+    try{
+      show('cloud-preview','CHECKING · authenticated read-only Canonical Library snapshot…');
+      const candidate=await inspectCloud();
+      state.cloudCandidate=candidate;
+      const d=candidate.delta;
+      show('cloud-preview',`PASS · Cloud boundary verified · cursor ${candidate.checks.cursor} · ${countLabel(candidate.checks.count)} Official\nChanges relative to installed local projection: ${d.added} added · ${d.changed} changed · ${d.unchanged} unchanged · ${d.removed} removed\nPending Outbox: 0 · account fingerprint verified · old generation retained\nClick Install VERIFIED Cloud snapshot only to refresh isolated DB. Live WLP remains unchanged.`);
+      status('PASS · Cloud checked, no data written. Explicit Install is now available.');
+    }catch(e){show('cloud-preview',`BLOCKED · ${e.message}`);status(`BLOCKED · ${e.message}`);}
+    finally{setBusy(false);}
+  });
+  $('cloud-install').addEventListener('click',async()=>{
+    if(state.busy||!state.cloudCandidate)return;
+    setBusy(true);
+    try{await installCloudCandidate();}catch(e){state.lastReport={status:'BLOCKED',mode:'cloud-to-shadow',error:e.message};status(`BLOCKED · ${e.message}. Active projection was not replaced.`);}
+    finally{setBusy(false);}
+  });
+  async function installCloudCandidate(){
+    const candidate=state.cloudCandidate;assert(candidate,'Check Cloud first');
+    const previous=state.inspected;
+    state.inspected=candidate;
+    try{await install();state.cloudCandidate=null;show('cloud-preview',`INSTALLED · verified Cloud cursor ${candidate.checks.cursor} in isolated IndexedDB. Existing WLP untouched.`);}finally{state.inspected=previous;}
+  }
   $('install').addEventListener('click',async()=>{
     if(state.busy||!state.inspected)return;setBusy(true);
     try{await install();}catch(e){state.lastReport={status:'BLOCKED',error:e.message};status(`BLOCKED · ${e.message}. Active projection (if any) was not replaced.`);}finally{setBusy(false);}

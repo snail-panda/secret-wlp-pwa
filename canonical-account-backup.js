@@ -911,6 +911,27 @@
     };
   }
 
+  // P1-B strictly read-only bridge. Exposed ONLY by the isolated shadow page.
+  // It reuses the fully verified fixed-boundary library materializer above.
+  // No credential, token, or session object is returned to the projection page.
+  if(document.documentElement?.dataset?.wlpP1Shadow==='1'){
+    async function shadowReaderContext(){
+      const api=await cloudContext();
+      const accountKey=await sha256(`wlp-shadow-p1b|${String(api.config.url).replace(/\/+$/,'')}|${String(api.session.userId)}`);
+      return {api,accountKey};
+    }
+    window.WLPCanonicalLibraryShadowReader=Object.freeze({
+      async read(){
+        const {api,accountKey}=await shadowReaderContext();
+        return {library:await buildCanonicalLibrary(api),accountKey};
+      },
+      async boundary(){
+        const {api,accountKey}=await shadowReaderContext(),head=await fetchHead(api);
+        return {accountKey,authority:{candidateKey:String(head.candidate_key),headVersion:Number(head.head_version),snapshotManifestHash:String(head.snapshot_manifest_hash)},cursor:await fetchHighWater(api,head)};
+      }
+    });
+  }
+
   function updateCanonicalLibrarySummary(library,label){
     const a=library.compatibilityAudit||{},warnings=[],notes=[];
     const needs=Number(a.browserOnlyLocalOverrideNeedsMigrationCount||0),blocked=Number(a.browserOnlyLocalOverrideBlockedCount||0),redundant=Number(a.browserOnlyLocalOverrideRedundantCount||0);
@@ -1032,5 +1053,8 @@
     $('canonical-restore-execute-button')?.addEventListener('click',()=>{void executeRestore().catch(error=>setStatus(error?.message||String(error),'error'));});
     void refreshSummary();
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();
+  // The shadow page needs only the read-only bridge; never initialize backup/restore controls.
+  if(document.documentElement?.dataset?.wlpP1Shadow!=='1'){
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind,{once:true});else bind();
+  }
 })();
