@@ -93,7 +93,7 @@
         <div>
           <span class="section-kicker">Editor · Backup</span>
           <h1>Import &amp; Export</h1>
-          <p>Back up local WLP data, transfer Authoring work between devices, or export/import specialized deck and metadata files.</p>
+          <p>Back up local WLP data, create Canonical account restore points, export a full account snapshot, or transfer specialized deck and metadata files.</p>
         </div>
         <span class="editor-count-pill" id="editor-count-pill">Loading…</span>
       </section>
@@ -198,6 +198,47 @@
           </div>
 
           <section class="backup-status local-restore-status" id="local-restore-status" hidden aria-live="polite"></section>
+        </section>
+
+        <section class="backup-panel canonical-account-panel" id="canonical-account-safety" aria-label="Canonical account backup and restore points">
+          <div class="backup-panel-head">
+            <div>
+              <span class="editor-tool-kicker">Account Safety · Canonical</span>
+              <h2>Canonical Account Backup</h2>
+              <p>Create a Cloud Restore Point and download a self-contained snapshot of the signed-in WLP account before the Official Library read cutover.</p>
+            </div>
+          </div>
+
+          <div class="canonical-account-meta">
+            <span id="canonical-account-user">Checking signed-in WLP account…</span>
+            <strong id="canonical-account-head">Authority / cursor —</strong>
+            <button type="button" id="canonical-account-refresh" class="canonical-account-refresh">Refresh</button>
+          </div>
+
+          <div class="canonical-account-actions">
+            <article class="authoring-transfer-card canonical-account-card">
+              <h3>Create Cloud Restore Point</h3>
+              <p>Stores an immutable account checkpoint as ACTIVE Authority + Canonical change-sequence high-water. It does not alter cards or learning data.</p>
+              <label class="canonical-restore-label"><span>Label <small>optional</small></span><input id="canonical-restore-label" type="text" maxlength="160" placeholder="Before Official Library cutover"></label>
+              <button class="backup-primary" id="canonical-restore-create" type="button">Create Restore Point</button>
+              <small>Restore execution is intentionally not enabled yet; v397 creates a durable point that later Restore Preview can target.</small>
+            </article>
+
+            <article class="authoring-transfer-card canonical-account-card">
+              <h3>Export Canonical Account</h3>
+              <p>Downloads the effective account state: Authority records plus every accepted Canonical overlay through one fixed change cursor, including tombstones and stable UUID/card IDs.</p>
+              <button class="backup-primary" id="canonical-account-export" type="button">Export Canonical Account <span>.json</span></button>
+              <small id="canonical-account-export-summary">Ready to build a self-contained account snapshot.</small>
+            </article>
+          </div>
+
+          <div class="canonical-restore-points">
+            <div class="canonical-restore-points-head"><strong>Recent Cloud Restore Points</strong><span>Newest first</span></div>
+            <div id="canonical-restore-list"><p class="canonical-restore-empty">Checking restore points…</p></div>
+          </div>
+
+          <p class="canonical-account-scope-note"><strong>Safety scope:</strong> Canonical Account Backup covers the cloud account state. Full Local Backup above remains the safety copy for browser-only/local settings during this transition. Keep both PC and iPhone local backups until account-first cutover is complete.</p>
+          <section class="backup-status canonical-account-status" id="canonical-account-status" hidden aria-live="polite"></section>
         </section>
 
         <section class="backup-panel authoring-transfer-panel" id="learning-sync" aria-label="Learning Sync">
@@ -650,6 +691,7 @@
   <script src="./learning-sync.js?v=20260927-s7-learning-sync-v186146"></script>
   <script src="./editor-backup.js?v=20260927-s7-learning-sync-v186145"></script>
   <script src="./local-data-safety.js?v=20260927-s7-backup-change-counts-v186151"></script>
+  <script src="./canonical-account-backup.js?v=20261008-s7-canonical-account-backup-v186397"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18632"></script>
   <script>
