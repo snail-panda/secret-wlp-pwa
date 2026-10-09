@@ -4834,14 +4834,21 @@ function escapeHtml(s) {
       }
       effectiveRows = local.rows;
       const deckBack = document.querySelector('a.study-back-decks');
-      if (deckBack) deckBack.href = '../../deck-browser.html?wlpLocalLibrary=1' + (PARAMS.get('wlpOfflineQueue') === '1' ? '&wlpOfflineQueue=1' : '');
+      // E7a normal Home > Study users return to all three existing Study tabs;
+      // historical explicit E5 test URLs retain their explicit return route.
+      const e7NewStudy = localStorage.getItem('wlp:p1e7:local-new-study:v1') === '1';
+      if (deckBack) deckBack.href = e7NewStudy
+        ? '../../deck-browser.html'
+        : '../../deck-browser.html?wlpLocalLibrary=1' + (PARAMS.get('wlpOfflineQueue') === '1' ? '&wlpOfflineQueue=1' : '');
       const info = document.createElement('div');
       info.setAttribute('role', 'status');
       info.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
-      info.textContent = `${canonicalWriter.e5Enabled ? 'P1-E5 OPT-IN LOCAL STUDY JOURNAL' : 'P1-E3 OPT-IN LOCAL LIBRARY STUDY'} · Canonical Mirror cursor ${local.info.cursor} · ${local.info.count} Official. ${canonicalWriter.e5Enabled ? 'Study actions are preserved locally, then staged to the existing Canonical Writer one at a time. Cloud ACK is required before the next state revision.' : 'Normal Canonical Study state writer ready.'} Content edits disabled in this route. Source can be reverted without deleting data.`;
+      info.textContent = e7NewStudy
+        ? `Local Library · New Study · ${local.info.count} Official cards · Mirror cursor ${local.info.cursor}. Study changes are saved on this browser and synchronized through Canonical Cloud. Content editing remains in Editor.`
+        : `${canonicalWriter.e5Enabled ? 'P1-E5 OPT-IN LOCAL STUDY JOURNAL' : 'P1-E3 OPT-IN LOCAL LIBRARY STUDY'} · Canonical Mirror cursor ${local.info.cursor} · ${local.info.count} Official. ${canonicalWriter.e5Enabled ? 'Study actions are preserved locally, then staged to the existing Canonical Writer one at a time. Cloud ACK is required before the next state revision.' : 'Normal Canonical Study state writer ready.'} Content edits disabled in this route. Source can be reverted without deleting data.`;
       const link = document.createElement('a');
-      link.href = normal.href;
-      link.textContent = ' Return to standard Study';
+      link.href = e7NewStudy ? '../../deck-browser.html' : normal.href;
+      link.textContent = e7NewStudy ? ' Choose a Deck' : ' Return to standard Study';
       link.style.cssText = 'margin-left:12px;color:inherit;font-weight:bold;text-decoration:underline';
       info.append(link);
       if (canonicalWriter.e5Enabled) {

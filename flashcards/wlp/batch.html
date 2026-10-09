@@ -881,7 +881,7 @@
   <script src="../../wlp-local-library-read-p1e1.js?v=p1e4-verified-pending-study-read"></script>
   <script src="../../official-projection-study-events-p1d3.js?v=p1d3-events-only"></script>
   <script src="../../official-projection-study-state-p1d4.js?v=p1d5-review-attention-pilot"></script>
-  <script type="module" src="./app.js?v=p1e3-local-study-new-source"></script>
+  <script type="module" src="./app.js?v=p1e7a-normal-study-return-link"></script>
   <script src="./study-stage7.js?v=p1d6-front-attention-bootstrap"></script>
   <script src="../../study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <!-- P1-E6c: opt-in E5 verified offline Study shell refresh; Service Worker unchanged. -->
@@ -910,7 +910,7 @@
         }
         const cache = await caches.open(CACHE_NAME);
         const pageURL = new URL('./batch.html', location.href);
-        const appURL = new URL('./app.js?v=p1e3-local-study-new-source', location.href);
+        const appURL = new URL('./app.js?v=p1e7a-normal-study-return-link', location.href);
         const resources = [pageURL];
         for (const element of document.querySelectorAll('script[src], link[rel="stylesheet"][href]')) {
           const value = element.getAttribute('src') || element.getAttribute('href');

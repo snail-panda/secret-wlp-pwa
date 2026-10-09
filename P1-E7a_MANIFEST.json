@@ -1,0 +1,43 @@
+{
+  "name": "WLP P1-E7a normal Study New Local Library",
+  "source": "secret-wlp-pwa-clean(20261009-233312).zip",
+  "source_zip_sha256": "8aa7b07bae636229a55135652b4bd98aeb0c6d4df2cfbd428a59565f50207218",
+  "changed_paths": [
+    {
+      "path": "deck-browser.js",
+      "original_sha256": "696224cebdfe712326ad61fc3ffc6f9a394c679ea13c74ba7654272eeced5647",
+      "updated_sha256": "ecb11ce2121e9cd1eed207a5986e408c91a9b99ef20509425454ea48203b91cc",
+      "old_bytes": 30079,
+      "new_bytes": 35521
+    },
+    {
+      "path": "deck-browser.html",
+      "original_sha256": "b7e1d0bb0ce5bb1759ff3e86e7e2a447aea4ee0762e603c675ade2254cf403d9",
+      "updated_sha256": "c2ba4fb2ecc8d13892b0a92888bfd59a2a7df129b7f03a386e294dcb29626f27",
+      "old_bytes": 25459,
+      "new_bytes": 25464
+    },
+    {
+      "path": "flashcards/wlp/app.js",
+      "original_sha256": "98459ef25e523d6ca054ad56a522fbb6fa94e22bf351974ce507e9d8ba4093bc",
+      "updated_sha256": "0a0ede49304255b1df581d10ebb13fabcebe24870724e451d1d33b54bf013325",
+      "old_bytes": 137251,
+      "new_bytes": 137879
+    },
+    {
+      "path": "flashcards/wlp/batch.html",
+      "original_sha256": "8f932e2ac0f3bd1e16cb204e1e01c2c5ab41c9c1d709b30e5b5ac1d12bea59d1",
+      "updated_sha256": "b24a71e600b23bb8d7483d842cbdbf305ab13a9c2ef78fcea2b8c14eef04edbc",
+      "old_bytes": 56730,
+      "new_bytes": 56736
+    }
+  ],
+  "no_change": [
+    "service-worker.js",
+    "study-entry.js",
+    "index.html",
+    "flashcards/wlp/wlp-flashcard-master.tsv",
+    "wlp-study-intent-queue-p1e5.js",
+    "canonical-study-state-write-candidate.js"
+  ]
+}

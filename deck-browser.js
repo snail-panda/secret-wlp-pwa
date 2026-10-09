@@ -5,11 +5,16 @@
   const LOCAL_DECK_PREVIEW = PARAMS.get('wlpProjectionTrial') === '1';
   // P1-E2: opt-in deck index + existing card page share the same verified Mirror.
   const MIRROR_DECK_PREVIEW = LOCAL_DECK_PREVIEW && PARAMS.get('wlpMirrorSource') === '1';
-  // P1-E3: existing New deck route, opt-in canonical read with normal Canonical Study writer.
-  // Never activate on an older projection trial or in Continue/Review.
-  const E3_LOCAL_NEW = !LOCAL_DECK_PREVIEW && PARAMS.get('wlpLocalLibrary') === '1';
+  // P1-E7a: per-browser, explicitly enabled Local-first source for the normal
+  // Study > New tab only. Existing Continue and Review remain on their own
+  // unchanged routes. Never infer this choice from a different device/account.
+  const E7_NEW_KEY = 'wlp:p1e7:local-new-study:v1';
+  const EXPLICIT_E3_NEW = !LOCAL_DECK_PREVIEW && PARAMS.get('wlpLocalLibrary') === '1';
+  const E7_NORMAL_ROUTE = !LOCAL_DECK_PREVIEW && !EXPLICIT_E3_NEW;
+  const E7_LOCAL_NEW = E7_NORMAL_ROUTE && localStorage.getItem(E7_NEW_KEY) === '1';
+  const E3_LOCAL_NEW = EXPLICIT_E3_NEW || E7_LOCAL_NEW;
   const MIRROR_DECK_SOURCE = MIRROR_DECK_PREVIEW || E3_LOCAL_NEW;
-  const E5_QUEUE = E3_LOCAL_NEW && PARAMS.get('wlpOfflineQueue') === '1';
+  const E5_QUEUE = E3_LOCAL_NEW && (E7_LOCAL_NEW || PARAMS.get('wlpOfflineQueue') === '1');
   const previewSuffix = LOCAL_DECK_PREVIEW
     ? '&wlpProjectionTrial=1' + (MIRROR_DECK_PREVIEW ? '&wlpMirrorSource=1' : '')
     : E3_LOCAL_NEW ? '&wlpLocalLibrary=1' + (E5_QUEUE ? '&wlpOfflineQueue=1' : '') : '';
@@ -27,7 +32,7 @@
   let majorRange = null;
   let minorRange = null;
   let searchQuery = '';
-  if (LOCAL_DECK_PREVIEW || E3_LOCAL_NEW) {
+  if (LOCAL_DECK_PREVIEW || EXPLICIT_E3_NEW) {
     const intro = document.querySelector('.deck-intro');
     if (intro) {
       const info = document.createElement('aside');
@@ -61,6 +66,88 @@
         tab.title = 'Use normal Study for Continue and Review; this Local preview is Official decks only.';
       }
     });
+  }
+  // Keep the existing Home > Study URL and its New / Continue / Review tabs.
+  // The source switch affects only New's deck index and URLs, not Study Entry.
+  if (E7_NORMAL_ROUTE) {
+    const intro = document.querySelector('.deck-intro');
+    const bar = document.createElement('div');
+    bar.id = 'wlp-e7-new-source';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', 'New Study source');
+    bar.style.cssText = 'margin:6px 0 14px;padding:9px 12px;display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:center;border:1px solid #bdd1c3;border-radius:10px;background:#f4f9f4;color:#244c38;line-height:1.4';
+    const summary = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = 'New Study · ' + (E7_LOCAL_NEW ? 'Local Library' : 'Standard');
+    const description = document.createElement('div');
+    description.style.cssText = 'font-size:.83rem;margin-top:3px';
+    description.textContent = 'Continue and Review remain unchanged. This setting applies only to this browser.';
+    summary.append(title, description);
+    const button = document.createElement('button');
+    button.id = 'wlp-e7-new-switch';
+    button.type = 'button';
+    button.textContent = E7_LOCAL_NEW ? 'Use Standard for New' : 'Use Local Library for New';
+    button.style.cssText = 'font:inherit;font-size:.85rem;cursor:pointer;padding:7px 10px;background:#fff;border:1px solid #95b3a0;border-radius:9px;color:#234737';
+    const error = document.createElement('p');
+    error.id = 'wlp-e7-source-error';
+    error.setAttribute('role', 'alert');
+    error.hidden = true;
+    error.style.cssText = 'flex-basis:100%;margin:0;color:#a12626;font-size:.83rem';
+    bar.append(summary, button, error);
+    intro?.insertAdjacentElement('afterend', bar);
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      error.hidden = true;
+      button.textContent = 'Checking saved Library…';
+      try {
+        if (E7_LOCAL_NEW) await requireEmptyStudyQueue();
+        else await verifyE7MirrorReady();
+        localStorage.setItem(E7_NEW_KEY, E7_LOCAL_NEW ? '0' : '1');
+        // Re-evaluate the source and all New-deck links from a clean read.
+        location.reload();
+      } catch (reason) {
+        error.textContent = String(reason?.message || reason);
+        error.hidden = false;
+        button.disabled = false;
+        button.textContent = E7_LOCAL_NEW ? 'Use Standard for New' : 'Use Local Library for New';
+      }
+    });
+  }
+
+  async function verifyE7MirrorReady() {
+    // Same validation as E5 before saving a browser preference: no silent TSV fallback.
+    if (typeof window.WLPP1E1LocalMirrorRead?.readRows !== 'function') throw new Error('Verified Local Library reader unavailable. The source was not changed.');
+    const stored = localStorage.getItem('wlp:local-overrides:v1');
+    const overrides = stored ? JSON.parse(stored) : {};
+    if (!overrides || Array.isArray(overrides) || typeof overrides !== 'object') throw new Error('Legacy edits cannot be verified. Source unchanged.');
+    const result = await window.WLPP1E1LocalMirrorRead.readRows(overrides);
+    if (!Array.isArray(result?.rows) || result.rows.length === 0) throw new Error('No verified Local Library cards. Source unchanged.');
+  }
+
+  async function requireEmptyStudyQueue() {
+    // Do not strand locally journaled Study actions by switching New back to
+    // Standard before E5 has handed off and ACKed all pending work.
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('wlp-cloud-v1');
+      request.onupgradeneeded = () => { try {request.transaction.abort();} catch (_) {} };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(new Error('Cannot verify pending Study actions; Local Library remains selected.'));
+      request.onblocked = () => reject(new Error('Library is busy in another tab; Local Library remains selected.'));
+    });
+    try {
+      if (!db.objectStoreNames.contains('sync_meta') || !db.objectStoreNames.contains('sync_outbox')) throw new Error('Canonical synchronization stores unavailable.');
+      const tx = db.transaction(['sync_meta', 'sync_outbox'], 'readonly');
+      const read = request => new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('Unable to inspect Study actions.'));
+      });
+      const [journal, pending] = await Promise.all([
+        read(tx.objectStore('sync_meta').get('p1e5:study-intents:v1')),
+        read(tx.objectStore('sync_outbox').count())
+      ]);
+      if (journal && !Array.isArray(journal.intents)) throw new Error('Study journal needs inspection before switching source.');
+      if ((journal?.intents?.length || 0) || pending) throw new Error('There are unsynced Study actions. Return to a Local Library card and wait for Queue 0 / Outbox 0 before switching.');
+    } finally { db.close(); }
   }
   const initialView = new URLSearchParams(location.search).get('view');
   let recentExpanded = initialView === 'recent';
@@ -695,7 +782,7 @@
       console.error(error);
       $('deck-count').textContent = 'Unavailable';
       $('browse-meta').textContent = MIRROR_DECK_SOURCE
-        ? `${E3_LOCAL_NEW ? 'P1-E3' : 'P1-E2'} BLOCKED — Canonical Mirror deck index unavailable.`
+        ? `${E7_LOCAL_NEW ? 'Local Library' : E3_LOCAL_NEW ? 'P1-E3' : 'P1-E2'} BLOCKED — Canonical Mirror deck index unavailable.`
         : 'Could not load deck data.';
       // Error content is text, not HTML: never interpret an exception as markup.
       $('range-grid').replaceChildren();
