@@ -1,4 +1,5 @@
-/* WLP v1.8.6.282 — Canonical Study production diagnostics cleanup; normal success stays silent.
+/* P1-D5: opt-in Review+Attention pilot reuses normal Canonical writer without changing regular routes.
+   WLP v1.8.6.282 — Canonical Study production diagnostics cleanup; normal success stays silent.
    All official Master cards use the Canonical learning_state / learning_events contract
    for Studied, Review, membership removal, and no-level/Light/Medium/High Attention writes.
    Missing learning_state rows may be created by the first Studied or Review action.
@@ -29,6 +30,8 @@
   const auditRequested = params.get(AUDIT_FLAG) === '1';
   const draftRoute = params.has('draft');
   const projectionStatePilot = params.get('wlpProjectionTrial') === '1' && params.get('wlpProjectionState') === '1' && params.get('wlpProjectionEvents') !== '1';
+  const projectionReviewPilot = projectionStatePilot && params.get('wlpProjectionReview') === '1';
+  const projectionStudiedPilot = projectionStatePilot && !projectionReviewPilot;
   const requested = !rollbackRequested && !draftRoute && (params.get('wlpProjectionTrial') !== '1' || projectionStatePilot); // P1-D2 trial must not initialize study-state writer
   const state = {
     ready: false,
@@ -43,7 +46,8 @@
     contexts: new Map(),
     report: null,
     autoSyncRefreshPending: false,
-    autoSyncRefreshDetail: null
+    autoSyncRefreshDetail: null,
+    pilotReviewCreatedHere: '' // Review→Attention only on the very card approved in this page session
   };
 
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
@@ -349,10 +353,20 @@
   function allRenderedControlsPending(pending) {
     for (const ctx of state.contexts.values()) {
       const root = ctx?.root; if (!root) continue;
+      const wordId = cleanWordId(ctx.wordId);
       const studied = root.querySelector('.btn-studied'), review = root.querySelector('.btn-review'), attention = root.querySelector('.btn-review-attention');
-      if (studied) studied.disabled = pending || !state.ready || (projectionStatePilot && (!window.WLPP1D4StudyPilot?.isActive?.() || cleanWordId(ctx.wordId) !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId));
-      if (review) review.disabled = projectionStatePilot || pending || !state.ready;
-      if (attention && !attention.hidden) attention.disabled = projectionStatePilot || pending || !state.ready;
+      const validPilotTarget = window.WLPP1D4StudyPilot?.isActive?.() && wordId === window.WLPP1D4StudyPilot?.getStatus?.()?.wordId;
+      if (projectionReviewPilot) {
+        const record = effectiveRecord(wordId);
+        const neutral = pageStateLabel(record) === 'neutral';
+        if (studied) studied.disabled = true;
+        if (review) review.disabled = pending || !state.ready || !validPilotTarget || !neutral;
+        if (attention) attention.disabled = pending || !state.ready || !validPilotTarget || state.pilotReviewCreatedHere !== wordId || !Boolean(record.review);
+      } else {
+        if (studied) studied.disabled = pending || !state.ready || (projectionStatePilot && !validPilotTarget);
+        if (review) review.disabled = projectionStatePilot || pending || !state.ready;
+        if (attention && !attention.hidden) attention.disabled = projectionStatePilot || pending || !state.ready;
+      }
     }
   }
   function membershipToast(eventType) {
@@ -410,14 +424,15 @@
   async function runMembershipRoundtrip(input) {
     const wordId = cleanWordId(typeof input === 'object' ? input.wordId : '');
     const action = typeof input === 'object' ? input.action : input;
-    if (projectionStatePilot && (!window.WLPP1D4StudyPilot?.isActive?.() || wordId !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId || action !== 'studied-toggle')) return { pass:false, error:'P1-D4 only permits Studied on the verified first WID. No write.' };
+    if (projectionStatePilot && (!window.WLPP1D4StudyPilot?.isActive?.() || wordId !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId || action !== (projectionReviewPilot ? 'review-toggle' : 'studied-toggle'))) return { pass:false, error:'Projection pilot blocks this membership action; only the verified first WID is eligible.' };
     const ctx = state.contexts.get(wordId) || (typeof input === 'object' ? input.ctx : null);
     if (!wordId) return { pass:false, error:'Canonical Study membership action has no WordID.' };
     try {
       const plan = await buildMembershipPlan(wordId, action);
-      if (projectionStatePilot && (plan.eventType !== 'studied' || plan.fromState !== 'neutral')) return { pass:false, error:'P1-D4 can only add Studied to a currently neutral card. Existing study status was not changed.' };
+      if (projectionStatePilot && (plan.eventType !== (projectionReviewPilot ? 'review' : 'studied') || plan.fromState !== 'neutral')) return { pass:false, error:'Projection pilot may change only a neutral card to its approved state. Existing membership was not changed.' };
       const result = await executePlan(plan, ctx);
       if (result.pass) {
+        if (projectionReviewPilot && plan.eventType === 'review') state.pilotReviewCreatedHere = wordId;
         const [message, duration] = membershipToast(plan.eventType); toast(message, duration);
         if (ctx?.isReviewMode && (plan.eventType === 'studied' || plan.eventType === 'review_removed')) ctx.removeFromReviewDeck?.();
       } else toast('Canonical Study action was blocked. No legacy progress write occurred.', 6200);
@@ -428,8 +443,9 @@
   }
 
   async function runAttentionRoundtrip(input = {}) {
-    if (projectionStatePilot) return { pass:false, error:'P1-D4 Attention writes are not enabled.' };
+    if (projectionStudiedPilot) return { pass:false, error:'P1-D4 Attention writes are not enabled.' };
     const wordId = cleanWordId(input.wordId), ctx = state.contexts.get(wordId) || null;
+    if (projectionReviewPilot && (!window.WLPP1D4StudyPilot?.isActive?.() || wordId !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId || state.pilotReviewCreatedHere !== wordId || !state.ready || state.globalPending || !effectiveRecord(wordId).review)) return { pass:false, error:'P1-D5 permits Attention only after this page has created and synced Review for the verified first card.' };
     if (!wordId) return { pass:false, error:'Canonical Study Attention action has no WordID.' };
     try {
       const plan = await buildAttentionPlan(wordId, input.level, input.reasons), result = await executePlan(plan, ctx || { refresh:input.refresh });
@@ -459,7 +475,7 @@
     }
     const canonical = canonicalRecord(wordId), legacy = pageRecord(wordId, rawLegacy(wordId));
     const missingWithLegacyMembership = !canonical && hasLegacyActiveMembership(legacy);
-    if (projectionStatePilot && pageStateLabel(effectiveRecord(wordId)) !== 'neutral') {
+    if (projectionStudiedPilot && pageStateLabel(effectiveRecord(wordId)) !== 'neutral') {
       if (studied) { studied.disabled = true; studied.title = 'P1-D4 only permits marking a neutral card Studied; no existing status will be removed.'; }
       if (review) review.disabled = true;
       if (attention) attention.disabled = true;
@@ -470,6 +486,14 @@
       if (studied) { studied.disabled = true; studied.title = title; }
       if (review) { review.disabled = true; review.title = title; }
       if (attention && !attention.hidden) { attention.disabled = true; attention.title = title; }
+      return;
+    }
+    if (projectionReviewPilot) {
+      const neutral = pageStateLabel(effectiveRecord(wordId)) === 'neutral';
+      const created = state.pilotReviewCreatedHere === wordId && Boolean(canonical?.review);
+      if (studied) { studied.disabled = true; studied.title = 'P1-D5 Review trial does not change Studied.'; }
+      if (review) { review.disabled = !neutral; review.title = neutral ? 'Add this neutral card to Canonical Review.' : 'P1-D5 will not remove or overwrite an existing Review.'; }
+      if (attention) { attention.disabled = !created; attention.title = created ? 'Set Canonical Attention for this newly reviewed card.' : 'Attention requires Review created and Cloud-synced in this page session.'; }
       return;
     }
     if (studied) { studied.disabled = false; studied.title = 'Save Studied through Canonical outbox.'; }

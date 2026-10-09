@@ -4,11 +4,13 @@
 // Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
+// P1-D5: explicit Review + Attention opt-in reuses the existing Canonical Study writer; other trial modes unchanged.
 // P1-D2: trial stays opt-in; study/encounter event writes are suppressed only on this URL.
 // P1-D1: manually requested, reversible Official read-source trial (no default switch).
 const WLP_P1D1_PROJECTION_TRIAL = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
 const WLP_P1D3_EVENT_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionEvents') === '1';
 const WLP_P1D4_STATE_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionState') === '1' && !WLP_P1D3_EVENT_PILOT;
+const WLP_P1D5_REVIEW_PILOT = WLP_P1D4_STATE_PILOT && new URLSearchParams(location.search).get('wlpProjectionReview') === '1';
 const WLP_P1D2_VIEW_ONLY = WLP_P1D1_PROJECTION_TRIAL && !WLP_P1D3_EVENT_PILOT;
 
 const TSV_URL =
@@ -3973,12 +3975,14 @@ function bindCardBehavior(
     // P1-D4 permits only the existing Canonical Study writer's Studied button.
     // Front shortcuts, Review, Attention and recording remain disabled; P1-D2/D3
     // continue to disable ALL changes. Flip and deck-internal navigation still work.
-    const selector = WLP_P1D4_STATE_PILOT
+    const selector = WLP_P1D5_REVIEW_PILOT
+      ? '.btn-studied, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear'
+      : WLP_P1D4_STATE_PILOT
       ? '.btn-review, .btn-review-attention, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear'
       : '.btn-studied, .btn-review, .btn-review-attention, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear';
     root.querySelectorAll(selector).forEach(button => {
       button.disabled = true;
-      button.title = WLP_P1D4_STATE_PILOT ? 'P1-D4 first trial permits only the Canonical Studied button.' : 'P1-D2/D3 trial: study state and recording changes are disabled.';
+      button.title = WLP_P1D5_REVIEW_PILOT ? 'P1-D5 allows only the verified first-card Review, then its Attention after sync; other writes are disabled.' : WLP_P1D4_STATE_PILOT ? 'P1-D4 first trial permits only the Canonical Studied button.' : 'P1-D2/D3 trial: study state and recording changes are disabled.';
     });
   }
 
@@ -3992,11 +3996,11 @@ function bindCardBehavior(
       isReviewMode: IS_REVIEW_MODE,
       removeFromReviewDeck: () => removeFromCurrentReviewDeck(root)
     });
-    if (studiedButton && !WLP_P1D4_STATE_PILOT) {
+    if (studiedButton && (!WLP_P1D4_STATE_PILOT || WLP_P1D5_REVIEW_PILOT)) {
       studiedButton.disabled = true;
       studiedButton.title = "Canonical Study attention candidate: Studied writes are locked for this test.";
     }
-    if (reviewButton) {
+    if (reviewButton && !WLP_P1D5_REVIEW_PILOT) {
       reviewButton.disabled = true;
       reviewButton.title = "Canonical Study attention candidate: Review membership writes are locked for this test.";
     }
@@ -4076,7 +4080,7 @@ function bindCardBehavior(
   });
 
   attentionButton?.addEventListener("click", () => {
-    if (WLP_P1D1_PROJECTION_TRIAL) return;
+    if (WLP_P1D1_PROJECTION_TRIAL && !WLP_P1D5_REVIEW_PILOT) return;
     openReviewAttentionSheet(row, stateKey, refreshProgressControls);
   });
 
@@ -4711,6 +4715,7 @@ function escapeHtml(s) {
     target.searchParams.delete('wlpProjectionTrial');
     target.searchParams.delete('wlpProjectionEvents');
     target.searchParams.delete('wlpProjectionState');
+    target.searchParams.delete('wlpProjectionReview');
     const returnToStandard = target.href;
     const showBlocked = message => {
       const el = document.getElementById('cards');
@@ -4738,13 +4743,16 @@ function escapeHtml(s) {
       if (WLP_P1D4_STATE_PILOT && !window.WLPCanonicalStudyAttentionWriteCandidate?.isReady?.()) throw new Error('Existing Canonical Study writer is not ready: ' + String(window.WLPCanonicalStudyAttentionWriteCandidate?.getPrepareError?.() || 'unknown reason'));
       if (WLP_P1D3_EVENT_PILOT && new URLSearchParams(location.search).get('wlpProjectionState') === '1') throw new Error('Both P1-D3 and P1-D4 modes were requested; choose just one.');
       const pilotStatus = WLP_P1D3_EVENT_PILOT ? await window.WLPP1D3EventPilot.prepare(trial.rows, BATCH_PARAM) : WLP_P1D4_STATE_PILOT ? await window.WLPP1D4StudyPilot.prepare(trial.rows, BATCH_PARAM) : null;
+      if (WLP_P1D5_REVIEW_PILOT && pilotStatus?.mode !== 'review-attention') throw new Error('P1-D5 Review pilot mode not verified; no write permitted.');
       effectiveRows = trial.rows;
       // An explicit source label is mandatory; never let a reader mistake trial data for Static Master.
       const label = document.createElement('div');
       label.setAttribute('role', 'status');
       label.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
       const message = document.createElement('span');
-      message.textContent = WLP_P1D4_STATE_PILOT
+      message.textContent = WLP_P1D5_REVIEW_PILOT
+        ? `P1-D5 CANONICAL REVIEW + ATTENTION PILOT · Local Projection ${trial.info.count} Official · cursor ${trial.info.cursor} · ${pilotStatus.deckSize} cards in deck · existing Outbox ${pilotStatus.outbox}. Only WID${pilotStatus.wordId} may be added to Review from Neutral. Wait for Cloud commit (outbox 0), then set Attention on the SAME card without reloading. Studied, Review removal, other cards, Flip tracking, Study Context, edits, and card-open events remain disabled. Existing state is preserved. No default read cutover.`
+        : WLP_P1D4_STATE_PILOT
         ? `P1-D4 CANONICAL STUDIED PILOT · Local Projection ${trial.info.count} Official · cursor ${trial.info.cursor} · ${pilotStatus.deckSize} cards in deck · existing Outbox ${pilotStatus.outbox}. Only the Studied button on WID${pilotStatus.wordId} uses the EXISTING Canonical Study State writer (state + event pair). Review / Attention, Flip tracking, Study Context, edits, and card-open events remain disabled. Wait for normal Cloud sync after one action. No default read cutover.`
         : WLP_P1D3_EVENT_PILOT
         ? `P1-D3 REAL EVENT PILOT · Local Projection ${trial.info.count} Official · cursor ${trial.info.cursor} · ${pilotStatus.count} cards in this deck · existing Outbox ${pilotStatus.existingOutbox}. Only Show Answer / Flip RECORDS a real local event and reuses existing Canonical Outbox/Cloud Sync. Opening a card and other interactions remain view-only. Studied, Review, Attention, content edits and Study Context are DISABLED. Existing pending work is preserved. No default source cutover.`

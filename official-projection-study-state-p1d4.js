@@ -1,19 +1,20 @@
-/* WLP P1-D4: opt-in Studied-only Canonical state trial on the verified
+/* WLP P1-D4/P1-D5: opt-in Studied or Review+Attention Canonical state trial on the verified
    Local Official Projection. Read-only preflight; writes remain exclusively
    in the existing Canonical Study State writer, not in this file. */
 (() => {
   'use strict';
   const q = new URLSearchParams(location.search);
   const requested = q.get('wlpProjectionTrial') === '1' && q.get('wlpProjectionState') === '1' && q.get('wlpProjectionEvents') !== '1';
+  const reviewRequested = requested && q.get('wlpProjectionReview') === '1';
   const AUTHORITY = 'v3:79a35fbf0c693e5f6fddfbfbb778180b0f4da14ac5f9fc57456d7c7f12636fdc';
   const MANIFEST = '2ed3ad8fb1b9dfecfe9b66095f92ae644f8d0f88c5da5b752d06b26ca5897d63';
   let ready = false, status = null;
-  const fail = reason => { throw new Error(`P1-D4 STUDIED pilot BLOCKED: ${reason}`); };
+  const fail = reason => { throw new Error(`P1-D${reviewRequested ? '5 REVIEW' : '4 STUDIED'} pilot BLOCKED: ${reason}`); };
   const req = r => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error || new Error('IndexedDB request failed')); });
   const done = tx => new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onabort = () => reject(tx.error || Error('IDB transaction aborted')); tx.onerror = () => reject(tx.error || Error('IDB transaction failed')); });
   async function prepare(rows, batch) {
     ready = false; status = null;
-    if (!requested) fail('Explicit P1-D4 opt-in query is missing or conflicts with event pilot');
+    if (!requested) fail('Explicit State pilot query is missing or conflicts with event pilot');
     if (typeof indexedDB.databases !== 'function') fail('Cannot verify local Canonical mirror existence');
     const sessionHelper = window.WLPP1C3Review;
     if (!sessionHelper?.readSession) fail('Existing authentication helper is unavailable');
@@ -46,10 +47,10 @@
       if (!row || String(row.payload?.word_id || '') !== String(first.WordID)) fail('Canonical card identity missing or differs from Local Projection');
       if (!Array.isArray(pending)) fail('Cannot inspect Canonical outbox');
       if (pending.length !== 0) fail(`Existing Outbox contains ${pending.length} pending row(s); leave them untouched and retry after their normal sync`);
-      status = Object.freeze({ wordId:String(first.WordID), cardId:first.__p1d1CardId, deckSize:cards.length, outbox:0 });
+      status = Object.freeze({ wordId:String(first.WordID), cardId:first.__p1d1CardId, deckSize:cards.length, outbox:0, mode:reviewRequested ? 'review-attention' : 'studied' });
       ready = true;
       return status;
     } finally { db.close(); }
   }
-  window.WLPP1D4StudyPilot = Object.freeze({ requested, prepare, isActive:()=>ready && requested, getStatus:()=>status });
+  window.WLPP1D4StudyPilot = Object.freeze({ requested, prepare, isActive:()=>ready && requested, isReviewPilot:()=>ready && reviewRequested, getStatus:()=>status });
 })();
