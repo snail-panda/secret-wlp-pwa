@@ -45,7 +45,17 @@
       return meta;
     } finally { if (db) db.close(); }
   }
+  async function waitForExistingReaders() {
+    // Canonical Compatibility Adapter publishes its API from DOMContentLoaded.
+    // Existing Study's module initializer may request this reader beforehand.
+    // Wait only for that already-included script, without installing or changing it.
+    for (let i = 0; i < 100; i++) {
+      if (typeof window.WLPCanonicalCompatibilityAdapter?.open === 'function') return;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
   async function readRows(overrides) {
+    await waitForExistingReaders();
     // Retain all P1-D8B source/account validation and WID4120 decision receipts.
     const projection = window.WLPP1DStudyTrial;
     const adapterProvider = window.WLPCanonicalCompatibilityAdapter;
