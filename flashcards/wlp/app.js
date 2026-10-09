@@ -10,6 +10,9 @@
 const WLP_P1D1_PROJECTION_TRIAL = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
 // P1-E1: same existing card page, opt-in Mirror source, strictly view-only.
 const WLP_P1E1_MIRROR_READ = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpMirrorSource') === '1';
+// P1-E3: a separate opt-in source switch for normal New Official Study.
+// Existing canonical Study writes remain subject to their current Outbox guard.
+const WLP_P1E3_LOCAL_NEW = !WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpLocalLibrary') === '1';
 const WLP_P1D3_EVENT_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionEvents') === '1';
 const WLP_P1D4_STATE_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionState') === '1' && !WLP_P1D3_EVENT_PILOT;
 const WLP_P1D5_REVIEW_PILOT = WLP_P1D4_STATE_PILOT && new URLSearchParams(location.search).get('wlpProjectionReview') === '1';
@@ -231,6 +234,7 @@ function installCardContextReturnNavigation() {
 
 function cardContextQuerySuffix() {
   const params = new URLSearchParams();
+  if (WLP_P1E3_LOCAL_NEW) params.set('wlpLocalLibrary', '1');
   if (IS_FROM_PROGRESS) params.set("from", "progress");
   else if (IS_FROM_REVIEW_HUB) params.set("from", "review");
   else if (IS_FROM_CLASSIFICATION) params.set("from", "classification");
@@ -786,6 +790,10 @@ function applyLocalOverrides(rows) {
 }
 
 function openLocalOverrideEditor(row) {
+  if (WLP_P1E3_LOCAL_NEW) {
+    alert('P1-E3: Content edits are disabled in this local-source validation route. Use the normal Editor to manage Canonical edits.');
+    return;
+  }
   if (WLP_P1D1_PROJECTION_TRIAL) {
     alert('P1-D1 is a read-source trial. Local Edit authoring is disabled in this preview. Open the standard card page to edit.');
     return;
@@ -826,6 +834,7 @@ function closeLocalOverrideEditor() {
 }
 
 function saveCurrentLocalOverride(form) {
+  if (WLP_P1E3_LOCAL_NEW) return;
   if (!editingOverrideRow) return;
   const wid = String(editingOverrideRow.WordID || "").trim();
   if (!wid) return;
@@ -848,7 +857,8 @@ function saveCurrentLocalOverride(form) {
 }
 
 function revertLocalOverride(wordId) {
-  const wid = String(wordId || "").trim();
+  if (WLP_P1E3_LOCAL_NEW) return;
+  const wid = String(wordId || '').trim();
   if (!wid) return;
 
   // Always re-read Local Edits at click time. Study can be revisited after
@@ -4778,6 +4788,65 @@ function escapeHtml(s) {
     } catch (error) {
       console.warn('P1-D1 projection trial blocked', error);
       showBlocked(error?.message || 'Cannot verify Local Projection');
+      return;
+    }
+  } else if (WLP_P1E3_LOCAL_NEW) {
+    // Only the New Official deck can take this route. No Static fallback, no
+    // unapproved Local Edit merge, and no write when the Canonical writer is blocked.
+    const normal = new URL(location.href);
+    normal.searchParams.delete('wlpLocalLibrary');
+    const block = reason => {
+      const host = document.getElementById('cards');
+      if (!host) return;
+      host.replaceChildren();
+      const box = document.createElement('div');
+      box.setAttribute('role', 'alert');
+      box.style.cssText = 'margin:2rem auto;padding:1.2rem;max-width:600px;border:1px solid currentColor;border-radius:12px;line-height:1.7';
+      const heading = document.createElement('h2');
+      heading.textContent = 'P1-E3 Local Library Study blocked';
+      const note = document.createElement('p');
+      note.textContent = String(reason);
+      const link = document.createElement('a');
+      link.href = normal.href;
+      link.textContent = 'Return to the existing normal Study';
+      box.append(heading, note, link);
+      host.append(box);
+    };
+    try {
+      if (IS_DRAFT_MODE || IS_REVIEW_MODE || IS_STUDY_SET_MODE || IS_SOLO_MODE || !BATCH_PARAM || PARAMS.has('wordid')) {
+        throw new Error('Only normal New Official deck Study is supported by P1-E3.');
+      }
+      if (PARAMS.get('wlpLegacyStudyAttentionWrite') === '1') {
+        throw new Error('Legacy Study write override cannot be combined with Local Library Study.');
+      }
+      const canonicalWriter = window.WLPCanonicalStudyAttentionWriteCandidate;
+      if (!canonicalWriter?.requested || !canonicalWriter.isReady?.() || !canonicalWriter.isActive?.()) {
+        throw new Error('Existing Canonical Study writer is not ready: ' + String(canonicalWriter?.getPrepareError?.() || 'unavailable'));
+      }
+      if (typeof window.WLPP1E1LocalMirrorRead?.readRows !== 'function') {
+        throw new Error('Verified Canonical Mirror reader unavailable.');
+      }
+      const local = await window.WLPP1E1LocalMirrorRead.readRows(localOverrides);
+      if (!local?.rows?.some(row => String(row['Batch #']).padStart(3, '0') === String(BATCH_PARAM).padStart(3, '0'))) {
+        throw new Error('Requested Official deck is absent from the verified Local Library.');
+      }
+      effectiveRows = local.rows;
+      const deckBack = document.querySelector('a.study-back-decks');
+      if (deckBack) deckBack.href = '../../deck-browser.html?wlpLocalLibrary=1';
+      const info = document.createElement('div');
+      info.setAttribute('role', 'status');
+      info.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
+      info.textContent = `P1-E3 OPT-IN LOCAL LIBRARY STUDY · Canonical Mirror cursor ${local.info.cursor} · ${local.info.count} Official. Normal Canonical Study state writer ready. Content edits disabled in this route. Source can be reverted without deleting data.`;
+      const link = document.createElement('a');
+      link.href = normal.href;
+      link.textContent = ' Return to standard Study';
+      link.style.cssText = 'margin-left:12px;color:inherit;font-weight:bold;text-decoration:underline';
+      info.append(link);
+      const host = document.getElementById('cards');
+      host?.parentNode?.insertBefore(info, host);
+    } catch (error) {
+      console.warn('P1-E3 Local Library Study blocked', error);
+      block(error?.message || 'Local Library cannot be verified.');
       return;
     }
   } else {

@@ -5,9 +5,13 @@
   const LOCAL_DECK_PREVIEW = PARAMS.get('wlpProjectionTrial') === '1';
   // P1-E2: opt-in deck index + existing card page share the same verified Mirror.
   const MIRROR_DECK_PREVIEW = LOCAL_DECK_PREVIEW && PARAMS.get('wlpMirrorSource') === '1';
+  // P1-E3: existing New deck route, opt-in canonical read with normal Canonical Study writer.
+  // Never activate on an older projection trial or in Continue/Review.
+  const E3_LOCAL_NEW = !LOCAL_DECK_PREVIEW && PARAMS.get('wlpLocalLibrary') === '1';
+  const MIRROR_DECK_SOURCE = MIRROR_DECK_PREVIEW || E3_LOCAL_NEW;
   const previewSuffix = LOCAL_DECK_PREVIEW
     ? '&wlpProjectionTrial=1' + (MIRROR_DECK_PREVIEW ? '&wlpMirrorSource=1' : '')
-    : '';
+    : E3_LOCAL_NEW ? '&wlpLocalLibrary=1' : '';
   const PINNED_KEY = 'wlp:stage7:pinned-decks:v1';
   const RECENT_KEY = 'wlp:stage7:recent-decks:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
@@ -22,18 +26,21 @@
   let majorRange = null;
   let minorRange = null;
   let searchQuery = '';
-  if (LOCAL_DECK_PREVIEW) {
+  if (LOCAL_DECK_PREVIEW || E3_LOCAL_NEW) {
     const intro = document.querySelector('.deck-intro');
     if (intro) {
       const info = document.createElement('aside');
       info.setAttribute('role', 'status');
       info.style.cssText = 'padding:12px 14px;margin:10px 0 18px;border:1px solid #5d8b77;border-radius:11px;background:#e8f3ed;color:#164834;line-height:1.5';
       const title = document.createElement('strong');
-      title.textContent = MIRROR_DECK_PREVIEW
-        ? 'P1-E2 — VIEW-ONLY CANONICAL MIRROR DECKS'
+      title.textContent = E3_LOCAL_NEW
+        ? 'P1-E3 — LOCAL LIBRARY NEW STUDY (OPT-IN)'
+        : MIRROR_DECK_PREVIEW ? 'P1-E2 — VIEW-ONLY CANONICAL MIRROR DECKS'
         : 'LOCAL LIBRARY — VIEW-ONLY DECK BROWSER';
       const detail = document.createElement('p');
-      detail.textContent = MIRROR_DECK_PREVIEW
+      detail.textContent = E3_LOCAL_NEW
+        ? 'New Official decks read from the verified local Canonical Mirror. The existing Canonical Study state writer remains active when ready. Content editing is blocked in this opt-in route; offline multi-action sync is not yet supported. If preparation fails, this route stops without replacing data.'
+        : MIRROR_DECK_PREVIEW
         ? 'Deck index, search and cards use this browser’s verified Canonical Mirror. No Static TSV is used for this preview. Study/Review edits and event writes are disabled.'
         : 'Choose any Official deck. Cards will load from this browser’s Canonical Local Projection; opening, flipping and in-deck movement create no study events. The deck picker itself still uses the existing Static Master index. Study/Review edits are unavailable in this mode.';
       detail.style.cssText = 'margin:5px 0';
@@ -643,7 +650,7 @@
   // The P1-E1a reader verifies local account, Projection/Mirror identity,
   // legacy edit decisions, outbox, order, and stable Mirror metadata.
   function loadDeckRows() {
-    if (!MIRROR_DECK_PREVIEW) {
+    if (!MIRROR_DECK_SOURCE) {
       return fetch(TSV_URL, {cache: 'no-cache'})
         .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); })
         .then(parseTSV);
@@ -686,15 +693,15 @@
     .catch(error => {
       console.error(error);
       $('deck-count').textContent = 'Unavailable';
-      $('browse-meta').textContent = MIRROR_DECK_PREVIEW
-        ? 'P1-E2 BLOCKED — Canonical Mirror deck index unavailable.'
+      $('browse-meta').textContent = MIRROR_DECK_SOURCE
+        ? `${E3_LOCAL_NEW ? 'P1-E3' : 'P1-E2'} BLOCKED — Canonical Mirror deck index unavailable.`
         : 'Could not load deck data.';
       // Error content is text, not HTML: never interpret an exception as markup.
       $('range-grid').replaceChildren();
       const message = document.createElement('p');
       message.className = 'empty';
       message.setAttribute('role', 'alert');
-      message.textContent = MIRROR_DECK_PREVIEW
+      message.textContent = MIRROR_DECK_SOURCE
         ? String(error?.message || 'Verified Local Mirror could not be read') + '. Normal Study was not changed.'
         : 'Please try again.';
       $('range-grid').appendChild(message);

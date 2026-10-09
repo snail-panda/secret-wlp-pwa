@@ -25,7 +25,8 @@
   const clean = value => String(value ?? '').trim();
   const pad = value => String(value ?? '').padStart(3, '0');
   const params = new URLSearchParams(location.search);
-  let mode = ['continue', 'review'].includes(params.get('mode')) ? params.get('mode') : 'new';
+  const E3_LOCAL_NEW = params.get('wlpLocalLibrary') === '1' && params.get('wlpProjectionTrial') !== '1';
+  let mode = !E3_LOCAL_NEW && ['continue', 'review'].includes(params.get('mode')) ? params.get('mode') : 'new';
   let rows = [];
   let rowsPromise = null;
 
@@ -1046,7 +1047,7 @@
   }
 
   function setMode(nextMode) {
-    mode = ['continue', 'review'].includes(nextMode) ? nextMode : 'new';
+    mode = !E3_LOCAL_NEW && ['continue', 'review'].includes(nextMode) ? nextMode : 'new';
     document.querySelectorAll('[data-study-mode]').forEach(button => {
       const active = button.dataset.studyMode === mode;
       button.classList.toggle('is-active', active);
@@ -1077,7 +1078,13 @@
   }
 
   document.querySelectorAll('[data-study-mode]').forEach(button => {
-    button.addEventListener('click', () => setMode(button.dataset.studyMode));
+    if (E3_LOCAL_NEW && button.dataset.studyMode !== 'new') {
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.title = 'P1-E3 currently supports New Official decks only. Use regular Study for Continue or Review.';
+    } else {
+      button.addEventListener('click', () => setMode(button.dataset.studyMode));
+    }
   });
   bindRangeJump();
   bindReviewSettings();
