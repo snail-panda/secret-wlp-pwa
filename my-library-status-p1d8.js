@@ -90,7 +90,10 @@
     if (!target) return;
     const extra = $('my-library-detail');
     const preview = $('my-library-preview');
+    const localDecks = $('my-library-decks');
     if (preview) preview.hidden = !s.officialBound || s.mismatch;
+    // Only advertise full Local Deck browsing when the account-bound sync Mirror is ready.
+    if (localDecks) localDecks.hidden = !s.ready || s.mismatch;
     if (s.mismatch) {
       target.textContent = 'ACCOUNT MISMATCH — Library access paused';
       if (extra) extra.textContent = 'A different WLP account is saved here. Do not install or overwrite anything; review the current sign-in first.';
@@ -121,6 +124,8 @@
       if (detail) detail.textContent = String(e?.message || e) + '. No data was changed.';
       const preview = $('my-library-preview');
       if (preview) preview.hidden = true;
+      const localDecks = $('my-library-decks');
+      if (localDecks) localDecks.hidden = true;
     }
   }
   $('my-library-refresh')?.addEventListener('click', refresh);

@@ -185,10 +185,11 @@
         <p id="my-library-detail" style="margin:6px 0 14px;font-size:.9rem;line-height:1.5">This check is local and read-only.</p>
         <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
           <a href="./official-projection-p1.html#my-library-setup" style="font-weight:700;text-decoration:underline">Set up / manage My Library</a>
-          <a id="my-library-preview" href="./flashcards/wlp/batch.html?batch=001&amp;wlpProjectionTrial=1" hidden style="font-weight:700;text-decoration:underline">Preview local cards</a>
+          <a id="my-library-decks" href="./deck-browser.html?wlpProjectionTrial=1" hidden style="font-weight:700;text-decoration:underline">Browse local decks (view only)</a>
+          <a id="my-library-preview" href="./flashcards/wlp/batch.html?batch=001&amp;wlpProjectionTrial=1" hidden style="font-weight:700;text-decoration:underline">Preview Deck 001</a>
           <button id="my-library-refresh" type="button" style="border:1px solid #bad0bf;border-radius:9px;background:#f5faf4;color:#244a38;padding:7px 11px;font:inherit;cursor:pointer">Refresh status</button>
         </div>
-        <p style="font-size:.78rem;line-height:1.4;margin:12px 0 0;color:#597166">The card preview is view-only. Normal Study, Review and existing synchronisation are unchanged.</p>
+        <p style="font-size:.78rem;line-height:1.4;margin:12px 0 0;color:#597166">The Local Deck preview is view-only. Its deck index uses the existing deck list; the cards themselves read from Local Projection. Normal Study, Review and existing synchronisation are unchanged.</p>
       </section>
 
       <a class="practice-hub-card" href="./study-hub.html">
@@ -300,7 +301,7 @@
 
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js?v=20260915-s7-v30"></script>
-  <script src="./my-library-status-p1d8.js?v=p1d8-library-status" defer></script>
+  <script src="./my-library-status-p1d8.js?v=p1d8b-local-deck-browser" defer></script>
   <script src="./canonical-auto-sync-canary.js?v=20261008-v396-draft-promote-canary"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>

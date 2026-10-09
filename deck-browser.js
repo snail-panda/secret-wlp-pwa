@@ -1,5 +1,8 @@
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
+  // An explicit, view-only selection route. Ordinary deck URLs remain unchanged.
+  const LOCAL_DECK_PREVIEW = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
+  const previewSuffix = LOCAL_DECK_PREVIEW ? '&wlpProjectionTrial=1' : '';
   const PINNED_KEY = 'wlp:stage7:pinned-decks:v1';
   const RECENT_KEY = 'wlp:stage7:recent-decks:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
@@ -14,6 +17,34 @@
   let majorRange = null;
   let minorRange = null;
   let searchQuery = '';
+  if (LOCAL_DECK_PREVIEW) {
+    const intro = document.querySelector('.deck-intro');
+    if (intro) {
+      const info = document.createElement('aside');
+      info.setAttribute('role', 'status');
+      info.style.cssText = 'padding:12px 14px;margin:10px 0 18px;border:1px solid #5d8b77;border-radius:11px;background:#e8f3ed;color:#164834;line-height:1.5';
+      const title = document.createElement('strong');
+      title.textContent = 'LOCAL LIBRARY — VIEW-ONLY DECK BROWSER';
+      const detail = document.createElement('p');
+      detail.textContent = 'Choose any Official deck. Cards will load from this browser’s Canonical Local Projection; opening, flipping and in-deck movement create no study events. The deck picker itself still uses the existing Static Master index. Study/Review edits are unavailable in this mode.';
+      detail.style.cssText = 'margin:5px 0';
+      const standard = document.createElement('a');
+      standard.href = './deck-browser.html';
+      standard.textContent = 'Return to normal Study';
+      standard.style.cssText = 'text-decoration:underline;font-weight:700';
+      info.append(title, detail, standard);
+      intro.insertAdjacentElement('afterend', info);
+    }
+    // Continue / Review choose a different study route and must never appear to be
+    // covered by this Official-only Local Projection preview.
+    document.querySelectorAll('[data-study-mode]').forEach(tab => {
+      if (tab.dataset.studyMode !== 'new') {
+        tab.disabled = true;
+        tab.setAttribute('aria-disabled', 'true');
+        tab.title = 'Use normal Study for Continue and Review; this Local preview is Official decks only.';
+      }
+    });
+  }
   const initialView = new URLSearchParams(location.search).get('view');
   let recentExpanded = initialView === 'recent';
   let pinnedExpanded = false;
@@ -76,9 +107,12 @@
 
   function openDeck(deck) {
     if (!clampDeck(deck)) return;
-    recent = [deck, ...recent.filter(n => n !== deck)].slice(0, 16);
-    saveList(RECENT_KEY, recent);
-    location.href = `./flashcards/wlp/batch.html?batch=${pad(deck)}`;
+    // Preview selection must not mark decks as recently studied.
+    if (!LOCAL_DECK_PREVIEW) {
+      recent = [deck, ...recent.filter(n => n !== deck)].slice(0, 16);
+      saveList(RECENT_KEY, recent);
+    }
+    location.href = `./flashcards/wlp/batch.html?batch=${pad(deck)}${previewSuffix}`;
   }
 
   function deckRow(deck, opts = {}) {
@@ -87,7 +121,7 @@
 
     const words = wordsForDeck(deck);
     const a = document.createElement('a');
-    a.href = `./flashcards/wlp/batch.html?batch=${pad(deck)}`;
+    a.href = `./flashcards/wlp/batch.html?batch=${pad(deck)}${previewSuffix}`;
     a.className = 'deck-main';
     a.addEventListener('click', e => { e.preventDefault(); openDeck(deck); });
 
