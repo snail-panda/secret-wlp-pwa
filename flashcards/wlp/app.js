@@ -4,6 +4,9 @@
 // Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
+// P1-D1: manually requested, reversible Official read-source trial (no default switch).
+const WLP_P1D1_PROJECTION_TRIAL = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
+
 const TSV_URL =
   "./wlp-flashcard-master.tsv?v=20260909";
 
@@ -771,6 +774,10 @@ function applyLocalOverrides(rows) {
 }
 
 function openLocalOverrideEditor(row) {
+  if (WLP_P1D1_PROJECTION_TRIAL) {
+    alert('P1-D1 is a read-source trial. Local Edit authoring is disabled in this preview. Open the standard card page to edit.');
+    return;
+  }
   if (IS_DRAFT_MODE) return;
 
   const wid = String(row.WordID || "").trim();
@@ -4672,13 +4679,59 @@ function escapeHtml(s) {
     await prepareCanonicalReviewDeck();
   }
 
-  const { rows } =
-  await loadTSV(
-    TSV_URL
-  );
-
   localOverrides = readLocalOverrides();
-  const effectiveRows = applyLocalOverrides(rows);
+  let effectiveRows;
+  if (WLP_P1D1_PROJECTION_TRIAL) {
+    // P1-D1 is restricted to the normal Official deck read path. No silent fallback.
+    const target = new URL(location.href);
+    target.searchParams.delete('wlpProjectionTrial');
+    const returnToStandard = target.href;
+    const showBlocked = message => {
+      const el = document.getElementById('cards');
+      if (!el) return;
+      el.replaceChildren();
+      const box = document.createElement('div');
+      box.setAttribute('role', 'alert');
+      box.style.cssText = 'margin:2rem auto;padding:1.2rem;max-width:600px;border:1px solid currentColor;border-radius:12px;line-height:1.7';
+      const heading = document.createElement('h2');
+      heading.textContent = 'P1-D1 trial blocked — standard WLP unchanged';
+      const note = document.createElement('p');
+      note.textContent = String(message);
+      const link = document.createElement('a');
+      link.href = returnToStandard;
+      link.textContent = 'Open the normal Static Master card view';
+      box.append(heading, note, link);
+      el.append(box);
+    };
+    if (IS_DRAFT_MODE || IS_REVIEW_MODE || !BATCH_PARAM) {
+      showBlocked('Only normal Official batch cards are supported by this first trial.');
+      return;
+    }
+    try {
+      const trial = await window.WLPP1DStudyTrial.readRows(localOverrides);
+      effectiveRows = trial.rows;
+      // An explicit source label is mandatory; never let a reader mistake trial data for Static Master.
+      const label = document.createElement('div');
+      label.setAttribute('role', 'status');
+      label.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
+      const message = document.createElement('span');
+      message.textContent = `P1-D1 LOCAL PROJECTION TRIAL · ${trial.info.count} Official cards · cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. Content edits disabled. Deck-to-deck navigation returns to Standard. No automatic Cloud sync or source cutover.`;
+      const standard = document.createElement('a');
+      standard.href = returnToStandard;
+      standard.textContent = ' Return to standard view';
+      standard.style.cssText = 'margin-left:12px;font-weight:bold;color:inherit;text-decoration:underline';
+      label.append(message, standard);
+      const cardsContainer = document.getElementById('cards');
+      cardsContainer?.parentNode?.insertBefore(label, cardsContainer);
+    } catch (error) {
+      console.warn('P1-D1 projection trial blocked', error);
+      showBlocked(error?.message || 'Cannot verify Local Projection');
+      return;
+    }
+  } else {
+    const { rows } = await loadTSV(TSV_URL);
+    effectiveRows = applyLocalOverrides(rows);
+  }
 
 installAdjacentDeckLinks(
   effectiveRows
