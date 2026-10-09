@@ -7,6 +7,8 @@
 // P1-D2: trial stays opt-in; study/encounter event writes are suppressed only on this URL.
 // P1-D1: manually requested, reversible Official read-source trial (no default switch).
 const WLP_P1D1_PROJECTION_TRIAL = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
+const WLP_P1D3_EVENT_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionEvents') === '1';
+const WLP_P1D2_VIEW_ONLY = WLP_P1D1_PROJECTION_TRIAL && !WLP_P1D3_EVENT_PILOT;
 
 const TSV_URL =
   "./wlp-flashcard-master.tsv?v=20260909";
@@ -296,7 +298,7 @@ function studySource() {
 }
 
 function activityEvent(type, row, extra = {}) {
-  if (WLP_P1D1_PROJECTION_TRIAL) return null; // Trial read only: no activity history.
+  if (WLP_P1D1_PROJECTION_TRIAL) return null; // P1-D3: encounters still disabled; no concurrent outbox staging.
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return null;
   const event = {
@@ -312,7 +314,8 @@ function activityEvent(type, row, extra = {}) {
 }
 
 function interactionEvent(action, row, extra = {}) {
-  if (WLP_P1D1_PROJECTION_TRIAL) return null; // Trial flip/audio are presentation only.
+  if (WLP_P1D2_VIEW_ONLY || (WLP_P1D3_EVENT_PILOT && !window.WLPP1D3EventPilot?.isActive?.())) return null;
+  if (WLP_P1D3_EVENT_PILOT && action !== 'flip') return null; // Only one event type is allowed in the first real-write pilot.
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return;
   const interaction = {
@@ -333,7 +336,7 @@ function interactionEvent(action, row, extra = {}) {
 }
 
 function recordEncounter(row) {
-  if (WLP_P1D1_PROJECTION_TRIAL) return; // No exposure/progress/encounter writes from trial navigation.
+  if (WLP_P1D1_PROJECTION_TRIAL) return; // P1-D3: card opens are view-only; one Flip event pilot only.
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return;
   const now = Date.now();
@@ -4701,6 +4704,7 @@ function escapeHtml(s) {
     // P1-D1 is restricted to the normal Official deck read path. No silent fallback.
     const target = new URL(location.href);
     target.searchParams.delete('wlpProjectionTrial');
+    target.searchParams.delete('wlpProjectionEvents');
     const returnToStandard = target.href;
     const showBlocked = message => {
       const el = document.getElementById('cards');
@@ -4725,13 +4729,16 @@ function escapeHtml(s) {
     }
     try {
       const trial = await window.WLPP1DStudyTrial.readRows(localOverrides);
+      const pilotStatus = WLP_P1D3_EVENT_PILOT ? await window.WLPP1D3EventPilot.prepare(trial.rows, BATCH_PARAM) : null;
       effectiveRows = trial.rows;
       // An explicit source label is mandatory; never let a reader mistake trial data for Static Master.
       const label = document.createElement('div');
       label.setAttribute('role', 'status');
       label.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
       const message = document.createElement('span');
-      message.textContent = `P1-D1 LOCAL PROJECTION TRIAL · ${trial.info.count} Official cards · cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. Content and study writes disabled in this trial. Flip and in-deck navigation are view-only. Deck-to-deck navigation returns to Standard. No automatic Cloud sync introduced or source cutover.`;
+      message.textContent = WLP_P1D3_EVENT_PILOT
+        ? `P1-D3 REAL EVENT PILOT · Local Projection ${trial.info.count} Official · cursor ${trial.info.cursor} · ${pilotStatus.count} cards in this deck · existing Outbox ${pilotStatus.existingOutbox}. Only Show Answer / Flip RECORDS a real local event and reuses existing Canonical Outbox/Cloud Sync. Opening a card and other interactions remain view-only. Studied, Review, Attention, content edits and Study Context are DISABLED. Existing pending work is preserved. No default source cutover.`
+        : `P1-D2 VIEW-ONLY LOCAL PROJECTION · ${trial.info.count} Official cards · cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. Content and study writes disabled in this trial. Flip and in-deck navigation are view-only. Deck-to-deck navigation returns to Standard. No automatic Cloud sync introduced or source cutover.`;
       const standard = document.createElement('a');
       standard.href = returnToStandard;
       standard.textContent = ' Return to standard view';
