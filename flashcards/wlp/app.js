@@ -8,6 +8,8 @@
 // P1-D2: trial stays opt-in; study/encounter event writes are suppressed only on this URL.
 // P1-D1: manually requested, reversible Official read-source trial (no default switch).
 const WLP_P1D1_PROJECTION_TRIAL = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
+// P1-E1: same existing card page, opt-in Mirror source, strictly view-only.
+const WLP_P1E1_MIRROR_READ = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpMirrorSource') === '1';
 const WLP_P1D3_EVENT_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionEvents') === '1';
 const WLP_P1D4_STATE_PILOT = WLP_P1D1_PROJECTION_TRIAL && new URLSearchParams(location.search).get('wlpProjectionState') === '1' && !WLP_P1D3_EVENT_PILOT;
 const WLP_P1D5_REVIEW_PILOT = WLP_P1D4_STATE_PILOT && new URLSearchParams(location.search).get('wlpProjectionReview') === '1';
@@ -4716,6 +4718,7 @@ function escapeHtml(s) {
     target.searchParams.delete('wlpProjectionEvents');
     target.searchParams.delete('wlpProjectionState');
     target.searchParams.delete('wlpProjectionReview');
+    target.searchParams.delete('wlpMirrorSource');
     const returnToStandard = target.href;
     const showBlocked = message => {
       const el = document.getElementById('cards');
@@ -4734,12 +4737,18 @@ function escapeHtml(s) {
       box.append(heading, note, link);
       el.append(box);
     };
+    if (WLP_P1E1_MIRROR_READ && (WLP_P1D3_EVENT_PILOT || WLP_P1D4_STATE_PILOT || WLP_P1D5_REVIEW_PILOT)) {
+      showBlocked('Mirror read cannot be combined with experimental write pilots.');
+      return;
+    }
     if (IS_DRAFT_MODE || IS_REVIEW_MODE || !BATCH_PARAM) {
       showBlocked('Only normal Official batch cards are supported by this first trial.');
       return;
     }
     try {
-      const trial = await window.WLPP1DStudyTrial.readRows(localOverrides);
+      const trial = WLP_P1E1_MIRROR_READ
+        ? await window.WLPP1E1LocalMirrorRead.readRows(localOverrides)
+        : await window.WLPP1DStudyTrial.readRows(localOverrides);
       if (WLP_P1D4_STATE_PILOT && !window.WLPCanonicalStudyAttentionWriteCandidate?.isReady?.()) throw new Error('Existing Canonical Study writer is not ready: ' + String(window.WLPCanonicalStudyAttentionWriteCandidate?.getPrepareError?.() || 'unknown reason'));
       if (WLP_P1D3_EVENT_PILOT && new URLSearchParams(location.search).get('wlpProjectionState') === '1') throw new Error('Both P1-D3 and P1-D4 modes were requested; choose just one.');
       const pilotStatus = WLP_P1D3_EVENT_PILOT ? await window.WLPP1D3EventPilot.prepare(trial.rows, BATCH_PARAM) : WLP_P1D4_STATE_PILOT ? await window.WLPP1D4StudyPilot.prepare(trial.rows, BATCH_PARAM) : null;
@@ -4756,6 +4765,8 @@ function escapeHtml(s) {
         ? `P1-D4 CANONICAL STUDIED PILOT · Local Projection ${trial.info.count} Official · cursor ${trial.info.cursor} · ${pilotStatus.deckSize} cards in deck · existing Outbox ${pilotStatus.outbox}. Only the Studied button on WID${pilotStatus.wordId} uses the EXISTING Canonical Study State writer (state + event pair). Review / Attention, Flip tracking, Study Context, edits, and card-open events remain disabled. Wait for normal Cloud sync after one action. No default read cutover.`
         : WLP_P1D3_EVENT_PILOT
         ? `P1-D3 REAL EVENT PILOT · Local Projection ${trial.info.count} Official · cursor ${trial.info.cursor} · ${pilotStatus.count} cards in this deck · existing Outbox ${pilotStatus.existingOutbox}. Only Show Answer / Flip RECORDS a real local event and reuses existing Canonical Outbox/Cloud Sync. Opening a card and other interactions remain view-only. Studied, Review, Attention, content edits and Study Context are DISABLED. Existing pending work is preserved. No default source cutover.`
+        : WLP_P1E1_MIRROR_READ
+        ? `P1-E1 VIEW-ONLY CANONICAL MIRROR · ${trial.info.count} Official cards · Mirror cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. The existing Study UI is unchanged. Study, content, and event writes are disabled. No default source cutover or additional Cloud sync.`
         : `P1-D2 VIEW-ONLY LOCAL PROJECTION · ${trial.info.count} Official cards · cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. Content and study writes disabled in this trial. Flip and in-deck navigation are view-only. Deck-to-deck navigation returns to Standard. No automatic Cloud sync introduced or source cutover.`;
       const standard = document.createElement('a');
       standard.href = returnToStandard;
