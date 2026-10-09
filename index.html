@@ -177,6 +177,20 @@
         </a>
       </section>
 
+      <!-- P1-D8: account-bound Local Library readiness, no write/cutover. -->
+      <section data-my-library class="practice-hub-card" aria-labelledby="my-library-heading" style="display:block;padding:16px;margin-top:14px">
+        <span class="section-kicker">My Library · Cross-browser beta</span>
+        <h2 id="my-library-heading" style="margin:4px 0 8px;font-size:1.2rem">Your words on this browser</h2>
+        <p id="my-library-state" role="status" aria-live="polite" style="font-weight:700;margin:4px 0">Checking saved Library…</p>
+        <p id="my-library-detail" style="margin:6px 0 14px;font-size:.9rem;line-height:1.5">This check is local and read-only.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+          <a href="./official-projection-p1.html#my-library-setup" style="font-weight:700;text-decoration:underline">Set up / manage My Library</a>
+          <a id="my-library-preview" href="./flashcards/wlp/batch.html?batch=001&amp;wlpProjectionTrial=1" hidden style="font-weight:700;text-decoration:underline">Preview local cards</a>
+          <button id="my-library-refresh" type="button" style="border:1px solid #bad0bf;border-radius:9px;background:#f5faf4;color:#244a38;padding:7px 11px;font:inherit;cursor:pointer">Refresh status</button>
+        </div>
+        <p style="font-size:.78rem;line-height:1.4;margin:12px 0 0;color:#597166">The card preview is view-only. Normal Study, Review and existing synchronisation are unchanged.</p>
+      </section>
+
       <a class="practice-hub-card" href="./study-hub.html">
         <span class="practice-hub-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M4 6.5c2.8-.7 5.2-.2 7 1.4v10.6c-1.8-1.6-4.2-2.1-7-1.4V6.5Z"/><path d="M20 6.5c-2.8-.7-5.2-.2-7 1.4v10.6c1.8-1.6 4.2-2.1 7-1.4V6.5Z"/><path d="m18.5 3 .45 1.05L20 4.5l-1.05.45L18.5 6l-.45-1.05L17 4.5l1.05-.45L18.5 3Z"/></svg>
@@ -286,6 +300,7 @@
 
   <div class="toast" id="home-toast" role="status" aria-live="polite" hidden>Global Search is the next Stage 7 screen.</div>
   <script src="./stage7-home.js?v=20260915-s7-v30"></script>
+  <script src="./my-library-status-p1d8.js?v=p1d8-library-status" defer></script>
   <script src="./canonical-auto-sync-canary.js?v=20261008-v396-draft-promote-canary"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>

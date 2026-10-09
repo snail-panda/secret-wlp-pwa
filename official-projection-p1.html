@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#edf4ed">
-  <title>WLP · P1 Isolated Local Projection · First Browser Install</title>
+  <title>WLP · My Library Setup (Beta)</title>
   <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
+<script src="./my-library-status-p1d8.js?v=p1d8-library-status" defer></script>
   <script src="./canonical-account-backup.js?v=p1d7a-device-format" defer></script>
   <script src="./official-projection-p1.js?v=p1d6-fresh-browser" defer></script>
   <script src="./canonical-first-browser-mirror-p1d7.js?v=p1d7-first-mirror" defer></script>
@@ -13,11 +14,25 @@
 <body>
   <main>
     <header>
-      <p class="eyebrow">WORD LIST GARDEN · P1-D6 · FIRST BROWSER COPY</p>
-      <h1>Isolated Local Projection</h1>
-      <p class="intro">Safety-gated local snapshot and explicit first-browser Cloud import / refresh. It does <strong>not</strong> change the WLP study, review, search, editor, Cloud or Local Edit data paths.</p>
-      <div class="pill">Independent IndexedDB · signed-in account required · no automatic sync · no Service Worker</div>
+      <p class="eyebrow">WORD LIST GARDEN · P1-D8 · MY LIBRARY</p>
+      <h1>My Library Setup</h1>
+      <p class="intro">Set up and inspect the Local Library for this browser, using the existing verified Canonical import and Sync Library tools. Normal WLP Study, Review and editing are not switched by this page.</p>
+      <div class="pill">Browser-local copy · verified WLP Cloud account · no automatic source cutover</div>
     </header>
+
+    <section class="panel" id="my-library-setup" data-my-library>
+      <p class="eyebrow">MY LIBRARY · P1-D8</p>
+      <h2>Set up your Library on this browser</h2>
+      <div id="my-library-state" class="result" role="status" aria-live="polite">Checking this browser…</div>
+      <p id="my-library-detail" class="small">Reading saved account and Local Library state; no writes.</p>
+      <div class="row">
+        <button id="my-library-refresh" type="button">Refresh status</button>
+        <a id="my-library-preview" href="./flashcards/wlp/batch.html?batch=001&amp;wlpProjectionTrial=1" hidden>Preview local cards (view-only)</a>
+        <a href="./index.html">Return to WLP Home</a>
+      </div>
+      <p class="small"><strong>First time here?</strong> 1. <a href="./cloud-shadow.html" target="_blank" rel="noopener">Sign in to WLP Cloud</a> in this browser. 2. Use section 3 below to check and install Official cards. 3. Use section 3B to check and install the account Sync Library. Existing installations are never replaced.</p>
+      <p class="small warn">This is the current beta setup route. Admin is a separate edit-permission setting, not the Cloud account login. Normal Study and Review are unchanged until a future verified cutover.</p>
+    </section>
 
     <section class="panel">
       <h2>1. Check installed projection</h2>
@@ -69,7 +84,7 @@
       <div id="status" class="result" aria-live="polite">READY · waiting for your choice.</div>
     </section>
 
-    <footer>Do not remove legacy Local Edit copies. This is P1-B shadow verification only: no read-source cutover, no automatic sync, no new-browser learning-state sync/mirror bootstrap and no full offline-PWA claim.</footer>
+    <footer>Do not remove legacy Local Edit copies. The first-browser account Mirror install is available above, but full normal-screen source cutover, automatic initial account setup, and complete offline-PWA support are not yet enabled.</footer>
   </main>
 </body>
 </html>
