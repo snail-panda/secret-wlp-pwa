@@ -917,7 +917,18 @@
   if(document.documentElement?.dataset?.wlpP1Shadow==='1'){
     async function shadowReaderContext(){
       const api=await cloudContext();
-      const accountKey=await sha256(`wlp-shadow-p1b|${String(api.config.url).replace(/\/+$/,'')}|${String(api.session.userId)}`);
+      // On a previously unused browser, the cached session's userId cannot be
+      // treated as proof of ownership. Confirm it against Supabase Auth over HTTPS
+      // before deriving the account binding used by the isolated local copy.
+      const url=String(api.config.url).replace(/\/+$/,'');
+      const response=await fetch(`${url}/auth/v1/user`,{
+        method:'GET',headers:{apikey:api.config.publishableKey,Authorization:`Bearer ${api.session.accessToken}`},
+        cache:'no-store',credentials:'omit',redirect:'error'
+      });
+      if(!response.ok)throw new Error(`Cloud account verification failed (HTTP ${response.status}). Re-open WLP Cloud and sign in.`);
+      const remote=await response.json();
+      if(!remote?.id||String(remote.id)!==String(api.session.userId))throw new Error('Cloud account identity differs from this browser session; no projection will be installed.');
+      const accountKey=await sha256(`wlp-shadow-p1b|${url}|${String(remote.id)}`);
       return {api,accountKey};
     }
     window.WLPCanonicalLibraryShadowReader=Object.freeze({

@@ -721,6 +721,8 @@
       }
       if (frontAttention && realAttention) {
         frontAttention.hidden = realAttention.hidden;
+        frontAttention.disabled = Boolean(realAttention.disabled);
+        frontAttention.title = realAttention.title || 'Set Review attention';
         frontAttention.textContent = realAttention.textContent;
       }
     });

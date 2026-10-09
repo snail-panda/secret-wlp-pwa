@@ -3976,7 +3976,7 @@ function bindCardBehavior(
     // Front shortcuts, Review, Attention and recording remain disabled; P1-D2/D3
     // continue to disable ALL changes. Flip and deck-internal navigation still work.
     const selector = WLP_P1D5_REVIEW_PILOT
-      ? '.btn-studied, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear'
+      ? '.btn-studied, .btn-studied-front, .btn-review-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear'
       : WLP_P1D4_STATE_PILOT
       ? '.btn-review, .btn-review-attention, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear'
       : '.btn-studied, .btn-review, .btn-review-attention, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear';

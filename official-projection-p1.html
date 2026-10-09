@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#edf4ed">
-  <title>WLP · P1 Isolated Local Projection</title>
+  <title>WLP · P1 Isolated Local Projection · First Browser Install</title>
   <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
-  <script src="./canonical-account-backup.js?v=20261008-p1b" defer></script>
-  <script src="./official-projection-p1.js?v=20261008-p1b" defer></script>
+  <script src="./canonical-account-backup.js?v=p1d6-fresh-browser" defer></script>
+  <script src="./official-projection-p1.js?v=p1d6-fresh-browser" defer></script>
 </head>
 <body>
   <main>
     <header>
-      <p class="eyebrow">WORD LIST GARDEN · P1-B</p>
+      <p class="eyebrow">WORD LIST GARDEN · P1-D6 · FIRST BROWSER COPY</p>
       <h1>Isolated Local Projection</h1>
-      <p class="intro">Safety-gated local snapshot and explicit Cloud refresh test. It does <strong>not</strong> change the WLP study, review, search, editor, Cloud or Local Edit data paths.</p>
-      <div class="pill">Independent IndexedDB · explicit read-only Cloud check · no automatic sync · no Service Worker</div>
+      <p class="intro">Safety-gated local snapshot and explicit first-browser Cloud import / refresh. It does <strong>not</strong> change the WLP study, review, search, editor, Cloud or Local Edit data paths.</p>
+      <div class="pill">Independent IndexedDB · signed-in account required · no automatic sync · no Service Worker</div>
     </header>
 
     <section class="panel">
@@ -37,11 +37,11 @@
 
     <section class="panel">
       <h2>3. Check current Canonical Cloud (read only)</h2>
-      <p>Run an authenticated read of the current account Canonical Library; this does not send local edits, create mutations, or update live WLP. A staged snapshot is kept separate until you approve it.</p>
+      <p>For a new browser: first sign in on <a href="./cloud-shadow.html" target="_blank" rel="noopener">WLP Cloud Shadow</a> in this same browser profile, then return here. Run an authenticated read of the current account Canonical Library; this does not send local edits, create mutations, or update live WLP. A staged snapshot is kept separate until you approve it.</p>
       <button id="cloud-check" type="button">Check Cloud and preview changes</button>
       <div id="cloud-preview" class="result" aria-live="polite">No Cloud check yet.</div>
       <button id="cloud-install" class="primary" type="button" disabled>Install VERIFIED Cloud snapshot in isolated DB</button>
-      <p class="small warn">Explicit installation only. If this browser has pending Canonical Outbox changes, another account is active, or a card was removed, installation is BLOCKED. The prior generation is retained.</p>
+      <p class="small warn">Explicit installation only. If the existing Canonical Outbox has pending changes, another account is active, or a card was removed, installation is BLOCKED. A brand-new browser without a Canonical Mirror can install an Official-only copy; study writes and full account restoration remain unavailable until their separate setup is completed. The prior generation is retained.</p>
     </section>
 
     <section class="panel">
@@ -58,7 +58,7 @@
       <div id="status" class="result" aria-live="polite">READY · waiting for your choice.</div>
     </section>
 
-    <footer>Do not remove legacy Local Edit copies. This is P1-B shadow verification only: no read-source cutover, no automatic sync, no multi-device merge and no full offline-PWA claim.</footer>
+    <footer>Do not remove legacy Local Edit copies. This is P1-B shadow verification only: no read-source cutover, no automatic sync, no new-browser learning-state sync/mirror bootstrap and no full offline-PWA claim.</footer>
   </main>
 </body>
 </html>

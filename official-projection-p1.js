@@ -114,7 +114,20 @@
     r.onerror=()=>reject(new Error('Cannot open existing Canonical Outbox safely'));
     r.onblocked=()=>reject(new Error('Canonical Outbox is blocked by another tab'));
   });}
-  async function pendingOutbox(){let db;try{db=await openExistingOutbox();return await req(db.transaction('sync_outbox','readonly').objectStore('sync_outbox').count());}finally{db?.close();}}
+  // A first-time browser has no Canonical Mirror yet. That is safe for a
+  // READ-ONLY Official snapshot install, but NOT permission to write study state.
+  // Never create a live mirror just to inspect it. An existing mirror must have
+  // a valid Outbox store and exactly zero pending rows.
+  async function inspectLiveOutbox(){
+    assert(typeof indexedDB.databases==='function','Cannot verify whether a live Canonical Mirror exists');
+    const databases=await indexedDB.databases();
+    if(!databases.some(row=>row.name==='wlp-cloud-v1'))return{mirrorPresent:false,count:0};
+    let db;
+    try{
+      db=await openExistingOutbox();
+      return{mirrorPresent:true,count:await req(db.transaction('sync_outbox','readonly').objectStore('sync_outbox').count())};
+    }finally{db?.close();}
+  }
   function assertAccountBinding(active,accountKey){
     assert(/^[a-f0-9]{64}$/i.test(accountKey||''),'Authenticated account fingerprint missing');
     if(!active)return;
@@ -131,8 +144,8 @@
     try{db=await openDb();before=await getActive(db);}finally{db?.close();}
     assertAccountBinding(before,accountKey);
     assert(!before||before.cursor<=checked.cursor,`Cloud cursor ${checked.cursor} is behind local cursor ${before.cursor}`);
-    const outbox=await pendingOutbox();
-    assert(outbox===0,`Pending live Canonical Outbox has ${outbox} change(s). Sync these safely before installing a Cloud shadow generation`);
+    const live=await inspectLiveOutbox();
+    assert(live.count===0,`Pending live Canonical Outbox has ${live.count} change(s). Sync these safely before installing a Cloud shadow generation`);
     const old=new Map();
     if(before){
       db=await openDb();
@@ -151,7 +164,7 @@
     let added=0,changed=0,unchanged=0;
     for(const e of library.officialCards){const prior=old.get(e.cardId);if(!prior)added++;else if(JSON.stringify(prior)===JSON.stringify(e))unchanged++;else changed++;}
     const fingerprint=await sha(new TextEncoder().encode(JSON.stringify({cursor:checked.cursor,libraryManifestHash:library.libraryManifestHash,sourceCanonicalManifestHash:library.sourceCanonicalManifestHash,accountKey})));
-    return{data:library,accountKey,checks:checked,baseGeneration:before?.generation||null,beforeCursor:before?.cursor??null,delta:{added,changed,unchanged,removed:0},fileHash:fingerprint,source:'cloud'};
+    return{data:library,accountKey,checks:checked,baseGeneration:before?.generation||null,beforeCursor:before?.cursor??null,delta:{added,changed,unchanged,removed:0},fileHash:fingerprint,source:'cloud',liveMirrorPresent:live.mirrorPresent};
   }
   async function inspectFile(file){
     assert(file&&file.size>0&&file.size<100*1024*1024,'Choose a Canonical Library JSON under 100 MB');
@@ -222,13 +235,15 @@
       if(inspected.source==='cloud'){
         assertAccountBinding(prev,inspected.accountKey);
         assert((prev?.generation||null)===inspected.baseGeneration,'Active generation changed after preview; recheck Cloud first');
-        assert((await pendingOutbox())===0,'New pending Outbox changes found; abort installation');
+        const live=await inspectLiveOutbox();
+        assert(live.count===0,'New pending Outbox changes found; abort installation');
+        assert(live.mirrorPresent===inspected.liveMirrorPresent,'Canonical Mirror availability changed during preview; check Cloud again');
         const bound=await window.WLPCanonicalLibraryShadowReader.boundary();
         assert(bound.accountKey===inspected.accountKey&&bound.cursor===inspected.checks.cursor&&bound.authority.candidateKey===EXPECTED.candidateKey&&bound.authority.headVersion===EXPECTED.headVersion&&bound.authority.snapshotManifestHash===EXPECTED.snapshotManifestHash,'Cloud boundary moved since preview; recheck Cloud first');
       }
       if(prev?.fileHash===inspected.fileHash&&(!inspected.accountKey||prev.accountKey===inspected.accountKey)){status('READY · this exact projection is already active. No write performed.');return;}
       assert(!prev||prev.authorityKey===EXPECTED.candidateKey,'Different account/Authority active. Refusing to replace it');
-      assert(!prev||prev.cursor<=EXPECTED.cursor,'Active local cursor is newer. Import refused');
+      if(inspected.source!=='cloud')assert(!prev||prev.cursor<=EXPECTED.cursor,'Active local cursor is newer. Import refused');
       if(inspected.source!=='cloud')assert(!prev||prev.libraryManifestHash===EXPECTED.libraryManifestHash,'Different projection manifest already active. Refusing to replace it');
       const generation=crypto.randomUUID();
       const cards=inspected.data.officialCards;
@@ -244,7 +259,9 @@
       if(inspected.source==='cloud'){
         const boundary=await window.WLPCanonicalLibraryShadowReader.boundary();
         assert(boundary.accountKey===inspected.accountKey&&boundary.cursor===inspected.checks.cursor&&boundary.authority.candidateKey===EXPECTED.candidateKey&&boundary.authority.headVersion===EXPECTED.headVersion&&boundary.authority.snapshotManifestHash===EXPECTED.snapshotManifestHash,'Cloud changed during staging; old active projection retained');
-        assert((await pendingOutbox())===0,'Outbox became pending during staging; old projection retained');
+        const live=await inspectLiveOutbox();
+        assert(live.count===0,'Outbox became pending during staging; old projection retained');
+        assert(live.mirrorPresent===inspected.liveMirrorPresent,'Canonical Mirror availability changed during staging; old projection retained');
       }
       await activate(db,prev,generation,inspected);
       state.lastReport={status:'PASS',mode:inspected.source==='cloud'?'cloud-to-shadow':'manual-import',generation,cursor:inspected.checks?.cursor??614,officialCount:cards.length,fileHash:inspected.fileHash,delta:inspected.delta||null,readback};
@@ -287,7 +304,7 @@
       const candidate=await inspectCloud();
       state.cloudCandidate=candidate;
       const d=candidate.delta;
-      show('cloud-preview',`PASS · Cloud boundary verified · cursor ${candidate.checks.cursor} · ${countLabel(candidate.checks.count)} Official\nChanges relative to installed local projection: ${d.added} added · ${d.changed} changed · ${d.unchanged} unchanged · ${d.removed} removed\nPending Outbox: 0 · account fingerprint verified · old generation retained\nClick Install VERIFIED Cloud snapshot only to refresh isolated DB. Live WLP remains unchanged.`);
+      show('cloud-preview',`PASS · Cloud boundary verified · cursor ${candidate.checks.cursor} · ${countLabel(candidate.checks.count)} Official\nChanges relative to installed local projection: ${d.added} added · ${d.changed} changed · ${d.unchanged} unchanged · ${d.removed} removed\nPending Outbox: 0 · ${candidate.liveMirrorPresent?'existing Canonical Mirror checked':'NEW BROWSER: no live Canonical Mirror (Official copy only; study writes unavailable)'} · authenticated account verified · old generation retained\nClick Install VERIFIED Cloud snapshot only to store Official cards in this browser. Live WLP remains unchanged.`);
       status('PASS · Cloud checked, no data written. Explicit Install is now available.');
     }catch(e){show('cloud-preview',`BLOCKED · ${e.message}`);status(`BLOCKED · ${e.message}`);}
     finally{setBusy(false);}
