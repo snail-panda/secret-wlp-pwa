@@ -884,5 +884,88 @@
   <script type="module" src="./app.js?v=p1e3-local-study-new-source"></script>
   <script src="./study-stage7.js?v=p1d6-front-attention-bootstrap"></script>
   <script src="../../study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
+  <!-- P1-E6b: opt-in E5 offline shell refresh; the Service Worker is unchanged. -->
+  <script id="p1e6b-offline-shell-warm">
+    (() => {
+      const options = new URLSearchParams(location.search);
+      if (options.get('wlpLocalLibrary') !== '1' || options.get('wlpOfflineQueue') !== '1') return;
+      const CACHE = 'wlp-stage7-reviewhub-nav-lock-v1-8-6-27';
+      const cards = document.getElementById('cards');
+      const status = document.createElement('p');
+      status.id = 'wlp-p1e6b-offline-status';
+      status.setAttribute('role', 'status');
+      status.style.cssText = 'max-width:940px;margin:8px auto;padding:4px 8px;font-size:12px;line-height:1.4;opacity:.8';
+      status.textContent = 'P1-E6b offline Study assets: preparing…';
+      if (cards) cards.before(status);
+
+      const update = message => { status.textContent = 'P1-E6b offline Study assets: ' + message; };
+      const warm = async () => {
+        if (!navigator.onLine) { update('offline (existing cache only)'); return; }
+        if (!('caches' in window) || !navigator.serviceWorker?.controller) {
+          update('not ready — Service Worker is not controlling this tab');
+          return;
+        }
+        const keys = await caches.keys();
+        if (!keys.includes(CACHE)) {
+          update('not ready — expected current cache is absent');
+          return;
+        }
+        // Only the E5 card page opts in. No Static TSV, IndexedDB, Outbox or
+        // other pages are modified. Fetch all resources before writing any.
+        const currentPage = new URL('./batch.html', location.href);
+        const resources = [currentPage];
+        for (const element of document.querySelectorAll('script[src], link[rel="stylesheet"][href]')) {
+          const value = element.getAttribute('src') || element.getAttribute('href');
+          const url = new URL(value, document.baseURI);
+          if (url.origin === location.origin && !resources.some(item => item.href === url.href)) resources.push(url);
+        }
+        const cache = await caches.open(CACHE);
+        // Avoid downloading the entire Study runtime on every visit once this
+        // precise E6b shell has been prepared successfully.
+        const oldPage = await cache.match(currentPage.href);
+        const oldApp = await cache.match(new URL('./app.js', location.href).href);
+        if (oldPage && oldApp &&
+            (await oldPage.clone().text()).includes('p1e6b-offline-shell-warm') &&
+            (await oldApp.clone().text()).includes('WLP_P1E3_LOCAL_NEW') &&
+            (await Promise.all(resources.map(url => cache.match(url.href)))).every(Boolean)) {
+          update('READY (existing verified cache, Service Worker unchanged)');
+          return;
+        }
+        const fetched = await Promise.all(resources.map(async (url) => {
+          const fresh = new URL(url);
+          fresh.searchParams.set('wlpE6Warm', 'p1e6b-' + Date.now());
+          const response = await fetch(fresh.href, {cache: 'no-store'});
+          if (!response.ok || response.type === 'opaque') throw new Error('HTTP ' + response.status + ' for ' + url.pathname);
+          const type = response.headers.get('content-type') || '';
+          if (/\.(?:js|css)$/.test(url.pathname) && /text\/html/i.test(type)) throw new Error('Unexpected HTML for ' + url.pathname);
+          if (url.pathname.endsWith('/flashcards/wlp/app.js')) {
+            if (!(await response.clone().text()).includes('WLP_P1E3_LOCAL_NEW')) throw new Error('E5 Study code marker missing');
+          }
+          if (url.pathname.endsWith('/flashcards/wlp/batch.html')) {
+            const body = await response.clone().text();
+            if (!body.includes('p1e6b-offline-shell-warm') || !body.includes('wlp-study-intent-queue-p1e5.js')) throw new Error('E6b/E5 HTML marker missing');
+          }
+          return {url, response};
+        }));
+        for (const {url, response} of fetched) {
+          await cache.put(url.href, response.clone());
+          if (url.search) {
+            const unversioned = new URL(url);
+            unversioned.search = '';
+            await cache.put(unversioned.href, response.clone());
+          }
+        }
+        // Offline navigation uses ignoreSearch:true and prioritizes the
+        // unversioned HTML entry; the batch page was overwritten above.
+        update('READY (' + fetched.length + ' verified assets, Service Worker unchanged)');
+      };
+      window.addEventListener('load', () => {
+        warm().catch(error => {
+          console.warn('P1-E6b offline shell refresh blocked', error);
+          update('NOT READY — ' + String(error.message || error));
+        });
+      }, {once: true});
+    })();
+  </script>
 </body>
 </html>
