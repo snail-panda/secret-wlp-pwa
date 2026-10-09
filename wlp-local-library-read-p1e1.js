@@ -1,4 +1,4 @@
-/* WLP P1-E1 — strictly opt-in, read-only Canonical Mirror card-source trial.
+/* WLP P1-E4 — opt-in Canonical Mirror card source; read-only pending-study overlay gate.
  * Reuses existing P1-D8B Study UI, account-bound Official Projection validation,
  * approved legacy edit receipts, and read-only Canonical Compatibility Adapter.
  * Does not write, sync, install, migrate, or change default WLP navigation.
@@ -45,6 +45,62 @@
       return meta;
     } finally { if (db) db.close(); }
   }
+  // Snapshot pending mutation identities without modifying the Outbox. The existing
+  // Storage Compatibility Facade owns validation and projection of pending state /
+  // event mutations; this reader must never interpret content or Draft writes.
+  async function pendingSnapshot() {
+    assert(typeof indexedDB.databases === 'function', 'Safe Outbox discovery unavailable');
+    const known = await indexedDB.databases();
+    assert(known.some(item => item.name === 'wlp-cloud-v1'), 'Canonical Mirror not installed');
+    let db;
+    try {
+      db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('wlp-cloud-v1');
+        request.onupgradeneeded = () => {
+          try { request.transaction.abort(); } catch (_) {}
+          reject(new Error('Canonical Mirror is not initialized'));
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('Cannot inspect Canonical Outbox'));
+        request.onblocked = () => reject(new Error('Canonical Outbox is blocked by another tab'));
+      });
+      assert(db.objectStoreNames.contains('sync_outbox'), 'Canonical Outbox store missing');
+      const tx = db.transaction('sync_outbox', 'readonly');
+      const rowsRequest = tx.objectStore('sync_outbox').getAll();
+      const rows = req(rowsRequest);
+      const end = done(tx);
+      const items = await rows;
+      await end;
+      const stamps = (items || []).map(item => {
+        // Fail closed on unknown states / malformed mutation identity.
+        assert(item?.status === 'pending', 'Outbox contains a non-pending mutation');
+        const id = clean(item?.mutationId), hash = clean(item?.mutationHash);
+        assert(id && hash, 'Outbox contains a mutation without a verified identity');
+        return `${id}|${hash}`;
+      }).sort();
+      assert(new Set(stamps).size === stamps.length, 'Duplicate Outbox mutations detected');
+      return {count: stamps.length, fingerprint: JSON.stringify(stamps)};
+    } finally { if (db) db.close(); }
+  }
+  async function validatePendingStudyOverlay(adapter, snapshot) {
+    assert(Number(adapter.pendingOutboxRows) === snapshot.count,
+      'Outbox changed while opening the Canonical Mirror; reopen the page');
+    if (snapshot.count === 0) return;
+    // This already-installed Facade verifies per-row Authority, conflict
+    // preconditions and supported learning_state / learning_events shapes.
+    // It fails closed for card_content, cards, Draft and other mutation kinds.
+    const provider = window.WLPCanonicalStorageCompatibilityFacade;
+    assert(typeof provider?.open === 'function', 'Pending-study overlay reader unavailable');
+    let facade;
+    try { facade = await provider.open(); }
+    catch (error) { fail(`Pending changes cannot be safely overlaid: ${error?.message || String(error)}`); }
+    assert(facade?.readOnly === true && facade.projectionHash === adapter.projectionHash,
+      'Pending-study overlay is not tied to the verified Canonical Mirror');
+    assert(facade.pendingOutboxRows === snapshot.count && facade.overlayMutationsApplied === snapshot.count,
+      'Pending-study overlay did not validate every Outbox mutation');
+    assert(facade?.meta?.candidateKey === adapter.meta?.candidateKey,
+      'Pending-study overlay belongs to another Canonical Authority');
+  }
   async function waitForExistingReaders() {
     // Canonical Compatibility Adapter publishes its API from DOMContentLoaded.
     // Existing Study's module initializer may request this reader beforehand.
@@ -76,7 +132,8 @@
     // The Mirror cannot be older than the verified account-bound Official Projection.
     const cursor = Number(mirrorMeta?.materializedSyncCursor);
     assert(Number.isSafeInteger(cursor) && cursor >= baseline.info.cursor, 'Mirror is older than Local Official Projection');
-    assert(adapter.pendingOutboxRows === 0, 'Pending Outbox exists; view-only trial waits until it syncs');
+    const outboxBefore = await pendingSnapshot();
+    await validatePendingStudyOverlay(adapter, outboxBefore);
     const entries = [];
     const keys = new Set();
     for (const card of adapter.list('card')) {
@@ -127,6 +184,9 @@
       Number(a.WordID) - Number(b.WordID));
     const batchCards = entries.filter(row => row['Batch #'] !== '').length;
     assert(batchCards >= baseline.info.batchCards, 'Canonical Mirror is missing existing deck-assigned Official cards');
+    const outboxAfter = await pendingSnapshot();
+    assert(outboxBefore.fingerprint === outboxAfter.fingerprint,
+      'Outbox changed during read; reopen the card page');
     const lastMirrorMeta = await mirrorIdentity();
     assert(lastMirrorMeta?.userId === mirrorMeta.userId &&
       lastMirrorMeta?.materializedSyncCursor === mirrorMeta.materializedSyncCursor &&
@@ -134,7 +194,7 @@
       'Mirror changed during read; reopen the card page');
     return { rows: entries, info: {
       count: entries.length, batchCards, noBatch: entries.length - batchCards,
-      cursor, source: 'canonical-mirror', referenceProjectionCursor: baseline.info.cursor
+      cursor, source: 'canonical-mirror', pendingStudyMutationsValidated: outboxBefore.count, referenceProjectionCursor: baseline.info.cursor
     } };
   }
   window.WLPP1E1LocalMirrorRead = Object.freeze({version: 1, readOnly: true, readRows});
