@@ -1,8 +1,13 @@
 (() => {
   const TSV_URL = './flashcards/wlp/wlp-flashcard-master.tsv?v=20260914-stage7-7';
   // An explicit, view-only selection route. Ordinary deck URLs remain unchanged.
-  const LOCAL_DECK_PREVIEW = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
-  const previewSuffix = LOCAL_DECK_PREVIEW ? '&wlpProjectionTrial=1' : '';
+  const PARAMS = new URLSearchParams(location.search);
+  const LOCAL_DECK_PREVIEW = PARAMS.get('wlpProjectionTrial') === '1';
+  // P1-E2: opt-in deck index + existing card page share the same verified Mirror.
+  const MIRROR_DECK_PREVIEW = LOCAL_DECK_PREVIEW && PARAMS.get('wlpMirrorSource') === '1';
+  const previewSuffix = LOCAL_DECK_PREVIEW
+    ? '&wlpProjectionTrial=1' + (MIRROR_DECK_PREVIEW ? '&wlpMirrorSource=1' : '')
+    : '';
   const PINNED_KEY = 'wlp:stage7:pinned-decks:v1';
   const RECENT_KEY = 'wlp:stage7:recent-decks:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
@@ -24,9 +29,13 @@
       info.setAttribute('role', 'status');
       info.style.cssText = 'padding:12px 14px;margin:10px 0 18px;border:1px solid #5d8b77;border-radius:11px;background:#e8f3ed;color:#164834;line-height:1.5';
       const title = document.createElement('strong');
-      title.textContent = 'LOCAL LIBRARY — VIEW-ONLY DECK BROWSER';
+      title.textContent = MIRROR_DECK_PREVIEW
+        ? 'P1-E2 — VIEW-ONLY CANONICAL MIRROR DECKS'
+        : 'LOCAL LIBRARY — VIEW-ONLY DECK BROWSER';
       const detail = document.createElement('p');
-      detail.textContent = 'Choose any Official deck. Cards will load from this browser’s Canonical Local Projection; opening, flipping and in-deck movement create no study events. The deck picker itself still uses the existing Static Master index. Study/Review edits are unavailable in this mode.';
+      detail.textContent = MIRROR_DECK_PREVIEW
+        ? 'Deck index, search and cards use this browser’s verified Canonical Mirror. No Static TSV is used for this preview. Study/Review edits and event writes are disabled.'
+        : 'Choose any Official deck. Cards will load from this browser’s Canonical Local Projection; opening, flipping and in-deck movement create no study events. The deck picker itself still uses the existing Static Master index. Study/Review edits are unavailable in this mode.';
       detail.style.cssText = 'margin:5px 0';
       const standard = document.createElement('a');
       standard.href = './deck-browser.html';
@@ -630,10 +639,35 @@
   });
   refreshRoleUI();
 
-  fetch(TSV_URL, {cache: 'no-cache'})
-    .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); })
-    .then(text => {
-      rows = parseTSV(text);
+  // P1-E2: never fetch or fall back to Static TSV in explicit Mirror mode.
+  // The P1-E1a reader verifies local account, Projection/Mirror identity,
+  // legacy edit decisions, outbox, order, and stable Mirror metadata.
+  function loadDeckRows() {
+    if (!MIRROR_DECK_PREVIEW) {
+      return fetch(TSV_URL, {cache: 'no-cache'})
+        .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.text(); })
+        .then(parseTSV);
+    }
+    const saved = localStorage.getItem('wlp:local-overrides:v1');
+    let overrides = {};
+    try {
+      overrides = saved ? JSON.parse(saved) : {};
+    } catch (_) { throw new Error('P1-E2 BLOCKED: Legacy Local Edit data cannot be parsed'); }
+    if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+      throw new Error('P1-E2 BLOCKED: Legacy Local Edit data has an invalid shape');
+    }
+    if (typeof window.WLPP1E1LocalMirrorRead?.readRows !== 'function') {
+      throw new Error('P1-E2 BLOCKED: Verified Canonical Mirror reader unavailable');
+    }
+    return window.WLPP1E1LocalMirrorRead.readRows(overrides).then(result => {
+      if (!result?.rows || !Array.isArray(result.rows)) throw new Error('P1-E2 BLOCKED: No verified deck rows');
+      return result.rows;
+    });
+  }
+
+  Promise.resolve().then(loadDeckRows)
+    .then(data => {
+      rows = data;
       maxBatch = rows.reduce((max, row) => Math.max(max, rowDeck(row)), 0);
       $('deck-count').textContent = `${maxBatch} decks`;
       renderShortcuts();
@@ -652,7 +686,17 @@
     .catch(error => {
       console.error(error);
       $('deck-count').textContent = 'Unavailable';
-      $('browse-meta').textContent = 'Could not load deck data.';
-      $('range-grid').innerHTML = '<p class="empty">Please try again.</p>';
+      $('browse-meta').textContent = MIRROR_DECK_PREVIEW
+        ? 'P1-E2 BLOCKED — Canonical Mirror deck index unavailable.'
+        : 'Could not load deck data.';
+      // Error content is text, not HTML: never interpret an exception as markup.
+      $('range-grid').replaceChildren();
+      const message = document.createElement('p');
+      message.className = 'empty';
+      message.setAttribute('role', 'alert');
+      message.textContent = MIRROR_DECK_PREVIEW
+        ? String(error?.message || 'Verified Local Mirror could not be read') + '. Normal Study was not changed.'
+        : 'Please try again.';
+      $('range-grid').appendChild(message);
     });
 })();
