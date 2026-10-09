@@ -6,8 +6,9 @@
   <meta name="theme-color" content="#edf4ed">
   <title>WLP · P1 Isolated Local Projection · First Browser Install</title>
   <link rel="stylesheet" href="./official-projection-p1.css?v=20261008-p1b">
-  <script src="./canonical-account-backup.js?v=p1d6-fresh-browser" defer></script>
+  <script src="./canonical-account-backup.js?v=p1d7-first-mirror" defer></script>
   <script src="./official-projection-p1.js?v=p1d6-fresh-browser" defer></script>
+  <script src="./canonical-first-browser-mirror-p1d7.js?v=p1d7-first-mirror" defer></script>
 </head>
 <body>
   <main>
@@ -42,6 +43,16 @@
       <div id="cloud-preview" class="result" aria-live="polite">No Cloud check yet.</div>
       <button id="cloud-install" class="primary" type="button" disabled>Install VERIFIED Cloud snapshot in isolated DB</button>
       <p class="small warn">Explicit installation only. If the existing Canonical Outbox has pending changes, another account is active, or a card was removed, installation is BLOCKED. A brand-new browser without a Canonical Mirror can install an Official-only copy; study writes and full account restoration remain unavailable until their separate setup is completed. The prior generation is retained.</p>
+    </section>
+
+    <section class="panel" id="p1d7-mirror-setup">
+      <h2>3B. Initialize account sync library (first browser only)</h2>
+      <p>After your Official card copy is installed, prepare a <strong>complete Canonical account snapshot</strong> (cards, Drafts, learning state and history). Cloud reads are authenticated; changes are not sent to Cloud. The existing Cloud Mirror and its Outbox will <strong>never</strong> be replaced.</p>
+      <button id="p1d7-mirror-preview" type="button">Check full account Mirror (read only)</button>
+      <div id="p1d7-mirror-preview-result" class="result" aria-live="polite">Not checked. Use this only on a new browser with no Canonical sync Mirror.</div>
+      <button id="p1d7-mirror-install" class="primary" type="button" disabled>Install VERIFIED first-browser sync Mirror</button>
+      <div id="p1d7-mirror-install-result" class="result" aria-live="polite">No Mirror write attempted.</div>
+      <p class="small warn">The install only creates an account-bound <code>wlp-cloud-v1</code> when it has no existing records or pending Outbox. It does not overwrite existing browser-local learning edits, change Official projection, or enable the default card-content cutover. Confirmed Cloud identity and current Cursor are rechecked immediately before installation.</p>
     </section>
 
     <section class="panel">

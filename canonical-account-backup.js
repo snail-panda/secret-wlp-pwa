@@ -150,7 +150,7 @@
   }
 
   async function fetchHead(api){
-    const rows=await api.fetchPaged(AUTHORITY_HEAD,'candidate_key,head_version,snapshot_manifest_hash,canonical_row_count,migration_version,promoted_at','order=promoted_at.desc');
+    const rows=await api.fetchPaged(AUTHORITY_HEAD,'candidate_key,head_version,snapshot_manifest_hash,canonical_row_count,migration_version,promoted_at,namespace_uuid,card_mapping_hash,core_library_hash,cutover_ticket_hash','order=promoted_at.desc');
     if(rows.length!==1)throw new Error(`Canonical Account Safety expected one ACTIVE Authority Head, found ${rows.length}.`);
     return rows[0];
   }
@@ -939,6 +939,25 @@
       async boundary(){
         const {api,accountKey}=await shadowReaderContext(),head=await fetchHead(api);
         return {accountKey,authority:{candidateKey:String(head.candidate_key),headVersion:Number(head.head_version),snapshotManifestHash:String(head.snapshot_manifest_hash)},cursor:await fetchHighWater(api,head)};
+      },
+      // P1-D7: return one fully materialized, identity-verified Canonical account
+      // snapshot. Never expose Auth tokens or credentials to the caller.
+      async readMirrorBootstrap(){
+        const {api,accountKey}=await shadowReaderContext();
+        const {head,highWater,dataset,current}=await readCurrentCanonical(api);
+        const base=await materializeRecords(dataset.baseRows,[],0,'ACTIVE Authority');
+        if(base.manifestHash!==String(head.snapshot_manifest_hash||''))throw new Error('ACTIVE Authority base manifest mismatch; no Mirror install allowed.');
+        const after=await fetchHighWater(api,head);
+        if(after!==highWater)throw new Error('Cloud cursor changed during Mirror preparation. Retry when sync is idle.');
+        const d=await openShadowDb();
+        let device;
+        try{device=await idbGet(d,'shadow_device');}finally{d.close();}
+        const deviceKey=String(device?.deviceKey||'');
+        if(!/^[a-f0-9-]{36}$/i.test(deviceKey))throw new Error('Cloud Shadow device registration is missing. Open Cloud Shadow and save a device label first.');
+        return {accountKey,userId:String(api.session.userId),deviceKey,
+          authority:{candidateKey:String(head.candidate_key),headVersion:Number(head.head_version),snapshotManifestHash:String(head.snapshot_manifest_hash),canonicalRowCount:Number(head.canonical_row_count),namespaceUuid:String(head.namespace_uuid||''),migrationVersion:String(head.migration_version||''),cardMappingHash:String(head.card_mapping_hash||''),coreLibraryHash:String(head.core_library_hash||''),cutoverTicketHash:String(head.cutover_ticket_hash||'')},
+          cursor:highWater,recordCount:current.recordCount,manifestHash:current.manifestHash,
+          records:current.records};
       }
     });
   }
