@@ -9,9 +9,10 @@
   // Never activate on an older projection trial or in Continue/Review.
   const E3_LOCAL_NEW = !LOCAL_DECK_PREVIEW && PARAMS.get('wlpLocalLibrary') === '1';
   const MIRROR_DECK_SOURCE = MIRROR_DECK_PREVIEW || E3_LOCAL_NEW;
+  const E5_QUEUE = E3_LOCAL_NEW && PARAMS.get('wlpOfflineQueue') === '1';
   const previewSuffix = LOCAL_DECK_PREVIEW
     ? '&wlpProjectionTrial=1' + (MIRROR_DECK_PREVIEW ? '&wlpMirrorSource=1' : '')
-    : E3_LOCAL_NEW ? '&wlpLocalLibrary=1' : '';
+    : E3_LOCAL_NEW ? '&wlpLocalLibrary=1' + (E5_QUEUE ? '&wlpOfflineQueue=1' : '') : '';
   const PINNED_KEY = 'wlp:stage7:pinned-decks:v1';
   const RECENT_KEY = 'wlp:stage7:recent-decks:v1';
   const WLP_UI_ROLE_KEY = 'wlp:ui-role:v2';
@@ -34,12 +35,12 @@
       info.style.cssText = 'padding:12px 14px;margin:10px 0 18px;border:1px solid #5d8b77;border-radius:11px;background:#e8f3ed;color:#164834;line-height:1.5';
       const title = document.createElement('strong');
       title.textContent = E3_LOCAL_NEW
-        ? 'P1-E3 — LOCAL LIBRARY NEW STUDY (OPT-IN)'
+        ? (E5_QUEUE ? 'P1-E5 — DURABLE LOCAL STUDY INTENTS (OPT-IN)' : 'P1-E3 — LOCAL LIBRARY NEW STUDY (OPT-IN)')
         : MIRROR_DECK_PREVIEW ? 'P1-E2 — VIEW-ONLY CANONICAL MIRROR DECKS'
         : 'LOCAL LIBRARY — VIEW-ONLY DECK BROWSER';
       const detail = document.createElement('p');
       detail.textContent = E3_LOCAL_NEW
-        ? 'New Official decks read from the verified local Canonical Mirror. The existing Canonical Study state writer remains active when ready. Content editing is blocked in this opt-in route; offline multi-action sync is not yet supported. If preparation fails, this route stops without replacing data.'
+        ? (E5_QUEUE ? 'Official decks use the verified Canonical Mirror. Study actions are journaled locally and staged to the existing Canonical writer one at a time after ACK. Content editing remains blocked; this is opt-in testing, not the default offline Study.' : 'New Official decks read from the verified local Canonical Mirror. The existing Canonical Study state writer remains active when ready. Content editing is blocked in this opt-in route; offline multi-action sync is not yet supported. If preparation fails, this route stops without replacing data.')
         : MIRROR_DECK_PREVIEW
         ? 'Deck index, search and cards use this browser’s verified Canonical Mirror. No Static TSV is used for this preview. Study/Review edits and event writes are disabled.'
         : 'Choose any Official deck. Cards will load from this browser’s Canonical Local Projection; opening, flipping and in-deck movement create no study events. The deck picker itself still uses the existing Static Master index. Study/Review edits are unavailable in this mode.';

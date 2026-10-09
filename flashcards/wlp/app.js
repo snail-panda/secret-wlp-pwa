@@ -235,6 +235,7 @@ function installCardContextReturnNavigation() {
 function cardContextQuerySuffix() {
   const params = new URLSearchParams();
   if (WLP_P1E3_LOCAL_NEW) params.set('wlpLocalLibrary', '1');
+  if (WLP_P1E3_LOCAL_NEW && PARAMS.get('wlpOfflineQueue') === '1') params.set('wlpOfflineQueue', '1');
   if (IS_FROM_PROGRESS) params.set("from", "progress");
   else if (IS_FROM_REVIEW_HUB) params.set("from", "review");
   else if (IS_FROM_CLASSIFICATION) params.set("from", "classification");
@@ -4795,6 +4796,7 @@ function escapeHtml(s) {
     // unapproved Local Edit merge, and no write when the Canonical writer is blocked.
     const normal = new URL(location.href);
     normal.searchParams.delete('wlpLocalLibrary');
+    normal.searchParams.delete('wlpOfflineQueue');
     const block = reason => {
       const host = document.getElementById('cards');
       if (!host) return;
@@ -4832,16 +4834,27 @@ function escapeHtml(s) {
       }
       effectiveRows = local.rows;
       const deckBack = document.querySelector('a.study-back-decks');
-      if (deckBack) deckBack.href = '../../deck-browser.html?wlpLocalLibrary=1';
+      if (deckBack) deckBack.href = '../../deck-browser.html?wlpLocalLibrary=1' + (PARAMS.get('wlpOfflineQueue') === '1' ? '&wlpOfflineQueue=1' : '');
       const info = document.createElement('div');
       info.setAttribute('role', 'status');
       info.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
-      info.textContent = `P1-E3 OPT-IN LOCAL LIBRARY STUDY · Canonical Mirror cursor ${local.info.cursor} · ${local.info.count} Official. Normal Canonical Study state writer ready. Content edits disabled in this route. Source can be reverted without deleting data.`;
+      info.textContent = `${canonicalWriter.e5Enabled ? 'P1-E5 OPT-IN LOCAL STUDY JOURNAL' : 'P1-E3 OPT-IN LOCAL LIBRARY STUDY'} · Canonical Mirror cursor ${local.info.cursor} · ${local.info.count} Official. ${canonicalWriter.e5Enabled ? 'Study actions are preserved locally, then staged to the existing Canonical Writer one at a time. Cloud ACK is required before the next state revision.' : 'Normal Canonical Study state writer ready.'} Content edits disabled in this route. Source can be reverted without deleting data.`;
       const link = document.createElement('a');
       link.href = normal.href;
       link.textContent = ' Return to standard Study';
       link.style.cssText = 'margin-left:12px;color:inherit;font-weight:bold;text-decoration:underline';
       info.append(link);
+      if (canonicalWriter.e5Enabled) {
+        const notice = document.createElement('span');
+        notice.id = 'wlp-e5-queued-count';
+        notice.style.cssText = 'display:block;margin-top:5px;font-weight:600';
+        notice.textContent = 'Queued Study actions: checking local journal…';
+        info.append(notice);
+        const onQueue = event => {notice.textContent = `Queued Study actions: ${Number(event.detail?.queued || 0)}${event.detail?.inFlight ? ' · Canonical Outbox action awaiting ACK' : ''} (saved on this browser until synced)`;};
+        window.addEventListener('wlp-e5-intents-changed',onQueue);
+        // Writer.prepare() can have already emitted its first status event.
+        notice.textContent = `Queued Study actions: ${Number(canonicalWriter.getE5QueueCount?.() || 0)}${canonicalWriter.hasE5InFlight?.() ? ' · Canonical Outbox action awaiting ACK' : ''} (stored locally until acknowledged)`;
+      }
       const host = document.getElementById('cards');
       host?.parentNode?.insertBefore(info, host);
     } catch (error) {

@@ -29,6 +29,8 @@
   const AUDIT_FLAG = 'wlpStudyStateAudit';
   const auditRequested = params.get(AUDIT_FLAG) === '1';
   const draftRoute = params.has('draft');
+  // E5 is restricted to the existing, explicit Local Library New Study route.
+  const e5Enabled = params.get('wlpLocalLibrary') === '1' && params.get('wlpOfflineQueue') === '1' && !rollbackRequested && !draftRoute;
   const projectionStatePilot = params.get('wlpProjectionTrial') === '1' && params.get('wlpProjectionState') === '1' && params.get('wlpProjectionEvents') !== '1';
   const projectionReviewPilot = projectionStatePilot && params.get('wlpProjectionReview') === '1';
   const projectionStudiedPilot = projectionStatePilot && !projectionReviewPilot;
@@ -47,7 +49,8 @@
     report: null,
     autoSyncRefreshPending: false,
     autoSyncRefreshDetail: null,
-    pilotReviewCreatedHere: '' // Review→Attention only on the very card approved in this page session
+    pilotReviewCreatedHere: '', // Review→Attention only on the very card approved in this page session
+    e5Intents: [], e5Draining: false, e5Error: '', e5AppendChain: Promise.resolve()
   };
 
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
@@ -146,12 +149,106 @@
     return row && Object.keys(row).length ? pageRecord(wordId, row) : null;
   }
   function effectiveRecord(wordId) {
-    if (state.overlayByWordId.has(wordId)) return clone(state.overlayByWordId.get(wordId));
     const canonical = canonicalRecord(wordId);
-    if (canonical) return canonical;
     const legacy = rawLegacy(wordId);
-    return Object.keys(legacy).length ? pageRecord(wordId, legacy) : neutralRecord(wordId);
+    let record = state.overlayByWordId.has(wordId) ? clone(state.overlayByWordId.get(wordId)) :
+      canonical || (Object.keys(legacy).length ? pageRecord(wordId, legacy) : neutralRecord(wordId));
+    if (e5Enabled) for (const intent of state.e5Intents) {
+      if (String(intent.wordId) !== String(wordId)) continue;
+      record = applyQueuedIntent(record, intent);
+    }
+    return record;
   }
+  function applyQueuedIntent(record, intent) {
+    const next = pageRecord(intent.wordId, record);
+    if (intent.action === 'studied') Object.assign(next,{known:true,review:false,reviewLevel:'',reviewReasons:[],studied:false});
+    else if (intent.action === 'studied_removed' || intent.action === 'review_removed') Object.assign(next,{known:false,review:false,reviewLevel:'',reviewReasons:[],studied:false});
+    else if (intent.action === 'review') Object.assign(next,{known:false,review:true});
+    else if (intent.action === 'attention_set') Object.assign(next,{known:false,review:true,reviewLevel:intent.level || '',reviewReasons:clone(intent.reasons || [])});
+    return next;
+  }
+  function e5Provider() {
+    const provider = window.WLPStudyIntentQueueE5;
+    if (!provider?.read || !provider?.append || !provider?.handoff) throw new Error('E5 durable Study intent journal is not loaded');
+    return provider;
+  }
+  async function reloadE5Intents() {
+    if (!e5Enabled) return;
+    state.e5Intents = await e5Provider().read(state.db, state.meta);
+  }
+  function storeE5Intent(wordId, action, details = {}) {
+    const next = state.e5AppendChain.catch(()=>{}).then(() => storeE5IntentSerialized(wordId,action,details));
+    state.e5AppendChain = next;
+    return next;
+  }
+  async function storeE5IntentSerialized(wordId, action, details = {}) {
+    if (!state.ready) throw new Error(state.prepareError || 'Canonical Study is not ready');
+    if (state.e5Error) throw new Error(`E5 intent queue is blocked: ${state.e5Error}`);
+    if (state.busy) throw new Error('Previous Study action is still being prepared; retry after it finishes');
+    const current = effectiveRecord(wordId), fromState = pageStateLabel(current);
+    const resolved = action === 'studied-toggle' ? (current.known && !current.review ? 'studied_removed' : 'studied') :
+      action === 'review-toggle' ? (current.review ? 'review_removed' : 'review') : action;
+    if (!['studied','studied_removed','review','review_removed','attention_set'].includes(resolved)) throw new Error('E5 unsupported Study action');
+    if (resolved === 'attention_set' && !current.review) throw new Error('E5 Attention requires a Review membership');
+    const local = await e5Provider().append(state.db,state.meta,{wordId,action:resolved,expectedFromState:fromState,level:details.level,reasons:details.reasons,expectedQueueCount:state.e5Intents.length});
+    state.e5Intents = local.intents;
+    const ctx = state.contexts.get(wordId); try {ctx?.refresh?.();} catch(_) {}
+    for (const entry of state.contexts.values()) { try { updateContextControls(entry); } catch (_) {} }
+    e5QueueNotice();
+    toast(`Saved locally · ${state.e5Intents.length} queued Study action(s), awaiting safe Canonical sync.`,4700);
+    // Do not require online connectivity to commit an intent into local IndexedDB.
+    setTimeout(()=>{void drainE5Intents();},0);
+    return {pass:true,queued:true,intentId:local.intent.id,remaining:state.e5Intents.length};
+  }
+  function e5QueueNotice(inFlight = state.globalPending) {
+    if (!e5Enabled) return;
+    window.dispatchEvent(new CustomEvent('wlp-e5-intents-changed',{detail:{queued:state.e5Intents.length,inFlight:Boolean(inFlight)}}));
+  }
+  async function verifyE5Account() {
+    const sessionProvider = window.WLPP1C3Review;
+    if (typeof sessionProvider?.readSession !== 'function') throw new Error('E5 account verification is unavailable');
+    const observed = await sessionProvider.readSession();
+    if (String(observed?.session?.userId || '') !== String(state.meta?.userId || '')) throw new Error('E5 account session differs from the Local Canonical Mirror');
+    if (String(localStorage.getItem('wlp:device-id:v1') || '') !== String(state.meta?.deviceKey || '')) throw new Error('E5 browser Device ID differs from Local Canonical Mirror');
+  }
+  async function drainE5Intents() {
+    if (!e5Enabled || !state.ready || state.e5Draining || state.busy || !state.e5Intents.length || state.e5Error) return;
+    if (navigator.onLine === false) return;
+    state.e5Draining = true;
+    try {
+      await reloadE5Intents();
+      if (!state.e5Intents.length || (await countOutbox(state.db)) !== 0) return;
+      // Always pull before preparing the next state revision. If another foreground
+      // sync is busy, do not stage an action against an unconfirmed base.
+      const sync = window.WLPCanonicalForegroundSync;
+      if (typeof sync?.runSync !== 'function') throw new Error('E5 requires the existing Foreground Sync');
+      const report = await sync.runSync({trigger:'e5-study-queue-base-refresh',receiverOnly:true});
+      if (report === null) { setTimeout(()=>{void drainE5Intents();},2000); return; }
+      if (!report?.summary?.pass || report?.summary?.deferred || report?.summary?.role === 'receiver-deferred') {
+        setStatus('E5 WAIT · Cloud refresh unavailable. Local intents are retained.',null,`Queued actions: ${state.e5Intents.length}. Retry on the next online/foreground event.`);
+        return;
+      }
+      if ((await countOutbox(state.db)) !== 0) return;
+      state.meta = await getMeta(state.db,META_KEY);
+      state.cursorMeta = await getMeta(state.db,CURSOR_KEY);
+      await verifyE5Account();
+      await refreshFacade();
+      const item = state.e5Intents[0], loaded = await loadCardBase(item.wordId);
+      const settledLabel = pageStateLabel(loaded.baseRecord);
+      if (settledLabel !== item.expectedFromState) throw new Error(`E5 conflict for WID ${item.wordId}: expected ${item.expectedFromState}, Canonical is ${settledLabel}. Queued intent preserved.`);
+      const plan = item.action === 'attention_set'
+        ? await buildAttentionPlan(item.wordId,item.level,item.reasons)
+        : await buildMembershipPlan(item.wordId,item.action);
+      // Atomic ownership transfer: the queue head is removed in the SAME IndexedDB
+      // transaction that stages the proven state/event pair into sync_outbox.
+      const result = await executePlan(plan,state.contexts.get(item.wordId),item);
+      if (!result.pass) throw new Error(result.error || 'E5 Canonical handoff failed; inspect retained outbox');
+    } catch(error) {
+      state.e5Error = error?.message || String(error);
+      setStatus(`E5 CHECK · ${state.e5Error}`,false,'Queued intents and/or Canonical Outbox were retained for safe recovery.',{forcePanel:true});
+    } finally {state.e5Draining=false;}
+  }
+
   function nextFrames(n = 2) { return new Promise(resolve => { const step = () => { if (--n <= 0) resolve(); else requestAnimationFrame(step); }; requestAnimationFrame(step); }); }
   async function waitForFacade() { for (let i = 0; i < 80; i++) { const p = window.WLPCanonicalStorageCompatibilityFacade; if (p?.open) return p; await new Promise(r => setTimeout(r, 25)); } return null; }
 
@@ -202,9 +299,11 @@
       const facade = await refreshFacade(), outbox = await countOutbox(db);
       state.globalPending = outbox > 0;
       if (outbox !== Number(facade.pendingOutboxRows || 0)) throw new Error(`Canonical outbox/facade count mismatch: ${outbox} vs ${Number(facade.pendingOutboxRows || 0)}.`);
-      if (outbox !== 0 && outbox !== 2) throw new Error(`Default Canonical Study cutover found unsupported pending sync_outbox size ${outbox}; expected 0 or one action pair (2).`);
+      if (!e5Enabled && outbox !== 0 && outbox !== 2) throw new Error(`Default Canonical Study cutover found unsupported pending sync_outbox size ${outbox}; expected 0 or one action pair (2).`);
+      if (e5Enabled) { await verifyE5Account(); await reloadE5Intents(); e5QueueNotice(); }
       state.ready = true; state.prepareError = '';
       setStatus(outbox ? 'READY · One Canonical Study action is pending Cloud sync.' : 'READY · Normal Study writes now use Canonical outbox.', true, `All official cards · cursor ${cursor} · outbox ${outbox}. Rollback: ?wlpLegacyStudyAttentionWrite=1`);
+      if (e5Enabled && state.e5Intents.length) setTimeout(()=>{void drainE5Intents();},300);
       if (state.autoSyncRefreshPending) {
         const pendingDetail = clone(state.autoSyncRefreshDetail || { pass:true, role:'receiver' });
         setTimeout(() => { void onAutoSyncComplete({ detail:pendingDetail }); }, 0);
@@ -376,7 +475,7 @@
     return ['Removed from Review. This card is neutral for now. Tap Review again whenever you want to bring it back.', 4800];
   }
 
-  async function executePlan(plan, ctx) {
+  async function executePlan(plan, ctx, e5Intent = null) {
     if (!state.ready) throw new Error(state.prepareError || 'Canonical Study cutover is not ready.');
     if (state.busy) throw new Error('Another Canonical Study action is running.');
     const beforeOutbox = await countOutbox(state.db);
@@ -384,7 +483,9 @@
     const legacyBefore = rawLegacyString(plan.wordId), baseWrapperBefore = plan.baseWrapper ? clone(plan.baseWrapper) : null;
     state.busy = true; setStatus(`Saving WID ${plan.wordId} ${plan.eventType} → Canonical outbox…`); let cleanupNeeded = false;
     try {
-      const wrote = await enqueueMutations(plan); cleanupNeeded = true; const afterOutbox = await countOutbox(state.db);
+      const wrote = e5Intent ? (state.e5Intents = await e5Provider().handoff(state.db,state.meta,e5Intent,plan.mutations),2) : await enqueueMutations(plan);
+      if (e5Intent) e5QueueNotice(true);
+      cleanupNeeded = !e5Intent; const afterOutbox = await countOutbox(state.db);
       state.overlayByWordId.set(plan.wordId, legacyRecord(plan.wordId, plan.patchedPayload));
       ctx?.refresh?.(); await nextFrames(3);
       const facade = await refreshFacade(), overlayRecord = pageRecord(plan.wordId, facade.readProgressRecord(plan.wordId)), overlayEvents = facade.readInteractionEvents();
@@ -392,7 +493,8 @@
       const baseWrapperDuring = await getStateRow(state.db, plan.cardId), baseUntouched = plan.creating ? baseWrapperDuring === null : stableStringify(baseWrapperDuring) === stableStringify(baseWrapperBefore);
       const rows = await getAllOutbox(state.db), ours = rows.filter(r => r?.canonicalStudyDefaultCutover === true && r?.transportEligible === true && String(r?.actionId || '') === plan.actionId);
       const identitiesOk = ours.length === 2 && ours.every(r => isUuid(r.mutationId)) && isUuid(plan.actionId) && isUuid(plan.eventId);
-      const actualState = pageStateLabel(overlayRecord), ui = uiStateForContext(ctx), uiOk = expectedUiOk(plan.eventType, ui);
+      const actualState = pageStateLabel(overlayRecord), ui = uiStateForContext(ctx), predicted = effectiveRecord(plan.wordId);
+      const uiOk = e5Intent ? (!ctx?.root || (ui.studiedPressed === String(Boolean(predicted.known && !predicted.review)) && ui.reviewPressed === String(Boolean(predicted.review)) && ui.attentionHidden === !Boolean(predicted.review))) : expectedUiOk(plan.eventType,ui);
       const legacyUntouched = rawLegacyString(plan.wordId) === legacyBefore;
       const expectedFirstSeen = plan.creating ? ms(plan.patchedPayload.first_seen_at) : Number(plan.baseRecord.firstSeen || 0), firstSeenOk = Number(overlayRecord.firstSeen || 0) === Number(expectedFirstSeen || 0);
       const checks = [
@@ -407,18 +509,18 @@
       const blocking = checks.filter(x => !x.pass).map(x => x.name), cursor = Math.max(Number(state.meta?.materializedSyncCursor ?? state.meta?.lastSyncCursor ?? 0), Number(state.cursorMeta?.lastSyncCursor || 0));
       state.report = { format:'WLP_CANONICAL_STUDY_DEFAULT_WRITE_CUTOVER', version:1, appVersion:APP_VERSION, generatedAt:new Date().toISOString(), mode:'normal-study-default-canonical-write-to-persistent-outbox', device:{ deviceKey:state.meta?.deviceKey || null, platform:/iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iPhone Safari/WebKit' : 'Windows Browser' }, authority:{ candidateKey:state.meta?.candidateKey || null, headVersion:state.meta?.headVersion || null, snapshotManifestHash:state.meta?.snapshotManifestHash || null, materializedSyncCursor:cursor, materializedManifestHash:state.meta?.materializedManifestHash || null, materializedRows:state.meta?.materializedCanonicalRowCount || null }, summary:{ defaultCutoverActive:true, wordId:plan.wordId, action:plan.eventType, fromState:plan.fromState, toState:plan.toState, initialCreate:plan.creating, outboxRowsBefore:beforeOutbox, outboxRowsAfter:afterOutbox, overlayMutationsApplied:Number(facade.overlayMutationsApplied || 0), studyUiStudied:ui.studiedText, studyUiReview:ui.reviewText, studyUiAttention:ui.attentionText, transportEligible:true, productionUuidIds:identitiesOk, baseMirrorUntouched:baseUntouched, firstSeenValid:firstSeenOk, legacyLocalStorageUntouched:legacyUntouched, cloudWrites:0, blockingIssues:blocking.length, nextPhaseEligible:blocking.length === 0, pass:blocking.length === 0 }, plan:{ actionId:plan.actionId, eventType:plan.eventType, wordId:plan.wordId, cardId:plan.cardId, fromState:plan.fromState, toState:plan.toState, mutationIds:ours.map(x => x.mutationId).sort(), eventId:plan.eventId, createdAt:plan.at }, checks, issues:{ blocking, warnings:['One pending Canonical action pair is allowed at a time; raw Canonical field representation is preserved in conflict guards, supported actions may be claimed by foreground auto-sync, and manual Cloud Shadow remains fallback.','Attention supports no level plus Light/Medium/High while Review membership stays active.','Explicit rollback remains available with ?wlpLegacyStudyAttentionWrite=1.'] }, invariants:{ normalRouteNoQueryOptIn:true, allOfficialCardsEligible:true, noLegacyMembershipAttentionWrite:legacyUntouched, indexedDbWritesRestrictedToSyncOutbox:true, pendingRowsTransportEligible:true, noCloudWrites:true, authorityBaseImmutable:baseUntouched, noConflictAutoOverwrite:true, explicitFirstSeenValid:firstSeenOk } };
       if (blocking.length) throw new Error(`Cutover verification failed: ${blocking.join('; ')}`);
-      cleanupNeeded = false; state.globalPending = true; allRenderedControlsPending(true);
-      setStatus(`PASS · WID ${plan.wordId} ${plan.eventType} is pending foreground sync.`, true, `outbox 0 → 2 · cursor ${cursor} · supported actions are claimed by foreground auto-sync; Cloud Shadow remains fallback.`);
+      cleanupNeeded = false; state.globalPending = true; if (!e5Enabled) allRenderedControlsPending(true);
+      setStatus(`PASS · WID ${plan.wordId} ${plan.eventType} is pending foreground sync.`, true, `outbox 0 → 2 · cursor ${cursor} · queued ${state.e5Intents.length} · existing Foreground Sync will ACK before next action.`);
       window.dispatchEvent(new CustomEvent('wlp-canonical-outbox-staged', { detail:{ source:'study', actionId:plan.actionId, wordId:plan.wordId, eventType:plan.eventType, mutationCount:ours.length } }));
       return { pass:true, reloading:false, eventType:plan.eventType, fromState:plan.fromState, toState:plan.toState, report:clone(state.report) };
     } catch (error) {
       const message = error?.message || String(error);
       try { if (cleanupNeeded) await cleanupMutations(plan); } catch (cleanupError) { console.error('Canonical Study cleanup failed', cleanupError); }
-      state.overlayByWordId.delete(plan.wordId); try { ctx?.refresh?.(); } catch (_) {}
+      if (!e5Intent) state.overlayByWordId.delete(plan.wordId); try { ctx?.refresh?.(); } catch (_) {}
       state.report = { format:'WLP_CANONICAL_STUDY_DEFAULT_WRITE_CUTOVER', version:1, appVersion:APP_VERSION, generatedAt:new Date().toISOString(), mode:'normal-study-default-canonical-write-to-persistent-outbox', summary:{ defaultCutoverActive:true, wordId:plan.wordId, action:plan.eventType, blockingIssues:1, nextPhaseEligible:false, pass:false }, issues:{ blocking:[message], warnings:['Best-effort outbox cleanup was attempted. No Cloud write or legacy progress write was intended.'] }, invariants:{ noCloudWrites:true } };
       setStatus(`BLOCKED · ${message}`, false, 'No second action should be attempted until this is understood.', { forcePanel:true });
       return { pass:false, error:message, report:clone(state.report) };
-    } finally { state.busy = false; const b = document.getElementById('wlp-study-attention-candidate-export'); if (b) b.disabled = !state.report; }
+    } finally { state.busy = false; if (e5Enabled) for(const c of state.contexts.values()) {try{updateContextControls(c);}catch(_){}} const b = document.getElementById('wlp-study-attention-candidate-export'); if (b) b.disabled = !state.report; }
   }
 
   async function runMembershipRoundtrip(input) {
@@ -428,6 +530,7 @@
     const ctx = state.contexts.get(wordId) || (typeof input === 'object' ? input.ctx : null);
     if (!wordId) return { pass:false, error:'Canonical Study membership action has no WordID.' };
     try {
+      if (e5Enabled) return await storeE5Intent(wordId,action);
       const plan = await buildMembershipPlan(wordId, action);
       if (projectionStatePilot && (plan.eventType !== (projectionReviewPilot ? 'review' : 'studied') || plan.fromState !== 'neutral')) return { pass:false, error:'Projection pilot may change only a neutral card to its approved state. Existing membership was not changed.' };
       const result = await executePlan(plan, ctx);
@@ -448,6 +551,7 @@
     if (projectionReviewPilot && (!window.WLPP1D4StudyPilot?.isActive?.() || wordId !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId || state.pilotReviewCreatedHere !== wordId || !state.ready || state.globalPending || !effectiveRecord(wordId).review)) return { pass:false, error:'P1-D5 permits Attention only after this page has created and synced Review for the verified first card.' };
     if (!wordId) return { pass:false, error:'Canonical Study Attention action has no WordID.' };
     try {
+      if (e5Enabled) return await storeE5Intent(wordId,'attention_set',{level:input.level,reasons:input.reasons});
       const plan = await buildAttentionPlan(wordId, input.level, input.reasons), result = await executePlan(plan, ctx || { refresh:input.refresh });
       if (result.pass) toast(plan.toLevel ? `${plan.toLevel[0].toUpperCase()}${plan.toLevel.slice(1)} attention saved.` : 'Review attention details saved.', 4200);
       else toast('Canonical Study attention was blocked. No legacy attention write occurred.', 6200);
@@ -466,8 +570,8 @@
       if (attention) attention.disabled = true;
       return;
     }
-    if (!state.ready || state.globalPending) {
-      const title = state.ready ? 'Canonical Study action pending Cloud sync. Run Cloud Shadow steady sync before another write.' : `Canonical Study cutover blocked: ${state.prepareError || 'not ready'}`;
+    if (!state.ready || (!e5Enabled && state.globalPending) || (e5Enabled && Boolean(state.e5Error))) {
+      const title = state.e5Error || (state.ready ? 'Canonical Study action pending Cloud sync. Run Cloud Shadow steady sync before another write.' : `Canonical Study cutover blocked: ${state.prepareError || 'not ready'}`);
       if (studied) { studied.disabled = true; studied.title = title; }
       if (review) { review.disabled = true; review.title = title; }
       if (attention && !attention.hidden) { attention.disabled = true; attention.title = title; }
@@ -498,7 +602,7 @@
     }
     if (studied) { studied.disabled = false; studied.title = 'Save Studied through Canonical outbox.'; }
     if (review) { review.disabled = projectionStatePilot; review.title = projectionStatePilot ? 'P1-D4 first pilot enables Studied only.' : 'Save Review through Canonical outbox.'; }
-    if (attention && !attention.hidden) { attention.disabled = projectionStatePilot || !canonical; attention.title = projectionStatePilot ? 'P1-D4 Attention not enabled.' : canonical ? 'Save Attention through Canonical outbox.' : 'Sync the initial Review state before setting Attention.'; }
+    if (attention && !attention.hidden) { const canReview = e5Enabled ? Boolean(effectiveRecord(wordId).review) : Boolean(canonical); attention.disabled = projectionStatePilot || !canReview; attention.title = projectionStatePilot ? 'P1-D4 Attention not enabled.' : canReview ? 'Save Attention through Canonical outbox.' : 'Sync the initial Review state before setting Attention.'; }
   }
 
   async function afterRender(ctx = {}) {
@@ -535,7 +639,7 @@
       const wordId = cleanWordId(detail.wordId);
       if (wordId) state.overlayByWordId.delete(wordId);
       state.meta = await getMeta(state.db, META_KEY); state.cursorMeta = await getMeta(state.db, CURSOR_KEY);
-      await refreshFacade(); state.globalPending = false;
+      await refreshFacade(); state.globalPending = false; e5QueueNotice(false);
       for (const ctx of state.contexts.values()) { try { ctx?.refresh?.(); } catch (_) {} }
       allRenderedControlsPending(false);
       for (const ctx of state.contexts.values()) updateContextControls(ctx);
@@ -547,6 +651,7 @@
       }
       state.autoSyncRefreshPending = false;
       state.autoSyncRefreshDetail = null;
+      if (e5Enabled && state.e5Intents.length) setTimeout(()=>{void drainE5Intents();},120);
     } catch (error) {
       state.autoSyncRefreshPending = true;
       state.autoSyncRefreshDetail = clone(detail);
@@ -554,10 +659,15 @@
     }
   }
   window.addEventListener('wlp-canonical-auto-sync-complete', onAutoSyncComplete);
+  if (e5Enabled) {
+    addEventListener('online',()=>{if(!state.e5Error)void drainE5Intents();});
+    addEventListener('focus',()=>{if(!state.e5Error)void drainE5Intents();});
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!state.e5Error)void drainE5Intents();});
+  }
   function close() { try { state.db?.close(); } catch (_) {} }
   addEventListener('pagehide', close, { once:true });
 
-  const api = { version:10, requested, rollbackRequested, auditRequested, prepare, isActive:() => requested, isReady:() => state.ready, getPrepareError:() => state.prepareError, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
+  const api = { version:11, requested, rollbackRequested, auditRequested, e5Enabled, getE5QueueCount:()=>state.e5Intents.length, hasE5InFlight:()=>state.globalPending, prepare, isActive:() => requested, isReady:() => state.ready, getPrepareError:() => state.prepareError, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
   window.WLPCanonicalStudyAttentionWriteCandidate = Object.freeze(api);
   if (auditRequested) makePanel();
 })();
