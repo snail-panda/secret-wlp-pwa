@@ -28,7 +28,8 @@
   const AUDIT_FLAG = 'wlpStudyStateAudit';
   const auditRequested = params.get(AUDIT_FLAG) === '1';
   const draftRoute = params.has('draft');
-  const requested = !rollbackRequested && !draftRoute && params.get('wlpProjectionTrial') !== '1'; // P1-D2 trial must not initialize study-state writer
+  const projectionStatePilot = params.get('wlpProjectionTrial') === '1' && params.get('wlpProjectionState') === '1' && params.get('wlpProjectionEvents') !== '1';
+  const requested = !rollbackRequested && !draftRoute && (params.get('wlpProjectionTrial') !== '1' || projectionStatePilot); // P1-D2 trial must not initialize study-state writer
   const state = {
     ready: false,
     busy: false,
@@ -349,9 +350,9 @@
     for (const ctx of state.contexts.values()) {
       const root = ctx?.root; if (!root) continue;
       const studied = root.querySelector('.btn-studied'), review = root.querySelector('.btn-review'), attention = root.querySelector('.btn-review-attention');
-      if (studied) studied.disabled = pending || !state.ready;
-      if (review) review.disabled = pending || !state.ready;
-      if (attention && !attention.hidden) attention.disabled = pending || !state.ready;
+      if (studied) studied.disabled = pending || !state.ready || (projectionStatePilot && (!window.WLPP1D4StudyPilot?.isActive?.() || cleanWordId(ctx.wordId) !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId));
+      if (review) review.disabled = projectionStatePilot || pending || !state.ready;
+      if (attention && !attention.hidden) attention.disabled = projectionStatePilot || pending || !state.ready;
     }
   }
   function membershipToast(eventType) {
@@ -409,10 +410,13 @@
   async function runMembershipRoundtrip(input) {
     const wordId = cleanWordId(typeof input === 'object' ? input.wordId : '');
     const action = typeof input === 'object' ? input.action : input;
+    if (projectionStatePilot && (!window.WLPP1D4StudyPilot?.isActive?.() || wordId !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId || action !== 'studied-toggle')) return { pass:false, error:'P1-D4 only permits Studied on the verified first WID. No write.' };
     const ctx = state.contexts.get(wordId) || (typeof input === 'object' ? input.ctx : null);
     if (!wordId) return { pass:false, error:'Canonical Study membership action has no WordID.' };
     try {
-      const plan = await buildMembershipPlan(wordId, action), result = await executePlan(plan, ctx);
+      const plan = await buildMembershipPlan(wordId, action);
+      if (projectionStatePilot && (plan.eventType !== 'studied' || plan.fromState !== 'neutral')) return { pass:false, error:'P1-D4 can only add Studied to a currently neutral card. Existing study status was not changed.' };
+      const result = await executePlan(plan, ctx);
       if (result.pass) {
         const [message, duration] = membershipToast(plan.eventType); toast(message, duration);
         if (ctx?.isReviewMode && (plan.eventType === 'studied' || plan.eventType === 'review_removed')) ctx.removeFromReviewDeck?.();
@@ -424,6 +428,7 @@
   }
 
   async function runAttentionRoundtrip(input = {}) {
+    if (projectionStatePilot) return { pass:false, error:'P1-D4 Attention writes are not enabled.' };
     const wordId = cleanWordId(input.wordId), ctx = state.contexts.get(wordId) || null;
     if (!wordId) return { pass:false, error:'Canonical Study Attention action has no WordID.' };
     try {
@@ -439,6 +444,12 @@
   function updateContextControls(ctx) {
     const root = ctx?.root; if (!root) return;
     const wordId = cleanWordId(ctx.wordId), studied = root.querySelector('.btn-studied'), review = root.querySelector('.btn-review'), attention = root.querySelector('.btn-review-attention');
+    if (projectionStatePilot && (wordId !== window.WLPP1D4StudyPilot?.getStatus?.()?.wordId || !window.WLPP1D4StudyPilot?.isActive?.())) {
+      if (studied) studied.disabled = true;
+      if (review) review.disabled = true;
+      if (attention) attention.disabled = true;
+      return;
+    }
     if (!state.ready || state.globalPending) {
       const title = state.ready ? 'Canonical Study action pending Cloud sync. Run Cloud Shadow steady sync before another write.' : `Canonical Study cutover blocked: ${state.prepareError || 'not ready'}`;
       if (studied) { studied.disabled = true; studied.title = title; }
@@ -448,6 +459,12 @@
     }
     const canonical = canonicalRecord(wordId), legacy = pageRecord(wordId, rawLegacy(wordId));
     const missingWithLegacyMembership = !canonical && hasLegacyActiveMembership(legacy);
+    if (projectionStatePilot && pageStateLabel(effectiveRecord(wordId)) !== 'neutral') {
+      if (studied) { studied.disabled = true; studied.title = 'P1-D4 only permits marking a neutral card Studied; no existing status will be removed.'; }
+      if (review) review.disabled = true;
+      if (attention) attention.disabled = true;
+      return;
+    }
     if (missingWithLegacyMembership) {
       const title = 'Legacy membership exists but Canonical learning_state is absent. Default cutover blocks writes until migration is repaired or rollback is explicitly enabled.';
       if (studied) { studied.disabled = true; studied.title = title; }
@@ -456,8 +473,8 @@
       return;
     }
     if (studied) { studied.disabled = false; studied.title = 'Save Studied through Canonical outbox.'; }
-    if (review) { review.disabled = false; review.title = 'Save Review through Canonical outbox.'; }
-    if (attention && !attention.hidden) { attention.disabled = !canonical; attention.title = canonical ? 'Save Attention through Canonical outbox.' : 'Sync the initial Review state before setting Attention.'; }
+    if (review) { review.disabled = projectionStatePilot; review.title = projectionStatePilot ? 'P1-D4 first pilot enables Studied only.' : 'Save Review through Canonical outbox.'; }
+    if (attention && !attention.hidden) { attention.disabled = projectionStatePilot || !canonical; attention.title = projectionStatePilot ? 'P1-D4 Attention not enabled.' : canonical ? 'Save Attention through Canonical outbox.' : 'Sync the initial Review state before setting Attention.'; }
   }
 
   async function afterRender(ctx = {}) {
@@ -516,7 +533,7 @@
   function close() { try { state.db?.close(); } catch (_) {} }
   addEventListener('pagehide', close, { once:true });
 
-  const api = { version:10, requested, rollbackRequested, auditRequested, prepare, isActive:() => requested, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
+  const api = { version:10, requested, rollbackRequested, auditRequested, prepare, isActive:() => requested, isReady:() => state.ready, getPrepareError:() => state.prepareError, readProgressKey, runAttentionRoundtrip, runMembershipRoundtrip, afterRender, getReport:() => clone(state.report) };
   window.WLPCanonicalStudyAttentionWriteCandidate = Object.freeze(api);
   if (auditRequested) makePanel();
 })();
