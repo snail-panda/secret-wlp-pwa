@@ -26,7 +26,7 @@
 
   /* v1.8.6.157 — Study Context V1. Card Study keeps a small, durable
      context record separate from shallow Recent Decks / Activity history. */
-  const studyContextApi = window.WLPStudyContext || null;
+  const studyContextApi = params.get('wlpProjectionTrial') === '1' ? null : (window.WLPStudyContext || null); // P1-D2 trial: no Study Context session is created/updated
   const ACTIVE_CARD_CONTEXT_KEY = 'wlp:active-card-study-context:v1';
   const CARD_ROUND_SESSION_KEY = 'wlp:card-round-completion-session:v1';
   const STUDY_SET_MARKER_PROMPT_ID = 'study-set-marker-prompt';
@@ -477,7 +477,7 @@
     }
   }
 
-  if (isNormalDeck) {
+  if (isNormalDeck && params.get('wlpProjectionTrial') !== '1') { // P1-D2: preview is not a recently studied deck
     let recent = [];
     try { recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch {}
     recent = Array.isArray(recent) ? recent.filter(Number.isFinite) : [];

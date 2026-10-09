@@ -42,7 +42,7 @@
   function auditActive(){return params().get(AUDIT_FLAG)==='1';}
   function manualCanaryActive(){return params().has(MANUAL_CANARY_FLAG);}
   function receiverAuditActive(){return params().has(RECEIVER_AUDIT_FLAG);}
-  function writerActive(){return !rollbackActive()&&!manualCanaryActive()&&!receiverAuditActive();}
+  function writerActive(){return params().get('wlpProjectionTrial')!=='1'&&!rollbackActive()&&!manualCanaryActive()&&!receiverAuditActive();} // P1-D2: trial cannot enqueue or drain default writes
   function validInteraction(e){return e&&typeof e==='object'&&ACTIONS.has(clean(e.action))&&clean(e.wordId)&&Number(e.timestamp)>0&&['source-deck','review-deck','study-set','solo'].includes(clean(e.source));}
   function eventIdentity(e){return`${Number(e.timestamp)}|${clean(e.wordId)}|${clean(e.source)}|${clean(e.deck)}|${clean(e.action)}`;}
   function readPending(){try{const v=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');return(Array.isArray(v)?v:[]).filter(x=>x&&typeof x==='object'&&validInteraction(x.event));}catch(_){return[];}}

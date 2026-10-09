@@ -4,6 +4,7 @@
 // Stage 7 v1.8.6.126 — Build a Study Set temporary-set navigation.
 // Guest-default / Admin UI mode with optional remembered admin access
 
+// P1-D2: trial stays opt-in; study/encounter event writes are suppressed only on this URL.
 // P1-D1: manually requested, reversible Official read-source trial (no default switch).
 const WLP_P1D1_PROJECTION_TRIAL = new URLSearchParams(location.search).get('wlpProjectionTrial') === '1';
 
@@ -295,6 +296,7 @@ function studySource() {
 }
 
 function activityEvent(type, row, extra = {}) {
+  if (WLP_P1D1_PROJECTION_TRIAL) return null; // Trial read only: no activity history.
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return null;
   const event = {
@@ -310,6 +312,7 @@ function activityEvent(type, row, extra = {}) {
 }
 
 function interactionEvent(action, row, extra = {}) {
+  if (WLP_P1D1_PROJECTION_TRIAL) return null; // Trial flip/audio are presentation only.
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return;
   const interaction = {
@@ -330,6 +333,7 @@ function interactionEvent(action, row, extra = {}) {
 }
 
 function recordEncounter(row) {
+  if (WLP_P1D1_PROJECTION_TRIAL) return; // No exposure/progress/encounter writes from trial navigation.
   const wordId = progressWordId(row);
   if (!wordId || IS_DRAFT_MODE) return;
   const now = Date.now();
@@ -3961,6 +3965,15 @@ function bindCardBehavior(
 
   refreshProgressControls();
 
+  if (WLP_P1D1_PROJECTION_TRIAL) {
+    // The first normal-UI trial proves reading and interaction presentation, not study writes.
+    // Disable content-affecting actions. Keep Flip and in-deck navigation functional.
+    root.querySelectorAll('.btn-studied, .btn-review, .btn-review-attention, .btn-studied-front, .btn-review-front, .btn-review-attention-front, .btn-record, .btn-record-save, .btn-record-retake, .btn-record-clear').forEach(button => {
+      button.disabled = true;
+      button.title = 'P1-D2 view-only trial: no study, attention, or recording changes.';
+    });
+  }
+
   const canonicalStudyCandidateActive = Boolean(window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.());
   if (canonicalStudyCandidateActive) {
     void window.WLPCanonicalStudyAttentionWriteCandidate?.afterRender?.({
@@ -3982,6 +3995,7 @@ function bindCardBehavior(
   }
 
   studiedButton?.addEventListener("click", () => {
+    if (WLP_P1D1_PROJECTION_TRIAL) return;
     if (window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.()) return;
     const before = readProgress(stateKey);
     const wasStudied = Boolean(before.known) && !Boolean(before.review);
@@ -4018,6 +4032,7 @@ function bindCardBehavior(
   });
 
   reviewButton?.addEventListener("click", () => {
+    if (WLP_P1D1_PROJECTION_TRIAL) return;
     if (window.WLPCanonicalStudyAttentionWriteCandidate?.isActive?.()) return;
     const cur = readProgress(stateKey);
 
@@ -4053,6 +4068,7 @@ function bindCardBehavior(
   });
 
   attentionButton?.addEventListener("click", () => {
+    if (WLP_P1D1_PROJECTION_TRIAL) return;
     openReviewAttentionSheet(row, stateKey, refreshProgressControls);
   });
 
@@ -4715,7 +4731,7 @@ function escapeHtml(s) {
       label.setAttribute('role', 'status');
       label.style.cssText = 'padding:10px 14px;margin:10px auto;max-width:940px;border:1px solid #5d8b77;border-radius:10px;background:#e8f3ed;color:#164834;line-height:1.5';
       const message = document.createElement('span');
-      message.textContent = `P1-D1 LOCAL PROJECTION TRIAL · ${trial.info.count} Official cards · cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. Content edits disabled. Deck-to-deck navigation returns to Standard. No automatic Cloud sync or source cutover.`;
+      message.textContent = `P1-D1 LOCAL PROJECTION TRIAL · ${trial.info.count} Official cards · cursor ${trial.info.cursor} · ${trial.info.batchCards} deck-assigned · ${trial.info.noBatch} pending deck assignment. Content and study writes disabled in this trial. Flip and in-deck navigation are view-only. Deck-to-deck navigation returns to Standard. No automatic Cloud sync introduced or source cutover.`;
       const standard = document.createElement('a');
       standard.href = returnToStandard;
       standard.textContent = ' Return to standard view';

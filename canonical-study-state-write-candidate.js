@@ -28,7 +28,7 @@
   const AUDIT_FLAG = 'wlpStudyStateAudit';
   const auditRequested = params.get(AUDIT_FLAG) === '1';
   const draftRoute = params.has('draft');
-  const requested = !rollbackRequested && !draftRoute;
+  const requested = !rollbackRequested && !draftRoute && params.get('wlpProjectionTrial') !== '1'; // P1-D2 trial must not initialize study-state writer
   const state = {
     ready: false,
     busy: false,
