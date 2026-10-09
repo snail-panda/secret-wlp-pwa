@@ -143,7 +143,7 @@
     let db;let before=null;
     try{db=await openDb();before=await getActive(db);}finally{db?.close();}
     assertAccountBinding(before,accountKey);
-    assert(!before||before.cursor<=checked.cursor,`Cloud cursor ${checked.cursor} is behind local cursor ${before.cursor}`);
+    assert(!before||before.cursor<=checked.cursor,`Cloud cursor ${checked.cursor} is behind local cursor ${before?.cursor??"none"}`);
     const live=await inspectLiveOutbox();
     assert(live.count===0,`Pending live Canonical Outbox has ${live.count} change(s). Sync these safely before installing a Cloud shadow generation`);
     const old=new Map();
