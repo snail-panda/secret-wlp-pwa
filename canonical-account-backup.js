@@ -953,7 +953,7 @@
         let device;
         try{device=await idbGet(d,'shadow_device');}finally{d.close();}
         const deviceKey=String(device?.deviceKey||'');
-        if(!/^[a-f0-9-]{36}$/i.test(deviceKey))throw new Error('Cloud Shadow device registration is missing. Open Cloud Shadow and save a device label first.');
+        if(!/^(?:device-)?[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(deviceKey))throw new Error('Cloud Shadow device registration is missing or malformed. Open Cloud Shadow in this browser to initialize its device identity.');
         return {accountKey,userId:String(api.session.userId),deviceKey,
           authority:{candidateKey:String(head.candidate_key),headVersion:Number(head.head_version),snapshotManifestHash:String(head.snapshot_manifest_hash),canonicalRowCount:Number(head.canonical_row_count),namespaceUuid:String(head.namespace_uuid||''),migrationVersion:String(head.migration_version||''),cardMappingHash:String(head.card_mapping_hash||''),coreLibraryHash:String(head.core_library_hash||''),cutoverTicketHash:String(head.cutover_ticket_hash||'')},
           cursor:highWater,recordCount:current.recordCount,manifestHash:current.manifestHash,
