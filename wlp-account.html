@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#eef6ee"><title>WLP Cloud Account — Wordlist Garden</title><link rel="stylesheet" href="./style.css"><style>
+body{background:#eef6ee;color:#214e3c;font-family:system-ui,-apple-system,sans-serif;margin:0}main{max-width:760px;margin:auto;padding:28px 20px 70px}header{padding:8px 0 20px;border-bottom:1px solid #c8dacd}header a{color:#214e3c}h1{font-family:Georgia,serif;font-size:2rem;margin:20px 0 10px}p{line-height:1.6}.card{background:#fff;border:1px solid #cadfd0;border-radius:18px;padding:22px;margin-top:20px}h2{font-family:Georgia,serif;font-size:1.4rem}.muted{font-size:.92rem;color:#536d5d}label{display:block;font-weight:650;margin-top:14px}input{display:block;width:100%;font:inherit;padding:12px;margin-top:6px;box-sizing:border-box;border:1px solid #a4bda9;border-radius:8px}button{background:#285d45;color:white;border:0;border-radius:9px;padding:12px 18px;font:inherit;cursor:pointer;margin-top:14px}button:disabled{opacity:.65}#account-result{overflow-wrap:anywhere}
+</style></head><body><main>
+<header><a href="./settings.html">← Settings</a> <span aria-hidden="true">·</span> <a href="./index.html">Home</a></header>
+<h1>WLP Cloud Account</h1>
+<p>Use your existing WLP Cloud account across devices. This screen is separate from the Admin/Guest authoring controls.</p>
+<section class="card"><h2>Account on this browser</h2><p id="account-status" role="status">Checking…</p><p class="muted" id="local-status"></p><button type="button" id="account-refresh">Refresh local status</button></section>
+<section class="card" id="sign-in-section"><h2>Sign in</h2><p class="muted">Uses the existing WLP Cloud project settings stored in this browser. No separate account or Library is created.</p>
+<form id="account-form"><label for="account-email">Email</label><input id="account-email" type="email" autocomplete="username" required><label for="account-password">Password</label><input id="account-password" type="password" autocomplete="current-password" required><button type="submit" id="account-submit">Sign in to WLP Cloud</button></form>
+<p role="status" aria-live="polite" id="account-result"></p></section>
+
+<section class="card"><h2>Library &amp; sync · forthcoming acceptance</h2><p>Account sign-in does not install a Library, send pending changes, or enable G4 Study. Existing local data remains on this browser. Cloud Library setup, guarded existing-Library reconciliation, and cross-device sync require their separately reviewed release.</p><p class="muted">Current status is local only, not a live cross-device sync result. Do not clear site data, import a replacement Library, or reinstall your Mirror to proceed.</p></section>
+
+</main><script src="./wlp-stage7-account.js?v=g4-stage7-auth-integration-20261017"></script><script src="./wlp-stage7-account-ui.js?v=g4-stage7-auth-integration-20261017"></script></body></html>
