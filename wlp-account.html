@@ -5,11 +5,17 @@ body{background:#eef6ee;color:#214e3c;font-family:system-ui,-apple-system,sans-s
 <header><a href="./settings.html">← Settings</a> <span aria-hidden="true">·</span> <a href="./index.html">Home</a></header>
 <h1>WLP Cloud Account</h1>
 <p>Use your existing WLP Cloud account across devices. This screen is separate from the Admin/Guest authoring controls.</p>
-<section class="card"><h2>Account on this browser</h2><p id="account-status" role="status">Checking…</p><p class="muted" id="local-status"></p><button type="button" id="account-refresh">Refresh local status</button></section>
+<section class="card"><h2>Account on this browser</h2><p id="account-status" role="status">Checking…</p><p class="muted" id="local-status"></p><button type="button" id="account-refresh">Refresh local status</button><p class="muted" id="account-refresh-result" role="status" aria-live="polite"></p></section>
 <section class="card" id="sign-in-section"><h2>Sign in</h2><p class="muted">Uses the existing WLP Cloud project settings stored in this browser. No separate account or Library is created.</p>
 <form id="account-form"><label for="account-email">Email</label><input id="account-email" type="email" autocomplete="username" required><label for="account-password">Password</label><input id="account-password" type="password" autocomplete="current-password" required><button type="submit" id="account-submit">Sign in to WLP Cloud</button></form>
 <p role="status" aria-live="polite" id="account-result"></p></section>
 
+<section class="card" id="library-cloud-check-section"><h2>Existing Library &amp; Cloud · read-only check</h2>
+<p class="muted">Verify this browser's existing Canonical Mirror against the live Cloud Account, Authority and Cursor. This is an inspection only: it does not install, download or merge Library records, send unsent edits, or enable G4 sync.</p>
+<p id="library-cloud-status" role="status">Not checked against live Cloud.</p><button type="button" id="library-cloud-check">Check existing Library and Cloud (read only)</button>
+<p class="muted" id="library-cloud-detail" role="status" aria-live="polite">No Cloud or local changes have been made.</p></section>
 <section class="card"><h2>Library &amp; sync · forthcoming acceptance</h2><p>Account sign-in does not install a Library, send pending changes, or enable G4 Study. Existing local data remains on this browser. Cloud Library setup, guarded existing-Library reconciliation, and cross-device sync require their separately reviewed release.</p><p class="muted">Current status is local only, not a live cross-device sync result. Do not clear site data, import a replacement Library, or reinstall your Mirror to proceed.</p></section>
 
-</main><script src="./wlp-stage7-account.js?v=g4-stage7-auth-integration-20261017"></script><script src="./wlp-stage7-account-ui.js?v=g4-stage7-auth-integration-20261017"></script></body></html>
+</main><script src="./wlp-stage7-account.js?v=g4-stage7-auth-integration-20261017"></script><script src="./wlp-stage7-account-ui.js?v=g4-stage7-auth-integration-20261018"></script>
+<script src="./wlp-g4-library-boundary.js?v=s7-read-only-library-check-20261018"></script>
+<script src="./wlp-stage7-library-status-ui.js?v=s7-read-only-library-check-20261018"></script></body></html>

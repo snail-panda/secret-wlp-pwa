@@ -33,7 +33,7 @@
         q.onblocked=()=>reject(Error('Existing DB blocked'));
       });
     };
-    function request(r) {return new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error||Error('IndexedDB read failed'));});}
+    function request(r) {return new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error||Error('IndexedDB read failed'));});}
     function read(db,store,key) {
       if(!db)return Promise.resolve(null);
       if(!db.objectStoreNames.contains(store))fail('Established '+store+' schema missing');

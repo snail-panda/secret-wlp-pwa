@@ -11,7 +11,13 @@
   $('account-form').hidden=!s.configured;
   if(!s.configured)$('account-result').textContent='Cloud project provisioning is not yet connected to this account page. Existing local data was not changed.';
  }
- $('account-refresh').addEventListener('click',()=>update().catch(e=>$('account-result').textContent='HOLD: '+String(e?.message||e)));
+ $('account-refresh').addEventListener('click',async()=>{
+  const button=$('account-refresh');button.disabled=true;
+  $('account-refresh-result').textContent='Reading saved local status…';
+  try{await update();$('account-refresh-result').textContent='Local status refreshed. This is not a live Cloud verification.';}
+  catch(e){$('account-refresh-result').textContent='HOLD: '+String(e?.message||e);}
+  finally{button.disabled=false;}
+ });
  $('account-form').addEventListener('submit',async(e)=>{
   e.preventDefault();const button=$('account-submit'),input=$('account-password');button.disabled=true;
   $('account-result').textContent='Verifying the existing WLP Cloud account…';
