@@ -29,8 +29,19 @@
   if(busy)return;
   busy=true;button.disabled=true;
   status.textContent='Checking saved Library and live Cloud (read only)…';
-  detail.textContent='No installation, data merge, sync upload or Cloud mutation will be attempted.';
+  detail.textContent='No Library install, merge or sync upload will be attempted. Saved Cloud Auth token may be renewed.';
   try {
+   // Reuse the proven G4 Shadow session freshness logic only on an explicit
+   // click. This can rotate ONLY the saved Auth session; no Library/Outbox
+   // writer is loaded on this page.
+   const freshnessFactory=window.WLPG4SharedAuthFreshnessSOURCEOFF;
+   if(!freshnessFactory?.make)throw Error('Established Cloud session renewal unavailable');
+   const freshness=freshnessFactory.make({
+    indexedDB:window.indexedDB,fetchImpl:window.fetch.bind(window),locks:window.navigator.locks
+   });
+   status.textContent='Checking existing Cloud session, then Library/Authority (read only)…';
+   const auth=freshness.ensureFresh();
+   const renewal=await auth;
    const boundary=window.WLPG4LibraryBoundary;
    if(!boundary||typeof boundary.inspect!=='function')throw Error('Library verifier unavailable');
    const proof=await boundary.inspect();
@@ -49,12 +60,13 @@
     'Local Edits: '+fmt(local.localEditCount),
     'Study Journal: '+(local.journalPresent?'present':'not detected'),
     'Other preserved WLP storage: '+(Number(local.additionalLocalKeyCount||0)+Number(local.additionalSessionKeyCount||0)+Number(local.additionalDbCount||0))+' item(s)',
-    'Status: read only — no data changed. Sync and Library installation remain disabled in this release.'
+    'Cloud session: '+(renewal?.renewed===true?'renewed securely':'existing session still valid'),
+    'Status: Library read only — no Library/Outbox/Cloud records changed. Only saved Auth credentials may be renewed. Sync and Library installation remain disabled.'
    ].join(' · ');
   }catch(error){
    status.textContent='HOLD — Library/Cloud check not completed';
    const message=String(error?.message||error);
-   detail.textContent=message.slice(0,400)+' · No local or Cloud data changed. Do not clear, reinstall or replace your Library.';
+   detail.textContent=message.slice(0,400)+' · No Library or Cloud records changed. Auth session metadata may have been renewed. Do not clear, reinstall or replace your Library.';
   }finally{busy=false;button.disabled=false;}
  });
 })();
