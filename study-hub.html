@@ -159,6 +159,7 @@
       <section class="study-start-panel" id="study-start-panel">
         <button type="button" class="study-start-button" id="study-start" disabled>Start Experience</button>
         <p id="study-start-note">Completed Standard Practice sessions sync across your WLP devices. Partial sessions may stay on this browser until completed or resumed. Your self-check does not change Review attention.</p>
+        <p id="wlp-g4-foreground-status" role="status" aria-live="polite" hidden></p>
       </section>
 
       <section class="study-history" id="study-history" hidden>
@@ -421,6 +422,7 @@
   <script src="./study-context-data.js?v=20260928-s7-storage-stabilization-v186169"></script>
   <script src="./cloud-shadow-compat-adapter.js?v=20261006-v186375-alt-link-row-identity"></script>
   <script src="./cloud-shadow-storage-compat-facade.js?v=20261001-v186250-initial-state-overlay"></script>
+  <script src="./wlp-shadow-auth-session-coordinator.js?v=g4-shared-auth-source-only-20261016"></script>
   <script src="./canonical-auto-sync-canary.js?v=20261008-v396-draft-promote-canary"></script>
   <script src="./canonical-standard-event-canary.js?v=20261002-v186285-standard-rating-correction-canary"></script>
   <script src="./canonical-standard-rating-correction-canary.js?v=20261002-v186285-standard-rating-correction-canary"></script>
@@ -441,7 +443,44 @@
   <script src="./canonical-ai-session-canary.js?v=20261003-v186300-ai-session-canary"></script>
   <script src="./canonical-ai-practice-write.js?v=20261002-v186298-ai-default-event-write"></script>
   <script src="./canonical-ai-session-write.js?v=20261003-v186301-ai-default-session-write"></script>
-  <script src="./study-hub.js?v=20261006-v186377-practice-history-controls"></script>
+  <script src="./wlp-stage7-g4-release-policy.js?v=s7-g4-e7a-scoped-release-20261021"></script>
+  <!-- Same read-only Cloud/Local boundary used by the live Account page. -->
+  <script src="./wlp-g4-library-boundary.js?v=s7-storage-inventory-20261020"></script>
+  <!-- Validated G4 source contracts; no authentication bootstrap, no runtime enrollment, Writer OFF. -->
+  <script src="./g4-standard-history-readonly-source.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-e7b-verified-receiver-history-bridge.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-standard-save-contract.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/wlp-e7b-paired-wire-contract-dev.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/wlp-e7b-new-session-journal-dev.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/g3-e7b-auth-studyhub-bridge.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/g4-standard-general-resume-journal-driver-source-off.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/g4-standard-general-resume-readonly-preflight.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/g4-standard-volatile-draft-checkpoint-source-off.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-source-only/wlp-e7b-authenticated-identity-dev.js?v=g4-proven-source-off-20261016"></script>
+  <script src="./g4-standard-journal-driver-binder.js?v=g4-proven-source-off-20261016"></script>
+  <!-- Account→G4 Journal local composer; SOURCE OFF, no implicit activation. -->
+  <script src="./wlp-g4-shared-auth-freshness-source-off.js?v=g4-account-freshness-20261016"></script>
+  <script src="./wlp-g4-account-stable-identity.js?v=g4-owner-lease-source-off-20261016"></script>
+  <script src="./wlp-g4-account-local-writer-bridge.js?v=g4-account-writer-source-off-20261016"></script>
+  <script src="./wlp-g4-new-mirror-reader.js?v=g4-proven-new-reader-20261016"></script>
+  <script src="./wlp-g4-study-source-routing.js?v=g4-reader-writer-boundary-20261016"></script>
+  <!-- E7b's previously implemented account-scoped Continue path. No auto-launch. -->
+  <script src="./g4-source-only/wlp-e7b-paired-inbox-dev.js?v=g4-brave-receiver-empty-journal-20261017"></script>
+  <script src="./g4-source-only/wlp-e7b-paired-uploader-dev.js?v=g4-reused-e7b-20261016"></script>
+  <script src="./g4-source-only/wlp-g4-paired-rpc-v1-source-off.js?v=g4-brave-receiver-empty-journal-20261017"></script>
+  <script src="./wlp-g4-paired-transport-composer-source-off.js?v=g4-e7a-pilot-receiver-20261021"></script>
+  <script src="./g4-source-only/wlp-e7b-continue-pair-gate.js?v=g4-origin-return-20261017-r1"></script>
+  <script src="./g4-source-only/wlp-e7b-continue-durable-overlay.js?v=g4-origin-return-20261017-r1"></script>
+  <script src="./g4-source-only/wlp-e7b-continue-runtime-adapter.js?v=g4-origin-return-20261017-r1"></script>
+  <script src="./g4-source-only/wlp-e7b-remote-revision-journal-dev.js?v=g4-origin-return-20261017-r1"></script>
+  <script src="./g4-source-only/wlp-e7b-remote-revise-uploader-dev.js?v=g4-origin-return-20261017-r1"></script>
+  <script src="./wlp-g4-received-continue-bridge.js?v=g4-origin-return-20261017-r1"></script>
+  <script src="./wlp-g4-remote-standard-resume-source-off.js?v=g4-origin-return-open-fix-v2-20261017"></script>
+  <script src="./wlp-g4-standard-owner-readonly.js?v=g4-owner-readonly-20261016"></script>
+  <script src="./wlp-stage7-e7a-session-owner-gate.js?v=s7-e7a-g4-owner-proof-source-off-20261021"></script>
+  <script src="./wlp-stage7-e7a-paired-witness.js?v=s7-e7a-paired-witness-source-off-20261021"></script>
+  <script src="./wlp-stage7-g4-foreground-sync.js?v=s7-g4-foreground-20261017"></script>
+  <script src="./study-hub.js?v=g4-e7a-scoped-receiver-bootstrap-20261021"></script>
   <script src="./ai-study-ui.js?v=20261006-v186376-practice-copy-cleanup"></script>
   <script src="./study-options.js?v=20261006-s7-drawer-clarifiers-v186378"></script>
   <script src="./pwa-register.js?v=20260918-s7-v18627"></script>

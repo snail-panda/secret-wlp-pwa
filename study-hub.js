@@ -15,6 +15,124 @@
   const FORCE_LEGACY_REVIEW_PARAM = 'wlpLegacyStudyHubReview';
   const forceLegacyReview = new URLSearchParams(location.search).get(FORCE_LEGACY_REVIEW_PARAM) === '1';
   const studyContextApi = window.WLPStudyContext || null;
+  // G4-1 candidate-first Standard save seam. Source remains OFF until the
+  // authenticated E7b Journal driver has been separately integrated/reviewed.
+  // There is deliberately no URL switch or auto-activation.
+  // Release approval is a reviewed BUILD decision, never a URL/query/localStorage
+  // switch. Current candidate is NOT approved for normal Cloud sync or Study.
+  const G4_LOCAL_STANDARD_RELEASE_APPROVED = window.WLPStage7G4ReleasePolicy?.gate('study') === true;
+  let G4_STANDARD_JOURNAL_SOURCE_ENABLED = false;
+  let g4E7aNewSessionPilot = false;
+  let g4E7aLease = null;
+  let g4E7aRoute = null;
+  let g4E7aStartReceipt = null;
+  let g4NativeDriver = null;
+  let g4PairedTransport = null;
+  let g4ForegroundSync = null;
+  function g4ShowForegroundStatus(state) {
+    const el=document.getElementById('wlp-g4-foreground-status');
+    if(!el||!state?.enabled)return;
+    el.hidden=false;
+    if(state.lastError){
+      el.textContent='G4 Cloud sync HOLD: '+state.lastError+
+        ' · Durable local actions are retained. Do not clear Library or Journal.';
+      el.style.color='#a41c26';
+    }else if(state.active){
+      el.textContent='G4 Cloud sync · Checking durable local actions…';
+      el.style.color='';
+    }else if(state.lastCloudAck){
+      el.textContent='G4 Cloud ACK verified for action '+state.lastCloudAck+
+        ' · Inbox cursor '+String(state.lastPairedSeq??'not yet confirmed');
+      el.style.color='';
+    }else {
+      el.textContent='G4 Cloud sync · Foreground auto-sync active; unacknowledged actions remain saved locally.';
+      el.style.color='';
+    }
+  }
+  window.addEventListener('wlp-g4-sync-status',e=>g4ShowForegroundStatus(e.detail));
+  let g4CloudMirrorSelected = false;
+  let g4ReceivedResume = null;
+  let g4RemoteSessionBound = false;
+  const g4WriterConfigured = () => G4_STANDARD_JOURNAL_SOURCE_ENABLED && !!g4NativeDriver;
+  const g4DriverValid = () => g4NativeDriver?.approved === true &&
+    g4NativeDriver?.cloudWrite === false &&
+    typeof g4NativeDriver.refreshStartProof === 'function' &&
+    typeof g4NativeDriver.prepareStart === 'function' &&
+    typeof g4NativeDriver.onContextCreated === 'function' &&
+    typeof g4NativeDriver.supportsSource === 'function' &&
+    typeof g4NativeDriver.resumeExisting === 'function' &&
+    typeof g4NativeDriver.commit === 'function' &&
+    typeof g4NativeDriver.stageDraft === 'function' &&
+    typeof g4NativeDriver.clearCommittedDraft === 'function';
+  let g4JournalSessionBound = false;
+  let g4StartBusy = false;
+  let g4SessionTerminalSaved = false;
+  const g4MayReplaceSession=()=>window.WLPStage7G4ReleasePolicy?.canReplaceG4Session?.({
+    owned:g4JournalSessionBound||g4RemoteSessionBound,
+    terminalSaved:g4SessionTerminalSaved,held:g4Held,saving:g4Saving,draftDirty:g4DraftDirty
+  })===true;
+  let g4Saving = false;
+  let g4Held = false;
+  let g4DraftTimer = 0;
+  let g4DraftDirty = false;
+  let g4DraftFlight = Promise.resolve();
+  function g4DraftCandidate() {
+    if (!g4NativeActive() || !currentAttempt) return null;
+    const item = sessionQueue[sessionIndex];
+    if (!item) return null;
+    snapshotResponse(item);
+    return {contextId:currentStudyContextId,sessionId:currentSessionId,
+      wordId:clean(item.wordId),eventId:clean(currentAttempt.eventId),
+      responseText:clean(currentAttempt.responseText).slice(0,800),
+      selfRating:clean(currentAttempt.selfRating),hintCount:Number(currentAttempt.hintCount)||0,
+      targetShown:currentAttempt.targetShown===true};
+  }
+  function g4QueueDraftCheckpoint() {
+    if (!g4NativeActive() || g4Held || g4Saving) return;
+    g4DraftDirty = true;
+    clearTimeout(g4DraftTimer);
+    g4DraftTimer = setTimeout(() => { void g4FlushDraftCheckpoint().catch(() => {}); }, 500);
+  }
+  async function g4FlushDraftCheckpoint() {
+    clearTimeout(g4DraftTimer);
+    if (!g4NativeActive() || g4Held) throw Error('native draft unavailable');
+    if (!g4DraftDirty) return g4DraftFlight;
+    const candidate = g4DraftCandidate();
+    if (!candidate) throw Error('draft Session/card missing');
+    g4DraftDirty = false;
+    // Serialise all writes within a tab; the IDB lease rejects a competing tab.
+    g4DraftFlight = g4DraftFlight.then(() => g4NativeDriver.stageDraft(candidate));
+    try {
+      const result = await g4DraftFlight;
+      if (result?.saved !== true) throw Error('draft durable read-back unavailable');
+      if (!g4DraftDirty && !g4Saving) {
+        const note = $('study-self-check-status');
+        if (note) note.textContent = 'Draft saved on this device · Continue / End & save to commit.';
+      }
+      return result;
+    } catch (error) {
+      g4Hold('unsaved draft checkpoint: '+String(error?.message||error));
+      throw error;
+    }
+  }
+  const g4NativeActive = () => g4JournalSessionBound && !!currentSessionId &&
+    !!currentStudyContextId && !viewingSavedSession;
+  function g4Hold(reason) {
+    g4Held = true;
+    const note = document.getElementById('study-self-check-status');
+    if (note) note.textContent = 'HOLD: Journal save not verified. Keep this tab open.';
+    // A pre-start HOLD has no experience screen to display the normal message.
+    // Make it visible on the actual Start panel instead of silently doing nothing.
+    const startNote = document.getElementById('study-start-note');
+    const startPanel = document.getElementById('study-start-panel');
+    if (startNote && startPanel && !startPanel.hidden) {
+      startNote.textContent = 'G4 Stage11 HOLD — ' + String(reason || 'start blocked') + '. Do not click Start again, refresh, or create a second Session; report this message.';
+      startNote.style.color = '#a32622';
+      startNote.setAttribute('role', 'alert');
+    }
+    // A Remote Continue HOLD must not poison an unrelated new-session Journal.
+    if (!g4RemoteSessionBound) { try { g4NativeDriver?.reportHold?.(String(reason || 'save failed')); } catch (_) {} }
+  }
   const standardHistoryApi = window.WLPCanonicalStandardHistoryRead || null;
   const $ = id => document.getElementById(id);
   const StudySpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -185,13 +303,20 @@
     return { sourceType: 'deck', source: { label: sourceLabel('deck'), deck, wordIds } };
   }
 
-  function startStandardStudyContext() {
+  async function startStandardStudyContext() {
     if (!studyContextApi || document.body.classList.contains('wlp-ai-study-mode') || !currentSessionId || !sessionQueue.length) {
       currentStudyContextId = '';
       return null;
     }
     const sourceInfo = standardStudyContextSource(lastSessionSpec?.mode || sourceMode, sessionQueue);
     if (!sourceInfo) return null;
+    if (g4JournalSessionBound) {
+      // Fail BEFORE creating a new Context if the durable enrollment cannot start.
+      try {
+        if (g4NativeDriver.prepareStart(currentSessionId, sourceInfo) !== true)
+          throw Error('Journal start witness rejected');
+      } catch (error) { g4Hold('start witness: ' + String(error?.message || error)); return null; }
+    }
     const context = studyContextApi.createContext({
       sourceType: sourceInfo.sourceType,
       practiceMode: 'standard',
@@ -201,10 +326,48 @@
       sessionRef: { type: 'standard', sessionId: currentSessionId }
     });
     currentStudyContextId = context?.contextId || '';
+    if (g4JournalSessionBound) {
+      if (!context) { g4Hold('Context creation failed'); return null; }
+      // Enrollment is durable BEFORE the first question is displayed. A
+      // failed enrollment can never dispatch the Legacy Writer on this SID.
+      try {
+        const enrolled=await g4NativeDriver.onContextCreated(JSON.parse(JSON.stringify(context)));
+        if(enrolled?.enrolled!==true||enrolled.contextId!==currentStudyContextId)
+          throw Error('durable new-Session enrollment not acknowledged');
+        if(g4E7aNewSessionPilot){
+          const ownership=await window.WLPG4StandardOwnerReadOnly.inspectEnrolledStart({
+            indexedDB:window.indexedDB,sessionId:currentSessionId,
+            contextId:currentStudyContextId,identity:g4E7aLease.identityNow()});
+          if(ownership?.writer!=='g4-enrolled-start')
+            throw Error('E7a enrollment owner read-back: '+String(ownership?.reason||'HOLD'));
+          const pending=g4E7aStartReceipt;
+          if(!pending||pending.decision.sessionId!==currentSessionId||
+             !window.WLPStage7E7aPairedWitness?.seal)
+            throw Error('E7a selected-card proof was not preserved from Start');
+          // Reverify the real Mirror and Cloud after enrollment, then seal a
+          // separate immutable receipt in the EXISTING Journal meta store.
+          // An incomplete receipt causes HOLD; never let legacy Writer save SID.
+          const identity=await g4E7aLease.verifyIdentity();
+          await window.WLPStage7E7aPairedWitness.seal({indexedDB:window.indexedDB,
+            identity,decision:pending.decision,proof:pending.proof,
+            context:JSON.parse(JSON.stringify(context)),
+            inspectFresh:async wordIds=>{
+              const freshRows=wordIds.map(w=>rowByWordId.get(String(w)));
+              if(freshRows.some(x=>!x))throw Error('E7a selected card disappeared');
+              return window.WLPStage7E7aSessionOwnerGate.inspectReadOnly({
+                indexedDB:window.indexedDB,storage:localStorage,
+                boundary:window.WLPG4LibraryBoundary,studyRows:freshRows,cryptoImpl:crypto});
+            }});
+          g4E7aStartReceipt=null;
+        }
+      } catch(error){g4Hold('enrollment: '+String(error?.message||error));return null;}
+    }
     return context;
   }
 
   function updateStandardStudyContext(status = 'active', wordIds = null, plannedCount = currentSessionPlannedCount || sessionQueue.length) {
+    // Compatibility projection is owned by the driver AFTER an atomic Journal commit.
+    if (g4JournalSessionBound || g4RemoteSessionBound) return null;
     if (!studyContextApi || !currentStudyContextId) return null;
     const attempted = wordIds
       ? studyContextApi.uniqueWordIds(wordIds)
@@ -289,21 +452,70 @@
     return experiences[0] || null;
   }
 
-  function openStandardContextFromContinue(contextId, { restart = false } = {}) {
+  async function openStandardContextFromContinue(contextId, { restart = false } = {}) {
+    const requestedRemote = !!g4ReceivedResume?.isRemoteContext(contextId);
+    if (requestedRemote && restart) {
+      g4Hold('Received Session cannot be restarted through the Legacy Writer');
+      return false;
+    }
     if (!studyContextApi) return false;
-    const context = studyContextApi.getContext(contextId);
+    let remotePair = null;
+    if (requestedRemote) {
+      try { remotePair = g4ReceivedResume.open(contextId); }
+      catch (error) { g4Hold(String(error.message || error)); return false; }
+    }
+    const context = remotePair?.context || studyContextApi.getContext(contextId);
     if (!context || context.practiceMode !== 'standard') return false;
     const sourceIds = studyContextApi.uniqueWordIds(context.source?.wordIds || []);
     if (!sourceIds.length) return false;
 
+    // Reuse the durable G3-B Journal's own keys to check ownership before any
+    // legacy Continue UI, Context update, or local Session projection can run.
+    // The full G4 driver is still OFF; this seam only prevents re-claiming an
+    // already Journal-owned Session through the legacy Writer.
+    const ownerReader = window.WLPG4StandardOwnerReadOnly;
+    let durableResumeWriter = requestedRemote ? 'received-g4' : 'legacy-canonical';
+    if (!requestedRemote) {
+      if (!ownerReader || typeof ownerReader.inspectResume !== 'function') {
+        g4Hold('Session ownership reader unavailable; no Legacy fallback');
+        return false;
+      }
+      const ownership = await ownerReader.inspectResume({indexedDB:window.indexedDB,
+        sessionId:context.sessionRef?.sessionId, contextId});
+      durableResumeWriter = ownership?.writer;
+      if (durableResumeWriter !== 'legacy-canonical' && durableResumeWriter !== 'g4-journal') {
+        g4Hold('Standard session ownership not proven ('+
+          String(ownership?.reason || 'unavailable')+'); no fallback');
+        return false;
+      }
+      if (durableResumeWriter === 'g4-journal') {
+        if (!g4WriterConfigured() || restart) {
+          g4Hold(restart ? 'Journal-owned Session cannot restart without separate verified enrollment' :
+            'Journal-owned Session needs the exact verified G4 driver; no Legacy fallback');
+          return false;
+        }
+      } else if (g4CloudMirrorSelected) {
+        // A protected NEW G4 Mirror can never Resume under the E7a Legacy writer.
+        g4Hold('Protected G4 Mirror has no durable G4 owner for this Session');
+        return false;
+      }
+    }
     const sessions = readStudySessions();
-    const savedRecord = sessions.find(item => clean(item?.sessionId) === clean(context.sessionRef?.sessionId)) || null;
+    const savedRecord = remotePair?.session ||
+      sessions.find(item => clean(item?.sessionId) === clean(context.sessionRef?.sessionId)) || null;
     const mode = standardModeForContext(context);
     const spec = savedRecord?.spec && typeof savedRecord.spec === 'object'
       ? { ...savedRecord.spec, mode }
       : inferStandardSpecFromContext(context, mode);
-    lastSessionSpec = spec;
-    if (!applyStandardContextControls(context, spec, mode)) return false;
+    // Preserve normal source-OFF behavior; the native path delays UI changes
+    // until independent Journal & original-pair validation has completed.
+    if (durableResumeWriter === 'legacy-canonical') {
+      // Mixed existing-E7a sources: a previously created Legacy Session remains
+      // with v400 even if newly started sessions can later use the G4 Journal.
+      g4JournalSessionBound = false;
+      lastSessionSpec = spec;
+      if (!applyStandardContextControls(context, spec, mode)) return false;
+    }
 
     const savedByWordId = new Map();
     (Array.isArray(savedRecord?.experiences) ? savedRecord.experiences : []).forEach(experience => {
@@ -322,6 +534,40 @@
       else nextAttempts.push({ ...snapshot.attempt, _elapsedBaseMs: Number(snapshot.attempt?.elapsedMs) || 0, _visitStartedMs: Date.now() });
     });
     if (!nextQueue.length) return false;
+    if (requestedRemote) {
+      // Proven receiver/overlay owns this pair, never claim it with new-session Journal.
+      if (nextQueue.length !== sourceIds.length || !savedRecord?.experiences?.length) {
+        g4Hold('Remote Resume card witness not complete');return false;
+      }
+      g4RemoteSessionBound = true;
+      g4JournalSessionBound = false;
+      g4Held = false;
+      lastSessionSpec = spec;
+      if (!applyStandardContextControls(context,spec,mode)) {
+        g4RemoteSessionBound=false;g4Hold('Received source unavailable');return false;
+      }
+    } else if (durableResumeWriter === 'g4-journal') {
+      try {
+        if(!g4DriverValid()||!savedRecord||!g4NativeDriver.supportsSource(context))
+          throw Error('original native Session/source cannot be verified');
+        if (nextQueue.length !== sourceIds.length || !savedRecord.experiences?.length)
+          throw Error('missing source cards or durable experiences');
+        const proof=await g4NativeDriver.refreshStartProof();
+        if(proof?.ready!==true||g4NativeDriver.ready!==true)
+          throw Error('authenticated Resume proof not fresh');
+        const verified=await g4NativeDriver.resumeExisting({context,session:savedRecord});
+        if(verified?.bound!==true||verified.contextId!==contextId||
+           verified.sessionId!==savedRecord.sessionId)
+          throw Error('Journal enrollment not restored');
+        g4JournalSessionBound=true;g4Held=false;
+        lastSessionSpec=spec;
+        if (!applyStandardContextControls(context,spec,mode))
+          throw Error('verified source could not be displayed');
+      } catch(error) {
+        g4Hold('Resume HOLD: '+String(error?.message||error));
+        return false;
+      }
+    }
 
     sessionQueue = nextQueue;
     currentSessionPlannedCount = Math.max(nextQueue.length, Number(context.progress?.totalCount) || 0);
@@ -353,12 +599,15 @@
     currentSessionId = clean(savedRecord?.sessionId || context.sessionRef?.sessionId) || makeEventId().replace(/^studyq-/, 'studyq-session-');
     currentSessionStartedAt = clean(savedRecord?.startedAt || context.createdAt) || new Date().toISOString();
     currentStudyContextId = context.contextId;
-    studyContextApi.updateContext(context.contextId, { status: 'active', lastMeaningfulAt: new Date().toISOString() });
+    // Never pre-project Resume to compatibility storage. The next candidate
+    // Journal Commit owns that write after durable confirmation.
+    if (!g4JournalSessionBound && !g4RemoteSessionBound)
+      studyContextApi.updateContext(context.contextId, { status: 'active', lastMeaningfulAt: new Date().toISOString() });
     renderExperience();
     return true;
   }
 
-  function openRequestedContinueContext() {
+  async function openRequestedContinueContext() {
     const params = new URLSearchParams(location.search);
     const resumeId = clean(params.get('resumecontext'));
     const restartId = clean(params.get('restartcontext'));
@@ -1659,13 +1908,29 @@
   }
 
   function historySessionsForRead() {
+    let sessions = readStudySessions();
     try {
-      const sessions = standardHistoryApi?.getSessions?.();
-      if (Array.isArray(sessions)) return sessions;
+      const canonical = standardHistoryApi?.getSessions?.();
+      if (Array.isArray(canonical)) sessions = canonical;
     } catch (error) {
       console.warn('Canonical Standard history read is unavailable; using local compatibility history.', error);
     }
-    return readStudySessions();
+    // G4-1 source integration candidate: no provider is installed in the
+    // ordinary WLP app. A future reviewed, account-verified receiver may
+    // inject this read-only adapter. No URL/localStorage opt-in is accepted.
+    try {
+      const inbound = window.WLPG4VerifiedStandardHistory;
+      if (inbound?.isReady?.() === true) return inbound.mergeSessions(sessions);
+    } catch (error) {
+      console.warn('G4 received Standard history held; local/canonical history unchanged.', error);
+    }
+    // Received Standard history is read from the same account-scoped E7b
+    // runtime as Resume. It is NOT copied into Legacy session storage.
+    if (g4ReceivedResume && window.WLPE7bContinueRuntime?.ready?.() === true) {
+      try { sessions = window.WLPE7bContinueRuntime.sessions(sessions); }
+      catch(error){ console.warn('Remote history read HOLD; legacy history unchanged',error); }
+    }
+    return sessions;
   }
 
   function writeStudySessions(sessions) {
@@ -1771,6 +2036,11 @@
   }
 
   function historyRatingEditPolicy(sessionId, wordId, attempt, sessions = historySessionsForRead()) {
+    // A Cloud-origin history entry cannot be edited through legacy localStorage
+    // rating controls until its candidate-first revision writer is integrated.
+    if (window.WLPG4VerifiedStandardHistory?.isCloudSession?.(sessionId) === true ||
+      (g4ReceivedResume && window.WLPE7bContinueRuntime?.isRemoteSession?.(sessionId) === true))
+      return { editable: false, reason: 'cloud-read-only' };
     const rating = clean(attempt?.selfRating);
     const eventId = clean(attempt?.eventId);
     if (!eventId) return { editable: false, reason: 'missing-event' };
@@ -1786,6 +2056,13 @@
   }
 
   function updateSavedSessionRating(sessionId, eventId, rating) {
+    // In candidate-first mode, rating edits require their own REVISE Action.
+    // Until that path is integrated, ALL history edits stay locked.
+    if (G4_STANDARD_JOURNAL_SOURCE_ENABLED ||
+      (g4ReceivedResume && window.WLPE7bContinueRuntime?.isRemoteSession?.(sessionId) === true))
+      return {ok:false,reason:'journal-history-rating-edit-locked'};
+    if (window.WLPG4VerifiedStandardHistory?.isCloudSession?.(sessionId) === true)
+      return { ok: false, reason: 'cloud-read-only' };
     if (!validStudyRating(rating)) return { ok: false, reason: 'invalid-rating' };
     const localSessions = readStudySessions();
     const localIndex = localSessions.findIndex(item => clean(item?.sessionId) === clean(sessionId));
@@ -1851,8 +2128,7 @@
     setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'} · ${Number(record.hintCount) || 0} hints used · saved in Standard Practice history.`);
   }
 
-  function persistCurrentSession({ status = 'completed', queue = sessionQueue, attempts = sessionAttempts, plannedCount = currentSessionPlannedCount || sessionQueue.length } = {}) {
-    if (!currentSessionId || !queue.length || viewingSavedSession) return null;
+  function g4BuildExistingSessionRecord({ status = 'completed', queue = sessionQueue, attempts = sessionAttempts, plannedCount = currentSessionPlannedCount || sessionQueue.length } = {}) {
     const now = new Date().toISOString();
     const counts = ratingCounts(attempts);
     const decks = Array.from(new Set(queue.map(item => Number(item.row?.['Batch #']) || 0).filter(Boolean)));
@@ -1879,6 +2155,16 @@
       elapsedMs,
       experiences: queue.map((item, index) => compactExperience(item, attempts[index] || {}))
     };
+    return record;
+  }
+
+  function persistCurrentSession({ status = 'completed', queue = sessionQueue, attempts = sessionAttempts, plannedCount = currentSessionPlannedCount || sessionQueue.length } = {}) {
+    if (!currentSessionId || !queue.length || viewingSavedSession) return null;
+    // Do not write even one local history record before its journal Action is durable.
+    // In source-OFF mode, existing WLP behavior remains unchanged.
+    if (g4JournalSessionBound || g4RemoteSessionBound) return null;
+    const record = g4BuildExistingSessionRecord({status, queue, attempts, plannedCount});
+    const isComplete = status === 'completed';
     const sessions = readStudySessions();
     const index = sessions.findIndex(item => item?.sessionId === currentSessionId);
     if (index >= 0) sessions[index] = record;
@@ -2071,6 +2357,8 @@
 
   function persistAttempt(attempt, completed = false) {
     if (!attempt) return;
+    // No pre-Journal Event write on the candidate-first path.
+    if (g4JournalSessionBound || g4RemoteSessionBound) return;
     try {
       const now = new Date().toISOString();
       attempt.updatedAt = now;
@@ -2165,8 +2453,11 @@
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     const labels = { 'got-it': 'Got it', almost: 'Almost', 'not-yet': 'Not yet', 'no-idea': 'No idea' };
-    $('study-self-check-status').textContent = `Saved locally · self-check: ${labels[rating]}.`;
+    $('study-self-check-status').textContent = g4JournalSessionBound
+      ? `Self-check: ${labels[rating]} · pending Journal save on Continue / End & save.`
+      : `Saved locally · self-check: ${labels[rating]}.`;
     persistAttempt(currentAttempt, false);
+    if (g4JournalSessionBound) g4QueueDraftCheckpoint();
   }
 
   function finalizeCurrentAttempt() {
@@ -2356,6 +2647,7 @@
     currentAttempt.hintShownAt = new Date().toISOString();
     renderHintState(item);
     persistAttempt(currentAttempt, false);
+    if (g4JournalSessionBound) g4QueueDraftCheckpoint();
     $('study-hint-block').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
@@ -2808,6 +3100,7 @@
       currentAttempt.targetShown = true;
       currentAttempt.targetShownAt = new Date().toISOString();
       persistAttempt(currentAttempt, false);
+      if (g4JournalSessionBound) g4QueueDraftCheckpoint();
     }
     const note = responseNote(item);
     $('study-response-note').hidden = !note;
@@ -2826,7 +3119,128 @@
     persistAttempt(currentAttempt, completed);
   }
 
+  // Native G3-B Journal candidate-first save; no Cloud send or ACK here.
+  // A driver must prove both atomic Journal durability and verified projection
+  // before the WLP Study Hub is permitted to change cards or end a session.
+  async function g4CommitBeforeTransition(status = 'incomplete') {
+    if (!g4NativeActive() || g4Saving || g4Held) return {ok:false, reason:'unavailable-or-held'};
+    const attempted = attemptedSessionSlices();
+    if (!attempted.queue.length) return {ok:false, reason:'no-activity'};
+    const source = studyContextApi?.getContext?.(currentStudyContextId);
+    if (source?.sessionRef?.sessionId !== currentSessionId)
+      return {ok:false, reason:'Context/Session owner mismatch'};
+    const record = g4BuildExistingSessionRecord({status,queue:attempted.queue,
+      attempts:attempted.attempts,plannedCount:currentSessionPlannedCount || sessionQueue.length});
+    if (status === 'incomplete') record.endedAt = '';
+    const progressIds = record.wordIds.map(clean);
+    const total = Math.max(progressIds.length,Number(record.plannedExperienceCount)||0);
+    const last = progressIds[progressIds.length-1] || '';
+    const lastIndex = last ? Math.max(0,sessionQueue.findIndex(e=>clean(e.wordId)===last)) : sessionIndex;
+    const context = {...source, status:status === 'completed'?'completed':'incomplete',
+      lastMeaningfulAt:new Date().toISOString(),
+      progress:{currentIndex:lastIndex,currentWordId:last,completedWordIds:status==='completed'?[]:progressIds,
+        completedCount:progressIds.length,totalCount:total},
+      sessionRef:{type:'standard',sessionId:currentSessionId}};
+    const snapshot = JSON.parse(JSON.stringify({context,session:record,
+      contextId:currentStudyContextId,sessionId:currentSessionId}));
+    const next = $('study-next'),prev = $('study-previous');
+    const beforeNext = !!next?.disabled,beforePrev = !!prev?.disabled;
+    let journalCommitConfirmed = false;
+    g4Saving = true;
+    if(next)next.disabled = true;
+    if(prev)prev.disabled = true;
+    try {
+      // Typed work must finish its own durable draft checkpoint before a
+      // canonical candidate is committed. Neither path uses pagehide.
+      await g4FlushDraftCheckpoint();
+      const saved = await g4NativeDriver.commit(snapshot);
+      if (!(saved?.durable === true && saved?.projected === true && saved?.status === 'pending')) {
+        g4Hold('durable/projection not verified: '+String(saved?.status||'unknown'));
+        return {ok:false,reason:'journal-or-projection-hold'};
+      }
+      journalCommitConfirmed = true;
+      // Only a terminal result permits changing set / beginning another Session.
+      const committedItem=sessionQueue[sessionIndex];
+      if (committedItem && currentAttempt) {
+        await g4NativeDriver.clearCommittedDraft({contextId:currentStudyContextId,
+          sessionId:currentSessionId,wordId:clean(committedItem.wordId),
+          eventId:clean(currentAttempt.eventId)},saved);
+      }
+      if(status==='completed'||status==='ended-early')g4SessionTerminalSaved=true;
+      g4ForegroundSync?.journalCommitted();
+      return {ok:true,actionId:saved.actionId};
+    } catch(error) {
+      g4Hold((journalCommitConfirmed ? 'Journal was committed but draft cleanup failed; DO NOT RECOMMIT: ' : 'commit result unresolved; DO NOT RETRY: ')+String(error?.message||error));
+      return {ok:false,reason:'commit-exception'};
+    } finally {
+      g4Saving = false;
+      if(next)next.disabled = g4Held || beforeNext;
+      if(prev)prev.disabled = g4Held || beforePrev;
+    }
+  }
+
+  // Remote Continue is a separate Writer. Complete pair persists synchronously
+  // through E7b's existing account-scoped Overlay, and its already-proven
+  // Remote Revision Journal stages the pending mutation asynchronously.
+  // An unresolved result must HOLD without advancing a card or invoking Legacy.
+  async function g4CommitRemoteBeforeTransition(status='incomplete') {
+    if(!g4RemoteSessionBound || g4Held || g4Saving || !g4ReceivedResume || !currentStudyContextId)
+      return {ok:false,reason:'remote-not-active-or-save-pending'};
+    g4Saving=true;
+    const next=$('study-next'),prev=$('study-previous');
+    const priorNextDisabled=!!next?.disabled,priorPrevDisabled=!!prev?.disabled;
+    if(next)next.disabled=true;
+    if(prev)prev.disabled=true;
+    try {
+      const existing=g4ReceivedResume.open(currentStudyContextId);
+      if(existing.sessionId!==currentSessionId)throw Error('Remote session identity changed');
+      const attempted=attemptedSessionSlices();
+      if(!attempted.queue.length)throw Error('No activity to save');
+      const record=g4BuildExistingSessionRecord({status,queue:attempted.queue,
+        attempts:attempted.attempts,plannedCount:currentSessionPlannedCount||sessionQueue.length});
+      if(status==='incomplete')record.endedAt='';
+      const ids=record.wordIds.map(clean),last=ids[ids.length-1]||'';
+      const index=last?Math.max(0,sessionQueue.findIndex(e=>clean(e.wordId)===last)):sessionIndex;
+      const context={...existing.context,
+        status:status==='completed'?'completed':'incomplete',
+        lastMeaningfulAt:new Date().toISOString(),
+        progress:{currentIndex:index,currentWordId:last,
+          completedWordIds:status==='completed'?[]:ids,completedCount:ids.length,
+          totalCount:Math.max(ids.length,Number(record.plannedExperienceCount)||0)},
+        sessionRef:{type:'standard',sessionId:currentSessionId}};
+      const result=await g4ReceivedResume.save({contextId:currentStudyContextId,
+        session:record,contextPatch:context});
+      if(result?.saved!==true || result?.durable!==true)
+        throw Error('Remote IndexedDB revision not confirmed');
+      if(status==='completed'||status==='ended-early')g4SessionTerminalSaved=true;
+      g4ForegroundSync?.journalCommitted();
+      return {ok:true,localRevision:result.localRevision,actionId:result.actionId};
+    }catch(error){g4Hold('Remote revision not confirmed; DO NOT RETRY: '+
+      String(error?.message||error));return {ok:false,reason:'remote-save-hold'};}
+    finally{
+      g4Saving=false;
+      if(next)next.disabled=g4Held||priorNextDisabled;
+      if(prev)prev.disabled=g4Held||priorPrevDisabled;
+    }
+  }
+
   function previousExperience() {
+    if(g4RemoteSessionBound){
+      if(g4Held || g4Saving || sessionIndex<=0)return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      void g4CommitRemoteBeforeTransition('incomplete').then(result=>{
+        if(result.ok){sessionIndex--;renderExperience();}
+      });
+      return;
+    }
+    if (g4JournalSessionBound) {
+      if (g4Held || g4Saving || sessionIndex <= 0) return;
+      const item = sessionQueue[sessionIndex]; if(item) snapshotResponse(item);
+      void g4CommitBeforeTransition('incomplete').then(result=>{
+        if(result.ok){sessionIndex--;renderExperience();}
+      });
+      return;
+    }
     if (sessionIndex <= 0) return;
     saveCurrentAttempt(false);
     updateStandardStudyContext('active');
@@ -2835,6 +3249,27 @@
   }
 
   function nextExperience() {
+    if(g4RemoteSessionBound){
+      if(g4Held || g4Saving)return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      const last=sessionIndex>=sessionQueue.length-1;
+      void g4CommitRemoteBeforeTransition(last?'completed':'incomplete').then(result=>{
+        if(!result.ok)return;
+        if(last)finishSession(false);else{sessionIndex++;renderExperience();}
+      });
+      return;
+    }
+    if (g4JournalSessionBound) {
+      if(g4Held || g4Saving) return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      const last=sessionIndex>=sessionQueue.length-1;
+      void g4CommitBeforeTransition(last?'completed':'incomplete').then(result=>{
+        if(!result.ok)return;
+        if(last)finishSession(false);
+        else {sessionIndex++;renderExperience();}
+      });
+      return;
+    }
     saveCurrentAttempt(true);
     updateStandardStudyContext('active');
     if (sessionIndex >= sessionQueue.length - 1) return finishSession(false);
@@ -2843,6 +3278,22 @@
   }
 
   function finishSession(finalize = true) {
+    if(g4RemoteSessionBound && finalize){
+      if(g4Held || g4Saving)return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      void g4CommitRemoteBeforeTransition('completed').then(result=>{
+        if(result.ok)finishSession(false);
+      });
+      return;
+    }
+    if (g4JournalSessionBound && finalize) {
+      if(g4Held || g4Saving)return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      void g4CommitBeforeTransition('completed').then(result=>{
+        if(result.ok)finishSession(false);
+      });
+      return;
+    }
     if (finalize) finalizeCurrentAttempt();
     $('study-experience').hidden = true;
     $('study-start-panel').hidden = true;
@@ -2853,7 +3304,7 @@
     const summary = sessionRatingSummary(counts);
     const record = persistCurrentSession({ status: 'completed' });
     $('study-finished-summary').hidden = false;
-    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. Saved in Standard Practice history.`);
+    setNumericEmphasis($('study-finished-summary'), `${summary || 'No self-check ratings'}${record ? ` · ${record.hintCount} hints used` : ''}. ${g4RemoteSessionBound ? 'Remote revision staged in local Journal; Cloud ACK pending.' : 'Saved in Standard Practice history.'}`);
     renderFinishedDeckLinks();
     renderSessionReview();
     renderRecentSessions();
@@ -2887,6 +3338,47 @@
   }
 
   function endSessionEarly() {
+    if(g4RemoteSessionBound){
+      if(g4Held || g4Saving)return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      const attempted=attemptedSessionSlices();
+      if(!attempted.queue.length)return;
+      void g4CommitRemoteBeforeTransition('ended-early').then(result=>{
+        if(!result.ok)return;
+        sessionQueue=attempted.queue;sessionAttempts=attempted.attempts;
+        sessionIndex=Math.max(0,sessionQueue.length-1);currentAttempt=sessionAttempts[sessionIndex]||null;
+        closeEndSessionDialog();
+        $('study-experience').hidden=true;$('study-start-panel').hidden=true;$('study-finished').hidden=false;
+        $('study-finished').querySelector('h2').textContent='Session ended.';
+        $('study-finished-copy').textContent='Partial Session staged in local Journal; Cloud ACK pending.';
+        setNumericEmphasis($('study-finished-summary'),'Local Remote Revision staged; Cloud ACK pending.');
+        $('study-finished-summary').hidden=false;
+        renderFinishedDeckLinks();renderSessionReview();renderRecentSessions();
+      });
+      return;
+    }
+    if (g4JournalSessionBound) {
+      if(g4Held || g4Saving || !g4NativeActive())return;
+      const item=sessionQueue[sessionIndex];if(item)snapshotResponse(item);
+      const attempted=attemptedSessionSlices();
+      const count=attempted.queue.length;
+      const planned=currentSessionPlannedCount||sessionQueue.length;
+      if(!count){$('study-end-session-copy').textContent='No activity yet. Continue before saving.';return;}
+      const button=$('study-end-session-save');if(button)button.disabled=true;
+      void g4CommitBeforeTransition('ended-early').then(result=>{
+        if(!result.ok)return;
+        sessionQueue=attempted.queue;sessionAttempts=attempted.attempts;
+        sessionIndex=Math.max(0,sessionQueue.length-1);currentAttempt=sessionAttempts[sessionIndex]||null;
+        closeEndSessionDialog();
+        $('study-experience').hidden=true;$('study-start-panel').hidden=true;$('study-finished').hidden=false;
+        $('study-finished').querySelector('h2').textContent='Session ended.';
+        $('study-finished-copy').textContent=`You worked through ${count} of ${planned} experiences from ${sourceLabel(lastSessionSpec?.mode||sourceMode)}.`;
+        $('study-finished-summary').hidden=false;
+        setNumericEmphasis($('study-finished-summary'),'Partial session durably saved in local Journal.');
+        renderFinishedDeckLinks();renderSessionReview();renderRecentSessions();
+      }).finally(()=>{if(button)button.disabled=g4Held;});
+      return;
+    }
     if (viewingSavedSession) return closeEndSessionDialog();
     const item = sessionQueue[sessionIndex];
     if (item && currentAttempt) {
@@ -2928,6 +3420,8 @@
   }
 
   function autosavePartialSessionOnLeave() {
+    // pagehide cannot safely await an atomic Journal transaction. No legacy fallback.
+    if (g4JournalSessionBound || g4RemoteSessionBound) return;
     if (viewingSavedSession || !currentSessionId || !$('study-experience') || $('study-experience').hidden) return;
     const item = sessionQueue[sessionIndex];
     if (item && currentAttempt) {
@@ -2948,7 +3442,67 @@
     });
   }
 
-  function startSession() {
+  // SOURCE OFF: an existing E7a Mirror can propose exactly one NEW Session
+  // for the existing G4 Journal. This does not authorize Cloud transport.
+  async function verifyE7aG4Start(intendedQueue,sessionId) {
+    if(!g4E7aNewSessionPilot) return null;
+    if(!window.WLPStage7G4ReleasePolicy?.isExistingE7aPilotAccount?.(g4E7aLease?.identityNow?.()?.accountId))
+      throw Error('existing-E7a pilot account changed or was never approved');
+    const owner=window.WLPG4StandardOwnerReadOnly,gate=window.WLPStage7E7aSessionOwnerGate;
+    if(!owner?.inspectNewSession||!owner?.inspectEnrolledStart||
+       !gate?.inspectReadOnly||!gate?.decideNewSession||!g4E7aLease)
+      throw Error('existing-E7a Session owner modules missing');
+    if(readStudySessions().some(s=>clean(s?.sessionId)===sessionId))
+      throw Error('Session ID already exists in legacy history');
+    for(const key of ['WLP Canonical Standard Practice Pending V1',
+                       'WLP Canonical Standard Session Pending V1']){
+      const raw=localStorage.getItem(key);
+      if(raw!==null){let records;try{records=JSON.parse(raw);}catch(_){throw Error('legacy pending queue malformed');}
+        if(!Array.isArray(records)||records.length)throw Error('legacy pending queue not empty');}
+    }
+    const studyRows=intendedQueue.map(item=>rowByWordId.get(clean(item.wordId)));
+    if(studyRows.some(row=>!row)) throw Error('selected TSV row missing');
+    const proof=await gate.inspectReadOnly({indexedDB:window.indexedDB,
+      storage:localStorage,boundary:window.WLPG4LibraryBoundary,studyRows,cryptoImpl:crypto});
+    const read=await owner.inspectNewSession({indexedDB:window.indexedDB,sessionId});
+    const live=await g4E7aLease.verifyIdentity();
+    const decision=gate.decideNewSession({buildApproved:true,route:g4E7aRoute,
+      identity:live,proof,sessionId,existingSession:false,
+      legacyPendingCount:await window.WLPG4AccountLocalWriterBridgeSOURCEOFF.readExistingOutbox(indexedDB),
+      ownerRead:read,sessionOwner:null});
+    if(decision?.writer!=='g4-journal-candidate'||decision?.cloudWriteAuthorized!==false)
+      throw Error('unverified existing-E7a Session writer decision');
+    return {decision,proof};
+  }
+
+  async function startSession() {
+    if (g4StartBusy) return;
+    // A second Start must never silently abandon a still-active/held G4
+    // Session or its typed draft, regardless of which button invokes it.
+    if (!g4MayReplaceSession()) {
+      g4Hold('previous G4 Session is not durably ended; End & save first');
+      return;
+    }
+    if (G4_LOCAL_STANDARD_RELEASE_APPROVED && document.body.classList.contains('wlp-ai-study-mode')) {
+      g4Hold('Limited pilot supports Standard only; AI Writer not approved'); return;
+    }
+    if (G4_STANDARD_JOURNAL_SOURCE_ENABLED && !g4WriterConfigured()) {
+      g4Hold('authenticated Journal writer missing; legacy fallback forbidden');
+      return;
+    }
+    // For an approved writer, require a fresh JWT/Authority start proof before
+    // allocating a new Session or local Study Context. Never activate by URL.
+    if (g4WriterConfigured()) {
+      g4StartBusy=true;
+      const button=$('study-start');if(button)button.disabled=true;
+      try {
+        if(!g4DriverValid())throw Error('verified local-only Journal driver invalid');
+        const proof=await g4NativeDriver.refreshStartProof();
+        if(proof?.ready!==true||g4NativeDriver.ready!==true)
+          throw Error('authenticated start proof unavailable');
+      }catch(error){g4Hold('start blocked: '+String(error?.message||error));return;}
+      finally{g4StartBusy=false;if(button)button.disabled=false;}
+    }
     updateEligibility();
     if (!currentPool.length) return;
     const size = Number($('study-session-size').value) || 10;
@@ -2960,15 +3514,45 @@
       rangeEnd: clampDeck($('study-range-end').value),
       size
     };
-    sessionQueue = buildQueue(currentPool, size, sourceMode);
+    const intendedQueue = buildQueue(currentPool, size, sourceMode);
+    if (g4WriterConfigured()) {
+      // built-set cannot currently pass the original G3 wire and Journal.
+      // Do not call ensureTemporaryStudySetBuild() or allocate any Session.
+      const source = sourceMode === 'study-set' ? {sourceType:'built-set',source:{wordIds:intendedQueue.map(item=>clean(item.wordId))}}
+        : standardStudyContextSource(sourceMode, intendedQueue);
+      if(!g4NativeDriver.supportsSource(source)) {
+        g4Hold('this source is not supported by the verified E7b paired wire');
+        return;
+      }
+    }
+    // Allocate the ID before a Context exists; the durable Journal must
+    // prove it is unowned. A HOLD does not start or save a legacy Session.
+    const proposedSessionId=g4E7aNewSessionPilot ? makeEventId().replace(/^studyq-/, 'studyq-session-') : '';
+    if(g4E7aNewSessionPilot){
+      g4StartBusy=true;const b=$('study-start');if(b)b.disabled=true;
+      try { g4E7aStartReceipt=await verifyE7aG4Start(intendedQueue,proposedSessionId); }
+      catch(error){g4E7aStartReceipt=null;g4StartBusy=false;if(b)b.disabled=false;
+        g4Hold('existing-E7a pre-start: '+String(error?.message||error));return;}
+      // Keep the Start button locked until durable enrollment is read back.
+      // Never allow another Start to reassign this Session in between.
+    }
+    sessionQueue = intendedQueue;
     currentSessionPlannedCount = sessionQueue.length;
     sessionIndex = 0;
     sessionAttempts = [];
     currentAttempt = null;
     viewingSavedSession = false;
-    currentSessionId = makeEventId().replace(/^studyq-/, 'studyq-session-');
+    currentSessionId = g4E7aNewSessionPilot ? proposedSessionId : makeEventId().replace(/^studyq-/, 'studyq-session-');
     currentSessionStartedAt = new Date().toISOString();
-    startStandardStudyContext();
+    g4JournalSessionBound = g4WriterConfigured();
+    g4RemoteSessionBound = false;
+    g4Held = false;g4Saving = false;g4SessionTerminalSaved=false;
+    const created = await startStandardStudyContext();
+    if(g4E7aNewSessionPilot){g4StartBusy=false;const b=$('study-start');if(b)b.disabled=false;}
+    if(g4JournalSessionBound && (!created || g4Held)) {
+      g4Hold('Context start could not be verified');
+      return; // No answer UI on HOLD.
+    }
     renderExperience();
   }
 
@@ -2986,6 +3570,20 @@
   }
 
   function changeSet() {
+    if(!g4MayReplaceSession()){ 
+      g4Hold('previous Journal/Remote Session is not durably ended; End & save first');
+      return;
+    }
+    if(g4RemoteSessionBound && (g4Held || !$('study-experience').hidden)) {
+      g4Hold('Received Standard Session is still active; End & save before changing sets');
+      return;
+    }
+    if (g4JournalSessionBound && (g4Held || !$('study-experience').hidden)) {
+      g4Hold('cannot change sets during unverified Journal-owned Session');
+      return;
+    }
+    g4JournalSessionBound = false;
+    g4RemoteSessionBound = false;
     historyRatingEditGrace.clear();
     historyRatingNotice.clear();
     viewingSavedSession = false;
@@ -3199,6 +3797,12 @@
       recentSessionShowTargets = Boolean(event.currentTarget.checked);
       renderRecentSessions();
     });
+    // Only a trusted receiver/bootstrap may dispatch after authenticating the
+    // account and reading committed IndexedDB frames. No write on refresh.
+    window.addEventListener('wlp-g4-verified-history-ready', () => {
+      if (window.WLPG4VerifiedStandardHistory?.isReady?.() !== true) return;
+      renderRecentSessions();
+    });
     $('study-start').addEventListener('click', startSession);
     $('study-show-need').addEventListener('click', () => {
       $('study-need-block').hidden = false;
@@ -3206,7 +3810,11 @@
     });
     $('study-show-hint').addEventListener('click', showNextHint);
     $('study-show-target').addEventListener('click', showTarget);
+    $('study-response').addEventListener('blur', () => {
+      if(g4JournalSessionBound && g4DraftDirty) void g4FlushDraftCheckpoint().catch(() => {});
+    });
     $('study-response').addEventListener('input', () => {
+      if (g4JournalSessionBound) g4QueueDraftCheckpoint();
       const item = sessionQueue[sessionIndex];
       if (!item || !currentAttempt?.targetShown) return;
       snapshotResponse(item);
@@ -3325,20 +3933,180 @@
   installEvents();
   (async () => {
     try {
-      const response = await fetch(MASTER_URL, { cache: 'no-cache' });
-      if (!response.ok) throw new Error(`Master TSV ${response.status}`);
-      rows = applyOverrides(parseTSV(await response.text()));
+      // Never silently run the Static TSV / Legacy Writer on a brand-new G4
+      // Canonical Mirror. The source selection and Writer ownership are atomic
+      // at the Study Hub startup boundary, before any new Session can begin.
+      const routeApi = window.WLPG4StudySourceRouting;
+      if (!routeApi?.inspect) throw Error('Study source ownership module missing');
+      const sourceRoute = await routeApi.inspect({indexedDB:window.indexedDB});
+      if (sourceRoute.mode === 'hold') throw Error(sourceRoute.reason);
+      if (sourceRoute.mode === 'new-g4-mirror') {
+        if (!G4_LOCAL_STANDARD_RELEASE_APPROVED)
+          throw Error('This first-browser G4 Mirror is protected. Normal Standard learning remains OFF until its Writer and Cloud transport are approved.');
+        const reader = window.WLPG4NewMirrorReader;
+        const composer = window.WLPG4AccountLocalWriterBridgeSOURCEOFF;
+        if (!reader?.preview || !composer?.make)
+          throw Error('G4 verified Mirror Reader or proven Journal composer missing');
+        const selected = await reader.preview();
+        if (!Array.isArray(selected?.rows) || !selected.rows.length ||
+            selected.info?.normalStudyEnabled !== false)
+          throw Error('G4 Mirror source verification incomplete');
+        const bound = composer.make({root:window,storage:localStorage,
+          indexedDB:window.indexedDB,cryptoImpl:window.crypto,fetchImpl:window.fetch.bind(window),
+          studyContext:studyContextApi});
+        const prepared = await bound.prepareLocalOnly({approved:true});
+        window.WLPStage7G4ReleasePolicy.verifyAccount(prepared.accountId,'study');
+        if (!prepared?.driver?.approved || prepared.driver.cloudWrite !== false ||
+            prepared.studyHubEnabled!==false || prepared.cloudSyncEnabled!==false)
+          throw Error('Local-only native Writer contract invalid');
+        // Bind the E7b atomic receiver to the exact same Journal ownership
+        // lease; never construct an independent account identity for Continue.
+        // This path is unreachable in the ordinary SOURCE-OFF build.
+        const pairedFactory = window.WLPG4PairedTransportComposerSOURCEOFF;
+        const receivedFactory = window.WLPG4ReceivedContinueBridge;
+        if (!pairedFactory?.make || !receivedFactory?.make)
+          throw Error('Previously proven paired transport/Continue modules absent');
+        const paired = pairedFactory.make({root:window,indexedDB:window.indexedDB,
+          fetchImpl:window.fetch.bind(window),localLease:prepared});
+        const received = receivedFactory.make({root:window,indexedDB:window.indexedDB,
+          storage:localStorage,localLease:prepared,transport:paired});
+        // Remote materialization is only permitted after explicit build approval
+        // AND a matching, durably installed local G4 Mirror.
+        const receivedReady = await received.initialize({approved:true});
+        if(receivedReady.ready!==true && receivedReady.deferred!==true)
+          throw Error('Received Continue cannot be verified');
+        // Bind only the exact existing, trusted E7b runtime; no legacy adoption.
+        if(receivedReady.ready===true){
+          const remoteFactory=window.WLPG4RemoteStandardResumeSOURCEOFF;
+          if(!remoteFactory?.make)throw Error('Proven remote Resume route missing');
+          g4ReceivedResume=remoteFactory.make({
+            runtime:window.WLPE7bContinueRuntime,
+            stageDurably:args=>received.stageRemoteRevision(args)
+          });
+        }
+        rows = selected.rows;
+        g4NativeDriver = prepared.driver;
+        g4PairedTransport = paired;
+        if (window.WLPStage7G4ReleasePolicy?.gate('paired')) {
+          const coordinator=window.WLPStage7G4ForegroundSync;
+          if(!coordinator?.make)throw Error('Reviewed Stage7 foreground coordinator missing');
+          g4ForegroundSync=coordinator.make({root:window,transport:paired,lease:prepared,
+            policy:window.WLPStage7G4ReleasePolicy,
+            sourceGuard:()=>routeApi.inspect({indexedDB:window.indexedDB}),
+            legacyOutboxCount:()=>composer.readExistingOutbox(window.indexedDB)});
+          g4ForegroundSync.start();
+          g4ShowForegroundStatus(g4ForegroundSync.status());
+        }
+        G4_STANDARD_JOURNAL_SOURCE_ENABLED = true;
+        g4CloudMirrorSelected = true;
+        const note = $('study-start-note');
+        if (note) note.textContent='Account-bound local Journal · Cloud transport is not active yet.';
+      } else if (sourceRoute.mode === 'legacy') {
+        if (G4_LOCAL_STANDARD_RELEASE_APPROVED) throw Error('Limited G4 pilot requires verified new-browser Mirror; no Static TSV fallback');
+        const response = await fetch(MASTER_URL, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`Master TSV ${response.status}`);
+        rows = applyOverrides(parseTSV(await response.text()));
+        // Independent existing-E7a pilot. Build flag is OFF here. Unlike the
+        // first-browser path, no Mirror install or G4 source substitution.
+        // The reviewed pilot must NEVER change Standard Writer ownership for
+        // any other account on the shared Stage7 origin. Prove the account
+        // through the existing read-only Cloud Library boundary FIRST.
+        const e7aPilotPolicy=window.WLPStage7G4ReleasePolicy;
+        let e7aPilotAccountApproved=false;
+        if(e7aPilotPolicy?.gate('existing-e7a-study')===true){
+          let b=null;
+          try{b=await window.WLPG4LibraryBoundary?.inspect?.();}
+          catch(_){/* Cannot prove this is the allowlisted account; remain Legacy. */}
+          e7aPilotAccountApproved=b?.verdict?.code==='EXISTING_ACCOUNT_LIBRARY'&&
+            b?.remote?.identityVerified===true&&b?.remote?.authorityVerified===true&&
+            e7aPilotPolicy.isExistingE7aPilotAccount?.(b.remote.userId)===true;
+        }
+        if(e7aPilotAccountApproved){
+          const composer=window.WLPG4AccountLocalWriterBridgeSOURCEOFF;
+          if(!composer?.make||!window.WLPStage7E7aSessionOwnerGate?.inspectReadOnly)
+            throw Error('E7a Journal binding/witness unavailable');
+          const built=composer.make({root:window,storage:localStorage,
+            indexedDB:window.indexedDB,cryptoImpl:window.crypto,
+            fetchImpl:window.fetch.bind(window),studyContext:studyContextApi});
+          const lease=await built.prepareLocalOnly({approved:true});
+          window.WLPStage7G4ReleasePolicy.verifyAccount(lease.accountId,'existing-e7a-study');
+          if(!lease?.driver?.approved||lease.driver.cloudWrite!==false||
+            lease.studyHubEnabled!==false||lease.cloudSyncEnabled!==false)
+            throw Error('E7a local-only Journal contract not proven');
+          g4NativeDriver=lease.driver;g4E7aLease=lease;g4E7aRoute=sourceRoute;
+          G4_STANDARD_JOURNAL_SOURCE_ENABLED=true;g4E7aNewSessionPilot=true;
+          // Separate, reviewed transport approval. Without it this remains a
+          // local-only Journal pilot. Never impersonate a new-G4 Mirror.
+          if(window.WLPStage7G4ReleasePolicy?.gate('existing-e7a-paired')===true){
+            const pairedFactory=window.WLPG4PairedTransportComposerSOURCEOFF;
+            const verifier=window.WLPStage7E7aPairedWitness;
+            const coordinator=window.WLPStage7G4ForegroundSync;
+            if(!pairedFactory?.make||!verifier?.verifyPending||!coordinator?.make)
+              throw Error('E7a paired source/transport modules absent');
+            const legacyOutboxCount=()=>composer.readExistingOutbox(indexedDB);
+            const verifySource=async()=>{
+              const nowRoute=await routeApi.inspect({indexedDB:window.indexedDB});
+              if(nowRoute?.mode!=='legacy'||nowRoute.reason!=='existing-e7a-authority')
+                throw Error('E7a Library source changed');
+              return verifier.verifyPending({indexedDB:window.indexedDB,
+                identity:g4E7aLease.identityNow(),legacyOutboxCount,
+                studyRowsForWordIds:ids=>ids.map(w=>rowByWordId.get(String(w))),
+                inspectFresh:async(ids,studyRows)=>
+                  window.WLPStage7E7aSessionOwnerGate.inspectReadOnly({
+                    indexedDB:window.indexedDB,storage:localStorage,
+                    boundary:window.WLPG4LibraryBoundary,studyRows,cryptoImpl:crypto})});
+            };
+            const paired=pairedFactory.make({root:window,indexedDB:window.indexedDB,
+              fetchImpl:window.fetch.bind(window),localLease:lease,
+              pairedMode:'existing-e7a-authority',verifyExistingE7aSource:verifySource});
+            // Reuse the existing E7b atomic receiver and durable Continue
+            // overlay for this same authenticated account/Journal lease.
+            // An empty/deferred Inbox is not treated as a successful receive.
+            const receiverFactory=window.WLPG4ReceivedContinueBridge;
+            if(!receiverFactory?.make)throw Error('Proven E7b Continue receiver missing');
+            // Brave may have an existing E7a Mirror but no G4 Journal yet.
+            // The approved pilot route prepares ONLY the empty, independent
+            // E7b schema, not a Library import/replace or E7a mutation.
+            const preparedReceiver=await paired.preparePilotReceiverJournal({approved:true});
+            if(preparedReceiver?.ready!==true||preparedReceiver.version!==1)
+              throw Error('Existing E7a receiver Journal not prepared');
+            const received=receiverFactory.make({root:window,indexedDB:window.indexedDB,
+              storage:localStorage,localLease:lease,transport:paired});
+            const receivedReady=await received.initialize({approved:true});
+            if(receivedReady.ready!==true&&receivedReady.deferred!==true)
+              throw Error('Verified E7b Continue receiver cannot initialize');
+            if(receivedReady.ready===true){
+              const remoteFactory=window.WLPG4RemoteStandardResumeSOURCEOFF;
+              if(!remoteFactory?.make)throw Error('Proven remote Resume route missing');
+              g4ReceivedResume=remoteFactory.make({
+                runtime:window.WLPE7bContinueRuntime,
+                stageDurably:args=>received.stageRemoteRevision(args)});
+            }
+            g4PairedTransport=paired;
+            g4ForegroundSync=coordinator.make({root:window,transport:paired,
+              lease,policy:window.WLPStage7G4ReleasePolicy,
+              sourceGuard:verifySource,legacyOutboxCount,
+              pairedMode:'existing-e7a-authority'});
+            g4ForegroundSync.start();
+          }
+          const note=$('study-start-note');if(note)note.textContent=
+            g4ForegroundSync ?
+              'Existing E7a Library · scoped G4 Session pilot: local Journal + Cloud transport active; older Sessions remain Legacy.' :
+              'Existing E7a Library · new Standard Sessions use guarded local Journal; Cloud G4 transport remains OFF.';
+        }
+      } else throw Error('Unrecognized Study source mode');
       rowByWordId = new Map(rows.map(row => [clean(row.WordID), row]).filter(([wordId]) => wordId));
       reviewByWordId = await readReviewMap();
       setDefaults();
-      const openedContinueContext = openRequestedContinueContext();
+      const openedContinueContext = await openRequestedContinueContext();
       const requestedSession = new URLSearchParams(location.search).get('session');
       if (!openedContinueContext && requestedSession) showSavedSession(requestedSession);
       else if (!openedContinueContext && location.hash === '#recent-sessions') $('study-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
       console.error('Study Q could not load', error);
-      $('study-eligibility').innerHTML = '<strong>Study data could not be loaded</strong><span>Reload when the Master TSV is available.</span>';
+      $('study-eligibility').textContent = 'Standard Study HOLD: ' + String(error?.message||error) + '. Existing data was not replaced. Do not switch to Static TSV or retry a save.';
       $('study-start').disabled = true;
+      const note=$('study-start-note');if(note)note.textContent='Account/Library/Writer verification is required before Study can begin.';
     }
   })();
 })();
