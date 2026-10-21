@@ -60,6 +60,15 @@
     'Local Edits: '+fmt(local.localEditCount),
     'Study Journal: '+(local.journalPresent?'present':'not detected'),
     'Other preserved WLP storage: '+(Number(local.additionalLocalKeyCount||0)+Number(local.additionalSessionKeyCount||0)+Number(local.additionalDbCount||0))+' item(s)',
+    'Additional local key types (names only, not validated sync records): per-card progress '+fmt(local.additionalCategories?.perCardProgress)+
+      ', metadata/authoring '+fmt(local.additionalCategories?.metadataAuthoring)+
+      ', study/review '+fmt(local.additionalCategories?.studyReviewHistory)+
+      ', settings '+fmt(local.additionalCategories?.settingsInterface)+
+      ', backup/rollback '+fmt(local.additionalCategories?.backupRollback)+
+      ', unclassified '+fmt(local.additionalCategories?.unclassifiedLocal)+
+      ', session keys '+fmt(local.additionalSessionKeyCount)+
+      ', extra databases '+fmt(local.additionalDbCount),
+    'Storage inventory held unchanged during Cloud check; these categories do NOT approve synchronization',
     'Cloud session: '+(renewal?.renewed===true?'renewed securely':'existing session still valid'),
     'Status: Library read only — no Library/Outbox/Cloud records changed. Only saved Auth credentials may be renewed. Sync and Library installation remain disabled.'
    ].join(' · ');

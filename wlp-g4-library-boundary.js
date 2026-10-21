@@ -54,24 +54,52 @@
     const count=Array.isArray(parsed)?parsed.length:Object.keys(parsed).length;
     return {present:count>0,entries:count};
   }
+
+  // Categorize *names only*. The category is not proof of ownership, ACK,
+  // common base or sync eligibility. Never export names or stored values.
+  function classifyAdditionalKey(key){
+    if(/^fc:wordid:/i.test(key))return 'perCardProgress';
+    if(/^wlp:(?:learning-meta|classification-meta|local-additions|local-overrides)(?:[:\-]|$)/i.test(key))return 'metadataAuthoring';
+    if(/^wlp:(?:local-data-backup|local-data-restore|.*rollback)(?:[:\-]|$)/i.test(key)||/rollback/i.test(key))return 'backupRollback';
+    if(/^wlp:(?:ui-role|session-admin|review-settings|theme|locale|language|font|preferences)(?:[:\-]|$)/i.test(key))return 'settingsInterface';
+    if(/^wlp:(?:study|ai-study|review|quick-review|stage7:(?:activity|practice)|build-history|temporary-study-set|active-card-study-context|progress)(?:[:\-]|$)/i.test(key))return 'studyReviewHistory';
+    return 'unclassifiedLocal';
+  }
+  async function fingerprintInventory(pairs){
+    const ordered=pairs.sort((a,b)=>a[0].localeCompare(b[0]));
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(ordered)));
+    return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+
   async function inspectLocal(){
     if(typeof indexedDB.databases!=='function')fail('Browser does not support safe database discovery; stop');
     const known=new Set((await indexedDB.databases()).map(x=>x.name));
     let otherLocalKeys=0;
+    const categories={perCardProgress:0,metadataAuthoring:0,backupRollback:0,
+      settingsInterface:0,studyReviewHistory:0,unclassifiedLocal:0};
+    const inventoryPairs=[];
     if(typeof localStorage.length!=='number' || typeof localStorage.key!=='function')
       fail('Cannot enumerate local WLP keys safely');
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
-      if(k && /^(?:wlp(?:[ :_\-]|$)|fc:wordid:)/i.test(k) && !LOCAL_KEYS.includes(k))otherLocalKeys++;
+      if(k && /^(?:wlp(?:[ :_\-]|$)|fc:wordid:)/i.test(k) && !LOCAL_KEYS.includes(k)){
+        otherLocalKeys++;
+        categories[classifyAdditionalKey(k)]++;
+        inventoryPairs.push(['local:'+k,localStorage.getItem(k)]);
+      }
     }
     // A browser can have older `WLP ...` and `fc:wordid:` study keys
     // even when the Canonical Mirror DB is absent. Preserve them all.
     let otherSessionKeys=0;
     if(typeof sessionStorage!=='undefined')for(let i=0;i<sessionStorage.length;i++){
       const k=sessionStorage.key(i);
-      if(k&&/^(?:wlp(?:[ :_\-]|$)|fc:wordid:)/i.test(k))otherSessionKeys++;
+      if(k&&/^(?:wlp(?:[ :_\-]|$)|fc:wordid:)/i.test(k)){
+        otherSessionKeys++;
+        inventoryPairs.push(['session:'+k,sessionStorage.getItem(k)]);
+      }
     }
     const additionalDatabases=[...known].filter(name=>/^wlp[-:]/i.test(name)&&!Object.values(DB).includes(name));
+    const inventoryFingerprint=await fingerprintInventory(inventoryPairs);
     const db={};for(const [k,name] of Object.entries(DB))db[k]=await openKnown(name,known);
     try{
       const [config,session]=db.shadow?await Promise.all([
@@ -94,7 +122,8 @@
         journalPresent:!!db.journal,hasLegacyEdits:edits.present,hasLegacyDrafts:drafts.present,
         localEditCount:edits.entries,localDraftCount:drafts.entries,deviceId,ownerMismatch:false,deviceMismatch:false,
         unknownLegacyData:otherLocalKeys>0||otherSessionKeys>0||additionalDatabases.length>0,mirrorAuthorityDifferent:false,
-        additionalLocalKeyCount:otherLocalKeys,additionalSessionKeyCount:otherSessionKeys,additionalDbCount:additionalDatabases.length};
+        additionalLocalKeyCount:otherLocalKeys,additionalSessionKeyCount:otherSessionKeys,additionalDbCount:additionalDatabases.length,
+        additionalCategories:categories,inventoryFingerprint};
       return res;
     }finally{for(const item of Object.values(db))item?.close();}
   }
@@ -167,6 +196,8 @@
        local.journalPresent!==after.journalPresent || local.pendingOutbox!==after.pendingOutbox ||
        local.localEditCount!==after.localEditCount || local.localDraftCount!==after.localDraftCount ||
        local.unknownLegacyData!==after.unknownLegacyData ||
+       local.inventoryFingerprint!==after.inventoryFingerprint ||
+       JSON.stringify(local.additionalCategories)!==JSON.stringify(after.additionalCategories) ||
        JSON.stringify(local.mirror)!==JSON.stringify(after.mirror) ||
        text(local.session?.userId)!==text(after.session?.userId))
       fail('Local data changed during Cloud inspection; no setup decision is valid');
@@ -176,7 +207,8 @@
     legacyV400Allowed:x.mirrorPresent&&x.mirrorValid&&
       x.mirror?.installSource!=='g4-first-browser-source-only-v1'&&
       x.mirror?.normalAutoSyncEnabled!==false,
-    mirrorCursor:int(x.mirror?.materializedSyncCursor),localEditCount:x.localEditCount,localDraftCount:x.localDraftCount,ownerMismatch:x.ownerMismatch,mirrorAuthorityDifferent:x.mirrorAuthorityDifferent,deviceMismatch:x.deviceMismatch,additionalLocalKeyCount:x.additionalLocalKeyCount,additionalSessionKeyCount:x.additionalSessionKeyCount,additionalDbCount:x.additionalDbCount};}
+    mirrorCursor:int(x.mirror?.materializedSyncCursor),localEditCount:x.localEditCount,localDraftCount:x.localDraftCount,ownerMismatch:x.ownerMismatch,mirrorAuthorityDifferent:x.mirrorAuthorityDifferent,deviceMismatch:x.deviceMismatch,additionalLocalKeyCount:x.additionalLocalKeyCount,additionalSessionKeyCount:x.additionalSessionKeyCount,additionalDbCount:x.additionalDbCount,
+    additionalCategories:{...x.additionalCategories}};}
   window.WLPG4LibraryBoundary=Object.freeze({inspect, classify});
-  if(typeof module==='object'&&module.exports)module.exports={classify,authorityValid,endpoint};
+  if(typeof module==='object'&&module.exports)module.exports={classify,authorityValid,endpoint,classifyAdditionalKey,fingerprintInventory};
 })();
