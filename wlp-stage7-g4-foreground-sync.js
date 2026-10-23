@@ -27,6 +27,8 @@ function make({root,transport,lease,policy,sourceGuard,legacyOutboxCount,
     policy.gate('paired')===true&&policy.gate('study')===true;
  let started=false,stopped=false,busy=false,dirty=false,scheduled=null,failure=0,lastError='',
   lastCloudAck='',lastPairedSeq=null,lastReceive=null,attempts=0,completedRuns=0;
+ // Pin the initially verified owner/Authority for the entire foreground controller.
+ let pinnedOwner=null;
  const listeners=[];
  const status=()=>Object.freeze({
   enabled:started&&!stopped,active:busy,failures:failure,lastError,
@@ -46,10 +48,13 @@ function make({root,transport,lease,policy,sourceGuard,legacyOutboxCount,
   if(!releaseAllowed())fail('Stage7 G4 release is not approved');
   if(transport.status?.().cloudSendEnabled!==true||transport.status?.().cloudReceiveEnabled!==true)
    fail('proven Paired transport is not approved');
-  const before=lease.identityNow();
-  policy.verifyAccount(before?.accountId,e7aMode?'existing-e7a-paired':'paired');
+  // Re-establish online proof BEFORE reading the cached lease. A failed JWT or
+  // Authority verification invalidates the cached proof, so requiring it first
+  // would otherwise cause an indefinite HOLD after a transient interruption.
   const proof=await lease.verifyIdentity();
-  if(!same(before,proof)||!same(before,lease.identityNow()))fail('owner/device/Authority changed');
+  if(!same(pinnedOwner,proof)||!same(proof,lease.identityNow()))
+    fail('owner/device/Authority changed');
+  policy.verifyAccount(proof?.accountId,e7aMode?'existing-e7a-paired':'paired');
   const source=await sourceGuard();
   if(e7aMode){
    if(source?.mode!=='existing-e7a-authority'||source.ready!==true)
@@ -58,8 +63,8 @@ function make({root,transport,lease,policy,sourceGuard,legacyOutboxCount,
    fail('only protected G4 Mirror may use Paired transport');
   const pending=await legacyOutboxCount();
   if(!Number.isSafeInteger(pending)||pending!==0)fail('legacy Canonical Outbox is nonempty or unknown');
-  if(!same(before,lease.identityNow()))fail('owner lease changed during pending checks');
-  return before;
+  if(!same(pinnedOwner,lease.identityNow()))fail('owner lease changed during pending checks');
+  return pinnedOwner;
  }
  async function run(reason='foreground'){
   if(!started||stopped)return status();
@@ -115,6 +120,10 @@ function make({root,transport,lease,policy,sourceGuard,legacyOutboxCount,
   if(started||stopped)fail('controller already started or stopped');
   // No calls occur on module import or constructor. Release approval only.
   if(!releaseAllowed())fail('Stage7 release approval not present');
+  const original=lease.identityNow();
+  if(original?.verified!==true)fail('initial online owner proof unavailable');
+  policy.verifyAccount(original.accountId,e7aMode?'existing-e7a-paired':'paired');
+  pinnedOwner=Object.freeze({...original});
   started=true;
   add(root,'online',()=>{clearScheduled();schedule(0);});
   add(root,'pageshow',()=>{clearScheduled();schedule(0);});
